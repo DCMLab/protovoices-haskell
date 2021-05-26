@@ -223,3 +223,10 @@ instance (Notation n) => Show (Hori n) where
 -- | 'Leftmost' specialized to the split, freeze, and horizontalize operations of the grammar.
 type PVLeftMost n = Leftmost (Split n) Freeze (Hori n)
 
+-- | A tag that distinguishes four different types of operations:
+--  terminal split, non-termal split, left ornament, and right ornament
+data Elaboration a b c d = ET !a  -- ^ marks a terminal split
+                           | EN !b -- ^ marks a non-terminal split
+                           | ER !c  -- ^ marks a right ornament
+                           | EL !d  -- ^ marks a left ornament
+  deriving (Eq, Ord, Show, Generic, Hashable, NFData)

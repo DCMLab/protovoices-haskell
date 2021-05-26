@@ -57,14 +57,6 @@ data EdgeEither a b = T !a  -- ^ marks an terminal edge (or some related object)
 -- helper type: enum for possible operations
 -- -----------------------------------------
 
--- | A tag that distinguishes four different types of operations:
---  terminal split, non-termal split, left ornament, and right ornament
-data Elaboration a b c d = ET !a  -- ^ marks a terminal split
-                           | EN !b -- ^ marks a non-terminal split
-                           | ER !c  -- ^ marks a right ornament
-                           | EL !d  -- ^ marks a left ornament
-  deriving (Eq, Ord, Show, Generic, Hashable, NFData)
-
 partitionElaborations
   :: Foldable t => t (Elaboration a b c d) -> ([a], [b], [c], [d])
 partitionElaborations = foldl' select ([], [], [], [])
