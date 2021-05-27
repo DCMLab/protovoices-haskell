@@ -1,6 +1,9 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module PVGrammar.Generate
   ( mkSplit
   , splitT
@@ -31,6 +34,8 @@ import qualified Data.HashSet                  as S
 import           Control.Monad                  ( foldM )
 import qualified Data.List                     as L
 import           Data.Foldable                  ( toList )
+import           GHC.Generics                   ( Generic )
+import           Control.DeepSeq                ( NFData )
 import           Data.Hashable                  ( Hashable )
 import qualified Data.HashMap.Strict           as HM
 
