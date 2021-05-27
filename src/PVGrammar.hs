@@ -85,26 +85,26 @@ data Ornament = FullNeighbor
               | LeftRepeatOfRight
               | RightRepeatOfLeft
               | RootNote
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 instance NFData Ornament
 
 data Passing = PassingMid
              | PassingLeft
              | PassingRight
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 instance NFData Passing
 
 data LeftOrnament = SingleLeftNeighbor
                   | SingleLeftRepeat
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 instance NFData LeftOrnament
 
 data RightOrnament = SingleRightNeighbor
                    | SingleRightRepeat
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 instance NFData RightOrnament
 
