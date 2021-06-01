@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedStrings #-}
 module PVGrammar.Generate
   ( mkSplit
   , splitT
@@ -40,6 +41,9 @@ import           GHC.Generics                   ( Generic )
 import           Control.DeepSeq                ( NFData )
 import           Data.Hashable                  ( Hashable )
 import qualified Data.HashMap.Strict           as HM
+import qualified Data.Text                     as T
+
+import           Data.Aeson                    ( ToJSON, toJSON, object, (.=) )
 
 -- building operations
 -- ===================
@@ -284,6 +288,17 @@ type Orig n = Elaboration (Edge n, Ornament) (InnerEdge n, Passing) (n, RightOrn
 
 newtype NotesOrig n = NotesOrig [(n, Orig n)]
   deriving (Show, Eq, Ord, Generic, NFData, Hashable)
+
+instance (ToJSON n) => ToJSON (NotesOrig n) where
+  toJSON (NotesOrig pairs) = object ["notes-origs" .= map origToJSON pairs] where
+    origToJSON (n, (ET (e,o))) = object ["note" .= n,
+                                       (T.pack $ show o)   .= e]
+    origToJSON (n, (EN (e,o))) = object ["note" .= n,
+                                       (T.pack $ show o)   .= e]
+    origToJSON (n, (EL (m,o))) = object ["note" .= n,
+                                       (T.pack $ show o)   .= m]
+    origToJSON (n, (ER (m,o))) = object ["note" .= n,
+                                       (T.pack $ show o)   .= m]
 
 applySplitOrig
   :: forall n
