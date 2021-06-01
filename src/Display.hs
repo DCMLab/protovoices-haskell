@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Display where
 
 import           Common
@@ -28,6 +30,9 @@ import           System.Process                 ( callCommand )
 import           Data.Bifunctor                 ( bimap )
 import           Data.String                    ( IsString )
 
+import           GHC.Generics                   ( Generic )
+import           Data.Aeson                    ( ToJSON, FromJSON )
+
 -- type PVDiagram b = QDiagram b V2 Double Any
 
 -- derivation graphs
@@ -45,7 +50,9 @@ data DerivationGraph a e = DGraph
   , dgFoot :: [DerivTrans a e]
   , dgRoot :: [DerivTrans a e]
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+
+instance (ToJSON a, ToJSON e) => ToJSON (DerivationGraph a e)
 
 type DerivationOp a e = ST.StateT (DerivationGraph a e) (Either String)
 
