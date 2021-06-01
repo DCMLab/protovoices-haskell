@@ -19,6 +19,7 @@ import           GHC.Generics                   ( Generic )
 import           Control.DeepSeq                ( NFData )
 import           Data.Hashable                  ( Hashable )
 import qualified Data.HashMap.Strict           as HM
+import           Data.Aeson                    ( ToJSON, toJSON )
 
 -- element types
 -- =============
@@ -67,6 +68,12 @@ data Edges n = Edges
                }
   deriving (Eq, Ord, Generic, NFData, Hashable)
 
+instance (ToJSON n) => ToJSON (Edges n)
+
+instance (ToJSON a) => ToJSON (MS.MultiSet a) where
+  toJSON ms = toJSON $ MS.toList ms
+
+
 instance (Notation n) => Show (Edges n) where
   show (Edges ts nts) = "{" <> L.intercalate "," (tts <> tnts) <> "}"
    where
@@ -88,6 +95,7 @@ data Ornament = FullNeighbor
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 instance NFData Ornament
+instance ToJSON Ornament
 
 data Passing = PassingMid
              | PassingLeft
@@ -95,18 +103,21 @@ data Passing = PassingMid
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 instance NFData Passing
+instance ToJSON Passing
 
 data LeftOrnament = SingleLeftNeighbor
                   | SingleLeftRepeat
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 instance NFData LeftOrnament
+instance ToJSON LeftOrnament
 
 data RightOrnament = SingleRightNeighbor
                    | SingleRightRepeat
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 instance NFData RightOrnament
+instance ToJSON RightOrnament
 
 isRepetitionOnLeft :: Ornament -> Bool
 isRepetitionOnLeft FullRepeat        = True
@@ -230,3 +241,6 @@ data Elaboration a b c d = ET !a  -- ^ marks a terminal split
                            | ER !c  -- ^ marks a right ornament
                            | EL !d  -- ^ marks a left ornament
   deriving (Eq, Ord, Show, Generic, Hashable, NFData)
+
+
+instance (ToJSON a, ToJSON b,ToJSON c,ToJSON d) => ToJSON (Elaboration a b c d)
