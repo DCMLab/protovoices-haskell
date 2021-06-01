@@ -34,6 +34,8 @@ import           Data.Typeable                  ( Proxy(Proxy) )
 import           Musicology.Pitch               ( Notation(..) )
 import qualified Text.ParserCombinators.ReadP  as ReadP
 import           Data.Hashable                  ( Hashable )
+import qualified Data.Aeson                    as JSON
+import qualified Data.Text                     as T
 
 -- StartStop
 -- =========
@@ -63,6 +65,12 @@ instance Functor StartStop where
   fmap _ (:⋊)      = (:⋊)
   fmap _ (:⋉)      = (:⋉)
   fmap f (Inner a) = Inner $ f a
+
+instance (JSON.ToJSON a) =>  JSON.ToJSON (StartStop a) where
+  toJSON (:⋊)      = JSON.String $ T.pack "start"
+  toJSON (:⋉)      = JSON.String $ T.pack "stop"
+  toJSON (Inner a) = JSON.toJSON a
+
 
 -- some helper functions for StartStop
 
