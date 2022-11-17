@@ -1,0 +1,208 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Pipes.Group.Tutorial</title><link href="linuwial.css" rel="stylesheet" type="text/css" title="Linuwial" /><link rel="stylesheet" type="text/css" href="quick-jump.css" /><link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400i,700" /><script src="haddock-bundle.min.js" async="async" type="text/javascript"></script><script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { processClass: "mathjax", ignoreClass: ".*" } });</script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script></head><body><div id="package-header"><span class="caption">pipes-group-1.0.12: Group streams into substreams</span><ul class="links" id="page-menu"><li><a href="src/Pipes.Group.Tutorial.html">Source</a></li><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul></div><div id="content"><div id="module-header"><table class="info"><tr><th>Safe Haskell</th><td>Safe-Inferred</td></tr><tr><th>Language</th><td>Haskell2010</td></tr></table><p class="caption">Pipes.Group.Tutorial</p></div><div id="table-of-contents"><div id="contents-list"><p class="caption" onclick="window.scrollTo(0,0)">Contents</p><ul><li><a href="#g:1">Motivation</a></li><li><a href="#g:2">FreeT</a></li><li><a href="#g:3">How FreeT Works</a></li><li><a href="#g:4">Conclusion</a></li></ul></div></div><div id="description"><p class="caption">Description</p><div class="doc"><p><code>pipes-group</code> builds upon <code>pipes</code> to establish idioms for grouping streams
+    into sub-streams without collecting elements into memory.  This tutorial
+    assumes familiarity with <code>pipes</code> and <code>pipes-parse</code>.</p></div></div><div id="synopsis"><details id="syn"><summary>Synopsis</summary><ul class="details-toggle" data-details-id="syn"></ul></details></div><div id="interface"><a href="#g:1" id="g:1"><h1>Motivation</h1></a><div class="doc"><p>Dividing a stream into sub-streams is non-trivial.  To illustrate the
+    problem, consider the following task: limit a stream to the first three
+    groups of elements (a group means consecutive equal elements).</p><p>The wrong way to do it is to read each group into memory like this:</p><pre>import Lens.Family.State.Strict (zoom)
+import Pipes
+import Pipes.Parse
+import qualified Pipes.Prelude as P
+
+threeGroups :: (Monad m, Eq a) =&gt; Producer a m () -&gt; Producer a m ()
+threeGroups p0 = loop 3 p0
+  where
+    loop 0 _ = return ()
+    loop n p = do
+        (as, p') &lt;- lift $ runStateT (zoom group drawAll) p
+        each as
+        loop (n - 1) p'</pre><p>The first problem is that this approach does not output any elements from
+    each group until after parsing the entire group:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>runEffect $ threeGroups P.stdinLn &gt;-&gt; P.stdoutLn
+</code></strong>1&lt;Enter&gt;
+1&lt;Enter&gt;
+2&lt;Enter&gt;
+1
+1
+2&lt;Enter&gt;
+2&lt;Enter&gt;
+3&lt;Enter&gt;
+2
+2
+2
+4&lt;Enter&gt;
+3
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>
+</code></strong></pre><p>Worse, this program will crash without outputting a single value if fed an
+    infinitely long group of identical elements:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>runEffect $ threeGroups (each (repeat 1)) &gt;-&gt; P.print
+</code></strong>&lt;Consumes all memory and crashes&gt;
+</pre><p>A better approach is to just stream directly from the first three groups
+    instead of storing the groups in intermediate lists:</p><pre>import Lens.Family ((^.))
+import Pipes
+import Pipes.Parse
+import qualified Pipes.Prelude as P
+
+threeGroups :: (Monad m, Eq a) =&gt; Producer a m () -&gt; Producer a m ()
+threeGroups p0 = loop 3 p0
+  where
+    loop 0 _ = return ()
+    loop n p = do
+        p' &lt;- p ^. group
+        loop (n - 1) p'</pre><p>This will run in constant memory and stream values immediately:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>runEffect $ threeGroups P.stdinLn &gt;-&gt; P.stdoutLn
+</code></strong>1&lt;Enter&gt;
+1
+1&lt;Enter&gt;
+1
+2&lt;Enter&gt;
+2
+2&lt;Enter&gt;
+2
+2&lt;Enter&gt;
+2
+3&lt;Enter&gt;
+3
+4&lt;Enter&gt;
+</pre><p>However, this code is not very modular: we have to integrate our group
+    creation logic with our group consumption logic.  This conflicts with the
+    <code>pipes</code> philosophy of decoupling streaming programs into modular components.</p><p>An more modular approach would be to split our logic into three steps:</p><ul><li>Split our <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> into groups</li><li>Take the first three groups</li><li>Join these three groups back into a <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code></li></ul><p>But how do we split our <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> into groups without loading an entire
+    group into memory?  We want to avoid solutions like the following code:</p><pre>import Control.Monad (when, liftM2)
+import Lens.Family.State.Strict (zoom)
+import Pipes.Parse
+
+split :: (Monad m, Eq a) =&gt; Producer a m () -&gt; Producer [a] m ()
+split p = do
+    ((as, eof), p') &lt;- lift (runStateT parser p)
+    yield as
+    when (not eof) (split p')
+  where
+    parser = liftM2 (,) (zoom group drawAll) isEndOfInput</pre><p>... because then we're back where we started, loading entire groups into
+    memory.</p></div><a href="#g:2" id="g:2"><h1>FreeT</h1></a><div class="doc"><p>Fortunately, you can group elements while still streaming individual
+    elements at a time.  The <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> type from the <code>free</code> package solves this
+    problem by allowing us to build &quot;linked lists&quot; of <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s.  This lets
+    you work with streams in a list-like manner.</p><p>The key idea is that:</p><pre>-- '~' means &quot;is analogous to&quot;
+
+-- If a Producer is like a list
+Producer a m ()            ~   [a]
+
+-- ... then a 'FreeT'-delimited 'Producer' is like a list of lists
+FreeT (Producer a m) m ()  ~  [[a]]</pre><p>Think of <code>(FreeT (Producer a m) m ())</code> as a &quot;list of <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s&quot;.
+    <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> nests each subsequent <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> within the return value of the
+    previous <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> so that you cannot access the next <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> until you
+    completely drain the current <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>.  However, you rarely need to work
+    with <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> directly.  Instead, you can structure most things using
+    &quot;splitters&quot;, &quot;transformations&quot; and &quot;joiners&quot;:</p><pre>-- A &quot;splitter&quot;
+Producer a m ()           -&gt; FreeT (Producer a m) m ()  ~   [a]  -&gt; [[a]]
+
+-- A &quot;transformation&quot;
+FreeT (Producer a m) m () -&gt; FreeT (Producer a m) m ()  ~  [[a]] -&gt; [[a]]
+
+-- A &quot;joiner&quot;
+FreeT (Producer a m) m () -&gt; Producer a m ()            ~  [[a]] -&gt;  [a]</pre><p>An example splitter is <code>(view groups)</code>, which splits a <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> into
+    <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>-delimited <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s, one for each group of consecutive equal
+    elements:</p><pre>view groups :: (Eq a, Monad m) =&gt; Producer a m x -&gt; FreeT (Producer a m) m x</pre><p>An example transformation is <code>(takes 3)</code>, which takes the first three
+    <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s from a <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> and drops the rest:</p><pre>takes 3 :: Monad m =&gt; FreeT (Producer a m) m () -&gt; FreeT (Producer a m) m ()</pre><p>An example joiner is <code>concats</code>, which collapses a <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> of <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s
+    back down into a single <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>:</p><pre>concats :: Monad m =&gt; FreeT (Producer a m) m x -&gt; Producer a m x</pre><p>If you compose these three functions together, you will create a function
+    that transforms a <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> to keep only the first three groups of
+    consecutive equal elements:</p><pre>import Lens.Family
+import Pipes
+import Pipes.Group
+import qualified Pipes.Prelude as P
+
+threeGroups :: (Monad m, Eq a) =&gt; Producer a m () -&gt; Producer a m ()
+threeGroups = concats . takes 3 . view groups</pre><p>Both splitting and joining preserve the streaming nature of <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s and
+    do not collect or buffer any values.  The transformed <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> still
+    outputs values immediately and does not wait for groups to complete before
+    producing results.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>runEffect $ threeGroups P.stdinLn &gt;-&gt; P.stdoutLn
+</code></strong>1&lt;Enter&gt;
+1
+1&lt;Enter&gt;
+1
+2&lt;Enter&gt;
+2
+2&lt;Enter&gt;
+2
+2&lt;Enter&gt;
+2
+3&lt;Enter&gt;
+3
+4&lt;Enter&gt;
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>
+</code></strong></pre><p>Also, lenses simplify things even further.  The reason that <code><a href="Pipes-Group.html#v:groups" title="Pipes.Group">groups</a></code> is a
+    lens is because it actually combines both a splitter and joiner into a
+    single package.  We can then use <code>over</code> to handle both the splitting and
+    joining for us:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>runEffect $ over groups (takes 3) P.stdinLn &gt;-&gt; P.stdoutLn
+</code></strong>&lt;Exact same behavior&gt;
+</pre><p>This behaves the same because <code>over</code> takes care of calling the splitter
+    before applying the transformation, then calling the inverse joiner
+    afterward.</p><p>Another useful lens is <code><a href="Pipes-Group.html#v:individually" title="Pipes.Group">individually</a></code>, which lets you apply transformations
+    to each <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> layer of a <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>.  For example, if we wanted to
+    add an extra <code>&quot;!&quot;</code> line to the end of every group, we would write:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>import Control.Applicative ((&lt;*))
+</code></strong><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>runEffect $ over (groups . individually) (&lt;* yield &quot;!&quot;) P.stdinLn &gt;-&gt; P.stdoutLn
+</code></strong>1&lt;Enter&gt;
+1
+1&lt;Enter&gt;
+1
+2&lt;Enter&gt;
+!
+2
+2&lt;Enter&gt;
+2
+2&lt;Enter&gt;
+2
+3&lt;Enter&gt;
+!
+3
+4&lt;Enter&gt;
+!
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>
+</code></strong></pre><p>Note that <code><a href="Pipes-Group.html#v:individually" title="Pipes.Group">individually</a></code> is only compatible with the <code>lens</code> package.  You
+    can alternatively use <code><a href="Pipes-Group.html#v:maps" title="Pipes.Group">maps</a></code> if you are using <code>lens-family-core</code>:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>runEffect $ over groups (maps (&lt;* yield &quot;!&quot;)) P.stdinLn &gt;-&gt; P.stdoutLn
+</code></strong>&lt;Exact same behavior&gt;
+</pre></div><a href="#g:3" id="g:3"><h1>How FreeT Works</h1></a><div class="doc"><p>You don't necessarily have to restrict yourself to predefined <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>
+    functions.  You can also manually build or recurse over <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>s of
+    <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s.</p><p>For example, here is how <code><a href="Pipes-Group.html#v:concats" title="Pipes.Group">concats</a></code> is implemented, which collapses all the
+    <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s within a <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> into a single <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>:</p><pre>concats :: Monad m =&gt; FreeT (Producer a m) m x -&gt; Producer a m x
+concats = go
+  where
+    go f = do
+        x &lt;- lift (runFreeT f)  -- Match against the &quot;head&quot; of the &quot;list&quot;
+        case x of
+            Pure r -&gt; return r  -- The &quot;list&quot; is empty
+            Free p -&gt; do        -- The &quot;list&quot; is non-empty
+                f' &lt;- p         -- The return value of the 'Producer' is
+                go f'           --     the &quot;tail&quot; of the &quot;list&quot;</pre><p>Many patterns for <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>s have equivalent analogs for lists.  <code><a href="Pipes-Group.html#v:runFreeT" title="Pipes.Group">runFreeT</a></code>
+    behaves like pattern matching on the list, except that you have to bind the
+    result.  <code><a href="Pipes-Group.html#v:Pure" title="Pipes.Group">Pure</a></code> is analogous to <code>[]</code> and <code><a href="Pipes-Group.html#v:Free" title="Pipes.Group">Free</a></code> is analogous to <code>(:)</code>.</p><p>When you receive a <code><a href="Pipes-Group.html#v:Free" title="Pipes.Group">Free</a></code> constructor that means you have a <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> whose
+    return value is the rest of the list (i.e. another <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>).  You cannot
+    access the rest of the list without running the <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> to completion to
+    retrieve this return value.  The above example just runs the entire
+    <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>, binds the remainder of the list to <code>f'</code> and then recurses on
+    that value.</p><p>You can also build <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>s in a manner similar to lists.  For example, the
+    <code><a href="Pipes-Group.html#v:chunksOf" title="Pipes.Group">chunksOf</a></code> lens uses the following splitter function internally:</p><pre>_chunksOf :: Monad m =&gt; Producer a m x -&gt; FreeT (Producer a m) m x
+_chunksOf p = FreeT $ do
+    x &lt;- next p                     -- Pattern match on the 'Producer'
+    return $ case x of
+        Left   r      -&gt; Pure r     -- Build an empty &quot;list&quot;
+        Right (a, p') -&gt; Free $ do  -- Build a non-empty &quot;list&quot;
+            p'' &lt;- (yield a &gt;&gt; p')^.splitAt n0  -- Emit the &quot;head&quot;
+            return (_chunksOf p'')              -- Return the &quot;tail&quot;</pre><p><code><a href="Pipes-Group.html#v:Pure" title="Pipes.Group">Pure</a></code> signifies an empty <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> (one with no <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> layers), just like
+    <code>[]</code> signifies an empty list (one with no elements).  We return <code><a href="Pipes-Group.html#v:Pure" title="Pipes.Group">Pure</a></code>
+    whenever we cannot emit any more <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>s.</p><p><code><a href="Pipes-Group.html#v:Free" title="Pipes.Group">Free</a></code> indicates that we wish to emit a <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> followed by another
+    &quot;list&quot;.  The <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> we run directly within the body of the <code><a href="Pipes-Group.html#v:Free" title="Pipes.Group">Free</a></code>.
+    However, we store the remainder of the &quot;list&quot; within the return value of
+    the <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code>.  This is where <code>_chunksOf</code> recurses to build the rest of the
+    &quot;list&quot;.</p><p>To gain a better understanding for how <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> works, consult the definition
+    of the type, which you can find in <a href="../free-5.1.7/Control-Monad-Trans-Free.html">Control.Monad.Trans.Free</a>:</p><pre>newtype FreeT f m a = FreeT { runFreeT :: m (FreeF f a (FreeT f m a)) }
+
+data FreeF f a b = Pure a | Free (f b)</pre><p>... and just replace all occurrences of <code>f</code> with <code>(Producer e m)</code>:</p><pre>-- This is pseudocode
+
+newtype FreeT' m a = FreeT { runFreeT :: m (FreeF' a (FreeT' m a)) }
+
+data FreeF' a b = Pure a | Free (Producer e m b)</pre><p>... which you can further think of as:</p><pre>-- More pseudocode
+
+newtype FreeT' m a =
+    FreeT { runFreeT :: m (Pure a | Producer e m (FreeT' m a)) }</pre><p>In other words, <code><a href="Pipes-Group.html#v:runFreeT" title="Pipes.Group">runFreeT</a></code> unwraps a <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code> to produce an action in the
+    base monad which either finishes with a value of type <code>a</code> or continues with
+    a <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> which returns a new <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>.  Vice versa, if you want to build
+    a <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>, you must create an action in the base monad which returns either
+    a <code><a href="Pipes-Group.html#v:Pure" title="Pipes.Group">Pure</a></code> or a <code><a href="Pipes-Group.html#t:Producer" title="Pipes.Group">Producer</a></code> wrapping another <code><a href="Pipes-Group.html#t:FreeT" title="Pipes.Group">FreeT</a></code>.</p></div><a href="#g:4" id="g:4"><h1>Conclusion</h1></a><div class="doc"><p>This library is very small since it only contains element-agnostic grouping
+    utilities.  Downstream libraries that provide richer grouping utilities
+    include <code>pipes-bytestring</code> and <code>pipes-text</code>.</p><p>To learn more about <code>pipes-group</code>, ask questions, or follow development, you
+    can subscribe to the <code>haskell-pipes</code> mailing list at:</p><p><a href="https://groups.google.com/forum/#!forum/haskell-pipes">https://groups.google.com/forum/#!forum/haskell-pipes</a></p><p>... or you can mail the list directly at:</p><p><a href="mailto:haskell-pipes@googlegroups.com">mailto:haskell-pipes@googlegroups.com</a></p></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.24.2</p></div></body></html>

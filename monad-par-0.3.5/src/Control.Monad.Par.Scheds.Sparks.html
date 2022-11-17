@@ -1,0 +1,224 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies, CPP #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | This scheduler uses sparks (par/pseq) directly, but only supplies</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--   the @Monad.Par.Class.ParFuture@ interface.</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Par.Scheds.Sparks</span><span>
+</span><span id="line-8"></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-9"></span><span>   </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier">Par</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier">Future</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>   </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#runPar"><span class="hs-identifier">runPar</span></a></span><span class="hs-special">,</span><span> </span><span>
+</span><span id="line-11"></span><span>   </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#get"><span class="hs-identifier">get</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawn"><span class="hs-identifier">spawn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawn_"><span class="hs-identifier">spawn_</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawnP"><span class="hs-identifier">spawnP</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#fixPar"><span class="hs-identifier">fixPar</span></a></span><span>
+</span><span id="line-12"></span><span> </span><span class="hs-special">)</span><span> </span><span>
+</span><span id="line-13"></span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Parallel</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Par.Class</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PC</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Fix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadFix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mfix</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- import Control.Parallel.Strategies (rpar)</span><span class="hs-cpp">
+
+#ifdef NEW_GENERIC
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>       </span><span class="hs-identifier">Control.Par.Class</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">PN</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>       </span><span class="hs-identifier">Control.Par.Class.Unsafe</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">PU</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.IO.Unsafe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">unsafePerformIO</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#runPar"><span class="hs-pragma hs-type">runPar</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-31"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawn"><span class="hs-pragma hs-type">spawn</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-32"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawn_"><span class="hs-pragma hs-type">spawn_</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-33"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawnP"><span class="hs-pragma hs-type">spawnP</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-34"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#get"><span class="hs-pragma hs-type">get</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">data</span><span> </span><span id="Par"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-var">Par</span></a></span></span><span>    </span><span id="local-6989586621679060692"><span class="annot"><a href="#local-6989586621679060692"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Done"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Done"><span class="hs-identifier hs-var">Done</span></a></span></span><span>   </span><span class="annot"><a href="#local-6989586621679060692"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">data</span><span> </span><span id="Future"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-var">Future</span></a></span></span><span> </span><span id="local-6989586621679060764"><span class="annot"><a href="#local-6989586621679060764"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Future"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-var">Future</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679060764"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span id="local-6989586621679060769"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#runPar"><span class="hs-identifier hs-type">runPar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060769"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679060769"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-40"></span><span id="runPar"><span class="annot"><span class="annottext">runPar :: Par a -&gt; a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#runPar"><span class="hs-identifier hs-var hs-var">runPar</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Done"><span class="hs-identifier hs-type">Done</span></a></span><span> </span><span id="local-6989586621679060689"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060689"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060689"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span id="local-6989586621679060688"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawn_"><span class="hs-identifier hs-type">spawn_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060688"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-type">Future</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060688"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- spawn_ a = do a' &lt;- rpar (runPar a); return (Future a')</span><span>
+</span><span id="line-44"></span><span id="spawn_"><span class="annot"><span class="annottext">spawn_ :: Par a -&gt; Par (Future a)
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#spawn_"><span class="hs-identifier hs-var hs-var">spawn_</span></a></span></span><span> </span><span id="local-6989586621679060687"><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679060687"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679060686"><span class="annot"><span class="annottext">a' :: a
+</span><a href="#local-6989586621679060686"><span class="hs-identifier hs-var hs-var">a'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Par a -&gt; a
+forall a. Par a -&gt; a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#runPar"><span class="hs-identifier hs-var">runPar</span></a></span><span> </span><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679060687"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060686"><span class="hs-identifier hs-var">a'</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Par (Future a) -&gt; Par (Future a)
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`par`</span></span><span> </span><span class="annot"><span class="annottext">Future a -&gt; Par (Future a)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Future a
+forall a. a -&gt; Future a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-var">Future</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060686"><span class="hs-identifier hs-var">a'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span id="local-6989586621679060684"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawn"><span class="hs-identifier hs-type">spawn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679060684"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060684"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-type">Future</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060684"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-47"></span><span id="spawn"><span class="annot"><span class="annottext">spawn :: Par a -&gt; Par (Future a)
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#spawn"><span class="hs-identifier hs-var hs-var">spawn</span></a></span></span><span> </span><span id="local-6989586621679060683"><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679060683"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679060682"><span class="annot"><span class="annottext">a' :: a
+</span><a href="#local-6989586621679060682"><span class="hs-identifier hs-var hs-var">a'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Par a -&gt; a
+forall a. Par a -&gt; a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#runPar"><span class="hs-identifier hs-var">runPar</span></a></span><span> </span><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679060683"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060682"><span class="hs-identifier hs-var">a'</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Par (Future a) -&gt; Par (Future a)
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`par`</span></span><span> </span><span class="annot"><span class="annottext">Future a -&gt; Par (Future a)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Future a
+forall a. a -&gt; Future a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-var">Future</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><span class="hs-identifier hs-var">rnf</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060682"><span class="hs-identifier hs-var">a'</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; a -&gt; a
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`pseq`</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060682"><span class="hs-identifier hs-var">a'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span id="local-6989586621679060679"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#spawnP"><span class="hs-identifier hs-type">spawnP</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679060679"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679060679"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-type">Future</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060679"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-50"></span><span id="spawnP"><span class="annot"><span class="annottext">spawnP :: a -&gt; Par (Future a)
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#spawnP"><span class="hs-identifier hs-var hs-var">spawnP</span></a></span></span><span> </span><span id="local-6989586621679060678"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060678"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060678"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Par (Future a) -&gt; Par (Future a)
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`par`</span></span><span> </span><span class="annot"><span class="annottext">Future a -&gt; Par (Future a)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Future a
+forall a. a -&gt; Future a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-var">Future</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><span class="hs-identifier hs-var">rnf</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060678"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; a -&gt; a
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`pseq`</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060678"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span id="local-6989586621679060677"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#get"><span class="hs-identifier hs-type">get</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-type">Future</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060677"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-53"></span><span id="get"><span class="annot"><span class="annottext">get :: Future a -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#get"><span class="hs-identifier hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-type">Future</span></a></span><span> </span><span id="local-6989586621679060676"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060676"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060676"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Par a -&gt; Par a
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`pseq`</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Par a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060676"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- &lt;boilerplate&gt;</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679060672"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679060669"><span class="annot"><span class="annottext">return :: a -&gt; Par a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Par a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Done"><span class="hs-identifier hs-type">Done</span></a></span><span> </span><span id="local-6989586621679060668"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060668"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679060667"><span class="annot"><span class="annottext">&gt;&gt;= :: Par a -&gt; (a -&gt; Par b) -&gt; Par b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679060666"><span class="annot"><span class="annottext">a -&gt; Par b
+</span><a href="#local-6989586621679060666"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Par b
+</span><a href="#local-6989586621679060666"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060668"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PC.ParFuture</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Future"><span class="hs-identifier hs-type">Future</span></a></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span>  </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679060659"><span class="annot"><span class="annottext">get :: Future a -&gt; Par a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Future a -&gt; Par a
+forall a. Future a -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#get"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679060657"><span class="annot"><span class="annottext">spawn :: Par a -&gt; Par (Future a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">spawn</span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Par a -&gt; Par (Future a)
+forall a. NFData a =&gt; Par a -&gt; Par (Future a)
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#spawn"><span class="hs-identifier hs-var">spawn</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679060655"><span class="annot"><span class="annottext">spawn_ :: Par a -&gt; Par (Future a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">spawn_</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Par a -&gt; Par (Future a)
+forall a. Par a -&gt; Par (Future a)
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#spawn_"><span class="hs-identifier hs-var">spawn_</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679060653"><span class="annot"><span class="annottext">spawnP :: a -&gt; Par (Future a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">spawnP</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Par (Future a)
+forall a. NFData a =&gt; a -&gt; Par (Future a)
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#spawnP"><span class="hs-identifier hs-var">spawnP</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679060649"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>   </span><span id="local-6989586621679060647"><span class="annot"><span class="annottext">fmap :: (a -&gt; b) -&gt; Par a -&gt; Par b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679060646"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679060646"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679060645"><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679060645"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679060645"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Par a -&gt; (a -&gt; Par b) -&gt; Par b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; Par b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Par b) -&gt; (a -&gt; b) -&gt; a -&gt; Par b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679060646"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679060635"><span id="local-6989586621679060637"><span id="local-6989586621679060639"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>   </span><span id="local-6989586621679060633"><span class="annot"><span class="annottext">&lt;*&gt; :: Par (a -&gt; b) -&gt; Par a -&gt; Par b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Par (a -&gt; b) -&gt; Par a -&gt; Par b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m (a -&gt; b) -&gt; m a -&gt; m b
+</span><span class="hs-identifier hs-var">ap</span></span><span>
+</span><span id="line-73"></span><span>   </span><span id="local-6989586621679060631"><span class="annot"><span class="annottext">pure :: a -&gt; Par a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Par a
+forall a. a -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadFix</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>   </span><span id="local-6989586621679060627"><span class="annot"><span class="annottext">mfix :: (a -&gt; Par a) -&gt; Par a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mfix</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Par a) -&gt; Par a
+forall a. (a -&gt; Par a) -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#fixPar"><span class="hs-identifier hs-var">fixPar</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- | Take the monadic fixpoint of a 'Par' computation. This is</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- the definition of 'mfix' for 'Par'.</span><span>
+</span><span id="line-80"></span><span id="local-6989586621679060626"><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#fixPar"><span class="hs-identifier hs-type">fixPar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679060626"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060626"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679060626"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-81"></span><span id="fixPar"><span class="annot"><span class="annottext">fixPar :: (a -&gt; Par a) -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.Sparks.html#fixPar"><span class="hs-identifier hs-var hs-var">fixPar</span></a></span></span><span> </span><span id="local-6989586621679060625"><span class="annot"><span class="annottext">a -&gt; Par a
+</span><a href="#local-6989586621679060625"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679060624"><span class="annot"><span class="annottext">fr :: Par a
+</span><a href="#local-6989586621679060624"><span class="hs-identifier hs-var hs-var">fr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Par a
+</span><a href="#local-6989586621679060625"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679060624"><span class="hs-identifier hs-var">fr</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Sparks.html#Done"><span class="hs-identifier hs-type">Done</span></a></span><span> </span><span id="local-6989586621679060623"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060623"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679060623"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679060624"><span class="hs-identifier hs-var">fr</span></a></span><span class="hs-cpp">
+
+#ifdef NEW_GENERIC
+</span><span class="hs-identifier">doio</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Par</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-87"></span><span class="hs-identifier">doio</span><span> </span><span class="hs-identifier">io</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">unsafePerformIO</span><span> </span><span class="hs-identifier">io</span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-88"></span><span>          </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$!</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">PU.ParMonad</span><span> </span><span class="hs-identifier">Par</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-comment">-- This is a No-Op for this monad.  Because there are no side-effects permitted,</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-comment">-- there is no way to observe whether anything happens on the child thread.</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-comment">-- fork _m = return ()</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-comment">-- FIXME: except for exceptions!!</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-comment">-- This version doesn't work, because the spark may get spilled/dropped:</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-comment">-- fork m = spawn m</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-comment">-- I think this is all that we're left with:</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-identifier">fork</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">m</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-identifier">internalLiftIO</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">doio</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">PU.ParThreadSafe</span><span> </span><span class="hs-identifier">Par</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-identifier">unsafeParIO</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">doio</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">PN.ParFuture</span><span> </span><span class="hs-identifier">Par</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">Future</span><span> </span><span class="hs-identifier">Par</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Future</span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">FutContents</span><span> </span><span class="hs-identifier">Par</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-identifier">get</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-identifier">spawn</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">spawn</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-identifier">spawn_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">spawn_</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-identifier">spawnP</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">spawnP</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- &lt;/boilerplate&gt;</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-117"></span></pre></body></html>

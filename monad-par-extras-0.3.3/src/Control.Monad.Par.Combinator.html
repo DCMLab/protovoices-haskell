@@ -1,0 +1,559 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{-| 
+    A collection of useful parallel combinators based on top of a 'Par' monad.
+
+    In particular, this module provides higher order functions for
+     traversing data structures in parallel.  
+
+-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Par.Combinator</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#parMap"><span class="hs-identifier">parMap</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#parMapM"><span class="hs-identifier">parMapM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#parMapReduceRangeThresh"><span class="hs-identifier">parMapReduceRangeThresh</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#parMapReduceRange"><span class="hs-identifier">parMapReduceRange</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier">InclusiveRange</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#parFor"><span class="hs-identifier">parFor</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Traversable</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mapM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sequence</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">join</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mapM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sequence</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">head</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">tail</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Conc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">numCapabilities</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Par.Class</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Parallel maps over Traversable data structures</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Applies the given function to each element of a data structure</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- in parallel (fully evaluating the results), and returns a new data</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- structure containing the results.</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- &gt; parMap f xs = mapM (spawnP . f) xs &gt;&gt;= mapM get</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- @parMap@ is commonly used for lists, where it has this specialised type:</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- &gt; parMap :: NFData b =&gt; (a -&gt; b) -&gt; [a] -&gt; Par [b]</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span id="local-6989586621679047718"><span id="local-6989586621679047719"><span id="local-6989586621679047720"><span id="local-6989586621679047721"><span id="local-6989586621679047722"><span class="annot"><a href="Control.Monad.Par.Combinator.html#parMap"><span class="hs-identifier hs-type">parMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679047722"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679047721"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParFuture</span></span><span> </span><span class="annot"><a href="#local-6989586621679047720"><span class="hs-identifier hs-type">iv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047719"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679047718"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047721"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047722"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047718"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047719"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679047722"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047721"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-41"></span><span id="parMap"><span class="annot"><span class="annottext">parMap :: (a -&gt; b) -&gt; t a -&gt; p (t b)
+</span><a href="Control.Monad.Par.Combinator.html#parMap"><span class="hs-identifier hs-var hs-var">parMap</span></a></span></span><span> </span><span id="local-6989586621679047717"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679047717"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679047716"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679047716"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; p (iv b)) -&gt; t a -&gt; p (t (iv b))
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; p (iv b)
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+(ParFuture future m, NFData a) =&gt;
+a -&gt; m (future a)
+</span><span class="hs-identifier hs-var">spawnP</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; p (iv b)) -&gt; (a -&gt; b) -&gt; a -&gt; p (iv b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679047717"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679047716"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">p (t (iv b)) -&gt; (t (iv b) -&gt; p (t b)) -&gt; p (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">(iv b -&gt; p b) -&gt; t (iv b) -&gt; p (t b)
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">iv b -&gt; p b
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+ParFuture future m =&gt;
+future a -&gt; m a
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Like 'parMap', but the function is a @Par@ monad operation.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- &gt; parMapM f xs = mapM (spawn . f) xs &gt;&gt;= mapM get</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span id="local-6989586621679047708"><span id="local-6989586621679047709"><span id="local-6989586621679047710"><span id="local-6989586621679047711"><span id="local-6989586621679047712"><span class="annot"><a href="Control.Monad.Par.Combinator.html#parMapM"><span class="hs-identifier hs-type">parMapM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679047712"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679047711"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParFuture</span></span><span> </span><span class="annot"><a href="#local-6989586621679047710"><span class="hs-identifier hs-type">iv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047709"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679047708"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047709"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047711"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047712"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047708"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047709"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679047712"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047711"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-48"></span><span id="parMapM"><span class="annot"><span class="annottext">parMapM :: (a -&gt; p b) -&gt; t a -&gt; p (t b)
+</span><a href="Control.Monad.Par.Combinator.html#parMapM"><span class="hs-identifier hs-var hs-var">parMapM</span></a></span></span><span> </span><span id="local-6989586621679047707"><span class="annot"><span class="annottext">a -&gt; p b
+</span><a href="#local-6989586621679047707"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679047706"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679047706"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; p (iv b)) -&gt; t a -&gt; p (t (iv b))
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">p b -&gt; p (iv b)
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+(ParFuture future m, NFData a) =&gt;
+m a -&gt; m (future a)
+</span><span class="hs-identifier hs-var">spawn</span></span><span> </span><span class="annot"><span class="annottext">(p b -&gt; p (iv b)) -&gt; (a -&gt; p b) -&gt; a -&gt; p (iv b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; p b
+</span><a href="#local-6989586621679047707"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679047706"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">p (t (iv b)) -&gt; (t (iv b) -&gt; p (t b)) -&gt; p (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">(iv b -&gt; p b) -&gt; t (iv b) -&gt; p (t b)
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">iv b -&gt; p b
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+ParFuture future m =&gt;
+future a -&gt; m a
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- TODO: parBuffer</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- --------------------------------------------------------------------------------</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- TODO: Perhaps should introduce a class for the &quot;splittable range&quot; concept.</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">data</span><span> </span><span id="InclusiveRange"><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier hs-var">InclusiveRange</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InclusiveRange"><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier hs-var">InclusiveRange</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | Computes a binary map\/reduce over a finite range.  The range is</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- recursively split into two, the result for each half is computed in</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- parallel, and then the two results are combined.  When the range</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- reaches the threshold size, the remaining elements of the range are</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- computed sequentially.</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- For example, the following is a parallel implementation of</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- &gt;  foldl (+) 0 (map (^2) [1..10^6])</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- &gt; parMapReduceRangeThresh 100 (InclusiveRange 1 (10^6))</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- &gt;        (\x -&gt; return (x^2))</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- &gt;        (\x y -&gt; return (x+y))</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- &gt;        0</span><span>
+</span><span id="line-73"></span><span class="hs-comment">--</span><span>
+</span><span id="line-74"></span><span id="local-6989586621679047701"><span id="local-6989586621679047702"><span id="local-6989586621679047703"><span class="annot"><a href="Control.Monad.Par.Combinator.html#parMapReduceRangeThresh"><span class="hs-identifier hs-type">parMapReduceRangeThresh</span></a></span><span>
+</span><span id="line-75"></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679047703"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParFuture</span></span><span> </span><span class="annot"><a href="#local-6989586621679047702"><span class="hs-identifier hs-type">iv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047701"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>                            </span><span class="hs-comment">-- ^ threshold</span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier hs-type">InclusiveRange</span></a></span><span>                 </span><span class="hs-comment">-- ^ range over which to calculate</span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047701"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047703"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>                 </span><span class="hs-comment">-- ^ compute one result</span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679047703"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047703"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047701"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047703"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>              </span><span class="hs-comment">-- ^ combine two results (associative)</span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047703"><span class="hs-identifier hs-type">a</span></a></span><span>                              </span><span class="hs-comment">-- ^ initial result</span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047701"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047703"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span id="parMapReduceRangeThresh"><span class="annot"><span class="annottext">parMapReduceRangeThresh :: Int
+-&gt; InclusiveRange -&gt; (Int -&gt; p a) -&gt; (a -&gt; a -&gt; p a) -&gt; a -&gt; p a
+</span><a href="Control.Monad.Par.Combinator.html#parMapReduceRangeThresh"><span class="hs-identifier hs-var hs-var">parMapReduceRangeThresh</span></a></span></span><span> </span><span id="local-6989586621679047700"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047700"><span class="hs-identifier hs-var">threshold</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier hs-type">InclusiveRange</span></a></span><span> </span><span id="local-6989586621679047699"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047699"><span class="hs-identifier hs-var">min</span></a></span></span><span> </span><span id="local-6989586621679047698"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047698"><span class="hs-identifier hs-var">max</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679047697"><span class="annot"><span class="annottext">Int -&gt; p a
+</span><a href="#local-6989586621679047697"><span class="hs-identifier hs-var">fn</span></a></span></span><span> </span><span id="local-6989586621679047696"><span class="annot"><span class="annottext">a -&gt; a -&gt; p a
+</span><a href="#local-6989586621679047696"><span class="hs-identifier hs-var">binop</span></a></span></span><span> </span><span id="local-6989586621679047695"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047695"><span class="hs-identifier hs-var">init</span></a></span></span><span>
+</span><span id="line-84"></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; p a
+forall (future :: * -&gt; *). ParFuture future p =&gt; Int -&gt; Int -&gt; p a
+</span><a href="#local-6989586621679047694"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047699"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047698"><span class="hs-identifier hs-var">max</span></a></span><span>
+</span><span id="line-85"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>  </span><span id="local-6989586621679047694"><span class="annot"><span class="annottext">loop :: Int -&gt; Int -&gt; p a
+</span><a href="#local-6989586621679047694"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span id="local-6989586621679047693"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047693"><span class="hs-identifier hs-var">min</span></a></span></span><span> </span><span id="local-6989586621679047692"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047692"><span class="hs-identifier hs-var">max</span></a></span></span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047692"><span class="hs-identifier hs-var">max</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047693"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047700"><span class="hs-identifier hs-var">threshold</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-88"></span><span>	</span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679047690"><span class="annot"><span class="annottext">mapred :: a -&gt; Int -&gt; p a
+</span><a href="#local-6989586621679047690"><span class="hs-identifier hs-var hs-var">mapred</span></a></span></span><span> </span><span id="local-6989586621679047689"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047689"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679047688"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047688"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679047687"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047687"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; p a
+</span><a href="#local-6989586621679047697"><span class="hs-identifier hs-var">fn</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047688"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">;</span><span>
+</span><span id="line-89"></span><span>			    </span><span id="local-6989586621679047686"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047686"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047689"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; p a
+</span><a href="#local-6989586621679047696"><span class="hs-operator hs-var">`binop`</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047687"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-90"></span><span>			    </span><span class="annot"><span class="annottext">a -&gt; p a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047686"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-91"></span><span>	</span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Int -&gt; p a) -&gt; a -&gt; [Int] -&gt; p a
+forall (t :: * -&gt; *) (m :: * -&gt; *) b a.
+(Foldable t, Monad m) =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m b
+</span><span class="hs-identifier hs-var">foldM</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; p a
+</span><a href="#local-6989586621679047690"><span class="hs-identifier hs-var">mapred</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047695"><span class="hs-identifier hs-var">init</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047693"><span class="hs-identifier hs-var">min</span></a></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047692"><span class="hs-identifier hs-var">max</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-94"></span><span>	</span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679047684"><span class="annot"><span class="annottext">mid :: Int
+</span><a href="#local-6989586621679047684"><span class="hs-identifier hs-var hs-var">mid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047693"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047692"><span class="hs-identifier hs-var">max</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047693"><span class="hs-identifier hs-var">min</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`quot`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>	</span><span id="local-6989586621679047681"><span class="annot"><span class="annottext">future a
+</span><a href="#local-6989586621679047681"><span class="hs-identifier hs-var">rght</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">p a -&gt; p (future a)
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+(ParFuture future m, NFData a) =&gt;
+m a -&gt; m (future a)
+</span><span class="hs-identifier hs-var">spawn</span></span><span> </span><span class="annot"><span class="annottext">(p a -&gt; p (future a)) -&gt; p a -&gt; p (future a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; p a
+</span><a href="#local-6989586621679047694"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047684"><span class="hs-identifier hs-var">mid</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047692"><span class="hs-identifier hs-var">max</span></a></span><span>
+</span><span id="line-96"></span><span>	</span><span id="local-6989586621679047680"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047680"><span class="hs-identifier hs-var">l</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; p a
+</span><a href="#local-6989586621679047694"><span class="hs-identifier hs-var">loop</span></a></span><span>  </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047693"><span class="hs-identifier hs-var">min</span></a></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047684"><span class="hs-identifier hs-var">mid</span></a></span><span>
+</span><span id="line-97"></span><span>	</span><span id="local-6989586621679047679"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047679"><span class="hs-identifier hs-var">r</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">future a -&gt; p a
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+ParFuture future m =&gt;
+future a -&gt; m a
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">future a
+</span><a href="#local-6989586621679047681"><span class="hs-identifier hs-var">rght</span></a></span><span>
+</span><span id="line-98"></span><span>	</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047680"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; p a
+</span><a href="#local-6989586621679047696"><span class="hs-operator hs-var">`binop`</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047679"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- How many tasks per process should we aim for?  Higher numbers</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- improve load balance but put more pressure on the scheduler.</span><span>
+</span><span id="line-102"></span><span class="annot"><a href="Control.Monad.Par.Combinator.html#auto_partition_factor"><span class="hs-identifier hs-type">auto_partition_factor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-103"></span><span id="auto_partition_factor"><span class="annot"><span class="annottext">auto_partition_factor :: Int
+</span><a href="Control.Monad.Par.Combinator.html#auto_partition_factor"><span class="hs-identifier hs-var hs-var">auto_partition_factor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- | \&quot;Auto-partitioning\&quot; version of 'parMapReduceRangeThresh' that chooses the threshold based on</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--    the size of the range and the number of processors..</span><span>
+</span><span id="line-107"></span><span id="local-6989586621679047675"><span id="local-6989586621679047676"><span id="local-6989586621679047677"><span class="annot"><a href="Control.Monad.Par.Combinator.html#parMapReduceRange"><span class="hs-identifier hs-type">parMapReduceRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679047677"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParFuture</span></span><span> </span><span class="annot"><a href="#local-6989586621679047676"><span class="hs-identifier hs-type">iv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047675"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span>
+</span><span id="line-108"></span><span>		     </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier hs-type">InclusiveRange</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047675"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047677"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679047677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047675"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047677"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047675"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047677"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-109"></span><span id="parMapReduceRange"><span class="annot"><span class="annottext">parMapReduceRange :: InclusiveRange -&gt; (Int -&gt; p a) -&gt; (a -&gt; a -&gt; p a) -&gt; a -&gt; p a
+</span><a href="Control.Monad.Par.Combinator.html#parMapReduceRange"><span class="hs-identifier hs-var hs-var">parMapReduceRange</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier hs-type">InclusiveRange</span></a></span><span> </span><span id="local-6989586621679047674"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047674"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679047673"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047673"><span class="hs-identifier hs-var">end</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679047672"><span class="annot"><span class="annottext">Int -&gt; p a
+</span><a href="#local-6989586621679047672"><span class="hs-identifier hs-var">fn</span></a></span></span><span> </span><span id="local-6989586621679047671"><span class="annot"><span class="annottext">a -&gt; a -&gt; p a
+</span><a href="#local-6989586621679047671"><span class="hs-identifier hs-var">binop</span></a></span></span><span> </span><span id="local-6989586621679047670"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047670"><span class="hs-identifier hs-var">init</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-110"></span><span>   </span><span class="annot"><span class="annottext">Int -&gt; [(Int, Int)] -&gt; p a
+forall (future :: * -&gt; *).
+ParFuture future p =&gt;
+Int -&gt; [(Int, Int)] -&gt; p a
+</span><a href="#local-6989586621679047669"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(Int, Int)] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047667"><span class="hs-identifier hs-var">segs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047667"><span class="hs-identifier hs-var">segs</span></a></span><span>
+</span><span id="line-111"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>  </span><span id="local-6989586621679047667"><span class="annot"><span class="annottext">segs :: [(Int, Int)]
+</span><a href="#local-6989586621679047667"><span class="hs-identifier hs-var hs-var">segs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int, Int) -&gt; [(Int, Int)]
+</span><a href="Control.Monad.Par.Combinator.html#splitInclusiveRange"><span class="hs-identifier hs-var">splitInclusiveRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="Control.Monad.Par.Combinator.html#auto_partition_factor"><span class="hs-identifier hs-var">auto_partition_factor</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier hs-var">numCapabilities</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047674"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047673"><span class="hs-identifier hs-var">end</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>  </span><span id="local-6989586621679047669"><span class="annot"><span class="annottext">loop :: Int -&gt; [(Int, Int)] -&gt; p a
+</span><a href="#local-6989586621679047669"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span id="local-6989586621679047664"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047664"><span class="hs-identifier hs-var">st</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679047663"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047663"><span class="hs-identifier hs-var">en</span></a></span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-114"></span><span>     </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679047662"><span class="annot"><span class="annottext">mapred :: a -&gt; Int -&gt; p a
+</span><a href="#local-6989586621679047662"><span class="hs-identifier hs-var hs-var">mapred</span></a></span></span><span> </span><span id="local-6989586621679047661"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047661"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679047660"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047660"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679047659"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047659"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; p a
+</span><a href="#local-6989586621679047672"><span class="hs-identifier hs-var">fn</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047660"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">;</span><span>
+</span><span id="line-115"></span><span>			 </span><span id="local-6989586621679047658"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047658"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047661"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; p a
+</span><a href="#local-6989586621679047671"><span class="hs-operator hs-var">`binop`</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047659"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-116"></span><span>			 </span><span class="annot"><span class="annottext">a -&gt; p a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047658"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-117"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Int -&gt; p a) -&gt; a -&gt; [Int] -&gt; p a
+forall (t :: * -&gt; *) (m :: * -&gt; *) b a.
+(Foldable t, Monad m) =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m b
+</span><span class="hs-identifier hs-var">foldM</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; p a
+</span><a href="#local-6989586621679047662"><span class="hs-identifier hs-var">mapred</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047670"><span class="hs-identifier hs-var">init</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047664"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047663"><span class="hs-identifier hs-var">en</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><a href="#local-6989586621679047669"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span id="local-6989586621679047657"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047657"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679047656"><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047656"><span class="hs-identifier hs-var">segs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-119"></span><span>     </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679047655"><span class="annot"><span class="annottext">half :: Int
+</span><a href="#local-6989586621679047655"><span class="hs-identifier hs-var hs-var">half</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047657"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`quot`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-120"></span><span>	 </span><span class="hs-special">(</span><span id="local-6989586621679047654"><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047654"><span class="hs-identifier hs-var">left</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679047653"><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047653"><span class="hs-identifier hs-var">right</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [(Int, Int)] -&gt; ([(Int, Int)], [(Int, Int)])
+forall a. Int -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047655"><span class="hs-identifier hs-var">half</span></a></span><span> </span><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047656"><span class="hs-identifier hs-var">segs</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-121"></span><span>     </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679047651"><span class="annot"><span class="annottext">future a
+</span><a href="#local-6989586621679047651"><span class="hs-identifier hs-var">l</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">p a -&gt; p (future a)
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+(ParFuture future m, NFData a) =&gt;
+m a -&gt; m (future a)
+</span><span class="hs-identifier hs-var">spawn</span></span><span class="annot"><span class="annottext">(p a -&gt; p (future a)) -&gt; p a -&gt; p (future a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [(Int, Int)] -&gt; p a
+</span><a href="#local-6989586621679047669"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047655"><span class="hs-identifier hs-var">half</span></a></span><span> </span><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047654"><span class="hs-identifier hs-var">left</span></a></span><span>
+</span><span id="line-122"></span><span>        </span><span id="local-6989586621679047650"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047650"><span class="hs-identifier hs-var">r</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [(Int, Int)] -&gt; p a
+</span><a href="#local-6989586621679047669"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047657"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047655"><span class="hs-identifier hs-var">half</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047653"><span class="hs-identifier hs-var">right</span></a></span><span>
+</span><span id="line-123"></span><span>	</span><span id="local-6989586621679047649"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047649"><span class="hs-identifier hs-var">l'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">future a -&gt; p a
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+ParFuture future m =&gt;
+future a -&gt; m a
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">future a
+</span><a href="#local-6989586621679047651"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-124"></span><span>	</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047649"><span class="hs-identifier hs-var">l'</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; p a
+</span><a href="#local-6989586621679047671"><span class="hs-operator hs-var">`binop`</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679047650"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- TODO: A version that works for any splittable input domain.  In this case</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- the &quot;threshold&quot; is a predicate on inputs.</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- parMapReduceRangeGeneric :: (inp -&gt; Bool) -&gt; (inp -&gt; Maybe (inp,inp)) -&gt; inp -&gt;</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- Experimental:</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- | Parallel for-loop over an inclusive range.  Semantically equivalent</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- to</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- &gt; parFor (InclusiveRange n m) f = forM_ [n..m] f</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- except that the implementation will split the work into an</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- unspecified number of subtasks in an attempt to gain parallelism.</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- The exact number of subtasks is chosen at runtime, and is probably</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- a small multiple of the available number of processors.</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- Strictly speaking the semantics of 'parFor' depends on the</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- number of processors, and its behaviour is therefore not</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- deterministic.  However, a good rule of thumb is to not have any</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- interdependencies between the elements; if this rule is followed</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- then @parFor@ has deterministic semantics.  One easy way to follow</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- this rule is to only use 'put' or 'put_' in @f@, never 'get'.</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span id="local-6989586621679047647"><span id="local-6989586621679047648"><span class="annot"><a href="Control.Monad.Par.Combinator.html#parFor"><span class="hs-identifier hs-type">parFor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ParFuture</span></span><span> </span><span class="annot"><a href="#local-6989586621679047648"><span class="hs-identifier hs-type">iv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047647"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier hs-type">InclusiveRange</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047647"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047647"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-152"></span><span id="parFor"><span class="annot"><span class="annottext">parFor :: InclusiveRange -&gt; (Int -&gt; p ()) -&gt; p ()
+</span><a href="Control.Monad.Par.Combinator.html#parFor"><span class="hs-identifier hs-var hs-var">parFor</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Combinator.html#InclusiveRange"><span class="hs-identifier hs-type">InclusiveRange</span></a></span><span> </span><span id="local-6989586621679047646"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047646"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679047645"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047645"><span class="hs-identifier hs-var">end</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679047644"><span class="annot"><span class="annottext">Int -&gt; p ()
+</span><a href="#local-6989586621679047644"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-153"></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679047643"><span class="annot"><span class="annottext">run :: (Int, Int) -&gt; p ()
+</span><a href="#local-6989586621679047643"><span class="hs-identifier hs-var hs-var">run</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679047642"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047642"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679047641"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047641"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; (Int -&gt; p ()) -&gt; p ()
+forall (m :: * -&gt; *).
+Monad m =&gt;
+Int -&gt; Int -&gt; (Int -&gt; m ()) -&gt; m ()
+</span><a href="Control.Monad.Par.Combinator.html#for_"><span class="hs-identifier hs-var">for_</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047642"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047641"><span class="hs-identifier hs-var">y</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; p ()
+</span><a href="#local-6989586621679047644"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-155"></span><span>        </span><span id="local-6989586621679047639"><span class="annot"><span class="annottext">range_segments :: [(Int, Int)]
+</span><a href="#local-6989586621679047639"><span class="hs-identifier hs-var hs-var">range_segments</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int, Int) -&gt; [(Int, Int)]
+</span><a href="Control.Monad.Par.Combinator.html#splitInclusiveRange"><span class="hs-identifier hs-var">splitInclusiveRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier hs-var">numCapabilities</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047646"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047645"><span class="hs-identifier hs-var">end</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span>    </span><span id="local-6989586621679047638"><span class="annot"><span class="annottext">[iv ()]
+</span><a href="#local-6989586621679047638"><span class="hs-identifier hs-var">vars</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Int, Int)] -&gt; ((Int, Int) -&gt; p (iv ())) -&gt; p [iv ()]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><span class="hs-identifier hs-var">M.forM</span></span><span> </span><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621679047639"><span class="hs-identifier hs-var">range_segments</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679047636"><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="#local-6989586621679047636"><span class="hs-identifier hs-var">pr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">p () -&gt; p (iv ())
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+ParFuture future m =&gt;
+m a -&gt; m (future a)
+</span><span class="hs-identifier hs-var">spawn_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int, Int) -&gt; p ()
+</span><a href="#local-6989586621679047643"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="#local-6989586621679047636"><span class="hs-identifier hs-var">pr</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>    </span><span class="annot"><span class="annottext">(iv () -&gt; p ()) -&gt; [iv ()] -&gt; p ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">M.mapM_</span></span><span> </span><span class="annot"><span class="annottext">iv () -&gt; p ()
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+ParFuture future m =&gt;
+future a -&gt; m a
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">[iv ()]
+</span><a href="#local-6989586621679047638"><span class="hs-identifier hs-var">vars</span></a></span><span>
+</span><span id="line-159"></span><span>    </span><span class="annot"><span class="annottext">() -&gt; p ()
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><a href="Control.Monad.Par.Combinator.html#splitInclusiveRange"><span class="hs-identifier hs-type">splitInclusiveRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-162"></span><span id="splitInclusiveRange"><span class="annot"><span class="annottext">splitInclusiveRange :: Int -&gt; (Int, Int) -&gt; [(Int, Int)]
+</span><a href="Control.Monad.Par.Combinator.html#splitInclusiveRange"><span class="hs-identifier hs-var hs-var">splitInclusiveRange</span></a></span></span><span> </span><span id="local-6989586621679047633"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047633"><span class="hs-identifier hs-var">pieces</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679047632"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047632"><span class="hs-identifier hs-var">start</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679047631"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047631"><span class="hs-identifier hs-var">end</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-163"></span><span>  </span><span class="annot"><span class="annottext">(Int -&gt; (Int, Int)) -&gt; [Int] -&gt; [(Int, Int)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int, Int)
+</span><a href="#local-6989586621679047630"><span class="hs-identifier hs-var">largepiece</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047629"><span class="hs-identifier hs-var">remain</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[(Int, Int)] -&gt; [(Int, Int)] -&gt; [(Int, Int)]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><span class="annottext">(Int -&gt; (Int, Int)) -&gt; [Int] -&gt; [(Int, Int)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int, Int)
+</span><a href="#local-6989586621679047628"><span class="hs-identifier hs-var">smallpiece</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047629"><span class="hs-identifier hs-var">remain</span></a></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047633"><span class="hs-identifier hs-var">pieces</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-165"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-166"></span><span>   </span><span id="local-6989586621679047627"><span class="annot"><span class="annottext">len :: Int
+</span><a href="#local-6989586621679047627"><span class="hs-identifier hs-var hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047631"><span class="hs-identifier hs-var">end</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047632"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-comment">-- inclusive [start,end]</span><span>
+</span><span id="line-167"></span><span>   </span><span class="hs-special">(</span><span id="local-6989586621679047626"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047626"><span class="hs-identifier hs-var">portion</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679047629"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047629"><span class="hs-identifier hs-var">remain</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047627"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; (Int, Int)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-operator hs-var">`quotRem`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047633"><span class="hs-identifier hs-var">pieces</span></a></span><span>
+</span><span id="line-168"></span><span>   </span><span id="local-6989586621679047630"><span class="annot"><span class="annottext">largepiece :: Int -&gt; (Int, Int)
+</span><a href="#local-6989586621679047630"><span class="hs-identifier hs-var hs-var">largepiece</span></a></span></span><span> </span><span id="local-6989586621679047624"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047624"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-169"></span><span>       </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679047623"><span class="annot"><span class="annottext">offset :: Int
+</span><a href="#local-6989586621679047623"><span class="hs-identifier hs-var hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047632"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047624"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047626"><span class="hs-identifier hs-var">portion</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047623"><span class="hs-identifier hs-var">offset</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047623"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047626"><span class="hs-identifier hs-var">portion</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>   </span><span id="local-6989586621679047628"><span class="annot"><span class="annottext">smallpiece :: Int -&gt; (Int, Int)
+</span><a href="#local-6989586621679047628"><span class="hs-identifier hs-var hs-var">smallpiece</span></a></span></span><span> </span><span id="local-6989586621679047622"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047622"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-172"></span><span>       </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679047621"><span class="annot"><span class="annottext">offset :: Int
+</span><a href="#local-6989586621679047621"><span class="hs-identifier hs-var hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047632"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047622"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047626"><span class="hs-identifier hs-var">portion</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047629"><span class="hs-identifier hs-var">remain</span></a></span><span>
+</span><span id="line-173"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047621"><span class="hs-identifier hs-var">offset</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047621"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047626"><span class="hs-identifier hs-var">portion</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- My own forM for numeric ranges (not requiring deforestation optimizations).</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- Inclusive start, exclusive end.</span><span>
+</span><span id="line-177"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Combinator.html#for_"><span class="hs-pragma hs-type">for_</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-178"></span><span id="local-6989586621679047751"><span class="annot"><a href="Control.Monad.Par.Combinator.html#for_"><span class="hs-identifier hs-type">for_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679047751"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047751"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047751"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-179"></span><span id="for_"><span class="annot"><span class="annottext">for_ :: Int -&gt; Int -&gt; (Int -&gt; m ()) -&gt; m ()
+</span><a href="Control.Monad.Par.Combinator.html#for_"><span class="hs-identifier hs-var hs-var">for_</span></a></span></span><span> </span><span id="local-6989586621679047620"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047620"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679047619"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047619"><span class="hs-identifier hs-var">end</span></a></span></span><span> </span><span id="local-6989586621679047618"><span class="annot"><span class="annottext">Int -&gt; m ()
+</span><a href="#local-6989586621679047618"><span class="hs-identifier hs-var">_fn</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047620"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047619"><span class="hs-identifier hs-var">end</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; m ()
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;for_: start is greater than end&quot;</span></span><span>
+</span><span id="line-180"></span><span class="annot"><a href="Control.Monad.Par.Combinator.html#for_"><span class="hs-identifier hs-var">for_</span></a></span><span> </span><span id="local-6989586621679047615"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047615"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679047614"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047614"><span class="hs-identifier hs-var">end</span></a></span></span><span> </span><span id="local-6989586621679047613"><span class="annot"><span class="annottext">Int -&gt; m ()
+</span><a href="#local-6989586621679047613"><span class="hs-identifier hs-var">fn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; m ()
+</span><a href="#local-6989586621679047612"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047615"><span class="hs-identifier hs-var">start</span></a></span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-182"></span><span>   </span><span id="local-6989586621679047612"><span class="annot"><span class="annottext">loop :: Int -&gt; m ()
+</span><a href="#local-6989586621679047612"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679047611"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047611"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047611"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047614"><span class="hs-identifier hs-var">end</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; m ()
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>	   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">Int -&gt; m ()
+</span><a href="#local-6989586621679047613"><span class="hs-identifier hs-var">fn</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047611"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; m ()
+</span><a href="#local-6989586621679047612"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047611"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span></pre></body></html>

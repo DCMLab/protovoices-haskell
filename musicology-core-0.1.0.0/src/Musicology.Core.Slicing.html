@@ -1,0 +1,522 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TupleSections #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Musicology.Core.Slicing</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#onOffGroups"><span class="hs-identifier">onOffGroups</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#groupsToSlices"><span class="hs-identifier">groupsToSlices</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#slicePiece"><span class="hs-identifier">slicePiece</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier">Slicer</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#timed"><span class="hs-identifier">timed</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#cleanSlicer"><span class="hs-identifier">cleanSlicer</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#tiedSlicer"><span class="hs-identifier">tiedSlicer</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Musicology.Core.html"><span class="hs-identifier">Musicology.Core</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>                     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Lens.Micro.Extras</span></span><span>              </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">view</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span id="local-6989586621679087393"><span id="local-6989586621679087394"><span class="annot"><a href="Musicology.Core.Slicing.html#onOffGroups"><span class="hs-identifier hs-type">onOffGroups</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679087394"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.html#HasTime"><span class="hs-identifier hs-type">HasTime</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087393"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679087394"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087393"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="Musicology.Core.html#OnOff"><span class="hs-identifier hs-type">OnOff</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087393"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Musicology.Core.html#TimeOf"><span class="hs-identifier hs-type">TimeOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087393"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-21"></span><span id="onOffGroups"><span class="annot"><span class="annottext">onOffGroups :: f n -&gt; [[OnOff n (TimeOf n)]]
+</span><a href="Musicology.Core.Slicing.html#onOffGroups"><span class="hs-identifier hs-var hs-var">onOffGroups</span></a></span></span><span> </span><span id="local-6989586621679087329"><span class="annot"><span class="annottext">f n
+</span><a href="#local-6989586621679087329"><span class="hs-identifier hs-var">notes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(OnOff n (TimeOf n) -&gt; OnOff n (TimeOf n) -&gt; Bool)
+-&gt; [OnOff n (TimeOf n)] -&gt; [[OnOff n (TimeOf n)]]
+forall a. (a -&gt; a -&gt; Bool) -&gt; [a] -&gt; [[a]]
+</span><span class="hs-identifier hs-var">L.groupBy</span></span><span> </span><span class="annot"><span class="annottext">OnOff n (TimeOf n) -&gt; OnOff n (TimeOf n) -&gt; Bool
+forall a a.
+(HasTime a, HasTime a, TimeOf a ~ TimeOf a) =&gt;
+a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679087327"><span class="hs-identifier hs-var">eq</span></a></span><span> </span><span class="annot"><span class="annottext">([OnOff n (TimeOf n)] -&gt; [[OnOff n (TimeOf n)]])
+-&gt; [OnOff n (TimeOf n)] -&gt; [[OnOff n (TimeOf n)]]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(OnOff n (TimeOf n) -&gt; TimeOf n)
+-&gt; [OnOff n (TimeOf n)] -&gt; [OnOff n (TimeOf n)]
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">L.sortOn</span></span><span> </span><span class="annot"><span class="annottext">OnOff n (TimeOf n) -&gt; TimeOf n
+forall a. HasTime a =&gt; a -&gt; TimeOf a
+</span><a href="Musicology.Core.html#onset"><span class="hs-identifier hs-var">onset</span></a></span><span> </span><span class="annot"><span class="annottext">([OnOff n (TimeOf n)] -&gt; [OnOff n (TimeOf n)])
+-&gt; [OnOff n (TimeOf n)] -&gt; [OnOff n (TimeOf n)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">([OnOff n (TimeOf n)] -&gt; n -&gt; [OnOff n (TimeOf n)])
+-&gt; [OnOff n (TimeOf n)] -&gt; f n -&gt; [OnOff n (TimeOf n)]
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl</span></span><span> </span><span class="annot"><span class="annottext">[OnOff n (TimeOf n)] -&gt; n -&gt; [OnOff n (TimeOf n)]
+forall a.
+HasTime a =&gt;
+[OnOff a (TimeOf a)] -&gt; a -&gt; [OnOff a (TimeOf a)]
+</span><a href="#local-6989586621679087323"><span class="hs-identifier hs-var">convert</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff n (TimeOf n)]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">f n
+</span><a href="#local-6989586621679087329"><span class="hs-identifier hs-var">notes</span></a></span><span>
+</span><span id="line-22"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>  </span><span id="local-6989586621679087323"><span class="annot"><span class="annottext">convert :: [OnOff a (TimeOf a)] -&gt; a -&gt; [OnOff a (TimeOf a)]
+</span><a href="#local-6989586621679087323"><span class="hs-identifier hs-var hs-var">convert</span></a></span></span><span> </span><span id="local-6989586621679087322"><span class="annot"><span class="annottext">[OnOff a (TimeOf a)]
+</span><a href="#local-6989586621679087322"><span class="hs-identifier hs-var">onoffs</span></a></span></span><span> </span><span id="local-6989586621679087321"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087321"><span class="hs-identifier hs-var">note</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; TimeOf a -&gt; OnOff a (TimeOf a)
+forall c t. c -&gt; t -&gt; OnOff c t
+</span><a href="Musicology.Core.html#Onset"><span class="hs-identifier hs-var">Onset</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087321"><span class="hs-identifier hs-var">note</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; TimeOf a
+forall a. HasTime a =&gt; a -&gt; TimeOf a
+</span><a href="Musicology.Core.html#onset"><span class="hs-identifier hs-var">onset</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087321"><span class="hs-identifier hs-var">note</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OnOff a (TimeOf a) -&gt; [OnOff a (TimeOf a)] -&gt; [OnOff a (TimeOf a)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; TimeOf a -&gt; OnOff a (TimeOf a)
+forall c t. c -&gt; t -&gt; OnOff c t
+</span><a href="Musicology.Core.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087321"><span class="hs-identifier hs-var">note</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; TimeOf a
+forall a. HasTime a =&gt; a -&gt; TimeOf a
+</span><a href="Musicology.Core.html#offset"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087321"><span class="hs-identifier hs-var">note</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OnOff a (TimeOf a) -&gt; [OnOff a (TimeOf a)] -&gt; [OnOff a (TimeOf a)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[OnOff a (TimeOf a)]
+</span><a href="#local-6989586621679087322"><span class="hs-identifier hs-var">onoffs</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span id="local-6989586621679087327"><span class="annot"><span class="annottext">eq :: a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679087327"><span class="hs-identifier hs-var hs-var">eq</span></a></span></span><span> </span><span id="local-6989586621679087317"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087317"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679087316"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087316"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; TimeOf a
+forall a. HasTime a =&gt; a -&gt; TimeOf a
+</span><a href="Musicology.Core.html#onset"><span class="hs-identifier hs-var">onset</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087317"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">TimeOf a -&gt; TimeOf a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; TimeOf a
+forall a. HasTime a =&gt; a -&gt; TimeOf a
+</span><a href="Musicology.Core.html#onset"><span class="hs-identifier hs-var">onset</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679087316"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="Slicer"><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-var">Slicer</span></a></span></span><span> </span><span id="local-6989586621679087388"><span class="annot"><a href="#local-6989586621679087388"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679087387"><span class="annot"><a href="#local-6989586621679087387"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679087386"><span class="annot"><a href="#local-6989586621679087386"><span class="hs-identifier hs-type">st</span></a></span></span><span> </span><span id="local-6989586621679087385"><span class="annot"><a href="#local-6989586621679087385"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Slicer"><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-var">Slicer</span></a></span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="slInit"><span class="annot"><span class="annottext">Slicer a t st s -&gt; [OnOff a t] -&gt; st
+</span><a href="Musicology.Core.Slicing.html#slInit"><span class="hs-identifier hs-var hs-var">slInit</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Musicology.Core.html#OnOff"><span class="hs-identifier hs-type">OnOff</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087388"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087387"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679087386"><span class="hs-identifier hs-type">st</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="slNext"><span class="annot"><span class="annottext">Slicer a t st s -&gt; st -&gt; [OnOff a t] -&gt; (st, s)
+</span><a href="Musicology.Core.Slicing.html#slNext"><span class="hs-identifier hs-var hs-var">slNext</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679087386"><span class="hs-identifier hs-type">st</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Musicology.Core.html#OnOff"><span class="hs-identifier hs-type">OnOff</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087388"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087387"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679087386"><span class="hs-identifier hs-type">st</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679087385"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="slFinal"><span class="annot"><span class="annottext">Slicer a t st s -&gt; st -&gt; Maybe s
+</span><a href="Musicology.Core.Slicing.html#slFinal"><span class="hs-identifier hs-var hs-var">slFinal</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679087386"><span class="hs-identifier hs-type">st</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679087385"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- newPitches</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--   :: (Eq p, HasPitch a, IntervalOf a ~ p)</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--   =&gt; [Pitch p]</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--   -&gt; [OnOff a (TimeOf a)]</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--   -&gt; [Pitch p]</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span id="local-6989586621679087395"><span id="local-6989586621679087396"><span id="local-6989586621679087397"><span id="local-6989586621679087398"><span id="local-6989586621679087399"><span class="annot"><a href="Musicology.Core.Slicing.html#groupsToSlices"><span class="hs-identifier hs-type">groupsToSlices</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679087399"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-type">Slicer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087398"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087397"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087396"><span class="hs-identifier hs-type">st</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087395"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679087399"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Musicology.Core.html#OnOff"><span class="hs-identifier hs-type">OnOff</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087398"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087397"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679087395"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span></span></span></span></span></span><span>
+</span><span id="line-40"></span><span id="groupsToSlices"><span class="annot"><span class="annottext">groupsToSlices :: Slicer a t st s -&gt; f [OnOff a t] -&gt; [s]
+</span><a href="Musicology.Core.Slicing.html#groupsToSlices"><span class="hs-identifier hs-var hs-var">groupsToSlices</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-type">Slicer</span></a></span><span> </span><span id="local-6989586621679087311"><span class="annot"><span class="annottext">[OnOff a t] -&gt; st
+</span><a href="#local-6989586621679087311"><span class="hs-identifier hs-var">init</span></a></span></span><span> </span><span id="local-6989586621679087310"><span class="annot"><span class="annottext">st -&gt; [OnOff a t] -&gt; (st, s)
+</span><a href="#local-6989586621679087310"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span id="local-6989586621679087309"><span class="annot"><span class="annottext">st -&gt; Maybe s
+</span><a href="#local-6989586621679087309"><span class="hs-identifier hs-var">cleanUp</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679087308"><span class="annot"><span class="annottext">f [OnOff a t]
+</span><a href="#local-6989586621679087308"><span class="hs-identifier hs-var">groups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="annottext">[s] -&gt; [s]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">([s] -&gt; [s]) -&gt; [s] -&gt; [s]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Maybe (st, [s]) -&gt; [OnOff a t] -&gt; Maybe (st, [s]))
+-&gt; Maybe (st, [s]) -&gt; f [OnOff a t] -&gt; Maybe (st, [s])
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl</span></span><span> </span><span class="annot"><span class="annottext">Maybe (st, [s]) -&gt; [OnOff a t] -&gt; Maybe (st, [s])
+</span><a href="#local-6989586621679087306"><span class="hs-identifier hs-var">nextSlice</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (st, [s])
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">f [OnOff a t]
+</span><a href="#local-6989586621679087308"><span class="hs-identifier hs-var">groups</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="annottext">Maybe (st, [s])
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087305"><span class="annot"><span class="annottext">st
+</span><a href="#local-6989586621679087305"><span class="hs-identifier hs-var">st</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087304"><span class="annot"><span class="annottext">[s]
+</span><a href="#local-6989586621679087304"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">st -&gt; Maybe s
+</span><a href="#local-6989586621679087309"><span class="hs-identifier hs-var">cleanUp</span></a></span><span> </span><span class="annot"><span class="annottext">st
+</span><a href="#local-6989586621679087305"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679087303"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679087303"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679087303"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; [s] -&gt; [s]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[s]
+</span><a href="#local-6989586621679087304"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-45"></span><span>      </span><span class="annot"><span class="annottext">Maybe s
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[s]
+</span><a href="#local-6989586621679087304"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-46"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679087306"><span class="annot"><span class="annottext">nextSlice :: Maybe (st, [s]) -&gt; [OnOff a t] -&gt; Maybe (st, [s])
+</span><a href="#local-6989586621679087306"><span class="hs-identifier hs-var hs-var">nextSlice</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (st, [s])
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>          </span><span id="local-6989586621679087302"><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087302"><span class="hs-identifier hs-var">grp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(st, [s]) -&gt; Maybe (st, [s])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[OnOff a t] -&gt; st
+</span><a href="#local-6989586621679087311"><span class="hs-identifier hs-var">init</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087302"><span class="hs-identifier hs-var">grp</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><a href="#local-6989586621679087306"><span class="hs-identifier hs-var">nextSlice</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087301"><span class="annot"><span class="annottext">st
+</span><a href="#local-6989586621679087301"><span class="hs-identifier hs-var">st</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087300"><span class="annot"><span class="annottext">[s]
+</span><a href="#local-6989586621679087300"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span id="local-6989586621679087299"><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087299"><span class="hs-identifier hs-var">grp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(st, [s]) -&gt; Maybe (st, [s])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">st
+</span><a href="#local-6989586621679087298"><span class="hs-identifier hs-var">st'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679087297"><span class="hs-identifier hs-var">slice'</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; [s] -&gt; [s]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[s]
+</span><a href="#local-6989586621679087300"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087298"><span class="annot"><span class="annottext">st
+</span><a href="#local-6989586621679087298"><span class="hs-identifier hs-var">st'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087297"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679087297"><span class="hs-identifier hs-var">slice'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">st -&gt; [OnOff a t] -&gt; (st, s)
+</span><a href="#local-6989586621679087310"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">st
+</span><a href="#local-6989586621679087301"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087299"><span class="hs-identifier hs-var">grp</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span id="local-6989586621679087293"><span id="local-6989586621679087294"><span id="local-6989586621679087295"><span id="local-6989586621679087296"><span class="annot"><a href="Musicology.Core.Slicing.html#slicePiece"><span class="hs-identifier hs-type">slicePiece</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679087296"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.html#HasTime"><span class="hs-identifier hs-type">HasTime</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087295"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-type">Slicer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087295"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Musicology.Core.html#TimeOf"><span class="hs-identifier hs-type">TimeOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087295"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679087294"><span class="hs-identifier hs-type">st</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087293"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679087296"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087295"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679087293"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span></span></span></span></span><span>
+</span><span id="line-52"></span><span id="slicePiece"><span class="annot"><span class="annottext">slicePiece :: Slicer n (TimeOf n) st s -&gt; f n -&gt; [s]
+</span><a href="Musicology.Core.Slicing.html#slicePiece"><span class="hs-identifier hs-var hs-var">slicePiece</span></a></span></span><span> </span><span id="local-6989586621679087292"><span class="annot"><span class="annottext">Slicer n (TimeOf n) st s
+</span><a href="#local-6989586621679087292"><span class="hs-identifier hs-var">slicer</span></a></span></span><span> </span><span id="local-6989586621679087291"><span class="annot"><span class="annottext">f n
+</span><a href="#local-6989586621679087291"><span class="hs-identifier hs-var">notes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Slicer n (TimeOf n) st s -&gt; [[OnOff n (TimeOf n)]] -&gt; [s]
+forall (f :: * -&gt; *) a t st s.
+Foldable f =&gt;
+Slicer a t st s -&gt; f [OnOff a t] -&gt; [s]
+</span><a href="Musicology.Core.Slicing.html#groupsToSlices"><span class="hs-identifier hs-var">groupsToSlices</span></a></span><span> </span><span class="annot"><span class="annottext">Slicer n (TimeOf n) st s
+</span><a href="#local-6989586621679087292"><span class="hs-identifier hs-var">slicer</span></a></span><span> </span><span class="annot"><span class="annottext">([[OnOff n (TimeOf n)]] -&gt; [s]) -&gt; [[OnOff n (TimeOf n)]] -&gt; [s]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">f n -&gt; [[OnOff n (TimeOf n)]]
+forall (f :: * -&gt; *) n.
+(Foldable f, HasTime n) =&gt;
+f n -&gt; [[OnOff n (TimeOf n)]]
+</span><a href="Musicology.Core.Slicing.html#onOffGroups"><span class="hs-identifier hs-var">onOffGroups</span></a></span><span> </span><span class="annot"><span class="annottext">f n
+</span><a href="#local-6989586621679087291"><span class="hs-identifier hs-var">notes</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span id="timed"><span class="annot"><span class="annottext">timed :: Slicer a t c c -&gt; Slicer a t (t, c) (TimedEvent c t)
+</span><a href="Musicology.Core.Slicing.html#timed"><span class="hs-identifier hs-var hs-var">timed</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-type">Slicer</span></a></span><span> </span><span id="local-6989586621679087290"><span class="annot"><span class="annottext">[OnOff a t] -&gt; c
+</span><a href="#local-6989586621679087290"><span class="hs-identifier hs-var">init</span></a></span></span><span> </span><span id="local-6989586621679087289"><span class="annot"><span class="annottext">c -&gt; [OnOff a t] -&gt; (c, c)
+</span><a href="#local-6989586621679087289"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span id="local-6989586621679087288"><span class="annot"><span class="annottext">c -&gt; Maybe c
+</span><a href="#local-6989586621679087288"><span class="hs-identifier hs-var">cleanUp</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([OnOff a t] -&gt; (t, c))
+-&gt; ((t, c) -&gt; [OnOff a t] -&gt; ((t, c), TimedEvent c t))
+-&gt; ((t, c) -&gt; Maybe (TimedEvent c t))
+-&gt; Slicer a t (t, c) (TimedEvent c t)
+forall a t st s.
+([OnOff a t] -&gt; st)
+-&gt; (st -&gt; [OnOff a t] -&gt; (st, s))
+-&gt; (st -&gt; Maybe s)
+-&gt; Slicer a t st s
+</span><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-var">Slicer</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t] -&gt; (t, c)
+</span><a href="#local-6989586621679087287"><span class="hs-identifier hs-var">init'</span></a></span><span> </span><span class="annot"><span class="annottext">(t, c) -&gt; [OnOff a t] -&gt; ((t, c), TimedEvent c t)
+</span><a href="#local-6989586621679087286"><span class="hs-identifier hs-var">next'</span></a></span><span> </span><span class="annot"><span class="annottext">(t, c) -&gt; Maybe (TimedEvent c t)
+</span><a href="#local-6989586621679087285"><span class="hs-identifier hs-var">cleanUp'</span></a></span><span>
+</span><span id="line-55"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679087284"><span class="annot"><span class="annottext">time :: [OnOff a t] -&gt; TimeOf (OnOff a t)
+</span><a href="#local-6989586621679087284"><span class="hs-identifier hs-var hs-var">time</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OnOff a t -&gt; TimeOf (OnOff a t)
+forall a. HasTime a =&gt; a -&gt; TimeOf a
+</span><a href="Musicology.Core.html#onset"><span class="hs-identifier hs-var">onset</span></a></span><span> </span><span class="annot"><span class="annottext">(OnOff a t -&gt; TimeOf (OnOff a t))
+-&gt; ([OnOff a t] -&gt; OnOff a t) -&gt; [OnOff a t] -&gt; TimeOf (OnOff a t)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[OnOff a t] -&gt; OnOff a t
+forall a. [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679087287"><span class="annot"><span class="annottext">init' :: [OnOff a t] -&gt; (t, c)
+</span><a href="#local-6989586621679087287"><span class="hs-identifier hs-var hs-var">init'</span></a></span></span><span> </span><span id="local-6989586621679087281"><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087281"><span class="hs-identifier hs-var">grp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[OnOff a t] -&gt; TimeOf (OnOff a t)
+</span><a href="#local-6989586621679087284"><span class="hs-identifier hs-var">time</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087281"><span class="hs-identifier hs-var">grp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[OnOff a t] -&gt; c
+</span><a href="#local-6989586621679087290"><span class="hs-identifier hs-var">init</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087281"><span class="hs-identifier hs-var">grp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679087286"><span class="annot"><span class="annottext">next' :: (t, c) -&gt; [OnOff a t] -&gt; ((t, c), TimedEvent c t)
+</span><a href="#local-6989586621679087286"><span class="hs-identifier hs-var hs-var">next'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087280"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679087280"><span class="hs-identifier hs-var">on</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087279"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087279"><span class="hs-identifier hs-var">st</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679087278"><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087278"><span class="hs-identifier hs-var">grp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">OnOff a t -&gt; TimeOf (OnOff a t)
+forall a. HasTime a =&gt; a -&gt; TimeOf a
+</span><a href="Musicology.Core.html#onset"><span class="hs-identifier hs-var">onset</span></a></span><span> </span><span class="annot"><span class="annottext">(OnOff a t -&gt; TimeOf (OnOff a t))
+-&gt; OnOff a t -&gt; TimeOf (OnOff a t)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[OnOff a t] -&gt; OnOff a t
+forall a. [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087278"><span class="hs-identifier hs-var">grp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087277"><span class="hs-identifier hs-var">st'</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">TimedEvent c t
+</span><a href="#local-6989586621679087276"><span class="hs-identifier hs-var">timedSlice</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679087275"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087275"><span class="hs-identifier hs-var">slice</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087277"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087277"><span class="hs-identifier hs-var">st'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; [OnOff a t] -&gt; (c, c)
+</span><a href="#local-6989586621679087289"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087279"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087278"><span class="hs-identifier hs-var">grp</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679087276"><span class="annot"><span class="annottext">timedSlice :: TimedEvent c t
+</span><a href="#local-6989586621679087276"><span class="hs-identifier hs-var hs-var">timedSlice</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; t -&gt; t -&gt; TimedEvent c t
+forall c t. c -&gt; t -&gt; t -&gt; TimedEvent c t
+</span><a href="Musicology.Core.html#TimedEvent"><span class="hs-identifier hs-var">TimedEvent</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087275"><span class="hs-identifier hs-var">slice</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679087280"><span class="hs-identifier hs-var">on</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[OnOff a t] -&gt; TimeOf (OnOff a t)
+</span><a href="#local-6989586621679087284"><span class="hs-identifier hs-var">time</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087278"><span class="hs-identifier hs-var">grp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679087285"><span class="annot"><span class="annottext">cleanUp' :: (t, c) -&gt; Maybe (TimedEvent c t)
+</span><a href="#local-6989586621679087285"><span class="hs-identifier hs-var hs-var">cleanUp'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087273"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679087273"><span class="hs-identifier hs-var">on</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087272"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087272"><span class="hs-identifier hs-var">st</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">c -&gt; Maybe c
+</span><a href="#local-6989586621679087288"><span class="hs-identifier hs-var">cleanUp</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087272"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="annottext">Maybe c
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (TimedEvent c t)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679087271"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087271"><span class="hs-identifier hs-var">slice</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TimedEvent c t -&gt; Maybe (TimedEvent c t)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(TimedEvent c t -&gt; Maybe (TimedEvent c t))
+-&gt; TimedEvent c t -&gt; Maybe (TimedEvent c t)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; t -&gt; t -&gt; TimedEvent c t
+forall c t. c -&gt; t -&gt; t -&gt; TimedEvent c t
+</span><a href="Musicology.Core.html#TimedEvent"><span class="hs-identifier hs-var">TimedEvent</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679087271"><span class="hs-identifier hs-var">slice</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679087273"><span class="hs-identifier hs-var">on</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679087273"><span class="hs-identifier hs-var">on</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span id="local-6989586621679087269"><span id="local-6989586621679087270"><span class="annot"><a href="Musicology.Core.Slicing.html#cleanSlicer"><span class="hs-identifier hs-type">cleanSlicer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679087270"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-type">Slicer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087270"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087269"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679087270"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679087270"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-67"></span><span id="cleanSlicer"><span class="annot"><span class="annottext">cleanSlicer :: Slicer a t [a] [a]
+</span><a href="Musicology.Core.Slicing.html#cleanSlicer"><span class="hs-identifier hs-var hs-var">cleanSlicer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([OnOff a t] -&gt; [a])
+-&gt; ([a] -&gt; [OnOff a t] -&gt; ([a], [a]))
+-&gt; ([a] -&gt; Maybe [a])
+-&gt; Slicer a t [a] [a]
+forall a t st s.
+([OnOff a t] -&gt; st)
+-&gt; (st -&gt; [OnOff a t] -&gt; (st, s))
+-&gt; (st -&gt; Maybe s)
+-&gt; Slicer a t st s
+</span><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-var">Slicer</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t] -&gt; [a]
+forall b t. [OnOff b t] -&gt; [b]
+</span><a href="#local-6989586621679087268"><span class="hs-identifier hs-var">init</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [OnOff a t] -&gt; ([a], [a])
+forall b t. Eq b =&gt; [b] -&gt; [OnOff b t] -&gt; ([b], [b])
+</span><a href="#local-6989586621679087267"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. [a] -&gt; Maybe [a]
+</span><a href="#local-6989586621679087266"><span class="hs-identifier hs-var">cleanUp</span></a></span><span>
+</span><span id="line-68"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621679087265"><span class="annot"><span class="annottext">contents :: f (OnOff b t) -&gt; f b
+</span><a href="#local-6989586621679087265"><span class="hs-identifier hs-var hs-var">contents</span></a></span></span><span> </span><span id="local-6989586621679087264"><span class="annot"><span class="annottext">f (OnOff b t)
+</span><a href="#local-6989586621679087264"><span class="hs-identifier hs-var">onoff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(OnOff b t -&gt; b) -&gt; f (OnOff b t) -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Getting b (OnOff b t) b -&gt; OnOff b t -&gt; b
+forall a s. Getting a s a -&gt; s -&gt; a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Getting b (OnOff b t) b
+forall c t c2. Lens (OnOff c t) (OnOff c2 t) c c2
+</span><a href="Musicology.Core.html#onOffContent"><span class="hs-identifier hs-var">onOffContent</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f (OnOff b t)
+</span><a href="#local-6989586621679087264"><span class="hs-identifier hs-var">onoff</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621679087262"><span class="annot"><span class="annottext">newPitches :: [b] -&gt; [OnOff b t] -&gt; [b]
+</span><a href="#local-6989586621679087262"><span class="hs-identifier hs-var hs-var">newPitches</span></a></span></span><span> </span><span id="local-6989586621679087261"><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679087261"><span class="hs-identifier hs-var">curr</span></a></span></span><span> </span><span id="local-6989586621679087260"><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087260"><span class="hs-identifier hs-var">grp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679087261"><span class="hs-identifier hs-var">curr</span></a></span><span> </span><span class="annot"><span class="annottext">[b] -&gt; [b] -&gt; [b]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">L.\\</span></span><span> </span><span class="annot"><span class="annottext">[OnOff b t] -&gt; [b]
+forall (f :: * -&gt; *) b t. Functor f =&gt; f (OnOff b t) -&gt; f b
+</span><a href="#local-6989586621679087265"><span class="hs-identifier hs-var">contents</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087258"><span class="hs-identifier hs-var">offs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[b] -&gt; [b] -&gt; [b]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">`L.union`</span></span><span> </span><span class="annot"><span class="annottext">[OnOff b t] -&gt; [b]
+forall (f :: * -&gt; *) b t. Functor f =&gt; f (OnOff b t) -&gt; f b
+</span><a href="#local-6989586621679087265"><span class="hs-identifier hs-var">contents</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087256"><span class="hs-identifier hs-var">ons</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087256"><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087256"><span class="hs-identifier hs-var">ons</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087258"><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087258"><span class="hs-identifier hs-var">offs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(OnOff b t -&gt; Bool) -&gt; [OnOff b t] -&gt; ([OnOff b t], [OnOff b t])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">L.partition</span></span><span> </span><span class="annot"><span class="annottext">OnOff b t -&gt; Bool
+forall c t. OnOff c t -&gt; Bool
+</span><a href="Musicology.Core.html#isOn"><span class="hs-identifier hs-var">isOn</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087260"><span class="hs-identifier hs-var">grp</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679087268"><span class="annot"><span class="annottext">init :: [OnOff b t] -&gt; [b]
+</span><a href="#local-6989586621679087268"><span class="hs-identifier hs-var hs-var">init</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[OnOff b t] -&gt; [b]
+forall (f :: * -&gt; *) b t. Functor f =&gt; f (OnOff b t) -&gt; f b
+</span><a href="#local-6989586621679087265"><span class="hs-identifier hs-var">contents</span></a></span><span> </span><span class="annot"><span class="annottext">([OnOff b t] -&gt; [b])
+-&gt; ([OnOff b t] -&gt; [OnOff b t]) -&gt; [OnOff b t] -&gt; [b]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(OnOff b t -&gt; Bool) -&gt; [OnOff b t] -&gt; [OnOff b t]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">OnOff b t -&gt; Bool
+forall c t. OnOff c t -&gt; Bool
+</span><a href="Musicology.Core.html#isOn"><span class="hs-identifier hs-var">isOn</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679087267"><span class="annot"><span class="annottext">next :: [b] -&gt; [OnOff b t] -&gt; ([b], [b])
+</span><a href="#local-6989586621679087267"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span id="local-6989586621679087253"><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679087253"><span class="hs-identifier hs-var">curr</span></a></span></span><span> </span><span id="local-6989586621679087252"><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087252"><span class="hs-identifier hs-var">grp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[b] -&gt; [OnOff b t] -&gt; [b]
+forall b t. Eq b =&gt; [b] -&gt; [OnOff b t] -&gt; [b]
+</span><a href="#local-6989586621679087262"><span class="hs-identifier hs-var">newPitches</span></a></span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679087253"><span class="hs-identifier hs-var">curr</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087252"><span class="hs-identifier hs-var">grp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679087253"><span class="hs-identifier hs-var">curr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679087266"><span class="annot"><span class="annottext">cleanUp :: [a] -&gt; Maybe [a]
+</span><a href="#local-6989586621679087266"><span class="hs-identifier hs-var hs-var">cleanUp</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="#local-6989586621679087266"><span class="hs-identifier hs-var">cleanUp</span></a></span><span> </span><span id="local-6989586621679087251"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087251"><span class="hs-identifier hs-var">last</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087251"><span class="hs-identifier hs-var">last</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- groupsToPitches</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--   :: (Foldable f, HasPitch a, Eq (IntervalOf a))</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--   =&gt; f [OnOff a t]</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--   -&gt; [[Pitch (IntervalOf a)]]</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- groupsToPitches = groupsToAny pitchSlicer</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span id="local-6989586621679087249"><span id="local-6989586621679087250"><span class="annot"><a href="Musicology.Core.Slicing.html#tiedSlicer"><span class="hs-identifier hs-type">tiedSlicer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679087250"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-type">Slicer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087250"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679087249"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679087250"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679087250"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679087250"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Musicology.Core.html#Tied"><span class="hs-identifier hs-type">Tied</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-84"></span><span id="tiedSlicer"><span class="annot"><span class="annottext">tiedSlicer :: Slicer a t ([a], [a]) [(a, Tied)]
+</span><a href="Musicology.Core.Slicing.html#tiedSlicer"><span class="hs-identifier hs-var hs-var">tiedSlicer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([OnOff a t] -&gt; ([a], [a]))
+-&gt; (([a], [a]) -&gt; [OnOff a t] -&gt; (([a], [a]), [(a, Tied)]))
+-&gt; (([a], [a]) -&gt; Maybe [(a, Tied)])
+-&gt; Slicer a t ([a], [a]) [(a, Tied)]
+forall a t st s.
+([OnOff a t] -&gt; st)
+-&gt; (st -&gt; [OnOff a t] -&gt; (st, s))
+-&gt; (st -&gt; Maybe s)
+-&gt; Slicer a t st s
+</span><a href="Musicology.Core.Slicing.html#Slicer"><span class="hs-identifier hs-var">Slicer</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t] -&gt; ([a], [a])
+forall b t a. [OnOff b t] -&gt; ([b], [a])
+</span><a href="#local-6989586621679087248"><span class="hs-identifier hs-var">init</span></a></span><span> </span><span class="annot"><span class="annottext">([a], [a]) -&gt; [OnOff a t] -&gt; (([a], [a]), [(a, Tied)])
+forall a t.
+Eq a =&gt;
+([a], [a]) -&gt; [OnOff a t] -&gt; (([a], [a]), [(a, Tied)])
+</span><a href="#local-6989586621679087247"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">([a], [a]) -&gt; Maybe [(a, Tied)]
+forall t. ([t], [t]) -&gt; Maybe [(t, Tied)]
+</span><a href="#local-6989586621679087246"><span class="hs-identifier hs-var">cleanUp</span></a></span><span>
+</span><span id="line-85"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>  </span><span id="local-6989586621679087245"><span class="annot"><span class="annottext">content :: OnOff c t -&gt; c
+</span><a href="#local-6989586621679087245"><span class="hs-identifier hs-var hs-var">content</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Getting c (OnOff c t) c -&gt; OnOff c t -&gt; c
+forall a s. Getting a s a -&gt; s -&gt; a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Getting c (OnOff c t) c
+forall c t c2. Lens (OnOff c t) (OnOff c2 t) c c2
+</span><a href="Musicology.Core.html#onOffContent"><span class="hs-identifier hs-var">onOffContent</span></a></span><span>
+</span><span id="line-87"></span><span>  </span><span id="local-6989586621679087248"><span class="annot"><span class="annottext">init :: [OnOff b t] -&gt; ([b], [a])
+</span><a href="#local-6989586621679087248"><span class="hs-identifier hs-var hs-var">init</span></a></span></span><span> </span><span id="local-6989586621679087244"><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087244"><span class="hs-identifier hs-var">grp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OnOff b t -&gt; b
+forall c t. OnOff c t -&gt; c
+</span><a href="#local-6989586621679087245"><span class="hs-identifier hs-var">content</span></a></span><span> </span><span class="annot"><span class="annottext">(OnOff b t -&gt; b) -&gt; [OnOff b t] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(OnOff b t -&gt; Bool) -&gt; [OnOff b t] -&gt; [OnOff b t]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">OnOff b t -&gt; Bool
+forall c t. OnOff c t -&gt; Bool
+</span><a href="Musicology.Core.html#isOn"><span class="hs-identifier hs-var">isOn</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff b t]
+</span><a href="#local-6989586621679087244"><span class="hs-identifier hs-var">grp</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621679087247"><span class="annot"><span class="annottext">next :: ([a], [a]) -&gt; [OnOff a t] -&gt; (([a], [a]), [(a, Tied)])
+</span><a href="#local-6989586621679087247"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087242"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087242"><span class="hs-identifier hs-var">currNew</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087241"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087241"><span class="hs-identifier hs-var">currOld</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679087240"><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087240"><span class="hs-identifier hs-var">grp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087239"><span class="hs-identifier hs-var">currNew'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087238"><span class="hs-identifier hs-var">currOld'</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[(a, Tied)]
+</span><a href="#local-6989586621679087237"><span class="hs-identifier hs-var">notes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679087236"><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087236"><span class="hs-identifier hs-var">onEvs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087235"><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087235"><span class="hs-identifier hs-var">offEvs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(OnOff a t -&gt; Bool) -&gt; [OnOff a t] -&gt; ([OnOff a t], [OnOff a t])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">L.partition</span></span><span> </span><span class="annot"><span class="annottext">OnOff a t -&gt; Bool
+forall c t. OnOff c t -&gt; Bool
+</span><a href="Musicology.Core.html#isOn"><span class="hs-identifier hs-var">isOn</span></a></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087240"><span class="hs-identifier hs-var">grp</span></a></span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679087234"><span class="annot"><span class="annottext">ons :: [a]
+</span><a href="#local-6989586621679087234"><span class="hs-identifier hs-var hs-var">ons</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OnOff a t -&gt; a
+forall c t. OnOff c t -&gt; c
+</span><a href="#local-6989586621679087245"><span class="hs-identifier hs-var">content</span></a></span><span> </span><span class="annot"><span class="annottext">(OnOff a t -&gt; a) -&gt; [OnOff a t] -&gt; [a]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087236"><span class="hs-identifier hs-var">onEvs</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679087233"><span class="annot"><span class="annottext">offs :: [a]
+</span><a href="#local-6989586621679087233"><span class="hs-identifier hs-var hs-var">offs</span></a></span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OnOff a t -&gt; a
+forall c t. OnOff c t -&gt; c
+</span><a href="#local-6989586621679087245"><span class="hs-identifier hs-var">content</span></a></span><span> </span><span class="annot"><span class="annottext">(OnOff a t -&gt; a) -&gt; [OnOff a t] -&gt; [a]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[OnOff a t]
+</span><a href="#local-6989586621679087235"><span class="hs-identifier hs-var">offEvs</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621679087232"><span class="annot"><span class="annottext">singles :: [(a, Tied)]
+</span><a href="#local-6989586621679087232"><span class="hs-identifier hs-var hs-var">singles</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-special">,</span></span><span> </span><span class="annot"><span class="annottext">Tied
+</span><a href="Musicology.Core.html#Single"><span class="hs-identifier hs-var">Single</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (a, Tied)) -&gt; [a] -&gt; [(a, Tied)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087242"><span class="hs-identifier hs-var">currNew</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">`L.intersect`</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087233"><span class="hs-identifier hs-var">offs</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679087229"><span class="annot"><span class="annottext">starts :: [(a, Tied)]
+</span><a href="#local-6989586621679087229"><span class="hs-identifier hs-var hs-var">starts</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-special">,</span></span><span> </span><span class="annot"><span class="annottext">Tied
+</span><a href="Musicology.Core.html#Starts"><span class="hs-identifier hs-var">Starts</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (a, Tied)) -&gt; [a] -&gt; [(a, Tied)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087242"><span class="hs-identifier hs-var">currNew</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">L.\\</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087233"><span class="hs-identifier hs-var">offs</span></a></span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621679087227"><span class="annot"><span class="annottext">continues :: [(a, Tied)]
+</span><a href="#local-6989586621679087227"><span class="hs-identifier hs-var hs-var">continues</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-special">,</span></span><span> </span><span class="annot"><span class="annottext">Tied
+</span><a href="Musicology.Core.html#Continues"><span class="hs-identifier hs-var">Continues</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (a, Tied)) -&gt; [a] -&gt; [(a, Tied)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087241"><span class="hs-identifier hs-var">currOld</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">L.\\</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087233"><span class="hs-identifier hs-var">offs</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679087225"><span class="annot"><span class="annottext">stops :: [(a, Tied)]
+</span><a href="#local-6989586621679087225"><span class="hs-identifier hs-var hs-var">stops</span></a></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-special">,</span></span><span> </span><span class="annot"><span class="annottext">Tied
+</span><a href="Musicology.Core.html#Stops"><span class="hs-identifier hs-var">Stops</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (a, Tied)) -&gt; [a] -&gt; [(a, Tied)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087241"><span class="hs-identifier hs-var">currOld</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">`L.intersect`</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087233"><span class="hs-identifier hs-var">offs</span></a></span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621679087237"><span class="annot"><span class="annottext">notes :: [(a, Tied)]
+</span><a href="#local-6989586621679087237"><span class="hs-identifier hs-var hs-var">notes</span></a></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(a, Tied)]
+</span><a href="#local-6989586621679087232"><span class="hs-identifier hs-var">singles</span></a></span><span> </span><span class="annot"><span class="annottext">[(a, Tied)] -&gt; [(a, Tied)] -&gt; [(a, Tied)]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(a, Tied)]
+</span><a href="#local-6989586621679087229"><span class="hs-identifier hs-var">starts</span></a></span><span> </span><span class="annot"><span class="annottext">[(a, Tied)] -&gt; [(a, Tied)] -&gt; [(a, Tied)]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(a, Tied)]
+</span><a href="#local-6989586621679087227"><span class="hs-identifier hs-var">continues</span></a></span><span> </span><span class="annot"><span class="annottext">[(a, Tied)] -&gt; [(a, Tied)] -&gt; [(a, Tied)]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(a, Tied)]
+</span><a href="#local-6989586621679087225"><span class="hs-identifier hs-var">stops</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621679087238"><span class="annot"><span class="annottext">currOld' :: [a]
+</span><a href="#local-6989586621679087238"><span class="hs-identifier hs-var hs-var">currOld'</span></a></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087242"><span class="hs-identifier hs-var">currNew</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087241"><span class="hs-identifier hs-var">currOld</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">L.\\</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087233"><span class="hs-identifier hs-var">offs</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span id="local-6989586621679087239"><span class="annot"><span class="annottext">currNew' :: [a]
+</span><a href="#local-6989586621679087239"><span class="hs-identifier hs-var hs-var">currNew'</span></a></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087234"><span class="hs-identifier hs-var">ons</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">L.\\</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679087238"><span class="hs-identifier hs-var">currOld'</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679087246"><span class="annot"><span class="annottext">cleanUp :: ([t], [t]) -&gt; Maybe [(t, Tied)]
+</span><a href="#local-6989586621679087246"><span class="hs-identifier hs-var hs-var">cleanUp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe [(t, Tied)]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="annot"><a href="#local-6989586621679087246"><span class="hs-identifier hs-var">cleanUp</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087223"><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679087223"><span class="hs-identifier hs-var">new</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087222"><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679087222"><span class="hs-identifier hs-var">old</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(t, Tied)] -&gt; Maybe [(t, Tied)]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">([(t, Tied)] -&gt; Maybe [(t, Tied)])
+-&gt; [(t, Tied)] -&gt; Maybe [(t, Tied)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(t -&gt; (t, Tied)) -&gt; [t] -&gt; [(t, Tied)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-special">,</span></span><span> </span><span class="annot"><span class="annottext">Tied
+</span><a href="Musicology.Core.html#Single"><span class="hs-identifier hs-var">Single</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679087223"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">[(t, Tied)] -&gt; [(t, Tied)] -&gt; [(t, Tied)]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(t -&gt; (t, Tied)) -&gt; [t] -&gt; [(t, Tied)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-special">,</span></span><span> </span><span class="annot"><span class="annottext">Tied
+</span><a href="Musicology.Core.html#Stops"><span class="hs-identifier hs-var">Stops</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679087222"><span class="hs-identifier hs-var">old</span></a></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- -- groupsToTied</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- --   :: (Foldable t, HasTime n, Eq n) =&gt; t [OnOff n (TimeOf n)] -&gt; [[(n, Tied)]]</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- groupsToTied :: (Foldable f, Eq a) =&gt; f [OnOff a t] -&gt; [[(a, Tied)]]</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- groupsToTied = groupsToAny tiedSlicer</span><span>
+</span><span id="line-107"></span></pre></body></html>

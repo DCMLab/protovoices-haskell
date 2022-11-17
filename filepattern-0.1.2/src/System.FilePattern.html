@@ -1,0 +1,280 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ConstraintKinds, RecordWildCards, ScopedTypeVariables #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | A module for matching files using patterns such as @\&quot;src\/**\/*.png\&quot;@ for all @.png@ files</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--  recursively under the @src@ directory. See '?==' for the semantics of</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--  'FilePattern' values. Features:</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--  * All matching is /O(n)/. Most functions precompute some information given only one argument.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--  * Use 'match' and 'substitute' to extract suitable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--  strings from the @*@ and @**@ matches, and substitute them back into other patterns.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--  * Use 'step' and 'matchMany' to perform bulk matching</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--  of many patterns against many paths simultaneously.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--  * Use &quot;System.FilePattern.Directory&quot; to perform optimised directory traverals using patterns.</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.FilePattern</span><span class="hs-special">(</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="System.FilePattern.Core.html#FilePattern"><span class="hs-identifier">FilePattern</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.html#%3F%3D%3D"><span class="hs-operator">(?==)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.html#match"><span class="hs-identifier">match</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.html#substitute"><span class="hs-identifier">substitute</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.html#arity"><span class="hs-identifier">arity</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Multiple patterns and paths</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="System.FilePattern.Step.html#step"><span class="hs-identifier">step</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.Step.html#step_"><span class="hs-identifier">step_</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.Step.html#Step"><span class="hs-identifier">Step</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.Step.html#StepNext"><span class="hs-identifier">StepNext</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.html#matchMany"><span class="hs-identifier">matchMany</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception.Extra</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tuple.Extra</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.Extra</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FilePattern.Tree.html"><span class="hs-identifier">System.FilePattern.Tree</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html"><span class="hs-identifier">System.FilePattern.Core</span></a></span><span class="hs-special">(</span><span class="annot"><a href="System.FilePattern.Core.html#FilePattern"><span class="hs-identifier">FilePattern</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html#parsePattern"><span class="hs-identifier">parsePattern</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html#parsePath"><span class="hs-identifier">parsePath</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html#renderPath"><span class="hs-identifier">renderPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html"><span class="hs-identifier">System.FilePattern.Core</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Core</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FilePattern.Step.html"><span class="hs-identifier">System.FilePattern.Step</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">---------------------------------------------------------------------</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- PATTERNS</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Match a 'FilePattern' against a 'FilePath'. There are two special forms:</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- * @*@ matches part of a path component, excluding any separators.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- * @**@ as a path component matches an arbitrary number of path components.</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--   Some examples:</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- * @test.c@ matches @test.c@ and nothing else.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- * @*.c@ matches all @.c@ files in the current directory, so @file.c@ matches,</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--   but @file.h@ and @dir\/file.c@ don't.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- * @**/*.c@ matches all @.c@ files anywhere on the filesystem,</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--   so @file.c@, @dir\/file.c@, @dir1\/dir2\/file.c@ and @\/path\/to\/file.c@ all match,</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--   but @file.h@ and @dir\/file.h@ don't.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- * @dir\/*\/*@ matches all files one level below @dir@, so @dir\/one\/file.c@ and</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--   @dir\/two\/file.h@ match, but @file.c@, @one\/dir\/file.c@, @dir\/file.h@</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--   and @dir\/one\/two\/file.c@ don't.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--   Patterns with constructs such as @foo\/..\/bar@ will never match</span><span>
+</span><span id="line-58"></span><span class="hs-comment">--   normalised 'FilePath' values, so are unlikely to be correct.</span><span>
+</span><span id="line-59"></span><span class="annot"><a href="System.FilePattern.html#%3F%3D%3D"><span class="hs-operator hs-type">(?==)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html#FilePattern"><span class="hs-identifier hs-type">FilePattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-60"></span><span id="%3F%3D%3D"><span class="annot"><span class="annottext">?== :: FilePattern -&gt; FilePattern -&gt; Bool
+</span><a href="System.FilePattern.html#%3F%3D%3D"><span class="hs-operator hs-var hs-var">(?==)</span></a></span></span><span> </span><span id="local-6989586621679042827"><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042827"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe [FilePattern] -&gt; Bool
+forall a. Maybe a -&gt; Bool
+</span><span class="hs-identifier hs-var">isJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe [FilePattern] -&gt; Bool)
+-&gt; (FilePattern -&gt; Maybe [FilePattern]) -&gt; FilePattern -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; Maybe [FilePattern]
+</span><a href="System.FilePattern.html#match"><span class="hs-identifier hs-var">match</span></a></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042827"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | Like '?==', but returns 'Nothing' on if there is no match, otherwise 'Just' with the list</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--   of fragments matching each wildcard. For example:</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- isJust ('match' p x) == (p '?==' x)</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- 'match' \&quot;**\/*.c\&quot; \&quot;test.txt\&quot; == Nothing</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- 'match' \&quot;**\/*.c\&quot; \&quot;foo.c\&quot; == Just [\&quot;&quot;,\&quot;foo\&quot;]</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- 'match' \&quot;**\/*.c\&quot; \&quot;bar\/baz\/foo.c\&quot; == Just [\&quot;bar\/baz/\&quot;,\&quot;foo\&quot;]</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">--   On Windows any @\\@ path separators will be replaced by @\/@.</span><span>
+</span><span id="line-74"></span><span class="annot"><a href="System.FilePattern.html#match"><span class="hs-identifier hs-type">match</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html#FilePattern"><span class="hs-identifier hs-type">FilePattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-75"></span><span id="match"><span class="annot"><span class="annottext">match :: FilePattern -&gt; FilePattern -&gt; Maybe [FilePattern]
+</span><a href="System.FilePattern.html#match"><span class="hs-identifier hs-var hs-var">match</span></a></span></span><span> </span><span id="local-6989586621679042823"><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042823"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pattern -&gt; Path -&gt; Maybe [FilePattern]
+</span><a href="System.FilePattern.Core.html#match"><span class="hs-identifier hs-var">Core.match</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePattern -&gt; Pattern
+</span><a href="System.FilePattern.Core.html#parsePattern"><span class="hs-identifier hs-var">parsePattern</span></a></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042823"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Path -&gt; Maybe [FilePattern])
+-&gt; (FilePattern -&gt; Path) -&gt; FilePattern -&gt; Maybe [FilePattern]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; Path
+</span><a href="System.FilePattern.Core.html#parsePath"><span class="hs-identifier hs-var">parsePath</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">---------------------------------------------------------------------</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- MULTIPATTERN COMPATIBLE SUBSTITUTIONS</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- | How many @*@ and @**@ elements are there.</span><span>
+</span><span id="line-82"></span><span class="hs-comment">--</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- 'arity' \&quot;test.c\&quot; == 0</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- 'arity' \&quot;**\/*.c\&quot; == 2</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-87"></span><span class="annot"><a href="System.FilePattern.html#arity"><span class="hs-identifier hs-type">arity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html#FilePattern"><span class="hs-identifier hs-type">FilePattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-88"></span><span id="arity"><span class="annot"><span class="annottext">arity :: FilePattern -&gt; Int
+</span><a href="System.FilePattern.html#arity"><span class="hs-identifier hs-var hs-var">arity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pattern -&gt; Int
+</span><a href="System.FilePattern.Core.html#arity"><span class="hs-identifier hs-var">Core.arity</span></a></span><span> </span><span class="annot"><span class="annottext">(Pattern -&gt; Int) -&gt; (FilePattern -&gt; Pattern) -&gt; FilePattern -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; Pattern
+</span><a href="System.FilePattern.Core.html#parsePattern"><span class="hs-identifier hs-var">parsePattern</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | Given a successful 'match', substitute it back in to a pattern with the same 'arity'.</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--   Raises an error if the number of parts does not match the arity of the pattern.</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- p '?==' x ==&gt; 'substitute' (fromJust $ 'match' p x) p == x</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- 'substitute' \&quot;**\/*.c\&quot; [\&quot;dir\&quot;,\&quot;file\&quot;] == \&quot;dir/file.c\&quot;</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-98"></span><span class="annot"><a href="System.FilePattern.html#substitute"><span class="hs-identifier hs-type">substitute</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Partial</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html#FilePattern"><span class="hs-identifier hs-type">FilePattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-99"></span><span id="substitute"><span class="annot"><span class="annottext">substitute :: FilePattern -&gt; [FilePattern] -&gt; FilePattern
+</span><a href="System.FilePattern.html#substitute"><span class="hs-identifier hs-var hs-var">substitute</span></a></span></span><span> </span><span id="local-6989586621679042819"><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042819"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span id="local-6989586621679042818"><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042818"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; (Path -&gt; FilePattern) -&gt; Maybe Path -&gt; FilePattern
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern
+forall a. HasCallStack =&gt; FilePattern -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042815"><span class="hs-identifier hs-var">msg</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Path -&gt; FilePattern
+</span><a href="System.FilePattern.Core.html#renderPath"><span class="hs-identifier hs-var">renderPath</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Path -&gt; FilePattern) -&gt; Maybe Path -&gt; FilePattern
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Pattern -&gt; [FilePattern] -&gt; Maybe Path
+</span><a href="System.FilePattern.Core.html#substitute"><span class="hs-identifier hs-var">Core.substitute</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePattern -&gt; Pattern
+</span><a href="System.FilePattern.Core.html#parsePattern"><span class="hs-identifier hs-var">parsePattern</span></a></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042819"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042818"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>        </span><span id="local-6989586621679042815"><span class="annot"><span class="annottext">msg :: FilePattern
+</span><a href="#local-6989586621679042815"><span class="hs-identifier hs-var hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><span class="hs-string">&quot;Failed substitute, patterns of different arity. Pattern &quot;</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; FilePattern
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern
+forall a. Show a =&gt; a -&gt; FilePattern
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042819"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; FilePattern
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span>
+</span><span id="line-102"></span><span>              </span><span class="annot"><span class="annottext">FilePattern
+</span><span class="hs-string">&quot; expects &quot;</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; FilePattern
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; FilePattern
+forall a. Show a =&gt; a -&gt; FilePattern
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePattern -&gt; Int
+</span><a href="System.FilePattern.html#arity"><span class="hs-identifier hs-var">arity</span></a></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042819"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; FilePattern
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><span class="hs-string">&quot; elements, but got &quot;</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; FilePattern
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; FilePattern
+forall a. Show a =&gt; a -&gt; FilePattern
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[FilePattern] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042818"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; FilePattern
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span>
+</span><span id="line-103"></span><span>              </span><span class="annot"><span class="annottext">FilePattern
+</span><span class="hs-string">&quot; namely &quot;</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; FilePattern
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[FilePattern] -&gt; FilePattern
+forall a. Show a =&gt; a -&gt; FilePattern
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042818"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; FilePattern -&gt; FilePattern
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><span class="hs-string">&quot;.&quot;</span></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | Efficiently match many 'FilePattern's against many 'FilePath's in a single operation.</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--   Note that the returned matches are not guaranteed to be in any particular order.</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- &gt; matchMany [(a, pat)] [(b, path)] == maybeToList (map (a,b,) (match pat path))</span><span>
+</span><span id="line-110"></span><span id="local-6989586621679042810"><span id="local-6989586621679042811"><span class="annot"><a href="System.FilePattern.html#matchMany"><span class="hs-identifier hs-type">matchMany</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679042811"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePattern.Core.html#FilePattern"><span class="hs-identifier hs-type">FilePattern</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679042810"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679042811"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679042810"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-111"></span><span id="matchMany"><span class="annot"><span class="annottext">matchMany :: [(a, FilePattern)] -&gt; [(b, FilePattern)] -&gt; [(a, b, [FilePattern])]
+</span><a href="System.FilePattern.html#matchMany"><span class="hs-identifier hs-var hs-var">matchMany</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(a, b, [FilePattern])]
+-&gt; [(b, FilePattern)] -&gt; [(a, b, [FilePattern])]
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-112"></span><span class="annot"><a href="System.FilePattern.html#matchMany"><span class="hs-identifier hs-var">matchMany</span></a></span><span> </span><span id="local-6989586621679042808"><span class="annot"><span class="annottext">[(a, FilePattern)]
+</span><a href="#local-6989586621679042808"><span class="hs-identifier hs-var">pats</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679042807"><span class="annot"><span class="annottext">[(b, FilePattern)]
+</span><a href="#local-6989586621679042807"><span class="hs-identifier hs-var">files</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[(b, FilePattern)] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[(b, FilePattern)]
+</span><a href="#local-6989586621679042807"><span class="hs-identifier hs-var">files</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Step a -&gt; Tree FilePattern b -&gt; [(a, b, [FilePattern])]
+forall a b. Step a -&gt; Tree FilePattern b -&gt; [(a, b, [FilePattern])]
+</span><a href="#local-6989586621679042805"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Step a
+</span><a href="#local-6989586621679042804"><span class="hs-identifier hs-var">spats</span></a></span><span> </span><span class="annot"><span class="annottext">(Tree FilePattern b -&gt; [(a, b, [FilePattern])])
+-&gt; Tree FilePattern b -&gt; [(a, b, [FilePattern])]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[(b, [FilePattern])] -&gt; Tree FilePattern b
+forall k v. Ord k =&gt; [(v, [k])] -&gt; Tree k v
+</span><a href="System.FilePattern.Tree.html#makeTree"><span class="hs-identifier hs-var">makeTree</span></a></span><span> </span><span class="annot"><span class="annottext">([(b, [FilePattern])] -&gt; Tree FilePattern b)
+-&gt; [(b, [FilePattern])] -&gt; Tree FilePattern b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((b, FilePattern) -&gt; (b, [FilePattern]))
+-&gt; [(b, FilePattern)] -&gt; [(b, [FilePattern])]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(FilePattern -&gt; [FilePattern])
+-&gt; (b, FilePattern) -&gt; (b, [FilePattern])
+forall b b' a. (b -&gt; b') -&gt; (a, b) -&gt; (a, b')
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">((FilePattern -&gt; [FilePattern])
+ -&gt; (b, FilePattern) -&gt; (b, [FilePattern]))
+-&gt; (FilePattern -&gt; [FilePattern])
+-&gt; (b, FilePattern)
+-&gt; (b, [FilePattern])
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="System.FilePattern.Core.html#Path"><span class="hs-identifier hs-type">Core.Path</span></a></span><span> </span><span id="local-6989586621679042800"><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042800"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042800"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Path -&gt; [FilePattern])
+-&gt; (FilePattern -&gt; Path) -&gt; FilePattern -&gt; [FilePattern]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; Path
+</span><a href="System.FilePattern.Core.html#parsePath"><span class="hs-identifier hs-var">parsePath</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(b, FilePattern)]
+</span><a href="#local-6989586621679042807"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-114"></span><span>        </span><span id="local-6989586621679042804"><span class="annot"><span class="annottext">spats :: Step a
+</span><a href="#local-6989586621679042804"><span class="hs-identifier hs-var hs-var">spats</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(a, FilePattern)] -&gt; Step a
+forall a. [(a, FilePattern)] -&gt; Step a
+</span><a href="System.FilePattern.Step.html#step"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">[(a, FilePattern)]
+</span><a href="#local-6989586621679042808"><span class="hs-identifier hs-var">pats</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span>        </span><span id="local-6989586621679042805"><span class="annot"><span class="annottext">f :: Step a -&gt; Tree FilePattern b -&gt; [(a, b, [FilePattern])]
+</span><a href="#local-6989586621679042805"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="annot"><a href="System.FilePattern.Step.html#Step"><span class="hs-identifier hs-type">Step</span></a></span><span class="hs-special">{</span><span id="local-6989586621679042796"><span id="local-6989586621679042797"><span id="local-6989586621679042798"><span class="annot"><span class="annottext">[(a, [FilePattern])]
+StepNext
+FilePattern -&gt; Step a
+stepApply :: forall a. Step a -&gt; FilePattern -&gt; Step a
+stepNext :: forall a. Step a -&gt; StepNext
+stepDone :: forall a. Step a -&gt; [(a, [FilePattern])]
+stepApply :: FilePattern -&gt; Step a
+stepNext :: StepNext
+stepDone :: [(a, [FilePattern])]
+</span><a href="System.FilePattern.Step.html#stepApply"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePattern.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span id="local-6989586621679042791"><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679042791"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621679042790"><span class="annot"><span class="annottext">[(FilePattern, Tree FilePattern b)]
+</span><a href="#local-6989586621679042790"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[(a, b, [FilePattern])]] -&gt; [(a, b, [FilePattern])]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[(a, b, [FilePattern])]] -&gt; [(a, b, [FilePattern])])
+-&gt; [[(a, b, [FilePattern])]] -&gt; [(a, b, [FilePattern])]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-117"></span><span>            </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679042788"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679042787"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042786"><span class="hs-identifier hs-var">ps</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679042788"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679042788"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679042786"><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042786"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(a, [FilePattern])]
+</span><a href="#local-6989586621679042798"><span class="hs-identifier hs-var">stepDone</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679042787"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679042787"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679042791"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[(a, b, [FilePattern])]
+-&gt; [[(a, b, [FilePattern])]] -&gt; [[(a, b, [FilePattern])]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span>
+</span><span id="line-118"></span><span>            </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Step a -&gt; Tree FilePattern b -&gt; [(a, b, [FilePattern])]
+</span><a href="#local-6989586621679042805"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePattern -&gt; Step a
+</span><a href="#local-6989586621679042796"><span class="hs-identifier hs-var">stepApply</span></a></span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042785"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree FilePattern b
+</span><a href="#local-6989586621679042784"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679042785"><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042785"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679042784"><span class="annot"><span class="annottext">Tree FilePattern b
+</span><a href="#local-6989586621679042784"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(FilePattern, Tree FilePattern b)]
+</span><a href="#local-6989586621679042790"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">StepNext
+</span><a href="#local-6989586621679042797"><span class="hs-identifier hs-var">stepNext</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><a href="System.FilePattern.Step.html#StepOnly"><span class="hs-identifier hs-type">StepOnly</span></a></span><span> </span><span id="local-6989586621679042782"><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042782"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FilePattern
+</span><a href="#local-6989586621679042785"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">FilePattern -&gt; [FilePattern] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[FilePattern]
+</span><a href="#local-6989586621679042782"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">StepNext
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">]</span><span>
+</span><span id="line-119"></span></pre></body></html>

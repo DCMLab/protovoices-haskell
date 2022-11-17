@@ -1,0 +1,55 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Musicology.Pitch</title><link href="linuwial.css" rel="stylesheet" type="text/css" title="Linuwial" /><link rel="stylesheet" type="text/css" href="quick-jump.css" /><link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400i,700" /><script src="haddock-bundle.min.js" async="async" type="text/javascript"></script><script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { processClass: "mathjax", ignoreClass: ".*" } });</script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script></head><body><div id="package-header"><span class="caption">musicology-pitch-0.1.0.0</span><ul class="links" id="page-menu"><li><a href="src/Musicology.Pitch.html">Source</a></li><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul></div><div id="content"><div id="module-header"><table class="info"><tr><th valign="top">Copyright</th><td>Christoph Finkensiep 2021</td></tr><tr><th>License</th><td>BSD</td></tr><tr><th>Maintainer</th><td>chfin@chfin.de</td></tr><tr><th>Stability</th><td>experimental</td></tr><tr><th>Safe Haskell</th><td>None</td></tr><tr><th>Language</th><td>Haskell2010</td></tr></table><p class="caption">Musicology.Pitch</p></div><div id="description"><p class="caption">Description</p><div class="doc"><p>This package provides useful representations and operations for working with musical pitch.
+Follows the same API and notation formats as the companion libraries:</p><ul><li><a href="https://github.com/DCMLab/Pitches.jl/">Pitches.jl</a> (Julia)</li><li><a href="https://github.com/DCMLab/purescript-pitches">purescript-pitches</a> (Purescript)</li><li><a href="https://github.com/DCMLab/rust-pitches">rust-pitches</a> (Rust)</li><li><a href="https://github.com/DCMLab/pitchtypes">pitchtypes</a> (Python)</li></ul><p>The two main goals are:</p><ul><li>providing types and operations (such as arithmetics, printing and parsing) for common types of pitches and intervals</li><li>providing a generic interface for writing code that is agnostic to the specific pitch or interval types.</li></ul><p>It allows you to write generic algorithms that can then be applied to pitches and intervals in different formats:</p><pre>import           Data.Foldable                  ( forM_ )
+import           Data.Maybe                     ( catMaybes )
+import           Musicology.Pitch
+
+-- do something with a list of pitches
+transposeAndAddOctave :: Interval i =&gt; [Pitch i] -&gt; i -&gt; [Pitch i]
+transposeAndAddOctave pitches by = map (\p -&gt; p +^ by +^ octave) pitches
+
+main :: IO ()
+main = do
+  -- perform the algorithm with MIDI pitches
+  putStrLn &quot;MIDI:&quot;
+  let midiPitches = midip &lt;$&gt; [60, 64, 67]
+  forM_ (transposeAndAddOctave midiPitches 3)
+    $ \p -&gt; putStrLn $ &quot;- &quot; &lt;&gt; showNotation p
+
+  -- perform the algorithm with MIDI pitch classes
+  putStrLn &quot;MIDI classes:&quot;
+  let midiPitches = midipc &lt;$&gt; [0, 4, 7]
+  forM_ (transposeAndAddOctave midiPitches (mic 3))
+    $ \p -&gt; putStrLn $ &quot;- &quot; &lt;&gt; showNotation p
+
+  -- perform the algorithm with spelled pitches
+  putStrLn &quot;spelled:&quot;
+  let spelledPitches :: [SPitch]
+      spelledPitches = catMaybes $ readNotation &lt;$&gt; [&quot;C4&quot;, &quot;Eb4&quot;, &quot;G#4&quot;, &quot;C5&quot;]
+      Just interval  = readNotation &quot;M3:0&quot;
+  forM_ (transposeAndAddOctave spelledPitches interval)
+    $ \p -&gt; putStrLn $ &quot;- &quot; &lt;&gt; showNotation p</pre><p>Output:</p><pre>MIDI:
+- p75
+- p79
+- p82
+MIDI classes:
+- ic3
+- ic7
+- ic10
+spelled:
+- E5
+- G5
+- B&#9839;5
+- E6</pre><p>The fundamental idea behind this library is that the central object is the <em>interval</em>.
+Pitches are derived from intervals by interpreting them with respect to a reference point.
+This is much like the relation between vectors (= intervals) and points (= pitches).
+For example, the pitch <code>E&#9837;4</code> can be represented as an interval (e.g. a minor third, <code>m3:0</code>)
+above a reference pitch such as Middle C (<code>C4</code>).
+The concept of an interval is represented by the <code><a href="Musicology-Pitch-Class.html#t:Interval" title="Musicology.Pitch.Class">Interval</a></code> class.
+Pitches are represented using the generic <code><a href="Musicology-Pitch-Class.html#t:Pitch" title="Musicology.Pitch.Class">Pitch</a></code> type.
+Pitch types for concrete interval types, however, may provide specialized functionality
+(e.g. for reading and printing) as well as type synonyms
+(e.g. <code><a href="Musicology-Pitch-Spelled.html#t:SPitch" title="Musicology.Pitch.Spelled">SPitch</a></code> for <code>Pitch Snterval</code>).</p><p>Similar to vectors and points, intervals and pitches support a number of operations
+such as addition and scalar multiplication,
+which are here implemented using the <code><a href="Musicology-Pitch-Class.html#t:Interval" title="Musicology.Pitch.Class">Interval</a></code> class and its superclasses (e.g. <code><a href="../vector-space-0.16/Data-VectorSpace.html#t:VectorSpace" title="Data.VectorSpace">VectorSpace</a></code>).</p><p>For the general pitch and interval interface, have a look at <a href="Musicology-Pitch-Class.html">Musicology.Pitch.Class</a>.
+Documentation for spelled and MIDI types
+can be found in <a href="Musicology-Pitch-Spelled.html">Musicology.Pitch.Spelled</a> and <a href="Musicology-Pitch-Midi.html">Musicology.Pitch.Midi</a>, respectively.</p></div></div><div id="interface"><h1>Documentation</h1><div class="top"><p class="src">module <a href="Musicology-Pitch-Class.html">Musicology.Pitch.Class</a></p></div><div class="top"><p class="src">module <a href="Musicology-Pitch-Spelled.html">Musicology.Pitch.Spelled</a></p></div><div class="top"><p class="src">module <a href="Musicology-Pitch-Midi.html">Musicology.Pitch.Midi</a></p></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.24.2</p></div></body></html>

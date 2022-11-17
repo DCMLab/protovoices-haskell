@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Simple resource management functions</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes, Safe #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Pipes.Safe.Prelude</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Handle management</span></span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Pipes.Safe.Prelude.html#withFile"><span class="hs-identifier">withFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-comment">-- * String I/O</span></span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><span class="hs-comment">-- $strings</span></span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Pipes.Safe.Prelude.html#readFile"><span class="hs-identifier">readFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Pipes.Safe.Prelude.html#writeFile"><span class="hs-identifier">writeFile</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadIO</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftIO</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Pipes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Producer'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Consumer'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Pipes.Safe.html"><span class="hs-identifier">Pipes.Safe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Pipes.Safe.html#bracket"><span class="hs-identifier">bracket</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Pipes.Safe.html#MonadSafe"><span class="hs-identifier">MonadSafe</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Pipes.Prelude</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IO</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">readFile</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeFile</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | Acquire a 'IO.Handle' within 'MonadSafe'</span><span>
+</span><span id="line-23"></span><span id="local-6989586621679058296"><span id="local-6989586621679058297"><span class="annot"><a href="Pipes.Safe.Prelude.html#withFile"><span class="hs-identifier hs-type">withFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Pipes.Safe.html#MonadSafe"><span class="hs-identifier hs-type">MonadSafe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679058297"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO.IOMode</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO.Handle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679058297"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679058296"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679058297"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679058296"><span class="hs-identifier hs-type">r</span></a></span></span></span><span>
+</span><span id="line-24"></span><span id="withFile"><span class="annot"><span class="annottext">withFile :: FilePath -&gt; IOMode -&gt; (Handle -&gt; m r) -&gt; m r
+</span><a href="Pipes.Safe.Prelude.html#withFile"><span class="hs-identifier hs-var hs-var">withFile</span></a></span></span><span> </span><span id="local-6989586621679058278"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679058278"><span class="hs-identifier hs-var">file</span></a></span></span><span> </span><span id="local-6989586621679058277"><span class="annot"><span class="annottext">IOMode
+</span><a href="#local-6989586621679058277"><span class="hs-identifier hs-var">ioMode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Base m Handle -&gt; (Handle -&gt; Base m ()) -&gt; (Handle -&gt; m r) -&gt; m r
+forall (m :: * -&gt; *) a b c.
+MonadSafe m =&gt;
+Base m a -&gt; (a -&gt; Base m b) -&gt; (a -&gt; m c) -&gt; m c
+</span><a href="Pipes.Safe.html#bracket"><span class="hs-identifier hs-var">bracket</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO Handle -&gt; Base m Handle
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO Handle -&gt; Base m Handle) -&gt; IO Handle -&gt; Base m Handle
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IOMode -&gt; IO Handle
+</span><span class="hs-identifier hs-var">IO.openFile</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679058278"><span class="hs-identifier hs-var">file</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><a href="#local-6989586621679058277"><span class="hs-identifier hs-var">ioMode</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO () -&gt; Base m ()
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; Base m ()) -&gt; (Handle -&gt; IO ()) -&gt; Handle -&gt; Base m ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><span class="hs-identifier hs-var">IO.hClose</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Safe.Prelude.html#withFile"><span class="hs-pragma hs-type">withFile</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">{- $strings
+    Note that 'String's are very inefficient, and I will release future separate
+    packages with 'Data.ByteString.ByteString' and 'Data.Text.Text' operations.
+    I only provide these to allow users to test simple I/O without requiring any
+    additional library dependencies.
+-}</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">{-| Read lines from a file, automatically opening and closing the file as
+    necessary
+-}</span><span>
+</span><span id="line-37"></span><span id="local-6989586621679058273"><span class="annot"><a href="Pipes.Safe.Prelude.html#readFile"><span class="hs-identifier hs-type">readFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Pipes.Safe.html#MonadSafe"><span class="hs-identifier hs-type">MonadSafe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679058273"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Producer'</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679058273"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-38"></span><span id="readFile"><span class="annot"><span class="annottext">readFile :: FilePath -&gt; Producer' FilePath m ()
+</span><a href="Pipes.Safe.Prelude.html#readFile"><span class="hs-identifier hs-var hs-var">readFile</span></a></span></span><span> </span><span id="local-6989586621679058271"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679058271"><span class="hs-identifier hs-var">file</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+-&gt; IOMode
+-&gt; (Handle -&gt; Proxy x' x () FilePath m ())
+-&gt; Proxy x' x () FilePath m ()
+forall (m :: * -&gt; *) r.
+MonadSafe m =&gt;
+FilePath -&gt; IOMode -&gt; (Handle -&gt; m r) -&gt; m r
+</span><a href="Pipes.Safe.Prelude.html#withFile"><span class="hs-identifier hs-var">withFile</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679058271"><span class="hs-identifier hs-var">file</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><span class="hs-identifier hs-var">IO.ReadMode</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Proxy x' x () FilePath m ()
+forall (m :: * -&gt; *) x' x.
+MonadIO m =&gt;
+Handle -&gt; Proxy x' x () FilePath m ()
+</span><span class="hs-identifier hs-var">P.fromHandle</span></span><span>
+</span><span id="line-39"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Safe.Prelude.html#readFile"><span class="hs-pragma hs-type">readFile</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">{-| Write lines to a file, automatically opening and closing the file as
+    necessary
+-}</span><span>
+</span><span id="line-44"></span><span id="local-6989586621679058267"><span id="local-6989586621679058268"><span class="annot"><a href="Pipes.Safe.Prelude.html#writeFile"><span class="hs-identifier hs-type">writeFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Pipes.Safe.html#MonadSafe"><span class="hs-identifier hs-type">MonadSafe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679058268"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Consumer'</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679058268"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679058267"><span class="hs-identifier hs-type">r</span></a></span></span></span><span>
+</span><span id="line-45"></span><span id="writeFile"><span class="annot"><span class="annottext">writeFile :: FilePath -&gt; Consumer' FilePath m r
+</span><a href="Pipes.Safe.Prelude.html#writeFile"><span class="hs-identifier hs-var hs-var">writeFile</span></a></span></span><span> </span><span id="local-6989586621679058266"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679058266"><span class="hs-identifier hs-var">file</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+-&gt; IOMode
+-&gt; (Handle -&gt; Proxy () FilePath y' y m r)
+-&gt; Proxy () FilePath y' y m r
+forall (m :: * -&gt; *) r.
+MonadSafe m =&gt;
+FilePath -&gt; IOMode -&gt; (Handle -&gt; m r) -&gt; m r
+</span><a href="Pipes.Safe.Prelude.html#withFile"><span class="hs-identifier hs-var">withFile</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679058266"><span class="hs-identifier hs-var">file</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><span class="hs-identifier hs-var">IO.WriteMode</span></span><span> </span><span class="annot"><span class="annottext">((Handle -&gt; Proxy () FilePath y' y m r)
+ -&gt; Proxy () FilePath y' y m r)
+-&gt; (Handle -&gt; Proxy () FilePath y' y m r)
+-&gt; Proxy () FilePath y' y m r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679058264"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679058264"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Consumer' FilePath m r
+forall (m :: * -&gt; *) r.
+MonadIO m =&gt;
+Handle -&gt; Consumer' FilePath m r
+</span><span class="hs-identifier hs-var">P.toHandle</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679058264"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-46"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Safe.Prelude.html#writeFile"><span class="hs-pragma hs-type">writeFile</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-47"></span></pre></body></html>

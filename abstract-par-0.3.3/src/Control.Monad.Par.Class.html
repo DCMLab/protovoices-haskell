@@ -1,0 +1,261 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, CPP,
+             FlexibleInstances, UndecidableInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- UndecidableInstances</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">{-|
+    This module establishes a class hierarchy that captures the
+    interfaces of @Par@ monads.  There are two layers: simple futures
+    ('ParFuture') and full @IVars@ ('ParIVar').  All @Par@ monads are
+    expected to implement the former, some also implement the latter.
+
+    For more documentation of the programming model, see
+
+    * The &quot;Control.Monad.Par&quot; module in the @monad-par@ package.
+
+    * The wiki\/tutorial (&lt;http://www.haskell.org/haskellwiki/Par_Monad:_A_Parallelism_Tutorial&gt;)
+
+    * The original paper (&lt;http://www.cs.indiana.edu/~rrnewton/papers/haskell2011_monad-par.pdf&gt;)
+
+    * Tutorial slides (&lt;http://community.haskell.org/~simonmar/slides/CUFP.pdf&gt;)
+
+    * Other slides (&lt;http://www.cs.ox.ac.uk/ralf.hinze/WG2.8/28/slides/simon.pdf&gt;, &lt;http://www.cs.indiana.edu/~rrnewton/talks/2011_HaskellSymposium_ParMonad.pdf&gt;)
+
+ -}</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Par.Class</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Futures</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="Control.Monad.Par.Class.html#ParFuture"><span class="hs-identifier">ParFuture</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><span class="hs-comment">-- * IVars</span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Class.html#ParIVar"><span class="hs-identifier">ParIVar</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-comment">-- RRN: Not releasing this interface until there is a nice implementation of it:</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-comment">--  Channels (Streams)</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-comment">--  , ParChan(..)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- This is reexported.</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | @ParFuture@ captures the class of Par monads which support</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--   futures.  This level of functionality subsumes @par@/@pseq@ and is</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--   similar to the &quot;Control.Parallel.Strategies.Eval&quot; monad.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--   A minimal implementation consists of `spawn_` and `get`.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--   However, for monads that are also a member of `ParIVar` it is</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--   typical to simply define `spawn` in terms of `fork`, `new`, and `put`.</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="ParFuture"><span class="annot"><a href="Control.Monad.Par.Class.html#ParFuture"><span class="hs-identifier hs-var">ParFuture</span></a></span></span><span> </span><span id="local-6989586621679034959"><span class="annot"><a href="#local-6989586621679034959"><span class="hs-identifier hs-type">future</span></a></span></span><span> </span><span id="local-6989586621679034961"><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034959"><span class="hs-identifier hs-type">future</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-comment">-- | Create a potentially-parallel computation, and return a /future/</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-comment">-- (or /promise/) that can be used to query the result of the forked</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-comment">-- computataion.</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-comment">-- &gt;  spawn p = do</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-comment">-- &gt;    r &lt;- new</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-comment">-- &gt;    fork (p &gt;&gt;= put r)</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-comment">-- &gt;    return r</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679034950"><span id="spawn"><span class="annot"><a href="Control.Monad.Par.Class.html#spawn"><span class="hs-identifier hs-type">spawn</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679034950"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034950"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679034959"><span class="hs-identifier hs-type">future</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034950"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-63"></span><span>  </span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-comment">-- | Like 'spawn', but the result is only head-strict, not fully-strict.</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679034957"><span id="spawn_"><span class="annot"><a href="Control.Monad.Par.Class.html#spawn_"><span class="hs-identifier hs-type">spawn_</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034957"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679034959"><span class="hs-identifier hs-type">future</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034957"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-comment">-- | Wait for the result of a future, and then return it.</span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679034938"><span id="get"><span class="annot"><a href="Control.Monad.Par.Class.html#get"><span class="hs-identifier hs-type">get</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679034959"><span class="hs-identifier hs-type">future</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034938"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034938"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-comment">-- | Spawn a pure (rather than monadic) computation.  Fully-strict.</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-comment">-- &gt;  spawnP = spawn . return</span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679034931"><span id="spawnP"><span class="annot"><a href="Control.Monad.Par.Class.html#spawnP"><span class="hs-identifier hs-type">spawnP</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679034931"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>   </span><span class="annot"><a href="#local-6989586621679034931"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034961"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679034959"><span class="hs-identifier hs-type">future</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034931"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-comment">-- Default implementations:</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679034929"><span class="annot"><a href="Control.Monad.Par.Class.html#spawn"><span class="hs-identifier hs-var hs-var">spawn</span></a></span><span>  </span><span id="local-6989586621679034928"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679034928"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; m (future a)
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+ParFuture future m =&gt;
+m a -&gt; m (future a)
+</span><a href="Control.Monad.Par.Class.html#spawn_"><span class="hs-identifier hs-var">spawn_</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679034927"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034927"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679034928"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">a -&gt; m a -&gt; m a
+forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-identifier hs-var">deepseq</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034927"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034927"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679034925"><span class="annot"><a href="Control.Monad.Par.Class.html#spawnP"><span class="hs-identifier hs-var hs-var">spawnP</span></a></span><span> </span><span id="local-6989586621679034924"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034924"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; m (future a)
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+(ParFuture future m, NFData a) =&gt;
+m a -&gt; m (future a)
+</span><a href="Control.Monad.Par.Class.html#spawn"><span class="hs-identifier hs-var">spawn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034924"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | @ParIVar@ builds on futures by adding full /anyone-writes, anyone-reads/ IVars.</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--   These are more expressive but may not be supported by all distributed schedulers.</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- A minimal implementation consists of `fork`, `put_`, and `new`.</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><a href="Control.Monad.Par.Class.html#ParFuture"><span class="hs-identifier hs-type">ParFuture</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034949"><span class="hs-identifier hs-type">ivar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span id="ParIVar"><span class="annot"><a href="Control.Monad.Par.Class.html#ParIVar"><span class="hs-identifier hs-var">ParIVar</span></a></span></span><span> </span><span id="local-6989586621679034949"><span class="annot"><a href="#local-6989586621679034949"><span class="hs-identifier hs-type">ivar</span></a></span></span><span> </span><span id="local-6989586621679034947"><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034949"><span class="hs-identifier hs-type">ivar</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-comment">-- | Forks a computation to happen in parallel.  The forked</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-comment">-- computation may exchange values with other computations using</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-comment">-- @IVar@s.</span><span>
+</span><span id="line-90"></span><span>  </span><span id="fork"><span class="annot"><a href="Control.Monad.Par.Class.html#fork"><span class="hs-identifier hs-type">fork</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-comment">-- | creates a new @IVar@</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679034941"><span id="new"><span class="annot"><a href="Control.Monad.Par.Class.html#new"><span class="hs-identifier hs-type">new</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679034949"><span class="hs-identifier hs-type">ivar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034941"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-comment">-- | put a value into a @IVar@.  Multiple 'put's to the same @IVar@</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-comment">-- are not allowed, and result in a runtime error.</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-comment">-- 'put' fully evaluates its argument, which therefore must be an</span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-comment">-- instance of 'NFData'.  The idea is that this forces the work to</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-comment">-- happen when we expect it, rather than being passed to the consumer</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-comment">-- of the @IVar@ and performed later, which often results in less</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-comment">-- parallelism than expected.</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-comment">-- Sometimes partial strictness is more appropriate: see 'put_'.</span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621679034935"><span id="put"><span class="annot"><a href="Control.Monad.Par.Class.html#put"><span class="hs-identifier hs-type">put</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679034935"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034949"><span class="hs-identifier hs-type">ivar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034935"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034935"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679034920"><span class="annot"><a href="Control.Monad.Par.Class.html#put"><span class="hs-identifier hs-var hs-var">put</span></a></span><span> </span><span id="local-6989586621679034919"><span class="annot"><span class="annottext">ivar a
+</span><a href="#local-6989586621679034919"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679034918"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034918"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m () -&gt; m ()
+forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-identifier hs-var">deepseq</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034918"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ivar a -&gt; a -&gt; m ()
+forall (ivar :: * -&gt; *) (m :: * -&gt; *) a.
+ParIVar ivar m =&gt;
+ivar a -&gt; a -&gt; m ()
+</span><a href="Control.Monad.Par.Class.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">ivar a
+</span><a href="#local-6989586621679034919"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034918"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>  </span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-comment">-- | like 'put', but only head-strict rather than fully-strict.  </span></span><span>
+</span><span id="line-110"></span><span>  </span><span id="local-6989586621679034945"><span id="put_"><span class="annot"><a href="Control.Monad.Par.Class.html#put_"><span class="hs-identifier hs-type">put_</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679034949"><span class="hs-identifier hs-type">ivar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034945"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034945"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-comment">-- Extra API routines that have default implementations:</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-comment">-- | creates a new @IVar@ that contains a value</span><span>
+</span><span id="line-115"></span><span>  </span><span id="local-6989586621679034916"><span id="newFull"><span class="annot"><a href="Control.Monad.Par.Class.html#newFull"><span class="hs-identifier hs-type">newFull</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679034916"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034916"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679034949"><span class="hs-identifier hs-type">ivar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034916"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621679034914"><span class="annot"><a href="Control.Monad.Par.Class.html#newFull"><span class="hs-identifier hs-var hs-var">newFull</span></a></span><span> </span><span id="local-6989586621679034913"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034913"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m (ivar a) -&gt; m (ivar a)
+forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-identifier hs-var">deepseq</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034913"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; m (ivar a)
+forall (ivar :: * -&gt; *) (m :: * -&gt; *) a.
+ParIVar ivar m =&gt;
+a -&gt; m (ivar a)
+</span><a href="Control.Monad.Par.Class.html#newFull_"><span class="hs-identifier hs-var">newFull_</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034913"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-comment">-- | creates a new @IVar@ that contains a value (head-strict only)</span></span><span>
+</span><span id="line-119"></span><span>  </span><span id="local-6989586621679034943"><span id="newFull_"><span class="annot"><a href="Control.Monad.Par.Class.html#newFull_"><span class="hs-identifier hs-type">newFull_</span></a></span></span><span> </span><span class="hs-glyph">::</span><span>  </span><span class="annot"><a href="#local-6989586621679034943"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034947"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679034949"><span class="hs-identifier hs-type">ivar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034943"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-120"></span><span>  </span><span id="local-6989586621679034911"><span class="annot"><a href="Control.Monad.Par.Class.html#newFull_"><span class="hs-identifier hs-var hs-var">newFull_</span></a></span><span> </span><span id="local-6989586621679034910"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034910"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679034909"><span class="annot"><span class="annottext">ivar a
+</span><a href="#local-6989586621679034909"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (ivar a)
+forall (ivar :: * -&gt; *) (m :: * -&gt; *) a.
+ParIVar ivar m =&gt;
+m (ivar a)
+</span><a href="Control.Monad.Par.Class.html#new"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-121"></span><span>                  </span><span class="hs-comment">-- This is usually inefficient!</span><span>
+</span><span id="line-122"></span><span>		  </span><span class="annot"><span class="annottext">ivar a -&gt; a -&gt; m ()
+forall (ivar :: * -&gt; *) (m :: * -&gt; *) a.
+ParIVar ivar m =&gt;
+ivar a -&gt; a -&gt; m ()
+</span><a href="Control.Monad.Par.Class.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">ivar a
+</span><a href="#local-6989586621679034909"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679034910"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-123"></span><span>		  </span><span class="annot"><span class="annottext">ivar a -&gt; m (ivar a)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">ivar a
+</span><a href="#local-6989586621679034909"><span class="hs-identifier hs-var">v</span></a></span></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- class ParYieldable ??</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-comment">-- TODO: I think we should add yield officially:</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-comment">-- Allows other parallel computations to progress.  (should not be</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-comment">-- necessary in most cases).</span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-comment">--  yield  :: m ()</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- | @ParChan@ provides communication via streams of values between</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--   computations in a Par monad.  Channels in this case are split</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--   into separate send and receive ports.</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--   The critical thing to know about @Chan@s in @Par@ monads is that</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--   while the @recv@ method destructively advances the position of</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--   the consumer's \&quot;cursor\&quot; in the stream, this is only observable</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--   in the /local/ @Par@ thread.  That is, at @fork@ points it is</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--   necessary to give the child computation a separate set of stream</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--   cursors so that it observes the same sequences as the parent.</span><span>
+</span><span id="line-147"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679034908"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="ParChan"><span class="annot"><a href="Control.Monad.Par.Class.html#ParChan"><span class="hs-identifier hs-var">ParChan</span></a></span></span><span> </span><span id="local-6989586621679034906"><span class="annot"><a href="#local-6989586621679034906"><span class="hs-identifier hs-type">snd</span></a></span></span><span> </span><span id="local-6989586621679034905"><span class="annot"><a href="#local-6989586621679034905"><span class="hs-identifier hs-type">rcv</span></a></span></span><span> </span><span id="local-6989586621679034908"><span class="annot"><a href="#local-6989586621679034908"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679034908"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034906"><span class="hs-identifier hs-type">snd</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679034908"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034905"><span class="hs-identifier hs-type">rcv</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-148"></span><span>   </span><span class="hs-comment">-- | Create a new communication channel, with separate send and receive ports.</span><span>
+</span><span id="line-149"></span><span>   </span><span id="local-6989586621679034904"><span id="newChan"><span class="annot"><a href="Control.Monad.Par.Class.html#newChan"><span class="hs-identifier hs-type">newChan</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679034908"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679034906"><span class="hs-identifier hs-type">snd</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034904"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679034905"><span class="hs-identifier hs-type">rcv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034904"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-150"></span><span>   </span><span class="hs-comment">-- | Receive a message on a channel in a synchronous, blocking manner.</span><span>
+</span><span id="line-151"></span><span>   </span><span id="local-6989586621679034902"><span id="recv"><span class="annot"><a href="Control.Monad.Par.Class.html#recv"><span class="hs-identifier hs-type">recv</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679034905"><span class="hs-identifier hs-type">rcv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034902"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034908"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034902"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-152"></span><span>   </span><span class="hs-comment">-- | Send a message on a channel.  This may or may not block.</span><span>
+</span><span id="line-153"></span><span>   </span><span id="local-6989586621679034900"><span id="send"><span class="annot"><a href="Control.Monad.Par.Class.html#send"><span class="hs-identifier hs-type">send</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679034906"><span class="hs-identifier hs-type">snd</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034900"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034900"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034908"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-comment">----------------------------------------------------------------------------------------------------</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- t1 :: P.Par Int</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- If the ParIVar =&gt; ParFuture instance exists the following is sufficient:</span><span>
+</span><span id="line-160"></span><span id="local-6989586621679034897"><span id="local-6989586621679034898"><span class="annot"><a href="Control.Monad.Par.Class.html#t1"><span class="hs-identifier hs-type">t1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Class.html#ParFuture"><span class="hs-identifier hs-type">ParFuture</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034898"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034897"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034897"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span></span><span>
+</span><span id="line-161"></span><span id="t1"><span class="annot"><span class="annottext">t1 :: m Int
+</span><a href="Control.Monad.Par.Class.html#t1"><span class="hs-identifier hs-var hs-var">t1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-162"></span><span>  </span><span id="local-6989586621679034895"><span class="annot"><span class="annottext">v Int
+</span><a href="#local-6989586621679034895"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m Int -&gt; m (v Int)
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+(ParFuture future m, NFData a) =&gt;
+m a -&gt; m (future a)
+</span><a href="Control.Monad.Par.Class.html#spawn"><span class="hs-identifier hs-var">spawn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; m Int
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>  </span><span class="annot"><span class="annottext">v Int -&gt; m Int
+forall (future :: * -&gt; *) (m :: * -&gt; *) a.
+ParFuture future m =&gt;
+future a -&gt; m a
+</span><a href="Control.Monad.Par.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">v Int
+</span><a href="#local-6989586621679034895"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span id="local-6989586621679034893"><span id="local-6989586621679034894"><span class="annot"><a href="Control.Monad.Par.Class.html#t2"><span class="hs-identifier hs-type">t2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Class.html#ParIVar"><span class="hs-identifier hs-type">ParIVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034894"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679034893"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679034893"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span></span><span>
+</span><span id="line-166"></span><span id="t2"><span class="annot"><span class="annottext">t2 :: m Int
+</span><a href="Control.Monad.Par.Class.html#t2"><span class="hs-identifier hs-var hs-var">t2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-167"></span><span>  </span><span id="local-6989586621679034891"><span class="annot"><span class="annottext">v [Char]
+</span><a href="#local-6989586621679034891"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (v [Char])
+forall (ivar :: * -&gt; *) (m :: * -&gt; *) a.
+ParIVar ivar m =&gt;
+m (ivar a)
+</span><a href="Control.Monad.Par.Class.html#new"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-168"></span><span>  </span><span class="annot"><span class="annottext">v [Char] -&gt; [Char] -&gt; m ()
+forall (ivar :: * -&gt; *) (m :: * -&gt; *) a.
+(ParIVar ivar m, NFData a) =&gt;
+ivar a -&gt; a -&gt; m ()
+</span><a href="Control.Monad.Par.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">v [Char]
+</span><a href="#local-6989586621679034891"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;hi&quot;</span></span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; m Int
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- TODO: SPECIALIZE generic routines for the default par monad (and possibly ParRNG)?</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="hs-comment">--  SPECIALISE parMap  :: (NFData b) =&gt; (a -&gt; b)     -&gt; [a] -&gt; Par [b]</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- SPECIALISE parMapM :: (NFData b) =&gt; (a -&gt; Par b) -&gt; [a] -&gt; Par [b]</span><span>
+</span><span id="line-176"></span></pre></body></html>

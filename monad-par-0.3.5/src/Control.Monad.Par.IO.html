@@ -1,0 +1,139 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- |
+   This module is an alternative version of &quot;Control.Monad.Par&quot; in
+   which the `Par` type provides `IO` operations, by means of `liftIO`.
+   The price paid is that only `runParIO` is available, not the pure `runPar`.
+
+   This module uses the same default scheduler as &quot;Control.Monad.Par&quot;.
+ -}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Par.IO</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Control.Monad.Par.IO.html#ParIO"><span class="hs-identifier">ParIO</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#IVar"><span class="hs-identifier">IVar</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.IO.html#runParIO"><span class="hs-identifier">runParIO</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-comment">-- And instances!               </span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Trace.html"><span class="hs-identifier">Control.Monad.Par.Scheds.Trace</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#Par"><span class="hs-identifier">Par</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#IVar"><span class="hs-identifier">IVar</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html"><span class="hs-identifier">Control.Monad.Par.Scheds.TraceInternal</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Internal</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Par.Class</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Fix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadFix</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- | A wrapper around an underlying Par type which allows IO.</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">newtype</span><span> </span><span id="ParIO"><span class="annot"><a href="Control.Monad.Par.IO.html#ParIO"><span class="hs-identifier hs-var">ParIO</span></a></span></span><span> </span><span id="local-6989586621679061375"><span class="annot"><a href="#local-6989586621679061375"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ParIO"><span class="annot"><a href="Control.Monad.Par.IO.html#ParIO"><span class="hs-identifier hs-var">ParIO</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679061375"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679061365"><span id="local-6989586621679061367"><span class="annot"><span class="annottext">a -&gt; ParIO b -&gt; ParIO a
+(a -&gt; b) -&gt; ParIO a -&gt; ParIO b
+(forall a b. (a -&gt; b) -&gt; ParIO a -&gt; ParIO b)
+-&gt; (forall a b. a -&gt; ParIO b -&gt; ParIO a) -&gt; Functor ParIO
+forall a b. a -&gt; ParIO b -&gt; ParIO a
+forall a b. (a -&gt; b) -&gt; ParIO a -&gt; ParIO b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: a -&gt; ParIO b -&gt; ParIO a
+$c&lt;$ :: forall a b. a -&gt; ParIO b -&gt; ParIO a
+fmap :: (a -&gt; b) -&gt; ParIO a -&gt; ParIO b
+$cfmap :: forall a b. (a -&gt; b) -&gt; ParIO a -&gt; ParIO b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679061353"><span id="local-6989586621679061355"><span id="local-6989586621679061357"><span id="local-6989586621679061359"><span id="local-6989586621679061361"><span class="annot"><span class="annottext">Functor ParIO
+a -&gt; ParIO a
+Functor ParIO
+-&gt; (forall a. a -&gt; ParIO a)
+-&gt; (forall a b. ParIO (a -&gt; b) -&gt; ParIO a -&gt; ParIO b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; ParIO a -&gt; ParIO b -&gt; ParIO c)
+-&gt; (forall a b. ParIO a -&gt; ParIO b -&gt; ParIO b)
+-&gt; (forall a b. ParIO a -&gt; ParIO b -&gt; ParIO a)
+-&gt; Applicative ParIO
+ParIO a -&gt; ParIO b -&gt; ParIO b
+ParIO a -&gt; ParIO b -&gt; ParIO a
+ParIO (a -&gt; b) -&gt; ParIO a -&gt; ParIO b
+(a -&gt; b -&gt; c) -&gt; ParIO a -&gt; ParIO b -&gt; ParIO c
+forall a. a -&gt; ParIO a
+forall a b. ParIO a -&gt; ParIO b -&gt; ParIO a
+forall a b. ParIO a -&gt; ParIO b -&gt; ParIO b
+forall a b. ParIO (a -&gt; b) -&gt; ParIO a -&gt; ParIO b
+forall a b c. (a -&gt; b -&gt; c) -&gt; ParIO a -&gt; ParIO b -&gt; ParIO c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+&lt;* :: ParIO a -&gt; ParIO b -&gt; ParIO a
+$c&lt;* :: forall a b. ParIO a -&gt; ParIO b -&gt; ParIO a
+*&gt; :: ParIO a -&gt; ParIO b -&gt; ParIO b
+$c*&gt; :: forall a b. ParIO a -&gt; ParIO b -&gt; ParIO b
+liftA2 :: (a -&gt; b -&gt; c) -&gt; ParIO a -&gt; ParIO b -&gt; ParIO c
+$cliftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; ParIO a -&gt; ParIO b -&gt; ParIO c
+&lt;*&gt; :: ParIO (a -&gt; b) -&gt; ParIO a -&gt; ParIO b
+$c&lt;*&gt; :: forall a b. ParIO (a -&gt; b) -&gt; ParIO a -&gt; ParIO b
+pure :: a -&gt; ParIO a
+$cpure :: forall a. a -&gt; ParIO a
+$cp1Applicative :: Functor ParIO
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679061345"><span id="local-6989586621679061347"><span id="local-6989586621679061349"><span class="annot"><span class="annottext">Applicative ParIO
+a -&gt; ParIO a
+Applicative ParIO
+-&gt; (forall a b. ParIO a -&gt; (a -&gt; ParIO b) -&gt; ParIO b)
+-&gt; (forall a b. ParIO a -&gt; ParIO b -&gt; ParIO b)
+-&gt; (forall a. a -&gt; ParIO a)
+-&gt; Monad ParIO
+ParIO a -&gt; (a -&gt; ParIO b) -&gt; ParIO b
+ParIO a -&gt; ParIO b -&gt; ParIO b
+forall a. a -&gt; ParIO a
+forall a b. ParIO a -&gt; ParIO b -&gt; ParIO b
+forall a b. ParIO a -&gt; (a -&gt; ParIO b) -&gt; ParIO b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: a -&gt; ParIO a
+$creturn :: forall a. a -&gt; ParIO a
+&gt;&gt; :: ParIO a -&gt; ParIO b -&gt; ParIO b
+$c&gt;&gt; :: forall a b. ParIO a -&gt; ParIO b -&gt; ParIO b
+&gt;&gt;= :: ParIO a -&gt; (a -&gt; ParIO b) -&gt; ParIO b
+$c&gt;&gt;= :: forall a b. ParIO a -&gt; (a -&gt; ParIO b) -&gt; ParIO b
+$cp1Monad :: Applicative ParIO
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679061335"><span id="local-6989586621679061337"><span id="local-6989586621679061339"><span id="local-6989586621679061341"><span class="annot"><span class="hs-identifier hs-type">ParFuture</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#IVar"><span class="hs-identifier hs-type">IVar</span></a></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679061321"><span id="local-6989586621679061323"><span id="local-6989586621679061325"><span id="local-6989586621679061327"><span id="local-6989586621679061329"><span id="local-6989586621679061331"><span class="annot"><span class="hs-identifier hs-type">ParIVar</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#IVar"><span class="hs-identifier hs-type">IVar</span></a></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679061317"><span class="annot"><span class="annottext">Monad ParIO
+Monad ParIO
+-&gt; (forall a. (a -&gt; ParIO a) -&gt; ParIO a) -&gt; MonadFix ParIO
+(a -&gt; ParIO a) -&gt; ParIO a
+forall a. (a -&gt; ParIO a) -&gt; ParIO a
+forall (m :: * -&gt; *).
+Monad m -&gt; (forall a. (a -&gt; m a) -&gt; m a) -&gt; MonadFix m
+mfix :: (a -&gt; ParIO a) -&gt; ParIO a
+$cmfix :: forall a. (a -&gt; ParIO a) -&gt; ParIO a
+$cp1MonadFix :: Monad ParIO
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadFix</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | A run method which allows actual IO to occur on top of the Par</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--   monad.  Of course this means that all the normal problems of</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--   parallel IO computations are present, including nondeterminsm.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--   A simple example program:</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--   &gt;  runParIO (liftIO $ putStrLn &quot;hi&quot; :: ParIO ())</span><span>
+</span><span id="line-35"></span><span id="local-6989586621679061315"><span class="annot"><a href="Control.Monad.Par.IO.html#runParIO"><span class="hs-identifier hs-type">runParIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.IO.html#ParIO"><span class="hs-identifier hs-type">ParIO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679061315"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679061315"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-36"></span><span id="runParIO"><span class="annot"><span class="annottext">runParIO :: ParIO a -&gt; IO a
+</span><a href="Control.Monad.Par.IO.html#runParIO"><span class="hs-identifier hs-var hs-var">runParIO</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.IO.html#ParIO"><span class="hs-identifier hs-type">ParIO</span></a></span><span> </span><span id="local-6989586621679061314"><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679061314"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Par a -&gt; IO a
+forall a. Par a -&gt; IO a
+</span><a href="Control.Monad.Par.Scheds.TraceInternal.html#runParIO"><span class="hs-identifier hs-var">Internal.runParIO</span></a></span><span> </span><span class="annot"><span class="annottext">Par a
+</span><a href="#local-6989586621679061314"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.IO.html#ParIO"><span class="hs-identifier hs-type">ParIO</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621679061309"><span class="annot"><span class="annottext">liftIO :: IO a -&gt; ParIO a
+</span><a href="#local-6989586621679061309"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftIO</span></a></span></span><span> </span><span id="local-6989586621679061308"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679061308"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Par a -&gt; ParIO a
+forall a. Par a -&gt; ParIO a
+</span><a href="Control.Monad.Par.IO.html#ParIO"><span class="hs-identifier hs-var">ParIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((a -&gt; Trace) -&gt; Trace) -&gt; Par a
+forall a. ((a -&gt; Trace) -&gt; Trace) -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.TraceInternal.html#Par"><span class="hs-identifier hs-var">Internal.Par</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO a -&gt; (a -&gt; Trace) -&gt; Trace
+forall a. IO a -&gt; (a -&gt; Trace) -&gt; Trace
+</span><a href="Control.Monad.Par.Scheds.TraceInternal.html#LiftIO"><span class="hs-identifier hs-var">Internal.LiftIO</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679061308"><span class="hs-identifier hs-var">io</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span></pre></body></html>

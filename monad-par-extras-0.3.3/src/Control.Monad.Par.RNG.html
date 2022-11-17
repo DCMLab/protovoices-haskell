@@ -1,0 +1,113 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleInstances, UndecidableInstances  #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | This module defines another Par-related class to capture the</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--   random number generation capability.  </span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-6"></span><span class="hs-comment">--   The `rand` operation provides deterministic parallel random</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--   number generation from within a Par monad.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-9"></span><span class="hs-comment">--   Most likely one will simply use the `ParRand` the instance</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--   provided in this file, which is based on a state transformer</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--   carrying the random generator.</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Par.RNG</span><span> </span><span>
+</span><span id="line-15"></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-16"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.RNG.html#ParRand"><span class="hs-identifier">ParRand</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.RNG.html#runParRand"><span class="hs-identifier">runParRand</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.RNG.html#ParRandStd"><span class="hs-identifier">ParRandStd</span></a></span><span>
+</span><span id="line-17"></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Random</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Par.Class</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Par.State.html"><span class="hs-identifier">Control.Monad.Par.State</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span> </span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | A `ParRand` monad is a Par monad with support for random number generation..</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">class</span><span> </span><span id="ParRand"><span class="annot"><a href="Control.Monad.Par.RNG.html#ParRand"><span class="hs-identifier hs-var">ParRand</span></a></span></span><span> </span><span id="local-6989586621679048341"><span class="annot"><a href="#local-6989586621679048341"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-29"></span><span>  </span><span id="local-6989586621679048339"><span id="rand"><span class="annot"><a href="Control.Monad.Par.RNG.html#rand"><span class="hs-identifier hs-type">rand</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Random</span></span><span> </span><span class="annot"><a href="#local-6989586621679048339"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679048341"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679048339"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-comment">-- This can be more efficient:</span><span>
+</span><span id="line-31"></span><span>  </span><span id="randInt"><span class="annot"><a href="Control.Monad.Par.RNG.html#randInt"><span class="hs-identifier hs-type">randInt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679048341"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-32"></span><span>  </span><span id="local-6989586621679048305"><span class="annot"><a href="Control.Monad.Par.RNG.html#randInt"><span class="hs-identifier hs-var hs-var">randInt</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p Int
+forall (p :: * -&gt; *) a. (ParRand p, Random a) =&gt; p a
+</span><a href="Control.Monad.Par.RNG.html#rand"><span class="hs-identifier hs-var">rand</span></a></span></span><span> </span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | Trivial instance.</span><span>
+</span><span id="line-35"></span><span id="local-6989586621679048304"><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679048304"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.State.html#SplittableState"><span class="hs-identifier hs-type">SplittableState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679048304"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621679048301"><span class="annot"><span class="annottext">splitState :: g -&gt; (g, g)
+</span><a href="Control.Monad.Par.State.html#splitState"><span class="hs-identifier hs-var hs-var hs-var hs-var">splitState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g -&gt; (g, g)
+forall g. RandomGen g =&gt; g -&gt; (g, g)
+</span><span class="hs-identifier hs-var">split</span></span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | The most straightforward way to get a `ParRand` monad: carry a</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--   RNG in a state transformer.</span><span>
+</span><span id="line-40"></span><span id="local-6989586621679048296"><span id="local-6989586621679048297"><span id="local-6989586621679048298"><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ParFuture</span></span><span> </span><span class="annot"><a href="#local-6989586621679048298"><span class="hs-identifier hs-type">fut</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679048297"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679048296"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.RNG.html#ParRand"><span class="hs-identifier hs-type">ParRand</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StateT</span></span><span> </span><span class="annot"><a href="#local-6989586621679048296"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679048297"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621679048292"><span class="annot"><span class="annottext">rand :: StateT g p a
+</span><a href="#local-6989586621679048292"><span class="hs-identifier hs-var hs-var hs-var hs-var">rand</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span>
+</span><span id="line-42"></span><span>               </span><span id="local-6989586621679048291"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679048291"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT g p g
+forall (m :: * -&gt; *) s. Monad m =&gt; StateT s m s
+</span><span class="hs-identifier hs-var">S.get</span></span><span>
+</span><span id="line-43"></span><span>	       </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679048289"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679048289"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679048288"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679048288"><span class="hs-identifier hs-var">g'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g -&gt; (a, g)
+forall a g. (Random a, RandomGen g) =&gt; g -&gt; (a, g)
+</span><span class="hs-identifier hs-var">random</span></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679048291"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span>
+</span><span id="line-44"></span><span>	       </span><span class="annot"><span class="annottext">g -&gt; StateT g p ()
+forall (m :: * -&gt; *) s. Monad m =&gt; s -&gt; StateT s m ()
+</span><span class="hs-identifier hs-var">S.put</span></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679048288"><span class="hs-identifier hs-var">g'</span></a></span><span>
+</span><span id="line-45"></span><span>	       </span><span class="annot"><span class="annottext">a -&gt; StateT g p a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679048289"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621679048285"><span class="annot"><span class="annottext">randInt :: StateT g p Int
+</span><a href="#local-6989586621679048285"><span class="hs-identifier hs-var hs-var hs-var hs-var">randInt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span>
+</span><span id="line-47"></span><span>               </span><span id="local-6989586621679048284"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679048284"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT g p g
+forall (m :: * -&gt; *) s. Monad m =&gt; StateT s m s
+</span><span class="hs-identifier hs-var">S.get</span></span><span>
+</span><span id="line-48"></span><span>               </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679048283"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679048283"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679048282"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679048282"><span class="hs-identifier hs-var">g'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g -&gt; (Int, g)
+forall g. RandomGen g =&gt; g -&gt; (Int, g)
+</span><span class="hs-identifier hs-var">next</span></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679048284"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-49"></span><span>	       </span><span class="annot"><span class="annottext">g -&gt; StateT g p ()
+forall (m :: * -&gt; *) s. Monad m =&gt; s -&gt; StateT s m ()
+</span><span class="hs-identifier hs-var">S.put</span></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679048282"><span class="hs-identifier hs-var">g'</span></a></span><span>
+</span><span id="line-50"></span><span>	       </span><span class="annot"><span class="annottext">Int -&gt; StateT g p Int
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679048283"><span class="hs-identifier hs-var">x</span></a></span></span></span></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- An alternative is for these operators to be standalone without a class:</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- rand    :: (ParFuture p fut, RandomGen g, Random a) =&gt; StateT g p a</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- randInt :: (ParFuture p fut, RandomGen g)           =&gt; StateT g p Int</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- runParRand :: ParRand p =&gt; (p a -&gt; a) -&gt; p a -&gt; IO a</span><span>
+</span><span id="line-57"></span><span id="local-6989586621679048278"><span id="local-6989586621679048279"><span id="local-6989586621679048280"><span class="annot"><a href="Control.Monad.Par.RNG.html#runParRand"><span class="hs-identifier hs-type">runParRand</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParFuture</span></span><span> </span><span class="annot"><a href="#local-6989586621679048280"><span class="hs-identifier hs-type">fut</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679048279"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679048279"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679048278"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679048278"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">StateT</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StdGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679048279"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679048278"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679048278"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-58"></span><span id="runParRand"><span class="annot"><span class="annottext">runParRand :: (p a -&gt; a) -&gt; StateT StdGen p a -&gt; IO a
+</span><a href="Control.Monad.Par.RNG.html#runParRand"><span class="hs-identifier hs-var hs-var">runParRand</span></a></span></span><span> </span><span id="local-6989586621679048277"><span class="annot"><span class="annottext">p a -&gt; a
+</span><a href="#local-6989586621679048277"><span class="hs-identifier hs-var">runPar</span></a></span></span><span> </span><span id="local-6989586621679048276"><span class="annot"><span class="annottext">StateT StdGen p a
+</span><a href="#local-6989586621679048276"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679048275"><span class="annot"><span class="annottext">StdGen
+</span><a href="#local-6989586621679048275"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO StdGen
+forall (m :: * -&gt; *). MonadIO m =&gt; m StdGen
+</span><span class="hs-identifier hs-var">newStdGen</span></span><span>
+</span><span id="line-60"></span><span>     </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">p a -&gt; a
+</span><a href="#local-6989586621679048277"><span class="hs-identifier hs-var">runPar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StateT StdGen p a -&gt; StdGen -&gt; p a
+forall (m :: * -&gt; *) s a. Monad m =&gt; StateT s m a -&gt; s -&gt; m a
+</span><span class="hs-identifier hs-var">evalStateT</span></span><span> </span><span class="annot"><span class="annottext">StateT StdGen p a
+</span><a href="#local-6989586621679048276"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">StdGen
+</span><a href="#local-6989586621679048275"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | A convenience type for the most standard</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">type</span><span> </span><span id="ParRandStd"><span class="annot"><a href="Control.Monad.Par.RNG.html#ParRandStd"><span class="hs-identifier hs-var">ParRandStd</span></a></span></span><span> </span><span id="local-6989586621679048271"><span class="annot"><a href="#local-6989586621679048271"><span class="hs-identifier hs-type">par</span></a></span></span><span> </span><span id="local-6989586621679048270"><span class="annot"><a href="#local-6989586621679048270"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">StateT</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StdGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679048271"><span class="hs-identifier hs-type">par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679048270"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span>
+</span><span id="line-65"></span></pre></body></html>

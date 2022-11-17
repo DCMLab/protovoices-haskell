@@ -1,0 +1,414 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">{-|
+
+The Read type class is very useful for building data types from String
+representations.  But String has high overhead, so sometimes it isn't suitable
+for applications where space usage and performance are important.  This
+library provides a simpler version of Read's functionality for Text and
+ByteStrings.
+
+-}</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Readable</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier">Readable</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Read</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | ByteString and Text reading using MonadPlus to handle parse failure.  On</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- error, fromText and fromBS will return mzero.  You can use mplus to provide</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- fallback defaults.</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">class</span><span> </span><span id="Readable"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-var">Readable</span></a></span></span><span> </span><span id="local-6989586621679036429"><span class="annot"><a href="#local-6989586621679036429"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-comment">-- | Reads data from a Text representation.</span><span>
+</span><span id="line-34"></span><span>    </span><span id="local-6989586621679036426"><span id="fromText"><span class="annot"><a href="Data.Readable.html#fromText"><span class="hs-identifier hs-type">fromText</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679036426"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679036426"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679036429"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-comment">-- | Reads data from a UTF8 encoded ByteString.  The default</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-comment">-- implementation of this function simply decodes with UTF-8 and then</span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-comment">-- calls the fromText function.  If decoding fails, mzero will be</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-comment">-- returned.  You can provide your own implementation if you need</span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-comment">-- different behavior such as not decoding to UTF8.</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679036404"><span id="fromBS"><span class="annot"><a href="Data.Readable.html#fromBS"><span class="hs-identifier hs-type">fromBS</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679036404"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679036404"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679036429"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621679036359"><span class="annot"><a href="Data.Readable.html#fromBS"><span class="hs-identifier hs-var hs-var">fromBS</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; m a
+forall a (m :: * -&gt; *). (Readable a, MonadPlus m) =&gt; Text -&gt; m a
+</span><a href="Data.Readable.html#fromText"><span class="hs-identifier hs-var">fromText</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; m a) -&gt; (ByteString -&gt; m Text) -&gt; ByteString -&gt; m a
+forall (m :: * -&gt; *) b c a.
+Monad m =&gt;
+(b -&gt; m c) -&gt; (a -&gt; m b) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&lt;=&lt;</span></span><span> </span><span class="annot"><span class="annottext">Either UnicodeException Text -&gt; m Text
+forall (m :: * -&gt; *) a b. MonadPlus m =&gt; Either a b -&gt; m b
+</span><a href="Data.Readable.html#hushPlus"><span class="hs-identifier hs-var">hushPlus</span></a></span><span> </span><span class="annot"><span class="annottext">(Either UnicodeException Text -&gt; m Text)
+-&gt; (ByteString -&gt; Either UnicodeException Text)
+-&gt; ByteString
+-&gt; m Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either UnicodeException Text
+</span><span class="hs-identifier hs-var">decodeUtf8'</span></span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span id="local-6989586621679036417"><span id="local-6989586621679036418"><span id="local-6989586621679036419"><span class="annot"><a href="Data.Readable.html#hushPlus"><span class="hs-identifier hs-type">hushPlus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679036419"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679036418"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679036417"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679036419"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679036417"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-45"></span><span id="hushPlus"><span class="annot"><span class="annottext">hushPlus :: Either a b -&gt; m b
+</span><a href="Data.Readable.html#hushPlus"><span class="hs-identifier hs-var hs-var">hushPlus</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m b
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Data.Readable.html#hushPlus"><span class="hs-identifier hs-var">hushPlus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679036353"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679036353"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; m b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679036353"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | Fails if the input wasn't parsed completely.</span><span>
+</span><span id="line-51"></span><span id="local-6989586621679036390"><span id="local-6989586621679036391"><span class="annot"><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-type">checkComplete</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679036391"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679036390"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679036391"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679036390"><span class="hs-identifier hs-type">t</span></a></span></span></span><span>
+</span><span id="line-52"></span><span id="checkComplete"><span class="annot"><span class="annottext">checkComplete :: (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var hs-var">checkComplete</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679036351"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679036351"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679036350"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679036350"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679036350"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t -&gt; m t
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679036351"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m t
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- Leaving out these instances breaks users who depend on having a unified</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- constraint for parsing, so we need to keep them around.</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679036345"><span class="annot"><span class="annottext">fromText :: Text -&gt; m ByteString
+</span><a href="#local-6989586621679036345"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; m ByteString
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; m ByteString)
+-&gt; (Text -&gt; ByteString) -&gt; Text -&gt; m ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">encodeUtf8</span></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679036343"><span class="annot"><span class="annottext">fromBS :: ByteString -&gt; m ByteString
+</span><a href="#local-6989586621679036343"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromBS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; m ByteString
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036340"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679036339"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Text
+</span><a href="#local-6989586621679036339"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; m Text
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036336"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679036335"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Int
+</span><a href="#local-6989586621679036335"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Int)
+-&gt; ((Int, Text) -&gt; m Int) -&gt; Either String (Int, Text) -&gt; m Int
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Int -&gt; String -&gt; m Int
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Int
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int, Text) -&gt; m Int
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Int, Text) -&gt; m Int)
+-&gt; (Text -&gt; Either String (Int, Text)) -&gt; Text -&gt; m Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either String (Int, Text))
+-&gt; Text -&gt; Either String (Int, Text)
+forall a. Num a =&gt; Reader a -&gt; Reader a
+</span><span class="hs-identifier hs-var">signed</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Int, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036328"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679036327"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Integer
+</span><a href="#local-6989586621679036327"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Integer)
+-&gt; ((Integer, Text) -&gt; m Integer)
+-&gt; Either String (Integer, Text)
+-&gt; m Integer
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Integer -&gt; String -&gt; m Integer
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Integer
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Integer, Text) -&gt; m Integer
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Integer, Text) -&gt; m Integer)
+-&gt; (Text -&gt; Either String (Integer, Text)) -&gt; Text -&gt; m Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either String (Integer, Text))
+-&gt; Text -&gt; Either String (Integer, Text)
+forall a. Num a =&gt; Reader a -&gt; Reader a
+</span><span class="hs-identifier hs-var">signed</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Integer, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036324"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621679036323"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Float
+</span><a href="#local-6989586621679036323"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Float)
+-&gt; ((Float, Text) -&gt; m Float)
+-&gt; Either String (Float, Text)
+-&gt; m Float
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Float -&gt; String -&gt; m Float
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Float
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Float, Text) -&gt; m Float
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Float, Text) -&gt; m Float)
+-&gt; (Text -&gt; Either String (Float, Text)) -&gt; Text -&gt; m Float
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Float, Text)
+forall a. Fractional a =&gt; Reader a
+</span><span class="hs-identifier hs-var">rational</span></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036319"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679036318"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Double
+</span><a href="#local-6989586621679036318"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Double)
+-&gt; ((Double, Text) -&gt; m Double)
+-&gt; Either String (Double, Text)
+-&gt; m Double
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Double -&gt; String -&gt; m Double
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Double
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Double, Text) -&gt; m Double
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Double, Text) -&gt; m Double)
+-&gt; (Text -&gt; Either String (Double, Text)) -&gt; Text -&gt; m Double
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Double, Text)
+</span><span class="hs-identifier hs-var">double</span></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036314"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621679036313"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Bool
+</span><a href="#local-6989586621679036313"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span id="local-6989586621679036312"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679036312"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.toLower</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679036312"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-75"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;1&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-76"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;0&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-77"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;t&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-78"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;f&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-79"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;true&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-80"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;false&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-81"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;y&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-82"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;n&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-83"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;yes&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-84"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;no&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-85"></span><span>                   </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m Bool
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036308"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int8</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679036307"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Int8
+</span><a href="#local-6989586621679036307"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Int8)
+-&gt; ((Int8, Text) -&gt; m Int8) -&gt; Either String (Int8, Text) -&gt; m Int8
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Int8 -&gt; String -&gt; m Int8
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Int8
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int8, Text) -&gt; m Int8
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Int8, Text) -&gt; m Int8)
+-&gt; (Text -&gt; Either String (Int8, Text)) -&gt; Text -&gt; m Int8
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either String (Int8, Text))
+-&gt; Text -&gt; Either String (Int8, Text)
+forall a. Num a =&gt; Reader a -&gt; Reader a
+</span><span class="hs-identifier hs-var">signed</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Int8, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036304"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int16</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679036303"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Int16
+</span><a href="#local-6989586621679036303"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Int16)
+-&gt; ((Int16, Text) -&gt; m Int16)
+-&gt; Either String (Int16, Text)
+-&gt; m Int16
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Int16 -&gt; String -&gt; m Int16
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Int16
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int16, Text) -&gt; m Int16
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Int16, Text) -&gt; m Int16)
+-&gt; (Text -&gt; Either String (Int16, Text)) -&gt; Text -&gt; m Int16
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either String (Int16, Text))
+-&gt; Text -&gt; Either String (Int16, Text)
+forall a. Num a =&gt; Reader a -&gt; Reader a
+</span><span class="hs-identifier hs-var">signed</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Int16, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036300"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679036299"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Int32
+</span><a href="#local-6989586621679036299"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Int32)
+-&gt; ((Int32, Text) -&gt; m Int32)
+-&gt; Either String (Int32, Text)
+-&gt; m Int32
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Int32 -&gt; String -&gt; m Int32
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Int32
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int32, Text) -&gt; m Int32
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Int32, Text) -&gt; m Int32)
+-&gt; (Text -&gt; Either String (Int32, Text)) -&gt; Text -&gt; m Int32
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either String (Int32, Text))
+-&gt; Text -&gt; Either String (Int32, Text)
+forall a. Num a =&gt; Reader a -&gt; Reader a
+</span><span class="hs-identifier hs-var">signed</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Int32, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036296"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679036295"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Int64
+</span><a href="#local-6989586621679036295"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Int64)
+-&gt; ((Int64, Text) -&gt; m Int64)
+-&gt; Either String (Int64, Text)
+-&gt; m Int64
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Int64 -&gt; String -&gt; m Int64
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Int64
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int64, Text) -&gt; m Int64
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Int64, Text) -&gt; m Int64)
+-&gt; (Text -&gt; Either String (Int64, Text)) -&gt; Text -&gt; m Int64
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either String (Int64, Text))
+-&gt; Text -&gt; Either String (Int64, Text)
+forall a. Num a =&gt; Reader a -&gt; Reader a
+</span><span class="hs-identifier hs-var">signed</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Int64, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036292"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621679036291"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Word8
+</span><a href="#local-6989586621679036291"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Word8)
+-&gt; ((Word8, Text) -&gt; m Word8)
+-&gt; Either String (Word8, Text)
+-&gt; m Word8
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Word8 -&gt; String -&gt; m Word8
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Word8
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Word8, Text) -&gt; m Word8
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Word8, Text) -&gt; m Word8)
+-&gt; (Text -&gt; Either String (Word8, Text)) -&gt; Text -&gt; m Word8
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Word8, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036288"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>    </span><span id="local-6989586621679036287"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Word16
+</span><a href="#local-6989586621679036287"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Word16)
+-&gt; ((Word16, Text) -&gt; m Word16)
+-&gt; Either String (Word16, Text)
+-&gt; m Word16
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Word16 -&gt; String -&gt; m Word16
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Word16
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Word16, Text) -&gt; m Word16
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Word16, Text) -&gt; m Word16)
+-&gt; (Text -&gt; Either String (Word16, Text)) -&gt; Text -&gt; m Word16
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Word16, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036284"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>    </span><span id="local-6989586621679036283"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Word32
+</span><a href="#local-6989586621679036283"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Word32)
+-&gt; ((Word32, Text) -&gt; m Word32)
+-&gt; Either String (Word32, Text)
+-&gt; m Word32
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Word32 -&gt; String -&gt; m Word32
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Word32
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Word32, Text) -&gt; m Word32
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Word32, Text) -&gt; m Word32)
+-&gt; (Text -&gt; Either String (Word32, Text)) -&gt; Text -&gt; m Word32
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Word32, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679036280"><span class="annot"><a href="Data.Readable.html#Readable"><span class="hs-identifier hs-type">Readable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679036279"><span class="annot"><span class="annottext">fromText :: Text -&gt; m Word64
+</span><a href="#local-6989586621679036279"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; m Word64)
+-&gt; ((Word64, Text) -&gt; m Word64)
+-&gt; Either String (Word64, Text)
+-&gt; m Word64
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Word64 -&gt; String -&gt; m Word64
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m Word64
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Word64, Text) -&gt; m Word64
+forall (m :: * -&gt; *) t. MonadPlus m =&gt; (t, Text) -&gt; m t
+</span><a href="Data.Readable.html#checkComplete"><span class="hs-identifier hs-var">checkComplete</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String (Word64, Text) -&gt; m Word64)
+-&gt; (Text -&gt; Either String (Word64, Text)) -&gt; Text -&gt; m Word64
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String (Word64, Text)
+forall a. Integral a =&gt; Reader a
+</span><span class="hs-identifier hs-var">decimal</span></span><span>
+</span><span id="line-104"></span></pre></body></html>

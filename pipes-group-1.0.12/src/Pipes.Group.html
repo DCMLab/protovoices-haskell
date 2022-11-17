@@ -1,0 +1,1339 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-|
+
+Element-agnostic grouping utilities for @pipes@
+
+See &quot;Pipes.Group.Tutorial&quot; for an extended tutorial
+
+Some type signatures below refer to the aliases below, which are not used in
+this library, but are included to simplify the documentation.
+
+@
+type Groups         a m x = 'FreeT' ('Producer' a m) m x
+type Splitter       a m x = 'Producer' a m x -&gt; Groups a m x
+type Transformation a m x = Groups a m x -&gt; Groups a m x
+type Joiner         a m x = Groups a m x -&gt; 'Producer' a m x
+@
+-}</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Pipes.Group</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Lenses</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#groups"><span class="hs-identifier">groups</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#groupsBy"><span class="hs-identifier">groupsBy</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#groupsBy%27"><span class="hs-identifier">groupsBy'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#chunksOf"><span class="hs-identifier">chunksOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Transformations</span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#takes"><span class="hs-identifier">takes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#takes%27"><span class="hs-identifier">takes'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#drops"><span class="hs-identifier">drops</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#maps"><span class="hs-identifier">maps</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#individually"><span class="hs-identifier">individually</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Joiners</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#concats"><span class="hs-identifier">concats</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#intercalates"><span class="hs-identifier">intercalates</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Folds</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-comment">-- $folds</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#folds"><span class="hs-identifier">folds</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Pipes.Group.html#foldsM"><span class="hs-identifier">foldsM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Re-exports</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="hs-comment">-- $reexports</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Class</span></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Free</span></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Pipes</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">lift</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Free</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FreeF</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Pure</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Free</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">FreeT</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FreeT</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runFreeT</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Free</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">F</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Constant</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Constant</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Constant</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getConstant</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Identity</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Identity</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runIdentity</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Pipes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Producer</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">yield</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">next</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Pipes.Parse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">span</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">splitAt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Pipes</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">span</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">splitAt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">type</span><span> </span><span id="Lens"><span class="annot"><a href="Pipes.Group.html#Lens"><span class="hs-identifier hs-var">Lens</span></a></span></span><span> </span><span id="local-6989586621679046677"><span class="annot"><a href="#local-6989586621679046677"><span class="hs-identifier hs-type">a'</span></a></span></span><span> </span><span id="local-6989586621679046676"><span class="annot"><a href="#local-6989586621679046676"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679046675"><span class="annot"><a href="#local-6989586621679046675"><span class="hs-identifier hs-type">b'</span></a></span></span><span> </span><span id="local-6989586621679046674"><span class="annot"><a href="#local-6989586621679046674"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679046673"><span class="annot"><a href="#local-6989586621679046673"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679046673"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046675"><span class="hs-identifier hs-type">b'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046673"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046674"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046677"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046673"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046676"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">type</span><span> </span><span id="Setter"><span class="annot"><a href="Pipes.Group.html#Setter"><span class="hs-identifier hs-var">Setter</span></a></span></span><span> </span><span id="local-6989586621679046672"><span class="annot"><a href="#local-6989586621679046672"><span class="hs-identifier hs-type">a'</span></a></span></span><span> </span><span id="local-6989586621679046671"><span class="annot"><a href="#local-6989586621679046671"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679046670"><span class="annot"><a href="#local-6989586621679046670"><span class="hs-identifier hs-type">b'</span></a></span></span><span> </span><span id="local-6989586621679046669"><span class="annot"><a href="#local-6989586621679046669"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046670"><span class="hs-identifier hs-type">b'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679046669"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046672"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679046671"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="local-6989586621679046846"><span id="local-6989586621679046847"><span class="annot"><a href="Pipes.Group.html#%5E."><span class="hs-operator hs-type">(^.)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679046847"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046846"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Constant</span></span><span> </span><span class="annot"><a href="#local-6989586621679046846"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046846"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046847"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Constant</span></span><span> </span><span class="annot"><a href="#local-6989586621679046846"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046847"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046846"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-65"></span><span id="local-6989586621679046667"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046667"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="%5E."><span class="annot"><span class="annottext">^. :: a -&gt; ((b -&gt; Constant b b) -&gt; a -&gt; Constant b a) -&gt; b
+</span><a href="Pipes.Group.html#%5E."><span class="hs-operator hs-var hs-var">^.</span></a></span></span><span> </span><span id="local-6989586621679046666"><span class="annot"><span class="annottext">(b -&gt; Constant b b) -&gt; a -&gt; Constant b a
+</span><a href="#local-6989586621679046666"><span class="hs-identifier hs-var">lens</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Constant b a -&gt; b
+forall a k (b :: k). Constant a b -&gt; a
+</span><span class="hs-identifier hs-var hs-var">getConstant</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; Constant b b) -&gt; a -&gt; Constant b a
+</span><a href="#local-6989586621679046666"><span class="hs-identifier hs-var">lens</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; Constant b b
+forall k a (b :: k). a -&gt; Constant a b
+</span><span class="hs-identifier hs-var">Constant</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046667"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">{-| 'groupsBy' splits a 'Producer' into a 'FreeT' of 'Producer's grouped using
+    the given equality predicate
+
+@
+      groupsBy p  :: Monad m =&gt; Lens' ('Producer' a m x) (Groups a m x)
+view (groupsBy p) :: Monad m =&gt; Splitter a m x
+set  (groupsBy p) :: Monad m =&gt; Groups a m x -&gt; 'Producer' a m x -&gt; 'Producer' a m x
+over (groupsBy p) :: Monad m =&gt; Transformation a m x -&gt; 'Producer' a m x -&gt; 'Producer' a m x
+@
+
+&gt;&gt;&gt; import Lens.Family (view)
+&gt;&gt;&gt; import Pipes (yield, each)
+&gt;&gt;&gt; import Pipes.Prelude (toList)
+&gt;&gt;&gt; (toList . intercalates (yield '|') . view (groupsBy (==))) (each &quot;12233345&quot;)
+&quot;1|22|333|4|5&quot;
+-}</span><span>
+</span><span id="line-83"></span><span id="local-6989586621679046812"><span id="local-6989586621679046813"><span id="local-6989586621679046814"><span id="local-6989586621679046815"><span class="annot"><a href="Pipes.Group.html#groupsBy"><span class="hs-identifier hs-type">groupsBy</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046815"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046814"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046814"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Pipes.Group.html#Lens"><span class="hs-identifier hs-type">Lens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046814"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046815"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046813"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046812"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046815"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046813"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046814"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046815"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046815"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046813"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046812"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046815"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046815"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046813"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-87"></span><span id="groupsBy"><span class="annot"><span class="annottext">groupsBy :: (a' -&gt; a' -&gt; Bool)
+-&gt; Lens
+     (Producer a' m x)
+     (Producer a m x)
+     (FreeT (Producer a' m) m x)
+     (FreeT (Producer a m) m x)
+</span><a href="Pipes.Group.html#groupsBy"><span class="hs-identifier hs-var hs-var">groupsBy</span></a></span></span><span> </span><span id="local-6989586621679046665"><span class="annot"><span class="annottext">a' -&gt; a' -&gt; Bool
+</span><a href="#local-6989586621679046665"><span class="hs-identifier hs-var">equals</span></a></span></span><span> </span><span id="local-6989586621679046664"><span class="annot"><span class="annottext">FreeT (Producer a' m) m x -&gt; f (FreeT (Producer a m) m x)
+</span><a href="#local-6989586621679046664"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679046663"><span class="annot"><span class="annottext">Producer a' m x
+</span><a href="#local-6989586621679046663"><span class="hs-identifier hs-var">p0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FreeT (Producer a m) m x -&gt; Producer a m x)
+-&gt; f (FreeT (Producer a m) m x) -&gt; f (Producer a m x)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m x -&gt; Producer a m x
+forall (m :: * -&gt; *) a x.
+Monad m =&gt;
+FreeT (Producer a m) m x -&gt; Producer a m x
+</span><a href="Pipes.Group.html#concats"><span class="hs-identifier hs-var">concats</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT (Producer a' m) m x -&gt; f (FreeT (Producer a m) m x)
+</span><a href="#local-6989586621679046664"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Producer a' m x -&gt; FreeT (Producer a' m) m x
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Producer a' m a -&gt; FreeT (Proxy X () () a' m) m a
+</span><a href="#local-6989586621679046662"><span class="hs-identifier hs-var">_groupsBy</span></a></span><span> </span><span class="annot"><span class="annottext">Producer a' m x
+</span><a href="#local-6989586621679046663"><span class="hs-identifier hs-var">p0</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--  _groupsBy :: Monad m =&gt; Producer a m r -&gt; FreeT (Producer a m) m r</span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679046662"><span class="annot"><span class="annottext">_groupsBy :: Producer a' m a -&gt; FreeT (Proxy X () () a' m) m a
+</span><a href="#local-6989586621679046662"><span class="hs-identifier hs-var hs-var">_groupsBy</span></a></span></span><span> </span><span id="local-6989586621679046661"><span class="annot"><span class="annottext">Producer a' m a
+</span><a href="#local-6989586621679046661"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a))
+-&gt; FreeT (Proxy X () () a' m) m a
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+m (FreeF f a (FreeT f m a)) -&gt; FreeT f m a
+</span><span class="hs-identifier hs-var">FreeT</span></span><span> </span><span class="annot"><span class="annottext">(m (FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a))
+ -&gt; FreeT (Proxy X () () a' m) m a)
+-&gt; m (FreeF
+        (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a))
+-&gt; FreeT (Proxy X () () a' m) m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-91"></span><span>        </span><span id="local-6989586621679046660"><span class="annot"><span class="annottext">Either a (a', Producer a' m a)
+</span><a href="#local-6989586621679046660"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Producer a' m a -&gt; m (Either a (a', Producer a' m a))
+forall (m :: * -&gt; *) a r.
+Monad m =&gt;
+Producer a m r -&gt; m (Either r (a, Producer a m r))
+</span><span class="hs-identifier hs-var">next</span></span><span> </span><span class="annot"><span class="annottext">Producer a' m a
+</span><a href="#local-6989586621679046661"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-92"></span><span>        </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a)
+-&gt; m (FreeF
+        (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a))
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a)
+ -&gt; m (FreeF
+         (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a)))
+-&gt; FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a)
+-&gt; m (FreeF
+        (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either a (a', Producer a' m a)
+</span><a href="#local-6989586621679046660"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-93"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>   </span><span id="local-6989586621679046659"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046659"><span class="hs-identifier hs-var">r</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a)
+forall (f :: * -&gt; *) a b. a -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046659"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-94"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046658"><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046658"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046657"><span class="annot"><span class="annottext">Producer a' m a
+</span><a href="#local-6989586621679046657"><span class="hs-identifier hs-var">p'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Proxy X () () a' m (FreeT (Proxy X () () a' m) m a)
+-&gt; FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a)
+forall (f :: * -&gt; *) a b. f b -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Free</span></span><span> </span><span class="annot"><span class="annottext">(Proxy X () () a' m (FreeT (Proxy X () () a' m) m a)
+ -&gt; FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a))
+-&gt; Proxy X () () a' m (FreeT (Proxy X () () a' m) m a)
+-&gt; FreeF (Proxy X () () a' m) a (FreeT (Proxy X () () a' m) m a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-95"></span><span>                </span><span class="annot"><span class="annottext">(Producer a' m a -&gt; FreeT (Proxy X () () a' m) m a)
+-&gt; Proxy X () () a' m (Producer a' m a)
+-&gt; Proxy X () () a' m (FreeT (Proxy X () () a' m) m a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Producer a' m a -&gt; FreeT (Proxy X () () a' m) m a
+</span><a href="#local-6989586621679046662"><span class="hs-identifier hs-var">_groupsBy</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a' -&gt; Proxy X () () a' m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">yield</span></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046658"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a' m ()
+-&gt; Proxy X () () a' m (Producer a' m a)
+-&gt; Proxy X () () a' m (Producer a' m a)
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Producer a' m a
+</span><a href="#local-6989586621679046657"><span class="hs-identifier hs-var">p'</span></a></span><span> </span><span class="annot"><span class="annottext">Producer a' m a
+-&gt; ((Proxy X () () a' m (Producer a' m a)
+     -&gt; Constant
+          (Proxy X () () a' m (Producer a' m a))
+          (Proxy X () () a' m (Producer a' m a)))
+    -&gt; Producer a' m a
+    -&gt; Constant
+         (Proxy X () () a' m (Producer a' m a)) (Producer a' m a))
+-&gt; Proxy X () () a' m (Producer a' m a)
+forall a b. a -&gt; ((b -&gt; Constant b b) -&gt; a -&gt; Constant b a) -&gt; b
+</span><a href="Pipes.Group.html#%5E."><span class="hs-operator hs-var">^.</span></a></span><span> </span><span class="annot"><span class="annottext">(a' -&gt; Bool)
+-&gt; Lens' (Producer a' m a) (Proxy X () () a' m (Producer a' m a))
+forall (m :: * -&gt; *) a x.
+Monad m =&gt;
+(a -&gt; Bool)
+-&gt; Lens' (Producer a m x) (Producer a m (Producer a m x))
+</span><span class="hs-identifier hs-var">span</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a' -&gt; a' -&gt; Bool
+</span><a href="#local-6989586621679046665"><span class="hs-identifier hs-var">equals</span></a></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046658"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#groupsBy"><span class="hs-pragma hs-type">groupsBy</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-comment">{-| `groupsBy'` splits a 'Producer' into a 'FreeT' of 'Producer's grouped using
+    the given equality predicate
+
+    This differs from `groupsBy` by comparing successive elements for equality
+    instead of comparing each element to the first member of the group
+
+&gt;&gt;&gt; import Lens.Family (view)
+&gt;&gt;&gt; import Pipes (yield, each)
+&gt;&gt;&gt; import Pipes.Prelude (toList)
+&gt;&gt;&gt; let cmp c1 c2 = succ c1 == c2
+&gt;&gt;&gt; (toList . intercalates (yield '|') . view (groupsBy' cmp)) (each &quot;12233345&quot;)
+&quot;12|23|3|345&quot;
+&gt;&gt;&gt; (toList . intercalates (yield '|') . view (groupsBy  cmp)) (each &quot;12233345&quot;)
+&quot;122|3|3|34|5&quot;
+
+@
+      groupsBy' p  :: Monad m =&gt; Lens' ('Producer' a m x) (Groups a m x)
+view (groupsBy' p) :: Monad m =&gt; Splitter a m x
+set  (groupsBy' p) :: Monad m =&gt; Groups a m x -&gt; 'Producer' a m x -&gt; 'Producer' a m x
+over (groupsBy' p) :: Monad m =&gt; Transformation a m x -&gt; 'Producer' a m x -&gt; 'Producer' a m x
+@
+-}</span><span>
+</span><span id="line-120"></span><span id="local-6989586621679046653"><span id="local-6989586621679046654"><span id="local-6989586621679046655"><span id="local-6989586621679046656"><span class="annot"><a href="Pipes.Group.html#groupsBy%27"><span class="hs-identifier hs-type">groupsBy'</span></a></span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046656"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046655"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046655"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Pipes.Group.html#Lens"><span class="hs-identifier hs-type">Lens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046655"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046656"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046654"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046653"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046656"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046654"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046655"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046656"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046656"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046654"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046653"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046656"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046656"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046654"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-123"></span><span id="groupsBy%27"><span class="annot"><span class="annottext">groupsBy' :: (a' -&gt; a' -&gt; Bool)
+-&gt; Lens
+     (Producer a' m x)
+     (Producer a m x)
+     (FreeT (Producer a' m) m x)
+     (FreeT (Producer a m) m x)
+</span><a href="Pipes.Group.html#groupsBy%27"><span class="hs-identifier hs-var hs-var">groupsBy'</span></a></span></span><span> </span><span id="local-6989586621679046652"><span class="annot"><span class="annottext">a' -&gt; a' -&gt; Bool
+</span><a href="#local-6989586621679046652"><span class="hs-identifier hs-var">equals</span></a></span></span><span> </span><span id="local-6989586621679046651"><span class="annot"><span class="annottext">FreeT (Producer a' m) m x -&gt; f (FreeT (Producer a m) m x)
+</span><a href="#local-6989586621679046651"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679046650"><span class="annot"><span class="annottext">Producer a' m x
+</span><a href="#local-6989586621679046650"><span class="hs-identifier hs-var">p0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FreeT (Producer a m) m x -&gt; Producer a m x)
+-&gt; f (FreeT (Producer a m) m x) -&gt; f (Producer a m x)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m x -&gt; Producer a m x
+forall (m :: * -&gt; *) a x.
+Monad m =&gt;
+FreeT (Producer a m) m x -&gt; Producer a m x
+</span><a href="Pipes.Group.html#concats"><span class="hs-identifier hs-var">concats</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT (Producer a' m) m x -&gt; f (FreeT (Producer a m) m x)
+</span><a href="#local-6989586621679046651"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Producer a' m x -&gt; FreeT (Producer a' m) m x
+forall (m :: * -&gt; *) a x' x.
+Monad m =&gt;
+Proxy X () () a' m a -&gt; FreeT (Proxy x' x () a' m) m a
+</span><a href="#local-6989586621679046649"><span class="hs-identifier hs-var">_groupsBy</span></a></span><span> </span><span class="annot"><span class="annottext">Producer a' m x
+</span><a href="#local-6989586621679046650"><span class="hs-identifier hs-var">p0</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--  _groupsBy :: Monad m =&gt; Producer a m r -&gt; FreeT (Producer a m) m r</span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621679046649"><span class="annot"><span class="annottext">_groupsBy :: Proxy X () () a' m a -&gt; FreeT (Proxy x' x () a' m) m a
+</span><a href="#local-6989586621679046649"><span class="hs-identifier hs-var hs-var">_groupsBy</span></a></span></span><span> </span><span id="local-6989586621679046648"><span class="annot"><span class="annottext">Proxy X () () a' m a
+</span><a href="#local-6989586621679046648"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a))
+-&gt; FreeT (Proxy x' x () a' m) m a
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+m (FreeF f a (FreeT f m a)) -&gt; FreeT f m a
+</span><span class="hs-identifier hs-var">FreeT</span></span><span> </span><span class="annot"><span class="annottext">(m (FreeF (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a))
+ -&gt; FreeT (Proxy x' x () a' m) m a)
+-&gt; m (FreeF
+        (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a))
+-&gt; FreeT (Proxy x' x () a' m) m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-127"></span><span>        </span><span id="local-6989586621679046647"><span class="annot"><span class="annottext">Either a (a', Proxy X () () a' m a)
+</span><a href="#local-6989586621679046647"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Proxy X () () a' m a -&gt; m (Either a (a', Proxy X () () a' m a))
+forall (m :: * -&gt; *) a r.
+Monad m =&gt;
+Producer a m r -&gt; m (Either r (a, Producer a m r))
+</span><span class="hs-identifier hs-var">next</span></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a' m a
+</span><a href="#local-6989586621679046648"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-128"></span><span>        </span><span class="annot"><span class="annottext">FreeF (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a)
+-&gt; m (FreeF
+        (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a))
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(FreeF (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a)
+ -&gt; m (FreeF
+         (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a)))
+-&gt; FreeF (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a)
+-&gt; m (FreeF
+        (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either a (a', Proxy X () () a' m a)
+</span><a href="#local-6989586621679046647"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-129"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>   </span><span id="local-6989586621679046646"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046646"><span class="hs-identifier hs-var">r</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; FreeF (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a)
+forall (f :: * -&gt; *) a b. a -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046646"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-130"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046645"><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046645"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046644"><span class="annot"><span class="annottext">Proxy X () () a' m a
+</span><a href="#local-6989586621679046644"><span class="hs-identifier hs-var">p'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Proxy x' x () a' m (FreeT (Proxy x' x () a' m) m a)
+-&gt; FreeF (Proxy x' x () a' m) a (FreeT (Proxy x' x () a' m) m a)
+forall (f :: * -&gt; *) a b. f b -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Free</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Proxy X () () a' m a -&gt; FreeT (Proxy x' x () a' m) m a)
+-&gt; Proxy x' x () a' m (Proxy X () () a' m a)
+-&gt; Proxy x' x () a' m (FreeT (Proxy x' x () a' m) m a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a' m a -&gt; FreeT (Proxy x' x () a' m) m a
+</span><a href="#local-6989586621679046649"><span class="hs-identifier hs-var">_groupsBy</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy X () () a' m a -&gt; Proxy x' x () a' m (Proxy X () () a' m a)
+forall (m :: * -&gt; *) b x' x.
+Monad m =&gt;
+Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+</span><a href="#local-6989586621679046643"><span class="hs-identifier hs-var">loop0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a' -&gt; Proxy X () () a' m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">yield</span></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046645"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a' m ()
+-&gt; Proxy X () () a' m a -&gt; Proxy X () () a' m a
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a' m a
+</span><a href="#local-6989586621679046644"><span class="hs-identifier hs-var">p'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-comment">--  loop0</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--      :: Monad m</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--      =&gt; Producer a m r</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--      -&gt; Producer a m (Producer a m r)</span><span>
+</span><span id="line-136"></span><span>    </span><span id="local-6989586621679046643"><span class="annot"><span class="annottext">loop0 :: Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+</span><a href="#local-6989586621679046643"><span class="hs-identifier hs-var hs-var">loop0</span></a></span></span><span> </span><span id="local-6989586621679046642"><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046642"><span class="hs-identifier hs-var">p1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-137"></span><span>        </span><span id="local-6989586621679046641"><span class="annot"><span class="annottext">Either b (a', Producer a' m b)
+</span><a href="#local-6989586621679046641"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (Either b (a', Producer a' m b))
+-&gt; Proxy x' x () a' m (Either b (a', Producer a' m b))
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Producer a' m b -&gt; m (Either b (a', Producer a' m b))
+forall (m :: * -&gt; *) a r.
+Monad m =&gt;
+Producer a m r -&gt; m (Either r (a, Producer a m r))
+</span><span class="hs-identifier hs-var">next</span></span><span> </span><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046642"><span class="hs-identifier hs-var">p1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either b (a', Producer a' m b)
+</span><a href="#local-6989586621679046641"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-139"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>   </span><span id="local-6989586621679046640"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046640"><span class="hs-identifier hs-var">r</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; Producer a' m b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046640"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046639"><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046639"><span class="hs-identifier hs-var">a2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046638"><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046638"><span class="hs-identifier hs-var">p2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-141"></span><span>                </span><span class="annot"><span class="annottext">a' -&gt; Proxy x' x () a' m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">yield</span></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046639"><span class="hs-identifier hs-var">a2</span></a></span><span>
+</span><span id="line-142"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679046637"><span class="annot"><span class="annottext">loop1 :: a' -&gt; Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+</span><a href="#local-6989586621679046637"><span class="hs-identifier hs-var hs-var">loop1</span></a></span></span><span> </span><span id="local-6989586621679046636"><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046636"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679046635"><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046635"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>                        </span><span id="local-6989586621679046634"><span class="annot"><span class="annottext">Either b (a', Producer a' m b)
+</span><a href="#local-6989586621679046634"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (Either b (a', Producer a' m b))
+-&gt; Proxy x' x () a' m (Either b (a', Producer a' m b))
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Producer a' m b -&gt; m (Either b (a', Producer a' m b))
+forall (m :: * -&gt; *) a r.
+Monad m =&gt;
+Producer a m r -&gt; m (Either r (a, Producer a m r))
+</span><span class="hs-identifier hs-var">next</span></span><span> </span><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046635"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>                        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either b (a', Producer a' m b)
+</span><a href="#local-6989586621679046634"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-145"></span><span>                            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>   </span><span id="local-6989586621679046633"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046633"><span class="hs-identifier hs-var">r</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; Producer a' m b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046633"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>                            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046632"><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046632"><span class="hs-identifier hs-var">a'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046631"><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046631"><span class="hs-identifier hs-var">p'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-147"></span><span>                                </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a' -&gt; a' -&gt; Bool
+</span><a href="#local-6989586621679046652"><span class="hs-identifier hs-var">equals</span></a></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046636"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046632"><span class="hs-identifier hs-var">a'</span></a></span><span>
+</span><span id="line-148"></span><span>                                </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-149"></span><span>                                    </span><span class="annot"><span class="annottext">a' -&gt; Proxy x' x () a' m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">yield</span></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046632"><span class="hs-identifier hs-var">a'</span></a></span><span>
+</span><span id="line-150"></span><span>                                    </span><span class="annot"><span class="annottext">a' -&gt; Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+</span><a href="#local-6989586621679046637"><span class="hs-identifier hs-var">loop1</span></a></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046632"><span class="hs-identifier hs-var">a'</span></a></span><span> </span><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046631"><span class="hs-identifier hs-var">p'</span></a></span><span>
+</span><span id="line-151"></span><span>                                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a' -&gt; Proxy X () () a' m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">yield</span></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046632"><span class="hs-identifier hs-var">a'</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a' m () -&gt; Producer a' m b -&gt; Producer a' m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046631"><span class="hs-identifier hs-var">p'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>                </span><span class="annot"><span class="annottext">a' -&gt; Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+forall (m :: * -&gt; *) b x' x.
+Monad m =&gt;
+a' -&gt; Producer a' m b -&gt; Proxy x' x () a' m (Producer a' m b)
+</span><a href="#local-6989586621679046637"><span class="hs-identifier hs-var">loop1</span></a></span><span> </span><span class="annot"><span class="annottext">a'
+</span><a href="#local-6989586621679046639"><span class="hs-identifier hs-var">a2</span></a></span><span> </span><span class="annot"><span class="annottext">Producer a' m b
+</span><a href="#local-6989586621679046638"><span class="hs-identifier hs-var">p2</span></a></span><span>
+</span><span id="line-153"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#groupsBy%27"><span class="hs-pragma hs-type">groupsBy'</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-comment">{-| Like 'groupsBy', where the equality predicate is ('==')
+
+@
+     groups :: Monad m =&gt; Lens' ('Producer' a m x) (Groups a m x)
+view groups :: Monad m =&gt; Splitter a m x
+set  groups :: Monad m =&gt; Groups a m x -&gt; 'Producer' a m x -&gt; 'Producer' a m x
+over groups :: Monad m =&gt; Transformation a m x -&gt; 'Producer' a m x -&gt; 'Producer' a m x
+@
+
+&gt;&gt;&gt; import Lens.Family (view)
+&gt;&gt;&gt; import Pipes (yield, each)
+&gt;&gt;&gt; import Pipes.Prelude (toList)
+&gt;&gt;&gt; (toList . intercalates (yield '|') . view groups) (each &quot;12233345&quot;)
+&quot;1|22|333|4|5&quot;
+-}</span><span>
+</span><span id="line-170"></span><span id="local-6989586621679046627"><span id="local-6989586621679046628"><span id="local-6989586621679046629"><span id="local-6989586621679046630"><span class="annot"><a href="Pipes.Group.html#groups"><span class="hs-identifier hs-type">groups</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046630"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679046629"><span class="hs-identifier hs-type">a'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Pipes.Group.html#Lens"><span class="hs-identifier hs-type">Lens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046629"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046630"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046628"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046627"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046630"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046628"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046629"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046630"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046630"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046628"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046627"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046630"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046630"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046628"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-171"></span><span id="groups"><span class="annot"><span class="annottext">groups :: Lens
+  (Producer a' m x)
+  (Producer a m x)
+  (FreeT (Producer a' m) m x)
+  (FreeT (Producer a m) m x)
+</span><a href="Pipes.Group.html#groups"><span class="hs-identifier hs-var hs-var">groups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a' -&gt; a' -&gt; Bool)
+-&gt; Lens
+     (Producer a' m x)
+     (Producer a m x)
+     (FreeT (Producer a' m) m x)
+     (FreeT (Producer a m) m x)
+forall (m :: * -&gt; *) a' x a.
+Monad m =&gt;
+(a' -&gt; a' -&gt; Bool)
+-&gt; Lens
+     (Producer a' m x)
+     (Producer a m x)
+     (FreeT (Producer a' m) m x)
+     (FreeT (Producer a m) m x)
+</span><a href="Pipes.Group.html#groupsBy"><span class="hs-identifier hs-var">groupsBy</span></a></span><span> </span><span class="annot"><span class="annottext">a' -&gt; a' -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span>
+</span><span id="line-172"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#groups"><span class="hs-pragma hs-type">groups</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="hs-comment">{-| 'chunksOf' is an splits a 'Producer' into a 'FreeT' of 'Producer's of fixed
+    length
+
+@
+      chunksOf n  :: Monad m =&gt; Lens' ('Producer' a m x) (Groups a m x)
+view (chunksOf n) :: Monad m =&gt; Splitter a m x
+set  (chunksOf n) :: Monad m =&gt; Groups a m x -&gt; 'Producer' a m x -&gt; 'Producer' a m x
+over (chunksOf n) :: Monad m =&gt; Transformation a m x -&gt; 'Producer' a m x -&gt; 'Producer' a m x
+@
+
+&gt;&gt;&gt; import Lens.Family (view)
+&gt;&gt;&gt; import Pipes (yield, each)
+&gt;&gt;&gt; import Pipes.Prelude (toList)
+&gt;&gt;&gt; (toList . intercalates (yield '|') . view (chunksOf 3)) (each &quot;12233345&quot;)
+&quot;122|333|45&quot;
+-}</span><span>
+</span><span id="line-190"></span><span id="local-6989586621679046623"><span id="local-6989586621679046624"><span id="local-6989586621679046625"><span id="local-6989586621679046626"><span class="annot"><a href="Pipes.Group.html#chunksOf"><span class="hs-identifier hs-type">chunksOf</span></a></span><span>
+</span><span id="line-191"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046626"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Pipes.Group.html#Lens"><span class="hs-identifier hs-type">Lens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046625"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046626"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046624"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046623"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046626"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046624"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046625"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046626"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046626"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046624"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046623"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046626"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046626"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046624"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-192"></span><span id="chunksOf"><span class="annot"><span class="annottext">chunksOf :: Int
+-&gt; Lens
+     (Producer a' m x)
+     (Producer a m x)
+     (FreeT (Producer a' m) m x)
+     (FreeT (Producer a m) m x)
+</span><a href="Pipes.Group.html#chunksOf"><span class="hs-identifier hs-var hs-var">chunksOf</span></a></span></span><span> </span><span id="local-6989586621679046622"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046622"><span class="hs-identifier hs-var">n0</span></a></span></span><span> </span><span id="local-6989586621679046621"><span class="annot"><span class="annottext">FreeT (Producer a' m) m x -&gt; f (FreeT (Producer a m) m x)
+</span><a href="#local-6989586621679046621"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679046620"><span class="annot"><span class="annottext">Producer a' m x
+</span><a href="#local-6989586621679046620"><span class="hs-identifier hs-var">p0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FreeT (Producer a m) m x -&gt; Producer a m x)
+-&gt; f (FreeT (Producer a m) m x) -&gt; f (Producer a m x)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m x -&gt; Producer a m x
+forall (m :: * -&gt; *) a x.
+Monad m =&gt;
+FreeT (Producer a m) m x -&gt; Producer a m x
+</span><a href="Pipes.Group.html#concats"><span class="hs-identifier hs-var">concats</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT (Producer a' m) m x -&gt; f (FreeT (Producer a m) m x)
+</span><a href="#local-6989586621679046621"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Producer a' m x -&gt; FreeT (Producer a' m) m x
+forall (m :: * -&gt; *) a a.
+Monad m =&gt;
+Producer a m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046619"><span class="hs-identifier hs-var">_chunksOf</span></a></span><span> </span><span class="annot"><span class="annottext">Producer a' m x
+</span><a href="#local-6989586621679046620"><span class="hs-identifier hs-var">p0</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-194"></span><span class="hs-comment">--  _chunksOf :: Monad m =&gt; Producer a m x -&gt; FreeT (Producer a m) m x</span><span>
+</span><span id="line-195"></span><span>    </span><span id="local-6989586621679046619"><span class="annot"><span class="annottext">_chunksOf :: Producer a m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046619"><span class="hs-identifier hs-var hs-var">_chunksOf</span></a></span></span><span> </span><span id="local-6989586621679046618"><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046618"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+-&gt; FreeT (Proxy X () () a m) m a
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+m (FreeF f a (FreeT f m a)) -&gt; FreeT f m a
+</span><span class="hs-identifier hs-var">FreeT</span></span><span> </span><span class="annot"><span class="annottext">(m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+ -&gt; FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+-&gt; FreeT (Proxy X () () a m) m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-196"></span><span>        </span><span id="local-6989586621679046617"><span class="annot"><span class="annottext">Either a (a, Producer a m a)
+</span><a href="#local-6989586621679046617"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Producer a m a -&gt; m (Either a (a, Producer a m a))
+forall (m :: * -&gt; *) a r.
+Monad m =&gt;
+Producer a m r -&gt; m (Either r (a, Producer a m r))
+</span><span class="hs-identifier hs-var">next</span></span><span> </span><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046618"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-197"></span><span>        </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+ -&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)))
+-&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either a (a, Producer a m a)
+</span><a href="#local-6989586621679046617"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-198"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>   </span><span id="local-6989586621679046616"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046616"><span class="hs-identifier hs-var">r</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+forall (f :: * -&gt; *) a b. a -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046616"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-199"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046615"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046615"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046614"><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046614"><span class="hs-identifier hs-var">p'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+-&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+forall (f :: * -&gt; *) a b. f b -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Free</span></span><span> </span><span class="annot"><span class="annottext">(Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+ -&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+-&gt; Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+-&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Producer a m a -&gt; FreeT (Proxy X () () a m) m a)
+-&gt; Proxy X () () a m (Producer a m a)
+-&gt; Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Producer a m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046619"><span class="hs-identifier hs-var">_chunksOf</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Proxy X () () a m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">yield</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046615"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m () -&gt; Producer a m a -&gt; Producer a m a
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046614"><span class="hs-identifier hs-var">p'</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">Producer a m a
+-&gt; ((Proxy X () () a m (Producer a m a)
+     -&gt; Constant
+          (Proxy X () () a m (Producer a m a))
+          (Proxy X () () a m (Producer a m a)))
+    -&gt; Producer a m a
+    -&gt; Constant (Proxy X () () a m (Producer a m a)) (Producer a m a))
+-&gt; Proxy X () () a m (Producer a m a)
+forall a b. a -&gt; ((b -&gt; Constant b b) -&gt; a -&gt; Constant b a) -&gt; b
+</span><a href="Pipes.Group.html#%5E."><span class="hs-operator hs-var">^.</span></a></span><span class="annot"><span class="annottext">Int -&gt; Lens' (Producer a m a) (Proxy X () () a m (Producer a m a))
+forall (m :: * -&gt; *) a x.
+Monad m =&gt;
+Int -&gt; Lens' (Producer a m x) (Producer a m (Producer a m x))
+</span><span class="hs-identifier hs-var">splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046622"><span class="hs-identifier hs-var">n0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-200"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#chunksOf"><span class="hs-pragma hs-type">chunksOf</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- | Join a 'FreeT'-delimited stream of 'Producer's into a single 'Producer'</span><span>
+</span><span id="line-203"></span><span class="hs-comment">--</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- concats :: Monad m =&gt; Joiner a m x</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-207"></span><span id="local-6989586621679046873"><span id="local-6989586621679046874"><span id="local-6989586621679046875"><span class="annot"><a href="Pipes.Group.html#concats"><span class="hs-identifier hs-type">concats</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046875"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046874"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046875"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046875"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046873"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046874"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046875"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046873"><span class="hs-identifier hs-type">x</span></a></span></span></span></span><span>
+</span><span id="line-208"></span><span id="concats"><span class="annot"><span class="annottext">concats :: FreeT (Producer a m) m x -&gt; Producer a m x
+</span><a href="Pipes.Group.html#concats"><span class="hs-identifier hs-var hs-var">concats</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m x -&gt; Producer a m x
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) b.
+(MonadTrans t, Monad m, Monad (t m)) =&gt;
+FreeT (t m) m b -&gt; t m b
+</span><a href="#local-6989586621679046613"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-210"></span><span>    </span><span id="local-6989586621679046613"><span class="annot"><span class="annottext">go :: FreeT (t m) m b -&gt; t m b
+</span><a href="#local-6989586621679046613"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679046612"><span class="annot"><span class="annottext">FreeT (t m) m b
+</span><a href="#local-6989586621679046612"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-211"></span><span>        </span><span id="local-6989586621679046611"><span class="annot"><span class="annottext">FreeF (t m) b (FreeT (t m) m b)
+</span><a href="#local-6989586621679046611"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (FreeF (t m) b (FreeT (t m) m b))
+-&gt; t m (FreeF (t m) b (FreeT (t m) m b))
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT (t m) m b -&gt; m (FreeF (t m) b (FreeT (t m) m b))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT (t m) m b
+</span><a href="#local-6989586621679046612"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF (t m) b (FreeT (t m) m b)
+</span><a href="#local-6989586621679046611"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-213"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span id="local-6989586621679046610"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046610"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; t m b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046610"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-214"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046609"><span class="annot"><span class="annottext">t m (FreeT (t m) m b)
+</span><a href="#local-6989586621679046609"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-215"></span><span>                </span><span id="local-6989586621679046608"><span class="annot"><span class="annottext">FreeT (t m) m b
+</span><a href="#local-6989586621679046608"><span class="hs-identifier hs-var">f'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">t m (FreeT (t m) m b)
+</span><a href="#local-6989586621679046609"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-216"></span><span>                </span><span class="annot"><span class="annottext">FreeT (t m) m b -&gt; t m b
+</span><a href="#local-6989586621679046613"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">FreeT (t m) m b
+</span><a href="#local-6989586621679046608"><span class="hs-identifier hs-var">f'</span></a></span><span>
+</span><span id="line-217"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#concats"><span class="hs-pragma hs-type">concats</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span class="hs-comment">{-| Join a 'FreeT'-delimited stream of 'Producer's into a single 'Producer' by
+    intercalating a 'Producer' in between them
+
+@
+intercalates :: Monad m =&gt; 'Producer' a m () -&gt; Joiner a m x
+@
+-}</span><span>
+</span><span id="line-226"></span><span id="local-6989586621679046605"><span id="local-6989586621679046606"><span id="local-6989586621679046607"><span class="annot"><a href="Pipes.Group.html#intercalates"><span class="hs-identifier hs-type">intercalates</span></a></span><span>
+</span><span id="line-227"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046607"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046606"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046607"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046606"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046607"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046607"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046605"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046606"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046607"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046605"><span class="hs-identifier hs-type">x</span></a></span></span></span></span><span>
+</span><span id="line-228"></span><span id="intercalates"><span class="annot"><span class="annottext">intercalates :: Producer a m () -&gt; FreeT (Producer a m) m x -&gt; Producer a m x
+</span><a href="Pipes.Group.html#intercalates"><span class="hs-identifier hs-var hs-var">intercalates</span></a></span></span><span> </span><span id="local-6989586621679046604"><span class="annot"><span class="annottext">Producer a m ()
+</span><a href="#local-6989586621679046604"><span class="hs-identifier hs-var">sep</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m x -&gt; Producer a m x
+forall b. FreeT (Producer a m) m b -&gt; Proxy X () () a m b
+</span><a href="#local-6989586621679046603"><span class="hs-identifier hs-var">go0</span></a></span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-230"></span><span>    </span><span id="local-6989586621679046603"><span class="annot"><span class="annottext">go0 :: FreeT (Producer a m) m b -&gt; Proxy X () () a m b
+</span><a href="#local-6989586621679046603"><span class="hs-identifier hs-var hs-var">go0</span></a></span></span><span> </span><span id="local-6989586621679046602"><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046602"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-231"></span><span>        </span><span id="local-6989586621679046601"><span class="annot"><span class="annottext">FreeF (Producer a m) b (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046601"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+-&gt; Proxy
+     X () () a m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+-&gt; m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046602"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF (Producer a m) b (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046601"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-233"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span id="local-6989586621679046600"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046600"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; Proxy X () () a m b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046600"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-234"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046599"><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046599"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-235"></span><span>                </span><span id="local-6989586621679046598"><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046598"><span class="hs-identifier hs-var">f'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046599"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-236"></span><span>                </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b -&gt; Proxy X () () a m b
+forall b. FreeT (Producer a m) m b -&gt; Proxy X () () a m b
+</span><a href="#local-6989586621679046597"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046598"><span class="hs-identifier hs-var">f'</span></a></span><span>
+</span><span id="line-237"></span><span>    </span><span id="local-6989586621679046597"><span class="annot"><span class="annottext">go1 :: FreeT (Producer a m) m b -&gt; Proxy X () () a m b
+</span><a href="#local-6989586621679046597"><span class="hs-identifier hs-var hs-var">go1</span></a></span></span><span> </span><span id="local-6989586621679046596"><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046596"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-238"></span><span>        </span><span id="local-6989586621679046595"><span class="annot"><span class="annottext">FreeF (Producer a m) b (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046595"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+-&gt; Proxy
+     X () () a m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+-&gt; m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046596"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF (Producer a m) b (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046595"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-240"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span id="local-6989586621679046594"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046594"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; Proxy X () () a m b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046594"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-241"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046593"><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046593"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-242"></span><span>                </span><span class="annot"><span class="annottext">Producer a m ()
+</span><a href="#local-6989586621679046604"><span class="hs-identifier hs-var">sep</span></a></span><span>
+</span><span id="line-243"></span><span>                </span><span id="local-6989586621679046592"><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046592"><span class="hs-identifier hs-var">f'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046593"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-244"></span><span>                </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b -&gt; Proxy X () () a m b
+</span><a href="#local-6989586621679046597"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046592"><span class="hs-identifier hs-var">f'</span></a></span><span>
+</span><span id="line-245"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#intercalates"><span class="hs-pragma hs-type">intercalates</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="hs-comment">{-| @(takes n)@ only keeps the first @n@ functor layers of a 'FreeT'
+
+@
+takes :: Monad m =&gt; Int -&gt; Groups a m () -&gt; Groups a m ()
+@
+
+&gt;&gt;&gt; import Lens.Family (view)
+&gt;&gt;&gt; import Pipes (yield, each)
+&gt;&gt;&gt; import Pipes.Prelude (toList)
+&gt;&gt;&gt; (toList . intercalates (yield '|') . takes 3 . view groups) (each &quot;12233345&quot;)
+&quot;1|22|333&quot;
+-}</span><span>
+</span><span id="line-259"></span><span id="local-6989586621679046590"><span id="local-6989586621679046591"><span class="annot"><a href="Pipes.Group.html#takes"><span class="hs-identifier hs-type">takes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679046591"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046590"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679046591"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046590"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679046591"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046590"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-260"></span><span id="takes"><span class="annot"><span class="annottext">takes :: Int -&gt; FreeT f m () -&gt; FreeT f m ()
+</span><a href="Pipes.Group.html#takes"><span class="hs-identifier hs-var hs-var">takes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; FreeT f m () -&gt; FreeT f m ()
+forall a (m :: * -&gt; *) (f :: * -&gt; *).
+(Ord a, Num a, Monad m, Functor f) =&gt;
+a -&gt; FreeT f m () -&gt; FreeT f m ()
+</span><a href="#local-6989586621679046589"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-261"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-262"></span><span>    </span><span id="local-6989586621679046589"><span class="annot"><span class="annottext">go :: a -&gt; FreeT f m () -&gt; FreeT f m ()
+</span><a href="#local-6989586621679046589"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679046588"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046588"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679046587"><span class="annot"><span class="annottext">FreeT f m ()
+</span><a href="#local-6989586621679046587"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-263"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046588"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-264"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">m (FreeF f () (FreeT f m ())) -&gt; FreeT f m ()
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+m (FreeF f a (FreeT f m a)) -&gt; FreeT f m a
+</span><span class="hs-identifier hs-var">FreeT</span></span><span> </span><span class="annot"><span class="annottext">(m (FreeF f () (FreeT f m ())) -&gt; FreeT f m ())
+-&gt; m (FreeF f () (FreeT f m ())) -&gt; FreeT f m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-265"></span><span>            </span><span id="local-6989586621679046585"><span class="annot"><span class="annottext">FreeF f () (FreeT f m ())
+</span><a href="#local-6989586621679046585"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FreeT f m () -&gt; m (FreeF f () (FreeT f m ()))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT f m ()
+</span><a href="#local-6989586621679046587"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-266"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF f () (FreeT f m ())
+</span><a href="#local-6989586621679046585"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-267"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FreeF f () (FreeT f m ()) -&gt; m (FreeF f () (FreeT f m ()))
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; FreeF f () (FreeT f m ())
+forall (f :: * -&gt; *) a b. a -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-268"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046584"><span class="annot"><span class="annottext">f (FreeT f m ())
+</span><a href="#local-6989586621679046584"><span class="hs-identifier hs-var">w</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FreeF f () (FreeT f m ()) -&gt; m (FreeF f () (FreeT f m ()))
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f (FreeT f m ()) -&gt; FreeF f () (FreeT f m ())
+forall (f :: * -&gt; *) a b. f b -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Free</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(FreeT f m () -&gt; FreeT f m ())
+-&gt; f (FreeT f m ()) -&gt; f (FreeT f m ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; FreeT f m () -&gt; FreeT f m ()
+</span><a href="#local-6989586621679046589"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; FreeT f m () -&gt; FreeT f m ())
+-&gt; a -&gt; FreeT f m () -&gt; FreeT f m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046588"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f (FreeT f m ())
+</span><a href="#local-6989586621679046584"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-269"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">() -&gt; FreeT f m ()
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#takes"><span class="hs-pragma hs-type">takes</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span class="hs-comment">{-| @(takes' n)@ only keeps the first @n@ 'Producer's of a 'FreeT'
+
+    'takes'' differs from 'takes' by draining unused 'Producer's in order
+    to preserve the return value.  This makes it a suitable argument for 'maps'.
+
+@
+takes' :: Monad m =&gt; Int -&gt; Transformation a m x
+@
+-}</span><span>
+</span><span id="line-281"></span><span id="local-6989586621679046580"><span id="local-6989586621679046581"><span id="local-6989586621679046582"><span class="annot"><a href="Pipes.Group.html#takes%27"><span class="hs-identifier hs-type">takes'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046582"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046581"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046582"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046582"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046580"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046581"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046582"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046582"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046580"><span class="hs-identifier hs-type">x</span></a></span></span></span></span><span>
+</span><span id="line-282"></span><span id="takes%27"><span class="annot"><span class="annottext">takes' :: Int -&gt; FreeT (Producer a m) m x -&gt; FreeT (Producer a m) m x
+</span><a href="Pipes.Group.html#takes%27"><span class="hs-identifier hs-var hs-var">takes'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; FreeT (Producer a m) m x -&gt; FreeT (Producer a m) m x
+forall a (m :: * -&gt; *) a a.
+(Ord a, Num a, Monad m) =&gt;
+a -&gt; FreeT (Proxy X () () a m) m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046579"><span class="hs-identifier hs-var">go0</span></a></span><span>
+</span><span id="line-283"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-284"></span><span>    </span><span id="local-6989586621679046579"><span class="annot"><span class="annottext">go0 :: a -&gt; FreeT (Proxy X () () a m) m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046579"><span class="hs-identifier hs-var hs-var">go0</span></a></span></span><span> </span><span id="local-6989586621679046578"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046578"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679046577"><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046577"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+-&gt; FreeT (Proxy X () () a m) m a
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+m (FreeF f a (FreeT f m a)) -&gt; FreeT f m a
+</span><span class="hs-identifier hs-var">FreeT</span></span><span> </span><span class="annot"><span class="annottext">(m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+ -&gt; FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+-&gt; FreeT (Proxy X () () a m) m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-285"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046578"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-286"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-287"></span><span>            </span><span id="local-6989586621679046576"><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046576"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046577"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-288"></span><span>            </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+ -&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)))
+-&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046576"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-289"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span id="local-6989586621679046575"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046575"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+forall (f :: * -&gt; *) a b. a -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046575"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-290"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046574"><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046574"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+-&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+forall (f :: * -&gt; *) a b. f b -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Free</span></span><span> </span><span class="annot"><span class="annottext">(Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+ -&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+-&gt; Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+-&gt; FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(FreeT (Proxy X () () a m) m a -&gt; FreeT (Proxy X () () a m) m a)
+-&gt; Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+-&gt; Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; FreeT (Proxy X () () a m) m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046579"><span class="hs-identifier hs-var">go0</span></a></span><span> </span><span class="annot"><span class="annottext">(a
+ -&gt; FreeT (Proxy X () () a m) m a -&gt; FreeT (Proxy X () () a m) m a)
+-&gt; a
+-&gt; FreeT (Proxy X () () a m) m a
+-&gt; FreeT (Proxy X () () a m) m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046578"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046574"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-291"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall (m :: * -&gt; *) a a (f :: * -&gt; *) b.
+Monad m =&gt;
+FreeT (Proxy X () () a m) m a -&gt; m (FreeF f a b)
+</span><a href="#local-6989586621679046573"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046577"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-292"></span><span>    </span><span id="local-6989586621679046573"><span class="annot"><span class="annottext">go1 :: FreeT (Proxy X () () a m) m a -&gt; m (FreeF f a b)
+</span><a href="#local-6989586621679046573"><span class="hs-identifier hs-var hs-var">go1</span></a></span></span><span> </span><span id="local-6989586621679046572"><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046572"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-293"></span><span>        </span><span id="local-6989586621679046571"><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046571"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046572"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-294"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046571"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-295"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span id="local-6989586621679046570"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046570"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FreeF f a b -&gt; m (FreeF f a b)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; FreeF f a b
+forall (f :: * -&gt; *) a b. a -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046570"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-296"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046569"><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046569"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-297"></span><span>                </span><span id="local-6989586621679046568"><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046568"><span class="hs-identifier hs-var">f'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Effect m (FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeT (Proxy X () () a m) m a)
+forall (m :: * -&gt; *) r. Monad m =&gt; Effect m r -&gt; m r
+</span><span class="hs-identifier hs-var">P.runEffect</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+-&gt; (a -&gt; Proxy X () () X m ())
+-&gt; Effect m (FreeT (Proxy X () () a m) m a)
+forall (m :: * -&gt; *) x' x b' b a' c' c.
+Functor m =&gt;
+Proxy x' x b' b m a'
+-&gt; (b -&gt; Proxy x' x c' c m b') -&gt; Proxy x' x c' c m a'
+</span><span class="hs-identifier hs-var">P.for</span></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046569"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Proxy X () () X m ()
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">P.discard</span></span><span class="hs-special">)</span><span>
+</span><span id="line-298"></span><span>                </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a -&gt; m (FreeF f a b)
+</span><a href="#local-6989586621679046573"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046568"><span class="hs-identifier hs-var">f'</span></a></span><span>
+</span><span id="line-299"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#takes%27"><span class="hs-pragma hs-type">takes'</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-300"></span><span>
+</span><span id="line-301"></span><span class="hs-comment">{-| @(drops n)@ peels off the first @n@ 'Producer' layers of a 'FreeT'
+
+@
+drops :: Monad m =&gt; Int -&gt; Transformation a m x
+@
+
+&gt;&gt;&gt; import Lens.Family (view)
+&gt;&gt;&gt; import Pipes (yield, each)
+&gt;&gt;&gt; import Pipes.Prelude (toList)
+&gt;&gt;&gt; (toList . intercalates (yield '|') . drops 3 . view groups) (each &quot;12233345&quot;)
+&quot;4|5&quot;
+
+    __Use carefully__: the peeling off is not free.   This runs the first @n@
+    layers, just discarding everything they produce.
+-}</span><span>
+</span><span id="line-316"></span><span id="local-6989586621679046562"><span id="local-6989586621679046563"><span id="local-6989586621679046564"><span class="annot"><a href="Pipes.Group.html#drops"><span class="hs-identifier hs-type">drops</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046564"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046563"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046564"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046564"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046562"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046563"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046564"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046564"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046562"><span class="hs-identifier hs-type">x</span></a></span></span></span></span><span>
+</span><span id="line-317"></span><span id="drops"><span class="annot"><span class="annottext">drops :: Int -&gt; FreeT (Producer a m) m x -&gt; FreeT (Producer a m) m x
+</span><a href="Pipes.Group.html#drops"><span class="hs-identifier hs-var hs-var">drops</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; FreeT (Producer a m) m x -&gt; FreeT (Producer a m) m x
+forall a (m :: * -&gt; *) a a.
+(Ord a, Num a, Monad m) =&gt;
+a -&gt; FreeT (Proxy X () () a m) m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046561"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-318"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-319"></span><span>    </span><span id="local-6989586621679046561"><span class="annot"><span class="annottext">go :: t -&gt; FreeT (Proxy X () () a m) m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046561"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679046560"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679046560"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679046559"><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046559"><span class="hs-identifier hs-var">ft</span></a></span></span><span>
+</span><span id="line-320"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679046560"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046559"><span class="hs-identifier hs-var">ft</span></a></span><span>
+</span><span id="line-321"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+-&gt; FreeT (Proxy X () () a m) m a
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+m (FreeF f a (FreeT f m a)) -&gt; FreeT f m a
+</span><span class="hs-identifier hs-var">FreeT</span></span><span> </span><span class="annot"><span class="annottext">(m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+ -&gt; FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+-&gt; FreeT (Proxy X () () a m) m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-322"></span><span>            </span><span id="local-6989586621679046557"><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046557"><span class="hs-identifier hs-var">ff</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046559"><span class="hs-identifier hs-var">ft</span></a></span><span>
+</span><span id="line-323"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046557"><span class="hs-identifier hs-var">ff</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-324"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046557"><span class="hs-identifier hs-var">ff</span></a></span><span>
+</span><span id="line-325"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046556"><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046556"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-326"></span><span>                    </span><span id="local-6989586621679046555"><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046555"><span class="hs-identifier hs-var">ft'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Effect m (FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeT (Proxy X () () a m) m a)
+forall (m :: * -&gt; *) r. Monad m =&gt; Effect m r -&gt; m r
+</span><span class="hs-identifier hs-var">P.runEffect</span></span><span> </span><span class="annot"><span class="annottext">(Effect m (FreeT (Proxy X () () a m) m a)
+ -&gt; m (FreeT (Proxy X () () a m) m a))
+-&gt; Effect m (FreeT (Proxy X () () a m) m a)
+-&gt; m (FreeT (Proxy X () () a m) m a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+-&gt; (a -&gt; Proxy X () () X m ())
+-&gt; Effect m (FreeT (Proxy X () () a m) m a)
+forall (m :: * -&gt; *) x' x b' b a' c' c.
+Functor m =&gt;
+Proxy x' x b' b m a'
+-&gt; (b -&gt; Proxy x' x c' c m b') -&gt; Proxy x' x c' c m a'
+</span><span class="hs-identifier hs-var">P.for</span></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m a)
+</span><a href="#local-6989586621679046556"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Proxy X () () X m ()
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">P.discard</span></span><span>
+</span><span id="line-327"></span><span>                    </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">(FreeT (Proxy X () () a m) m a
+ -&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a)))
+-&gt; FreeT (Proxy X () () a m) m a
+-&gt; m (FreeF (Proxy X () () a m) a (FreeT (Proxy X () () a m) m a))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">t -&gt; FreeT (Proxy X () () a m) m a -&gt; FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046561"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679046560"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">t -&gt; t -&gt; t
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m a
+</span><a href="#local-6989586621679046555"><span class="hs-identifier hs-var">ft'</span></a></span><span>
+</span><span id="line-328"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#drops"><span class="hs-pragma hs-type">drops</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-329"></span><span>
+</span><span id="line-330"></span><span class="hs-comment">{-| Transform each individual functor layer of a 'FreeT'
+
+    You can think of this as:
+
+&gt; maps
+&gt;     :: (forall r . Producer a m r -&gt; Producer b m r)
+&gt;     -&gt; FreeT (Producer a m) m x -&gt; FreeT (Producer b m) m x
+
+    This is just a synonym for 'F.transFreeT'
+-}</span><span>
+</span><span id="line-340"></span><span id="local-6989586621679046551"><span id="local-6989586621679046552"><span id="local-6989586621679046553"><span id="local-6989586621679046554"><span class="annot"><a href="Pipes.Group.html#maps"><span class="hs-identifier hs-type">maps</span></a></span><span>
+</span><span id="line-341"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046554"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679046553"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-342"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679046745"><span class="annot"><a href="#local-6989586621679046745"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679046552"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046745"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046553"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046745"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679046552"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046554"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046551"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679046553"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046554"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046551"><span class="hs-identifier hs-type">x</span></a></span></span></span></span></span><span>
+</span><span id="line-343"></span><span id="maps"><span class="annot"><span class="annottext">maps :: (forall r. f r -&gt; g r) -&gt; FreeT f m x -&gt; FreeT g m x
+</span><a href="Pipes.Group.html#maps"><span class="hs-identifier hs-var hs-var">maps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall r. f r -&gt; g r) -&gt; FreeT f m x -&gt; FreeT g m x
+forall (m :: * -&gt; *) (g :: * -&gt; *) (f :: * -&gt; *) b.
+(Monad m, Functor g) =&gt;
+(forall a. f a -&gt; g a) -&gt; FreeT f m b -&gt; FreeT g m b
+</span><span class="hs-identifier hs-var">F.transFreeT</span></span><span>
+</span><span id="line-344"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#maps"><span class="hs-pragma hs-type">maps</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-345"></span><span>
+</span><span id="line-346"></span><span class="hs-comment">{-| Lens to transform each individual functor layer of a 'FreeT'. (@over
+    'individually'@) is equivalent to 'maps', but with a less general type.
+
+@
+type Group a m x = 'Producer' a m (Groups a m x)
+
+set  individually :: Monad m =&gt; Group a m x -&gt; Transformation a m x
+over individually :: Monad m =&gt; (Group a m x -&gt; Group a m x) -&gt; Transformation a m x
+@
+-}</span><span>
+</span><span id="line-356"></span><span id="local-6989586621679046546"><span id="local-6989586621679046547"><span id="local-6989586621679046548"><span id="local-6989586621679046549"><span class="annot"><a href="Pipes.Group.html#individually"><span class="hs-identifier hs-type">individually</span></a></span><span>
+</span><span id="line-357"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046549"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679046548"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-358"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Pipes.Group.html#Setter"><span class="hs-identifier hs-type">Setter</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679046547"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046549"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046546"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679046548"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046549"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046546"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046547"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679046547"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046549"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046546"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046548"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679046547"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046549"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046546"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-359"></span><span id="individually"><span class="annot"><span class="annottext">individually :: Setter
+  (FreeT f m x) (FreeT g m x) (f (FreeT f m x)) (g (FreeT f m x))
+</span><a href="Pipes.Group.html#individually"><span class="hs-identifier hs-var hs-var">individually</span></a></span></span><span> </span><span id="local-6989586621679046545"><span class="annot"><span class="annottext">f (FreeT f m x) -&gt; Identity (g (FreeT f m x))
+</span><a href="#local-6989586621679046545"><span class="hs-identifier hs-var">nat</span></a></span></span><span> </span><span id="local-6989586621679046544"><span class="annot"><span class="annottext">FreeT f m x
+</span><a href="#local-6989586621679046544"><span class="hs-identifier hs-var">f0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeT g m x -&gt; Identity (FreeT g m x)
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT f m x -&gt; FreeT g m x
+</span><a href="#local-6989586621679046543"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">FreeT f m x
+</span><a href="#local-6989586621679046544"><span class="hs-identifier hs-var">f0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-360"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-361"></span><span>    </span><span id="local-6989586621679046542"><span class="annot"><span class="annottext">nat' :: f (FreeT f m x) -&gt; g (FreeT f m x)
+</span><a href="#local-6989586621679046542"><span class="hs-identifier hs-var hs-var">nat'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity (g (FreeT f m x)) -&gt; g (FreeT f m x)
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity (g (FreeT f m x)) -&gt; g (FreeT f m x))
+-&gt; (f (FreeT f m x) -&gt; Identity (g (FreeT f m x)))
+-&gt; f (FreeT f m x)
+-&gt; g (FreeT f m x)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">f (FreeT f m x) -&gt; Identity (g (FreeT f m x))
+</span><a href="#local-6989586621679046545"><span class="hs-identifier hs-var">nat</span></a></span><span>
+</span><span id="line-362"></span><span>    </span><span id="local-6989586621679046543"><span class="annot"><span class="annottext">go :: FreeT f m x -&gt; FreeT g m x
+</span><a href="#local-6989586621679046543"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679046540"><span class="annot"><span class="annottext">FreeT f m x
+</span><a href="#local-6989586621679046540"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (FreeF g x (FreeT g m x)) -&gt; FreeT g m x
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+m (FreeF f a (FreeT f m a)) -&gt; FreeT f m a
+</span><span class="hs-identifier hs-var">FreeT</span></span><span> </span><span class="annot"><span class="annottext">(m (FreeF g x (FreeT g m x)) -&gt; FreeT g m x)
+-&gt; m (FreeF g x (FreeT g m x)) -&gt; FreeT g m x
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-363"></span><span>        </span><span id="local-6989586621679046539"><span class="annot"><span class="annottext">FreeF f x (FreeT f m x)
+</span><a href="#local-6989586621679046539"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FreeT f m x -&gt; m (FreeF f x (FreeT f m x))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT f m x
+</span><a href="#local-6989586621679046540"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-364"></span><span>        </span><span class="annot"><span class="annottext">FreeF g x (FreeT g m x) -&gt; m (FreeF g x (FreeT g m x))
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(FreeF g x (FreeT g m x) -&gt; m (FreeF g x (FreeT g m x)))
+-&gt; FreeF g x (FreeT g m x) -&gt; m (FreeF g x (FreeT g m x))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF f x (FreeT f m x)
+</span><a href="#local-6989586621679046539"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-365"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span id="local-6989586621679046538"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046538"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">x -&gt; FreeF g x (FreeT g m x)
+forall (f :: * -&gt; *) a b. a -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Pure</span></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046538"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-366"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046537"><span class="annot"><span class="annottext">f (FreeT f m x)
+</span><a href="#local-6989586621679046537"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">g (FreeT g m x) -&gt; FreeF g x (FreeT g m x)
+forall (f :: * -&gt; *) a b. f b -&gt; FreeF f a b
+</span><span class="hs-identifier hs-var">Free</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(FreeT f m x -&gt; FreeT g m x) -&gt; g (FreeT f m x) -&gt; g (FreeT g m x)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">FreeT f m x -&gt; FreeT g m x
+</span><a href="#local-6989586621679046543"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f (FreeT f m x) -&gt; g (FreeT f m x)
+</span><a href="#local-6989586621679046542"><span class="hs-identifier hs-var">nat'</span></a></span><span> </span><span class="annot"><span class="annottext">f (FreeT f m x)
+</span><a href="#local-6989586621679046537"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-367"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#individually"><span class="hs-pragma hs-type">individually</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-368"></span><span>
+</span><span id="line-369"></span><span class="hs-comment">{- $folds
+    These folds are designed to be compatible with the @foldl@ library.  See
+    the 'Control.Foldl.purely' and 'Control.Foldl.impurely' functions from that
+    library for more details.
+
+    For example, to count the number of 'Producer' layers in a 'FreeT', you can
+    write:
+
+&gt; import Control.Applicative (pure)
+&gt; import qualified Control.Foldl as L
+&gt; import Pipes.Group
+&gt; import qualified Pipes.Prelude as P
+&gt;
+&gt; count :: Monad m =&gt; FreeT (Producer a m) m () -&gt; m Int
+&gt; count = P.sum . L.purely folds (pure 1)
+-}</span><span>
+</span><span id="line-385"></span><span class="hs-comment">{-| Fold each 'Producer' of a 'FreeT'
+
+@
+'Control.Foldl.purely' folds :: Monad m =&gt; 'Control.Foldl.Fold' a b -&gt; Groups a m r -&gt; 'Producer' b m r
+@
+-}</span><span>
+</span><span id="line-391"></span><span id="local-6989586621679046532"><span id="local-6989586621679046533"><span id="local-6989586621679046534"><span id="local-6989586621679046535"><span id="local-6989586621679046536"><span class="annot"><a href="Pipes.Group.html#folds"><span class="hs-identifier hs-type">folds</span></a></span><span>
+</span><span id="line-392"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046536"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-393"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046535"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046534"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046535"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-394"></span><span>    </span><span class="hs-comment">-- ^ Step function</span><span>
+</span><span id="line-395"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046535"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-396"></span><span>    </span><span class="hs-comment">-- ^ Initial accumulator</span><span>
+</span><span id="line-397"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046535"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046533"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-398"></span><span>    </span><span class="hs-comment">-- ^ Extraction function</span><span>
+</span><span id="line-399"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046534"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046536"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046536"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046532"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-400"></span><span>    </span><span class="hs-comment">-- ^</span><span>
+</span><span id="line-401"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046533"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046536"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046532"><span class="hs-identifier hs-type">r</span></a></span></span></span></span></span></span><span>
+</span><span id="line-402"></span><span id="folds"><span class="annot"><span class="annottext">folds :: (x -&gt; a -&gt; x)
+-&gt; x -&gt; (x -&gt; b) -&gt; FreeT (Producer a m) m r -&gt; Producer b m r
+</span><a href="Pipes.Group.html#folds"><span class="hs-identifier hs-var hs-var">folds</span></a></span></span><span> </span><span id="local-6989586621679046531"><span class="annot"><span class="annottext">x -&gt; a -&gt; x
+</span><a href="#local-6989586621679046531"><span class="hs-identifier hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679046530"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046530"><span class="hs-identifier hs-var">begin</span></a></span></span><span> </span><span id="local-6989586621679046529"><span class="annot"><span class="annottext">x -&gt; b
+</span><a href="#local-6989586621679046529"><span class="hs-identifier hs-var">done</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m r -&gt; Producer b m r
+forall (m :: * -&gt; *) b x' x.
+Monad m =&gt;
+FreeT (Proxy X () () a m) m b -&gt; Proxy x' x () b m b
+</span><a href="#local-6989586621679046528"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-403"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-404"></span><span>    </span><span id="local-6989586621679046528"><span class="annot"><span class="annottext">go :: FreeT (Proxy X () () a m) m b -&gt; Proxy x' x () b m b
+</span><a href="#local-6989586621679046528"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679046527"><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m b
+</span><a href="#local-6989586621679046527"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-405"></span><span>        </span><span id="local-6989586621679046526"><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) b (FreeT (Proxy X () () a m) m b)
+</span><a href="#local-6989586621679046526"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Proxy X () () a m) b (FreeT (Proxy X () () a m) m b))
+-&gt; Proxy
+     x'
+     x
+     ()
+     b
+     m
+     (FreeF (Proxy X () () a m) b (FreeT (Proxy X () () a m) m b))
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m b
+-&gt; m (FreeF (Proxy X () () a m) b (FreeT (Proxy X () () a m) m b))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m b
+</span><a href="#local-6989586621679046527"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-406"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF (Proxy X () () a m) b (FreeT (Proxy X () () a m) m b)
+</span><a href="#local-6989586621679046526"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-407"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span id="local-6989586621679046525"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046525"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; Proxy x' x () b m b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046525"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-408"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046524"><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m b)
+</span><a href="#local-6989586621679046524"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-409"></span><span>                </span><span class="hs-special">(</span><span id="local-6989586621679046523"><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m b
+</span><a href="#local-6989586621679046523"><span class="hs-identifier hs-var">f'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046522"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046522"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (FreeT (Proxy X () () a m) m b, b)
+-&gt; Proxy x' x () b m (FreeT (Proxy X () () a m) m b, b)
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m b)
+-&gt; x -&gt; m (FreeT (Proxy X () () a m) m b, b)
+forall (m :: * -&gt; *) a. Monad m =&gt; Producer a m a -&gt; x -&gt; m (a, b)
+</span><a href="#local-6989586621679046521"><span class="hs-identifier hs-var">fold</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Proxy X () () a m) m b)
+</span><a href="#local-6989586621679046524"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046530"><span class="hs-identifier hs-var">begin</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-410"></span><span>                </span><span class="annot"><span class="annottext">b -&gt; Proxy x' x () b m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">yield</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046522"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-411"></span><span>                </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m b -&gt; Proxy x' x () b m b
+</span><a href="#local-6989586621679046528"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">FreeT (Proxy X () () a m) m b
+</span><a href="#local-6989586621679046523"><span class="hs-identifier hs-var">f'</span></a></span><span>
+</span><span id="line-412"></span><span>
+</span><span id="line-413"></span><span>    </span><span id="local-6989586621679046521"><span class="annot"><span class="annottext">fold :: Producer a m a -&gt; x -&gt; m (a, b)
+</span><a href="#local-6989586621679046521"><span class="hs-identifier hs-var hs-var">fold</span></a></span></span><span> </span><span id="local-6989586621679046520"><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046520"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679046519"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046519"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-414"></span><span>        </span><span id="local-6989586621679046518"><span class="annot"><span class="annottext">Either a (a, Producer a m a)
+</span><a href="#local-6989586621679046518"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Producer a m a -&gt; m (Either a (a, Producer a m a))
+forall (m :: * -&gt; *) a r.
+Monad m =&gt;
+Producer a m r -&gt; m (Either r (a, Producer a m r))
+</span><span class="hs-identifier hs-var">next</span></span><span> </span><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046520"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-415"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either a (a, Producer a m a)
+</span><a href="#local-6989586621679046518"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-416"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>   </span><span id="local-6989586621679046517"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046517"><span class="hs-identifier hs-var">f</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a, b) -&gt; m (a, b)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046517"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">x -&gt; b
+</span><a href="#local-6989586621679046529"><span class="hs-identifier hs-var">done</span></a></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046519"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-417"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046516"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046516"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046515"><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046515"><span class="hs-identifier hs-var">p'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Producer a m a -&gt; x -&gt; m (a, b)
+</span><a href="#local-6989586621679046521"><span class="hs-identifier hs-var">fold</span></a></span><span> </span><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046515"><span class="hs-identifier hs-var">p'</span></a></span><span> </span><span class="annot"><span class="annottext">(x -&gt; m (a, b)) -&gt; x -&gt; m (a, b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">x -&gt; a -&gt; x
+</span><a href="#local-6989586621679046531"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046519"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046516"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-418"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#folds"><span class="hs-pragma hs-type">folds</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-419"></span><span>
+</span><span id="line-420"></span><span class="hs-comment">{-| Fold each 'Producer' of a 'FreeT', monadically
+
+@
+'Control.Foldl.impurely' foldsM :: Monad m =&gt; 'Control.Foldl.FoldM' a b -&gt; Groups a m r -&gt; 'Producer' b m r
+@
+-}</span><span>
+</span><span id="line-426"></span><span id="local-6989586621679046510"><span id="local-6989586621679046511"><span id="local-6989586621679046512"><span id="local-6989586621679046513"><span id="local-6989586621679046514"><span class="annot"><a href="Pipes.Group.html#foldsM"><span class="hs-identifier hs-type">foldsM</span></a></span><span>
+</span><span id="line-427"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679046514"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-428"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046513"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046512"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046514"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046513"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-429"></span><span>    </span><span class="hs-comment">-- ^ Step function</span><span>
+</span><span id="line-430"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046514"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046513"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-431"></span><span>    </span><span class="hs-comment">-- ^ Initial accumulator</span><span>
+</span><span id="line-432"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046513"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046514"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046511"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-433"></span><span>    </span><span class="hs-comment">-- ^ Extraction function</span><span>
+</span><span id="line-434"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FreeT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046512"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046514"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679046514"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046510"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-435"></span><span>    </span><span class="hs-comment">-- ^</span><span>
+</span><span id="line-436"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Producer</span></span><span> </span><span class="annot"><a href="#local-6989586621679046511"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046514"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046510"><span class="hs-identifier hs-type">r</span></a></span></span></span></span></span></span><span>
+</span><span id="line-437"></span><span id="foldsM"><span class="annot"><span class="annottext">foldsM :: (x -&gt; a -&gt; m x)
+-&gt; m x -&gt; (x -&gt; m b) -&gt; FreeT (Producer a m) m r -&gt; Producer b m r
+</span><a href="Pipes.Group.html#foldsM"><span class="hs-identifier hs-var hs-var">foldsM</span></a></span></span><span> </span><span id="local-6989586621679046509"><span class="annot"><span class="annottext">x -&gt; a -&gt; m x
+</span><a href="#local-6989586621679046509"><span class="hs-identifier hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679046508"><span class="annot"><span class="annottext">m x
+</span><a href="#local-6989586621679046508"><span class="hs-identifier hs-var">begin</span></a></span></span><span> </span><span id="local-6989586621679046507"><span class="annot"><span class="annottext">x -&gt; m b
+</span><a href="#local-6989586621679046507"><span class="hs-identifier hs-var">done</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m r -&gt; Producer b m r
+forall b x' x. FreeT (Producer a m) m b -&gt; Proxy x' x () b m b
+</span><a href="#local-6989586621679046506"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-438"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-439"></span><span>    </span><span id="local-6989586621679046506"><span class="annot"><span class="annottext">go :: FreeT (Producer a m) m b -&gt; Proxy x' x () b m b
+</span><a href="#local-6989586621679046506"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679046505"><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046505"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-440"></span><span>        </span><span id="local-6989586621679046504"><span class="annot"><span class="annottext">FreeF (Producer a m) b (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046504"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+-&gt; Proxy
+     x' x () b m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+-&gt; m (FreeF (Producer a m) b (FreeT (Producer a m) m b))
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+FreeT f m a -&gt; m (FreeF f a (FreeT f m a))
+</span><span class="hs-identifier hs-var hs-var">runFreeT</span></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046505"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-441"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FreeF (Producer a m) b (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046504"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-442"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Pure</span></span><span> </span><span id="local-6989586621679046503"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046503"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; Proxy x' x () b m b
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046503"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-443"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Free</span></span><span> </span><span id="local-6989586621679046502"><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046502"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-444"></span><span>                </span><span class="hs-special">(</span><span id="local-6989586621679046501"><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046501"><span class="hs-identifier hs-var">f'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046500"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046500"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (FreeT (Producer a m) m b, b)
+-&gt; Proxy x' x () b m (FreeT (Producer a m) m b, b)
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">(m (FreeT (Producer a m) m b, b)
+ -&gt; Proxy x' x () b m (FreeT (Producer a m) m b, b))
+-&gt; m (FreeT (Producer a m) m b, b)
+-&gt; Proxy x' x () b m (FreeT (Producer a m) m b, b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-445"></span><span>                    </span><span id="local-6989586621679046499"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046499"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m x
+</span><a href="#local-6989586621679046508"><span class="hs-identifier hs-var">begin</span></a></span><span>
+</span><span id="line-446"></span><span>                    </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Producer a m) m b)
+-&gt; x -&gt; m (FreeT (Producer a m) m b, b)
+forall a. Producer a m a -&gt; x -&gt; m (a, b)
+</span><a href="#local-6989586621679046498"><span class="hs-identifier hs-var">foldM</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy X () () a m (FreeT (Producer a m) m b)
+</span><a href="#local-6989586621679046502"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046499"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-447"></span><span>                </span><span class="annot"><span class="annottext">b -&gt; Proxy x' x () b m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">yield</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046500"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-448"></span><span>                </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b -&gt; Proxy x' x () b m b
+</span><a href="#local-6989586621679046506"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">FreeT (Producer a m) m b
+</span><a href="#local-6989586621679046501"><span class="hs-identifier hs-var">f'</span></a></span><span>
+</span><span id="line-449"></span><span>
+</span><span id="line-450"></span><span>    </span><span id="local-6989586621679046498"><span class="annot"><span class="annottext">foldM :: Producer a m a -&gt; x -&gt; m (a, b)
+</span><a href="#local-6989586621679046498"><span class="hs-identifier hs-var hs-var">foldM</span></a></span></span><span> </span><span id="local-6989586621679046497"><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046497"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679046496"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046496"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-451"></span><span>        </span><span id="local-6989586621679046495"><span class="annot"><span class="annottext">Either a (a, Producer a m a)
+</span><a href="#local-6989586621679046495"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Producer a m a -&gt; m (Either a (a, Producer a m a))
+forall (m :: * -&gt; *) a r.
+Monad m =&gt;
+Producer a m r -&gt; m (Either r (a, Producer a m r))
+</span><span class="hs-identifier hs-var">next</span></span><span> </span><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046497"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-452"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either a (a, Producer a m a)
+</span><a href="#local-6989586621679046495"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-453"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>   </span><span id="local-6989586621679046494"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046494"><span class="hs-identifier hs-var">f</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-454"></span><span>                </span><span id="local-6989586621679046493"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046493"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">x -&gt; m b
+</span><a href="#local-6989586621679046507"><span class="hs-identifier hs-var">done</span></a></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046496"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-455"></span><span>                </span><span class="annot"><span class="annottext">(a, b) -&gt; m (a, b)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046494"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679046493"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-456"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046492"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046492"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679046491"><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046491"><span class="hs-identifier hs-var">p'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-457"></span><span>                </span><span id="local-6989586621679046490"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046490"><span class="hs-identifier hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">x -&gt; a -&gt; m x
+</span><a href="#local-6989586621679046509"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046496"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046492"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-458"></span><span>                </span><span class="annot"><span class="annottext">Producer a m a -&gt; x -&gt; m (a, b)
+</span><a href="#local-6989586621679046498"><span class="hs-identifier hs-var">foldM</span></a></span><span> </span><span class="annot"><span class="annottext">Producer a m a
+</span><a href="#local-6989586621679046491"><span class="hs-identifier hs-var">p'</span></a></span><span> </span><span class="annot"><span class="annottext">(x -&gt; m (a, b)) -&gt; x -&gt; m (a, b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679046490"><span class="hs-identifier hs-var">x'</span></a></span><span>
+</span><span id="line-459"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Pipes.Group.html#foldsM"><span class="hs-pragma hs-type">foldsM</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-460"></span><span class="hs-comment">{- $reexports
+    &quot;Control.Monad.Trans.Class&quot; re-exports 'lift'.
+
+    &quot;Control.Monad.Trans.Free&quot; re-exports 'FreeF' and 'FreeT'
+
+    &quot;Pipes&quot; re-exports 'Producer', 'yield', and 'next'.
+-}</span><span>
+</span><span id="line-467"></span></pre></body></html>

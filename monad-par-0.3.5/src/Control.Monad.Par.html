@@ -1,0 +1,170 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-comment">{-|
+
+  The @monad-par@ package provides a family of @Par@ monads, for
+  speeding up pure computations using parallel processors.  (for a similar
+  programming model for use with @IO@, see &quot;Control.Monad.Par.IO&quot;.)
+
+  The result of a given @Par@ computation is always the same - i.e. it
+  is deterministic, but the computation may be performed more quickly
+  if there are processors available to share the work.
+
+  For example, the following program fragment computes the values of
+  @(f x)@ and @(g x)@ in parallel, and returns a pair of their results:
+
+  &gt;  runPar $ do
+  &gt;      fx &lt;- spawnP (f x)  -- start evaluating (f x)
+  &gt;      gx &lt;- spawnP (g x)  -- start evaluating (g x)
+  &gt;      a  &lt;- get fx        -- wait for fx
+  &gt;      b  &lt;- get gx        -- wait for gx
+  &gt;      return (a,b)        -- return results
+
+  @Par@ can be used for specifying pure parallel computations in
+  which the order of the computation is not known beforehand.
+  The programmer specifies how information flows from one
+  part of the computation to another, but not the order in which
+  computations will be evaluated at runtime.  Information flow is
+  described using &quot;variables&quot; called @IVar@s, which support 'put' and
+  'get' operations.  For example, suppose you have a problem that
+  can be expressed as a network with four nodes, where @b@ and @c@
+  require the value of @a@, and @d@ requires the value of @b@ and @c@:
+
+  &gt;                       a
+  &gt;                      / \               
+  &gt;                     b   c             
+  &gt;                      \ /  
+  &gt;                       d
+
+  Then you could express this in the @Par@ monad like this:
+
+  &gt;   runPar $ do
+  &gt;       [a,b,c,d] &lt;- sequence [new,new,new,new]
+  &gt;       fork $ do x &lt;- get a; put b (x+1)
+  &gt;       fork $ do x &lt;- get a; put c (x+2)
+  &gt;       fork $ do x &lt;- get b; y &lt;- get c; put d (x+y)
+  &gt;       fork $ do put a (3 :: Int)
+  &gt;       get d
+
+  The result of the above computation is always 9.  The 'get' operation
+  waits until its input is available; multiple 'put's to the same
+  @IVar@ are not allowed, and result in a runtime error.  Values
+  stored in @IVar@s are usually fully evaluated (although there are
+  ways provided to pass lazy values if necessary).
+
+  In the above example, @b@ and @c@ will be evaluated in parallel.
+  In practice the work involved at each node is too small here to see
+  the benefits of parallelism though: typically each node should
+  involve much more work.  The granularity is completely under your
+  control - too small and the overhead of the @Par@ monad will
+  outweigh any parallelism benefits, whereas if the nodes are too
+  large then there might not be enough parallelism to use all the
+  available processors.
+
+  Unlike @Control.Parallel@, in @Control.Monad.Par@ parallelism is
+  not combined with laziness, so sharing and granularity are
+  completely under the control of the programmer.  New units of
+  parallel work are only created by @fork@ and a few other
+  combinators.
+
+  The default implementation is based on a work-stealing scheduler
+  that divides the work as evenly as possible between the available
+  processors at runtime.  Other schedulers are available that are
+  based on different policies and have different performance
+  characteristics.  To use one of these other schedulers, just import
+  its module instead of &quot;Control.Monad.Par&quot;:
+
+  * &quot;Control.Monad.Par.Scheds.Trace&quot;
+
+  * &quot;Control.Monad.Par.Scheds.Sparks&quot;
+
+  For more information on the programming model, please see these sources:
+
+      * The wiki\/tutorial (&lt;http://www.haskell.org/haskellwiki/Par_Monad:_A_Parallelism_Tutorial&gt;)
+
+      * The original paper (&lt;http://www.cs.indiana.edu/~rrnewton/papers/haskell2011_monad-par.pdf&gt;)
+
+      * Tutorial slides (&lt;http://community.haskell.org/~simonmar/slides/CUFP.pdf&gt;)
+
+      * Other slides: (&lt;http://www.cs.ox.ac.uk/ralf.hinze/WG2.8/28/slides/simon.pdf&gt;,
+                      &lt;http://www.cs.indiana.edu/~rrnewton/talks/2011_HaskellSymposium_ParMonad.pdf&gt;)
+
+ -}</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Par</span><span> </span><span>
+</span><span id="line-94"></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><span class="hs-comment">-- * The Par Monad</span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#Par"><span class="hs-identifier">Par</span></a></span><span class="hs-special">,</span><span> </span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#runPar"><span class="hs-identifier">runPar</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#runParIO"><span class="hs-identifier">runParIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.Trace.html#fork"><span class="hs-identifier">fork</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-comment">-- | Forks a computation to happen in parallel.  The forked</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-comment">-- computation may exchange values with other computations using</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-comment">-- @IVar@s.</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Communication: IVars</span></span><span>
+</span><span id="line-105"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#IVar"><span class="hs-identifier">IVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#new"><span class="hs-identifier">new</span></a></span><span class="hs-special">,</span><span> </span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-comment">-- creates a new @IVar@</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#newFull"><span class="hs-identifier">newFull</span></a></span><span class="hs-special">,</span><span> </span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-comment">-- creates a new @IVar@ that contains a value</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#newFull_"><span class="hs-identifier">newFull_</span></a></span><span class="hs-special">,</span><span> </span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-comment">-- creates a new @IVar@ that contains a value (head-strict only)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#get"><span class="hs-identifier">get</span></a></span><span class="hs-special">,</span><span> </span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-comment">-- read the value in an @IVar@.  'get' can only return when the</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-comment">-- value has been written by a prior or parallel @put@ to the same</span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-comment">-- @IVar@.</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#put"><span class="hs-identifier">put</span></a></span><span class="hs-special">,</span><span> </span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-comment">-- put a value into an @IVar@.  Multiple 'put's to the same @IVar@</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-comment">-- are not allowed, and result in a runtime error.</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-comment">-- 'put' fully evaluates its argument, which therefore must be an</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-comment">-- instance of 'NFData'.  The idea is that this forces the work to</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-comment">-- happen when we expect it, rather than being passed to the consumer</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-comment">-- of the @IVar@ and performed later, which often results in less</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-comment">-- parallelism than expected.</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-comment">-- Sometimes partial strictness is more appropriate: see 'put_'.</span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.TraceInternal.html#put_"><span class="hs-identifier">put_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-comment">-- like 'put', but only head-strict rather than fully-strict.</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Operations</span></span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.Trace.html#spawn"><span class="hs-identifier">spawn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-comment">-- | Like 'fork', but returns an @IVar@ that can be used to query the</span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-comment">-- result of the forked computataion.  Therefore @spawn@ provides /futures/ or /promises/.</span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-comment">-- &gt;  spawn p = do</span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-comment">-- &gt;    r &lt;- new</span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-comment">-- &gt;    fork (p &gt;&gt;= put r)</span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-comment">-- &gt;    return r</span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.Trace.html#spawn_"><span class="hs-identifier">spawn_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Like 'spawn', but the result is only head-strict, not fully-strict.</span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span>  </span><span class="annot"><a href="Control.Monad.Par.Scheds.Trace.html#spawnP"><span class="hs-identifier">spawnP</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-comment">-- | Spawn a pure (rather than monadic) computation.  Fully-strict.</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-comment">-- </span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-comment">-- &gt;  spawnP = spawn . return</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Par.Combinator</span></span><span class="hs-special">,</span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-comment">-- | This module also reexports the Combinator library for backwards</span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-comment">--   compatibility with version 0.1.</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="hs-comment">-- | /(0.3)/ Reexport 'NFData' for fully-strict operators.</span></span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Par.Class</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">spawn</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">spawn_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">spawnP</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">put_</span></span><span>
+</span><span id="line-167"></span><span>                                      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newFull</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">new</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fork</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newFull_</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.Trace.html"><span class="hs-identifier">Control.Monad.Par.Scheds.Trace</span></a></span><span>
+</span><span id="line-169"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Par.Combinator</span></span><span>
+</span><span id="line-170"></span></pre></body></html>

@@ -1,0 +1,405 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PackageImports, CPP, GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Type definiton and some helpers.  This is used mainly by</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Direct.hs but can also be used by other modules that want access to</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- the internals of the scheduler (i.e. the private `Par` type constructor).</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Par.Scheds.DirectInternal</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-string">&quot;mtl&quot;</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Cont</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-string">&quot;mtl&quot;</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">RD</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.Random.MWC</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Random</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">yield</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Conc</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Concurrent.Deque.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">WSDeque</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Fix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadFix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mfix</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,4,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeDupableInterleaveIO</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO.Unsafe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">unsafeInterleaveIO</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef USE_CHASELEV
+</span><span class="hs-cpp">#warning &quot;Note: using Chase-Lev lockfree workstealing deques...&quot;
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Concurrent.Deque.ChaseLev.DequeInstance</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Concurrent.Deque.ChaseLev</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">R</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Exception</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">BlockedIndefinitelyOnMVar</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>                          </span><span class="annot"><span class="hs-identifier">catch</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- Our monad stack looks like this:</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--      ---------</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--        ContT</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--       ReaderT</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--         IO</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--      ---------</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- The ReaderT monad is there for retrieving the scheduler given the</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- fact that the API calls do not get it as an argument.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- Note that the result type for continuations is unit.  Forked</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- computations return nothing.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">newtype</span><span> </span><span id="Par"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Par"><span class="hs-identifier hs-var">Par</span></a></span></span><span> </span><span id="local-6989586621679059939"><span class="annot"><a href="#local-6989586621679059939"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Par"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Par"><span class="hs-identifier hs-var">Par</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unPar"><span class="annot"><span class="annottext">Par a -&gt; ContT () ROnly a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#unPar"><span class="hs-identifier hs-var hs-var">unPar</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.ContT</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#ROnly"><span class="hs-identifier hs-type">ROnly</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059939"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679059862"><span id="local-6989586621679059864"><span class="annot"><span class="annottext">a -&gt; Par b -&gt; Par a
+(a -&gt; b) -&gt; Par a -&gt; Par b
+(forall a b. (a -&gt; b) -&gt; Par a -&gt; Par b)
+-&gt; (forall a b. a -&gt; Par b -&gt; Par a) -&gt; Functor Par
+forall a b. a -&gt; Par b -&gt; Par a
+forall a b. (a -&gt; b) -&gt; Par a -&gt; Par b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: a -&gt; Par b -&gt; Par a
+$c&lt;$ :: forall a b. a -&gt; Par b -&gt; Par a
+fmap :: (a -&gt; b) -&gt; Par a -&gt; Par b
+$cfmap :: forall a b. (a -&gt; b) -&gt; Par a -&gt; Par b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679059850"><span id="local-6989586621679059852"><span id="local-6989586621679059854"><span id="local-6989586621679059856"><span id="local-6989586621679059858"><span class="annot"><span class="annottext">Functor Par
+a -&gt; Par a
+Functor Par
+-&gt; (forall a. a -&gt; Par a)
+-&gt; (forall a b. Par (a -&gt; b) -&gt; Par a -&gt; Par b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; Par a -&gt; Par b -&gt; Par c)
+-&gt; (forall a b. Par a -&gt; Par b -&gt; Par b)
+-&gt; (forall a b. Par a -&gt; Par b -&gt; Par a)
+-&gt; Applicative Par
+Par a -&gt; Par b -&gt; Par b
+Par a -&gt; Par b -&gt; Par a
+Par (a -&gt; b) -&gt; Par a -&gt; Par b
+(a -&gt; b -&gt; c) -&gt; Par a -&gt; Par b -&gt; Par c
+forall a. a -&gt; Par a
+forall a b. Par a -&gt; Par b -&gt; Par a
+forall a b. Par a -&gt; Par b -&gt; Par b
+forall a b. Par (a -&gt; b) -&gt; Par a -&gt; Par b
+forall a b c. (a -&gt; b -&gt; c) -&gt; Par a -&gt; Par b -&gt; Par c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+&lt;* :: Par a -&gt; Par b -&gt; Par a
+$c&lt;* :: forall a b. Par a -&gt; Par b -&gt; Par a
+*&gt; :: Par a -&gt; Par b -&gt; Par b
+$c*&gt; :: forall a b. Par a -&gt; Par b -&gt; Par b
+liftA2 :: (a -&gt; b -&gt; c) -&gt; Par a -&gt; Par b -&gt; Par c
+$cliftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; Par a -&gt; Par b -&gt; Par c
+&lt;*&gt; :: Par (a -&gt; b) -&gt; Par a -&gt; Par b
+$c&lt;*&gt; :: forall a b. Par (a -&gt; b) -&gt; Par a -&gt; Par b
+pure :: a -&gt; Par a
+$cpure :: forall a. a -&gt; Par a
+$cp1Applicative :: Functor Par
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679059842"><span id="local-6989586621679059844"><span id="local-6989586621679059846"><span class="annot"><span class="annottext">Applicative Par
+a -&gt; Par a
+Applicative Par
+-&gt; (forall a b. Par a -&gt; (a -&gt; Par b) -&gt; Par b)
+-&gt; (forall a b. Par a -&gt; Par b -&gt; Par b)
+-&gt; (forall a. a -&gt; Par a)
+-&gt; Monad Par
+Par a -&gt; (a -&gt; Par b) -&gt; Par b
+Par a -&gt; Par b -&gt; Par b
+forall a. a -&gt; Par a
+forall a b. Par a -&gt; Par b -&gt; Par b
+forall a b. Par a -&gt; (a -&gt; Par b) -&gt; Par b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: a -&gt; Par a
+$creturn :: forall a. a -&gt; Par a
+&gt;&gt; :: Par a -&gt; Par b -&gt; Par b
+$c&gt;&gt; :: forall a b. Par a -&gt; Par b -&gt; Par b
+&gt;&gt;= :: Par a -&gt; (a -&gt; Par b) -&gt; Par b
+$c&gt;&gt;= :: forall a b. Par a -&gt; (a -&gt; Par b) -&gt; Par b
+$cp1Monad :: Applicative Par
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679059838"><span class="annot"><span class="annottext">Monad Par
+Monad Par
+-&gt; (forall a b. ((a -&gt; Par b) -&gt; Par a) -&gt; Par a) -&gt; MonadCont Par
+((a -&gt; Par b) -&gt; Par a) -&gt; Par a
+forall a b. ((a -&gt; Par b) -&gt; Par a) -&gt; Par a
+forall (m :: * -&gt; *).
+Monad m -&gt; (forall a b. ((a -&gt; m b) -&gt; m a) -&gt; m a) -&gt; MonadCont m
+callCC :: ((a -&gt; Par b) -&gt; Par a) -&gt; Par a
+$ccallCC :: forall a b. ((a -&gt; Par b) -&gt; Par a) -&gt; Par a
+$cp1MonadCont :: Monad Par
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadCont</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679059830"><span id="local-6989586621679059832"><span id="local-6989586621679059834"><span class="annot"><span class="hs-identifier hs-type">RD.MonadReader</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Sched"><span class="hs-identifier hs-type">Sched</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">type</span><span> </span><span id="ROnly"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#ROnly"><span class="hs-identifier hs-var">ROnly</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RD.ReaderT</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Sched"><span class="hs-identifier hs-type">Sched</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadFix</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621679059825"><span class="annot"><span class="annottext">mfix :: (a -&gt; Par a) -&gt; Par a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mfix</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Par a) -&gt; Par a
+forall a. (a -&gt; Par a) -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#fixPar"><span class="hs-identifier hs-var">fixPar</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Take the monadic fixpoint of a 'Par' computation. This is</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- the definition of 'mfix' for 'Par'. Throws 'FixParException'</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- if the result is demanded strictly within the computation.</span><span>
+</span><span id="line-60"></span><span id="local-6989586621679059823"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#fixPar"><span class="hs-identifier hs-type">fixPar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679059823"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059823"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059823"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- We do this IO-style, rather than ST-style, in order to get a</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- consistent exception type. Using the ST-style mfix, a strict</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- argument could lead us to *either* a &lt;&lt;loop&gt;&gt; exception *or*</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- (if the wrong sort of computation gets re-run) a &quot;multiple-put&quot;</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- error.</span><span>
+</span><span id="line-66"></span><span id="fixPar"><span class="annot"><span class="annottext">fixPar :: (a -&gt; Par a) -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#fixPar"><span class="hs-identifier hs-var hs-var">fixPar</span></a></span></span><span> </span><span id="local-6989586621679059822"><span class="annot"><span class="annottext">a -&gt; Par a
+</span><a href="#local-6989586621679059822"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContT () ROnly a -&gt; Par a
+forall a. ContT () ROnly a -&gt; Par a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#Par"><span class="hs-identifier hs-var">Par</span></a></span><span> </span><span class="annot"><span class="annottext">(ContT () ROnly a -&gt; Par a) -&gt; ContT () ROnly a -&gt; Par a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; ROnly ()) -&gt; ROnly ()) -&gt; ContT () ROnly a
+forall k (r :: k) (m :: k -&gt; *) a.
+((a -&gt; m r) -&gt; m r) -&gt; ContT r m a
+</span><span class="hs-identifier hs-var">ContT</span></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; ROnly ()) -&gt; ROnly ()) -&gt; ContT () ROnly a)
+-&gt; ((a -&gt; ROnly ()) -&gt; ROnly ()) -&gt; ContT () ROnly a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679059820"><span class="annot"><span class="annottext">a -&gt; ROnly ()
+</span><a href="#local-6989586621679059820"><span class="hs-identifier hs-var">ar</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Sched -&gt; IO ()) -&gt; ROnly ()
+forall r (m :: * -&gt; *) a. (r -&gt; m a) -&gt; ReaderT r m a
+</span><span class="hs-identifier hs-var">RD.ReaderT</span></span><span> </span><span class="annot"><span class="annottext">((Sched -&gt; IO ()) -&gt; ROnly ()) -&gt; (Sched -&gt; IO ()) -&gt; ROnly ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679059818"><span class="annot"><span class="annottext">Sched
+</span><a href="#local-6989586621679059818"><span class="hs-identifier hs-var">sched</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679059817"><span class="annot"><span class="annottext">MVar a
+</span><a href="#local-6989586621679059817"><span class="hs-identifier hs-var">mv</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (MVar a)
+forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679059815"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679059815"><span class="hs-identifier hs-var">ans</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">unsafeDupableInterleaveIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MVar a -&gt; IO a
+forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar a
+</span><a href="#local-6989586621679059817"><span class="hs-identifier hs-var">mv</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; (BlockedIndefinitelyOnMVar -&gt; IO a) -&gt; IO a
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-operator hs-var">`catch`</span></span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">~</span><span class="annot"><span class="annottext">BlockedIndefinitelyOnMVar
+</span><span class="hs-identifier hs-var">BlockedIndefinitelyOnMVar</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FixParException -&gt; IO a
+forall e a. Exception e =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">FixParException
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#FixParException"><span class="hs-identifier hs-var">FixParException</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="annottext">(ROnly () -&gt; Sched -&gt; IO ()) -&gt; Sched -&gt; ROnly () -&gt; IO ()
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ROnly () -&gt; Sched -&gt; IO ()
+forall r (m :: * -&gt; *) a. ReaderT r m a -&gt; r -&gt; m a
+</span><span class="hs-identifier hs-var hs-var">RD.runReaderT</span></span><span> </span><span class="annot"><span class="annottext">Sched
+</span><a href="#local-6989586621679059818"><span class="hs-identifier hs-var">sched</span></a></span><span> </span><span class="annot"><span class="annottext">(ROnly () -&gt; IO ()) -&gt; ROnly () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="annot"><span class="annottext">ContT () ROnly a -&gt; (a -&gt; ROnly ()) -&gt; ROnly ()
+forall k (r :: k) (m :: k -&gt; *) a. ContT r m a -&gt; (a -&gt; m r) -&gt; m r
+</span><span class="hs-identifier hs-var hs-var">runContT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Par a -&gt; ContT () ROnly a
+forall a. Par a -&gt; ContT () ROnly a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#unPar"><span class="hs-identifier hs-var hs-var">unPar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Par a
+</span><a href="#local-6989586621679059822"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679059815"><span class="hs-identifier hs-var">ans</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((a -&gt; ROnly ()) -&gt; ROnly ()) -&gt; (a -&gt; ROnly ()) -&gt; ROnly ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679059808"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679059808"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; ROnly ()
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MVar a -&gt; a -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar a
+</span><a href="#local-6989586621679059817"><span class="hs-identifier hs-var">mv</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679059808"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ROnly () -&gt; ROnly () -&gt; ROnly ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; ROnly ()
+</span><a href="#local-6989586621679059820"><span class="hs-identifier hs-var">ar</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679059808"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-cpp">
+
+#if !MIN_VERSION_base(4,4,0)
+</span><span class="hs-identifier">unsafeDupableInterleaveIO</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-75"></span><span class="hs-identifier">unsafeDupableInterleaveIO</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">unsafeInterleaveIO</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">data</span><span> </span><span id="FixParException"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#FixParException"><span class="hs-identifier hs-var">FixParException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FixParException"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#FixParException"><span class="hs-identifier hs-var">FixParException</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679059801"><span id="local-6989586621679059803"><span id="local-6989586621679059805"><span class="annot"><span class="annottext">Int -&gt; FixParException -&gt; ShowS
+[FixParException] -&gt; ShowS
+FixParException -&gt; String
+(Int -&gt; FixParException -&gt; ShowS)
+-&gt; (FixParException -&gt; String)
+-&gt; ([FixParException] -&gt; ShowS)
+-&gt; Show FixParException
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FixParException] -&gt; ShowS
+$cshowList :: [FixParException] -&gt; ShowS
+show :: FixParException -&gt; String
+$cshow :: FixParException -&gt; String
+showsPrec :: Int -&gt; FixParException -&gt; ShowS
+$cshowsPrec :: Int -&gt; FixParException -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679059792"><span id="local-6989586621679059794"><span id="local-6989586621679059796"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#FixParException"><span class="hs-identifier hs-type">FixParException</span></a></span></span></span></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">type</span><span> </span><span id="SessionID"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#SessionID"><span class="hs-identifier hs-var">SessionID</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- An ID along with a flag to signal completion:</span><span>
+</span><span id="line-84"></span><span class="hs-keyword">data</span><span> </span><span id="Session"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Session"><span class="hs-identifier hs-var">Session</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Session"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Session"><span class="hs-identifier hs-var">Session</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#SessionID"><span class="hs-identifier hs-type">SessionID</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">data</span><span> </span><span id="Sched"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Sched"><span class="hs-identifier hs-var">Sched</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Sched"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Sched"><span class="hs-identifier hs-var">Sched</span></a></span></span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-special">{</span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-comment">---- Per worker ----</span><span>
+</span><span id="line-89"></span><span>      </span><span id="no"><span class="annot"><span class="annottext">Sched -&gt; Int
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#no"><span class="hs-identifier hs-var hs-var">no</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-90"></span><span>      </span><span id="workpool"><span class="annot"><span class="annottext">Sched -&gt; WSDeque (Par ())
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#workpool"><span class="hs-identifier hs-var hs-var">workpool</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WSDeque</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Par"><span class="hs-identifier hs-type">Par</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>      </span><span id="rng"><span class="annot"><span class="annottext">Sched -&gt; HotVar GenIO
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#rng"><span class="hs-identifier hs-var hs-var">rng</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Random.GenIO</span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- Random number gen for work stealing.</span><span>
+</span><span id="line-92"></span><span>      </span><span id="isMain"><span class="annot"><span class="annottext">Sched -&gt; Bool
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#isMain"><span class="hs-identifier hs-var hs-var">isMain</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- Are we the main/master thread?</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>      </span><span class="hs-comment">-- The stack of nested sessions that THIS worker is participating in.</span><span>
+</span><span id="line-95"></span><span>      </span><span class="hs-comment">-- When a session finishes, the worker can return to its Haskell</span><span>
+</span><span id="line-96"></span><span>      </span><span class="hs-comment">-- calling context (it's &quot;real&quot; continuation).</span><span>
+</span><span id="line-97"></span><span>      </span><span id="sessions"><span class="annot"><span class="annottext">Sched -&gt; HotVar [Session]
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#sessions"><span class="hs-identifier hs-var hs-var">sessions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Session"><span class="hs-identifier hs-type">Session</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>      </span><span class="hs-comment">-- (1) This is always non-empty, containing at least the root</span><span>
+</span><span id="line-99"></span><span>      </span><span class="hs-comment">--     session corresponding to the anonymous system workers.</span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-comment">-- (2) The original invocation of runPar also counts as a session</span><span>
+</span><span id="line-101"></span><span>      </span><span class="hs-comment">--     and pushes a second</span><span>
+</span><span id="line-102"></span><span>      </span><span class="hs-comment">-- (3) Nested runPar invocations may push further sessions onto the stack.</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span>      </span><span class="hs-comment">---- Global data: ----</span><span>
+</span><span id="line-105"></span><span>      </span><span id="idle"><span class="annot"><span class="annottext">Sched -&gt; HotVar [MVar Bool]
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#idle"><span class="hs-identifier hs-var hs-var">idle</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- waiting idle workers</span><span>
+</span><span id="line-106"></span><span>      </span><span id="scheds"><span class="annot"><span class="annottext">Sched -&gt; [Sched]
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#scheds"><span class="hs-identifier hs-var hs-var">scheds</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#Sched"><span class="hs-identifier hs-type">Sched</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>            </span><span class="hs-comment">-- A global list of schedulers.</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>      </span><span class="hs-comment">-- Any thread that enters runPar (original or nested) registers</span><span>
+</span><span id="line-109"></span><span>      </span><span class="hs-comment">-- itself in this global list.  When the list becomes null,</span><span>
+</span><span id="line-110"></span><span>      </span><span class="hs-comment">-- worker threads may shut down or at least go idle.</span><span>
+</span><span id="line-111"></span><span>      </span><span id="activeSessions"><span class="annot"><span class="annottext">Sched -&gt; HotVar (Set SessionID)
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#activeSessions"><span class="hs-identifier hs-var hs-var">activeSessions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#SessionID"><span class="hs-identifier hs-type">SessionID</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>      </span><span class="hs-comment">-- A counter to support unique session IDs:</span><span>
+</span><span id="line-114"></span><span>      </span><span id="sessionCounter"><span class="annot"><span class="annottext">Sched -&gt; HotVar SessionID
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#sessionCounter"><span class="hs-identifier hs-var hs-var">sessionCounter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#SessionID"><span class="hs-identifier hs-type">SessionID</span></a></span><span>
+</span><span id="line-115"></span><span>     </span><span class="hs-special">}</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- Helpers #1:  Atomic Variables</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- TEMP: Experimental</span><span class="hs-cpp">
+
+#ifndef HOTVAR
+</span><span class="hs-cpp">#define HOTVAR 1
+</span><span class="hs-cpp">#endif
+</span><span id="local-6989586621679059779"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#newHotVar"><span class="hs-identifier hs-type">newHotVar</span></a></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679059779"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059779"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-127"></span><span id="local-6989586621679059776"><span id="local-6989586621679059777"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#modifyHotVar"><span class="hs-identifier hs-type">modifyHotVar</span></a></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059777"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679059777"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679059777"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679059776"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679059776"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-128"></span><span id="local-6989586621679059774"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#modifyHotVar_"><span class="hs-identifier hs-type">modifyHotVar_</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059774"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679059774"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679059774"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-129"></span><span id="local-6989586621679059772"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#writeHotVar"><span class="hs-identifier hs-type">writeHotVar</span></a></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059772"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679059772"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-130"></span><span id="local-6989586621679059770"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#readHotVar"><span class="hs-identifier hs-type">readHotVar</span></a></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059770"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679059770"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- readHotVarRaw  :: HotVar a -&gt; m a</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- writeHotVarRaw :: HotVar a -&gt; m a</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#newHotVar"><span class="hs-pragma hs-type">newHotVar</span></a></span><span>     </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-135"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#modifyHotVar"><span class="hs-pragma hs-type">modifyHotVar</span></a></span><span>  </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-136"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#modifyHotVar_"><span class="hs-pragma hs-type">modifyHotVar_</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-137"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#readHotVar"><span class="hs-pragma hs-type">readHotVar</span></a></span><span>    </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-138"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#writeHotVar"><span class="hs-pragma hs-type">writeHotVar</span></a></span><span>   </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+
+
+#if HOTVAR == 1
+</span><span class="hs-keyword">type</span><span> </span><span id="HotVar"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-var">HotVar</span></a></span></span><span> </span><span id="local-6989586621679059768"><span class="annot"><a href="#local-6989586621679059768"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621679059768"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-143"></span><span id="newHotVar"><span class="annot"><span class="annottext">newHotVar :: a -&gt; IO (HotVar a)
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#newHotVar"><span class="hs-identifier hs-var hs-var">newHotVar</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO (HotVar a)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span>
+</span><span id="line-144"></span><span id="modifyHotVar"><span class="annot"><span class="annottext">modifyHotVar :: HotVar a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#modifyHotVar"><span class="hs-identifier hs-var hs-var">modifyHotVar</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HotVar a -&gt; (a -&gt; (a, b)) -&gt; IO b
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef</span></span><span>
+</span><span id="line-145"></span><span id="modifyHotVar_"><span class="annot"><span class="annottext">modifyHotVar_ :: HotVar a -&gt; (a -&gt; a) -&gt; IO ()
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#modifyHotVar_"><span class="hs-identifier hs-var hs-var">modifyHotVar_</span></a></span></span><span> </span><span id="local-6989586621679059765"><span class="annot"><span class="annottext">HotVar a
+</span><a href="#local-6989586621679059765"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679059764"><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621679059764"><span class="hs-identifier hs-var">fn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HotVar a -&gt; (a -&gt; (a, ())) -&gt; IO ()
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef</span></span><span> </span><span class="annot"><span class="annottext">HotVar a
+</span><a href="#local-6989586621679059765"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679059763"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679059763"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621679059764"><span class="hs-identifier hs-var">fn</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679059763"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span id="readHotVar"><span class="annot"><span class="annottext">readHotVar :: HotVar a -&gt; IO a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#readHotVar"><span class="hs-identifier hs-var hs-var">readHotVar</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HotVar a -&gt; IO a
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span>
+</span><span id="line-147"></span><span id="writeHotVar"><span class="annot"><span class="annottext">writeHotVar :: HotVar a -&gt; a -&gt; IO ()
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#writeHotVar"><span class="hs-identifier hs-var hs-var">writeHotVar</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HotVar a -&gt; a -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span>
+</span><span id="line-148"></span><span id="local-6989586621679059760"><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679059755"><span id="local-6989586621679059758"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621679059760"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>  </span><span id="local-6989586621679059754"><span class="annot"><span class="annottext">show :: IORef a -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span id="local-6989586621679059752"><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621679059752"><span class="hs-identifier hs-var">_ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&lt;ioref&gt;&quot;</span></span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span id="local-6989586621679059751"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#writeHotVarRaw"><span class="hs-identifier hs-type">writeHotVarRaw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059751"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679059751"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- hotVarTransaction = id</span><span>
+</span><span id="line-153"></span><span id="hotVarTransaction"><span class="annot"><span class="annottext">hotVarTransaction :: a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#hotVarTransaction"><span class="hs-identifier hs-var hs-var">hotVarTransaction</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; a
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Transactions not currently possible for IO refs&quot;</span></span><span>
+</span><span id="line-154"></span><span id="local-6989586621679059747"><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#readHotVarRaw"><span class="hs-identifier hs-type">readHotVarRaw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Par.Scheds.DirectInternal.html#HotVar"><span class="hs-identifier hs-type">HotVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059747"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679059747"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-155"></span><span id="readHotVarRaw"><span class="annot"><span class="annottext">readHotVarRaw :: HotVar a -&gt; IO a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#readHotVarRaw"><span class="hs-identifier hs-var hs-var">readHotVarRaw</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HotVar a -&gt; IO a
+forall a. IORef a -&gt; IO a
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#readHotVar"><span class="hs-identifier hs-var">readHotVar</span></a></span><span>
+</span><span id="line-156"></span><span id="writeHotVarRaw"><span class="annot"><span class="annottext">writeHotVarRaw :: HotVar a -&gt; a -&gt; IO ()
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#writeHotVarRaw"><span class="hs-identifier hs-var hs-var">writeHotVarRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HotVar a -&gt; a -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><a href="Control.Monad.Par.Scheds.DirectInternal.html#writeHotVar"><span class="hs-identifier hs-var">writeHotVar</span></a></span><span class="hs-cpp">
+
+
+#elif HOTVAR == 2
+</span><span class="hs-cpp">#warning &quot;Using MVars for hot atomic variables.&quot;
+</span><span class="hs-comment">-- This uses MVars that are always full with *something*</span><span>
+</span><span id="line-162"></span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">HotVar</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MVar</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-163"></span><span class="hs-identifier">newHotVar</span><span>   </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">newMVar</span><span class="hs-special">;</span><span> </span><span class="hs-identifier">putMVar</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">x</span><span class="hs-special">;</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">v</span><span>
+</span><span id="line-164"></span><span class="hs-identifier">modifyHotVar</span><span>  </span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">fn</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">modifyMVar</span><span>  </span><span class="hs-identifier">v</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">fn</span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span class="hs-identifier">modifyHotVar_</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">fn</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">modifyMVar_</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">fn</span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span class="hs-identifier">readHotVar</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">readMVar</span><span>
+</span><span id="line-167"></span><span class="hs-identifier">writeHotVar</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">swapMVar</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">x</span><span class="hs-special">;</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Show</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MVar</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-identifier">show</span><span> </span><span class="hs-identifier">_ref</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&lt;mvar&gt;&quot;</span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- hotVarTransaction = id</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- We could in theory do this by taking the mvar to grab the lock.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- But we'd need some temporary storage....</span><span>
+</span><span id="line-174"></span><span class="hs-identifier">hotVarTransaction</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">error</span><span> </span><span class="hs-string">&quot;Transactions not currently possible for MVars&quot;</span><span>
+</span><span id="line-175"></span><span class="hs-identifier">readHotVarRaw</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">readHotVar</span><span>
+</span><span id="line-176"></span><span class="hs-identifier">writeHotVarRaw</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">writeHotVar</span><span class="hs-cpp">
+
+
+#elif HOTVAR == 3
+</span><span class="hs-cpp">#warning &quot;Using TVars for hot atomic variables.&quot;
+</span><span class="hs-comment">-- Simon Marlow said he saw better scaling with TVars (surprise to me):</span><span>
+</span><span id="line-182"></span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">HotVar</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">TVar</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-183"></span><span class="hs-identifier">newHotVar</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">newTVarIO</span><span>
+</span><span id="line-184"></span><span class="hs-identifier">modifyHotVar</span><span>  </span><span class="hs-identifier">tv</span><span> </span><span class="hs-identifier">fn</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">atomically</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">readTVar</span><span> </span><span class="hs-identifier">tv</span><span>
+</span><span id="line-185"></span><span>				     </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">x2</span><span class="hs-special">,</span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fn</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-186"></span><span>				     </span><span class="hs-identifier">writeTVar</span><span> </span><span class="hs-identifier">tv</span><span> </span><span class="hs-identifier">x2</span><span>
+</span><span id="line-187"></span><span>				     </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span class="hs-identifier">modifyHotVar_</span><span> </span><span class="hs-identifier">tv</span><span> </span><span class="hs-identifier">fn</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">atomically</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">readTVar</span><span> </span><span class="hs-identifier">tv</span><span class="hs-special">;</span><span> </span><span class="hs-identifier">writeTVar</span><span> </span><span class="hs-identifier">tv</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fn</span><span> </span><span class="hs-identifier">x</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span class="hs-identifier">readHotVar</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">atomically</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">readTVar</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-190"></span><span class="hs-identifier">writeHotVar</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">atomically</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">writeTVar</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-191"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Show</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">TVar</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-identifier">show</span><span> </span><span class="hs-identifier">ref</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&lt;tvar&gt;&quot;</span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-identifier">hotVarTransaction</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">atomically</span><span>
+</span><span id="line-195"></span><span class="hs-identifier">readHotVarRaw</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">readTVar</span><span>
+</span><span id="line-196"></span><span class="hs-identifier">writeHotVarRaw</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">writeTVar</span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

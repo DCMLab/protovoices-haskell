@@ -1,0 +1,102 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_HADDOCK show-extensions #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{-|
+Module: Musicology.Pitch
+Description: Representations and operations for musical pitch.
+Copyright: Christoph Finkensiep, 2021
+License: BSD
+Maintainer: chfin@chfin.de
+Stability: experimental
+
+This package provides useful representations and operations for working with musical pitch.
+Follows the same API and notation formats as the companion libraries:
+
+- [Pitches.jl](https://github.com/DCMLab/Pitches.jl/) (Julia)
+- [purescript-pitches](https://github.com/DCMLab/purescript-pitches) (Purescript)
+- [rust-pitches](https://github.com/DCMLab/rust-pitches) (Rust)
+- [pitchtypes](https://github.com/DCMLab/pitchtypes) (Python)
+
+
+The two main goals are:
+
+- providing types and operations (such as arithmetics, printing and parsing) for common types of pitches and intervals
+- providing a generic interface for writing code that is agnostic to the specific pitch or interval types.
+
+It allows you to write generic algorithms that can then be applied to pitches and intervals in different formats:
+
+
+&gt; import           Data.Foldable                  ( forM_ )
+&gt; import           Data.Maybe                     ( catMaybes )
+&gt; import           Musicology.Pitch
+&gt; 
+&gt; -- do something with a list of pitches
+&gt; transposeAndAddOctave :: Interval i =&gt; [Pitch i] -&gt; i -&gt; [Pitch i]
+&gt; transposeAndAddOctave pitches by = map (\p -&gt; p +^ by +^ octave) pitches
+&gt; 
+&gt; main :: IO ()
+&gt; main = do
+&gt;   -- perform the algorithm with MIDI pitches
+&gt;   putStrLn &quot;MIDI:&quot;
+&gt;   let midiPitches = midip &lt;$&gt; [60, 64, 67]
+&gt;   forM_ (transposeAndAddOctave midiPitches 3)
+&gt;     $ \p -&gt; putStrLn $ &quot;- &quot; &lt;&gt; showNotation p
+&gt; 
+&gt;   -- perform the algorithm with MIDI pitch classes
+&gt;   putStrLn &quot;MIDI classes:&quot;
+&gt;   let midiPitches = midipc &lt;$&gt; [0, 4, 7]
+&gt;   forM_ (transposeAndAddOctave midiPitches (mic 3))
+&gt;     $ \p -&gt; putStrLn $ &quot;- &quot; &lt;&gt; showNotation p
+&gt; 
+&gt;   -- perform the algorithm with spelled pitches
+&gt;   putStrLn &quot;spelled:&quot;
+&gt;   let spelledPitches :: [SPitch]
+&gt;       spelledPitches = catMaybes $ readNotation &lt;$&gt; [&quot;C4&quot;, &quot;Eb4&quot;, &quot;G#4&quot;, &quot;C5&quot;]
+&gt;       Just interval  = readNotation &quot;M3:0&quot;
+&gt;   forM_ (transposeAndAddOctave spelledPitches interval)
+&gt;     $ \p -&gt; putStrLn $ &quot;- &quot; &lt;&gt; showNotation p
+
+Output:
+
+&gt; MIDI:
+&gt; - p75
+&gt; - p79
+&gt; - p82
+&gt; MIDI classes:
+&gt; - ic3
+&gt; - ic7
+&gt; - ic10
+&gt; spelled:
+&gt; - E5
+&gt; - G5
+&gt; - B&#9839;5
+&gt; - E6
+
+The fundamental idea behind this library is that the central object is the /interval/.
+Pitches are derived from intervals by interpreting them with respect to a reference point.
+This is much like the relation between vectors (= intervals) and points (= pitches).
+For example, the pitch @E&#9837;4@ can be represented as an interval (e.g. a minor third, @m3:0@)
+above a reference pitch such as Middle C (@C4@).
+The concept of an interval is represented by the 'Interval' class.
+Pitches are represented using the generic 'Pitch' type.
+Pitch types for concrete interval types, however, may provide specialized functionality
+(e.g. for reading and printing) as well as type synonyms
+(e.g. 'SPitch' for @Pitch Snterval@).
+
+Similar to vectors and points, intervals and pitches support a number of operations
+such as addition and scalar multiplication,
+which are here implemented using the 'Interval' class and its superclasses (e.g. 'VectorSpace').
+
+For the general pitch and interval interface, have a look at &quot;Musicology.Pitch.Class&quot;.
+Documentation for spelled and MIDI types
+can be found in &quot;Musicology.Pitch.Spelled&quot; and &quot;Musicology.Pitch.Midi&quot;, respectively.
+-}</span><span>
+</span><span id="line-92"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Musicology.Pitch</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Musicology.Pitch.Class.html"><span class="hs-identifier">Musicology.Pitch.Class</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Musicology.Pitch.Spelled.html"><span class="hs-identifier">Musicology.Pitch.Spelled</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Musicology.Pitch.Midi.html"><span class="hs-identifier">Musicology.Pitch.Midi</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Musicology.Pitch.Class.html"><span class="hs-identifier">Musicology.Pitch.Class</span></a></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Musicology.Pitch.Spelled.html"><span class="hs-identifier">Musicology.Pitch.Spelled</span></a></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Musicology.Pitch.Midi.html"><span class="hs-identifier">Musicology.Pitch.Midi</span></a></span><span>
+</span><span id="line-102"></span></pre></body></html>

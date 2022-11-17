@@ -1,0 +1,269 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE InstanceSigs               #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds                  #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables        #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications           #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Trans.Ix</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier">Ix</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#liftIx"><span class="hs-identifier">liftIx</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#unsafeLiftIx"><span class="hs-identifier">unsafeLiftIx</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadPlus</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Indexed</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">coerce</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Kind</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Monad</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">pure</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | The free indexed monad generated from a monad 'm'. Users are not expected</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- to use 'Ix' directly, but to newtype over it, specializing the kinds of 'i'</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- and 'j' as necessary.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- GeneralizedNewtypeDeriving can be used to get the instances of 'IxFunctor',</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- 'IxPointed', 'IxApplicative', 'IxMonad', 'IxMonadZero' and 'IxMonadPlus' for</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- free.</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">newtype</span><span> </span><span id="Ix"><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-var">Ix</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679030187"><span class="annot"><a href="#local-6989586621679030187"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679030186"><span class="annot"><a href="#local-6989586621679030186"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621679030185"><span class="annot"><a href="#local-6989586621679030185"><span class="hs-identifier hs-type">j</span></a></span></span><span> </span><span id="local-6989586621679030184"><span class="annot"><a href="#local-6989586621679030184"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Ix"><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-var">Ix</span></a></span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="runIx"><span class="annot"><span class="annottext">Ix m i j a -&gt; m a
+</span><a href="Control.Monad.Trans.Ix.html#runIx"><span class="hs-identifier hs-var hs-var">runIx</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679030187"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030184"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679030178"><span id="local-6989586621679030180"><span class="annot"><span class="annottext">a -&gt; Ix m i j b -&gt; Ix m i j a
+(a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+(forall a b. (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b)
+-&gt; (forall a b. a -&gt; Ix m i j b -&gt; Ix m i j a)
+-&gt; Functor (Ix m i j)
+forall a b. a -&gt; Ix m i j b -&gt; Ix m i j a
+forall a b. (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Functor m =&gt;
+a -&gt; Ix m i j b -&gt; Ix m i j a
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+&lt;$ :: a -&gt; Ix m i j b -&gt; Ix m i j a
+$c&lt;$ :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Functor m =&gt;
+a -&gt; Ix m i j b -&gt; Ix m i j a
+fmap :: (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+$cfmap :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679030166"><span id="local-6989586621679030168"><span id="local-6989586621679030170"><span id="local-6989586621679030172"><span id="local-6989586621679030174"><span class="annot"><span class="annottext">Functor (Ix m i j)
+a -&gt; Ix m i j a
+Functor (Ix m i j)
+-&gt; (forall a. a -&gt; Ix m i j a)
+-&gt; (forall a b. Ix m i j (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b)
+-&gt; (forall a b c.
+    (a -&gt; b -&gt; c) -&gt; Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j c)
+-&gt; (forall a b. Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b)
+-&gt; (forall a b. Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j a)
+-&gt; Applicative (Ix m i j)
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j a
+Ix m i j (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+(a -&gt; b -&gt; c) -&gt; Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j c
+forall a. a -&gt; Ix m i j a
+forall a b. Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j a
+forall a b. Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+forall a b. Ix m i j (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+forall a b c.
+(a -&gt; b -&gt; c) -&gt; Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+forall (m :: * -&gt; *) k (i :: k) k (j :: k).
+Applicative m =&gt;
+Functor (Ix m i j)
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a.
+Applicative m =&gt;
+a -&gt; Ix m i j a
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Applicative m =&gt;
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j a
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Applicative m =&gt;
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Applicative m =&gt;
+Ix m i j (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b c.
+Applicative m =&gt;
+(a -&gt; b -&gt; c) -&gt; Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j c
+&lt;* :: Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j a
+$c&lt;* :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Applicative m =&gt;
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j a
+*&gt; :: Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+$c*&gt; :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Applicative m =&gt;
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+liftA2 :: (a -&gt; b -&gt; c) -&gt; Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j c
+$cliftA2 :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b c.
+Applicative m =&gt;
+(a -&gt; b -&gt; c) -&gt; Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j c
+&lt;*&gt; :: Ix m i j (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+$c&lt;*&gt; :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Applicative m =&gt;
+Ix m i j (a -&gt; b) -&gt; Ix m i j a -&gt; Ix m i j b
+pure :: a -&gt; Ix m i j a
+$cpure :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a.
+Applicative m =&gt;
+a -&gt; Ix m i j a
+$cp1Applicative :: forall (m :: * -&gt; *) k (i :: k) k (j :: k).
+Applicative m =&gt;
+Functor (Ix m i j)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679030158"><span id="local-6989586621679030160"><span id="local-6989586621679030162"><span class="annot"><span class="annottext">Applicative (Ix m i j)
+a -&gt; Ix m i j a
+Applicative (Ix m i j)
+-&gt; (forall a b. Ix m i j a -&gt; (a -&gt; Ix m i j b) -&gt; Ix m i j b)
+-&gt; (forall a b. Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b)
+-&gt; (forall a. a -&gt; Ix m i j a)
+-&gt; Monad (Ix m i j)
+Ix m i j a -&gt; (a -&gt; Ix m i j b) -&gt; Ix m i j b
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+forall a. a -&gt; Ix m i j a
+forall a b. Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+forall a b. Ix m i j a -&gt; (a -&gt; Ix m i j b) -&gt; Ix m i j b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+forall (m :: * -&gt; *) k (i :: k) k (j :: k).
+Monad m =&gt;
+Applicative (Ix m i j)
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a.
+Monad m =&gt;
+a -&gt; Ix m i j a
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Monad m =&gt;
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Monad m =&gt;
+Ix m i j a -&gt; (a -&gt; Ix m i j b) -&gt; Ix m i j b
+return :: a -&gt; Ix m i j a
+$creturn :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a.
+Monad m =&gt;
+a -&gt; Ix m i j a
+&gt;&gt; :: Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+$c&gt;&gt; :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Monad m =&gt;
+Ix m i j a -&gt; Ix m i j b -&gt; Ix m i j b
+&gt;&gt;= :: Ix m i j a -&gt; (a -&gt; Ix m i j b) -&gt; Ix m i j b
+$c&gt;&gt;= :: forall (m :: * -&gt; *) k (i :: k) k (j :: k) a b.
+Monad m =&gt;
+Ix m i j a -&gt; (a -&gt; Ix m i j b) -&gt; Ix m i j b
+$cp1Monad :: forall (m :: * -&gt; *) k (i :: k) k (j :: k).
+Monad m =&gt;
+Applicative (Ix m i j)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">P.Monad</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span id="local-6989586621679030156"><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679030156"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IxFunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030156"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679030153"><span class="annot"><span class="annottext">imap :: (a -&gt; b) -&gt; Ix m j k2 a -&gt; Ix m j k2 b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">imap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; Ix m j k2 a -&gt; Ix m j k2 b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span id="local-6989586621679030151"><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679030151"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IxPointed</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030151"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621679030147"><span class="annot"><span class="annottext">ireturn :: a -&gt; Ix m i i a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">ireturn</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Ix m i i a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">P.pure</span></span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span id="local-6989586621679030145"><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679030145"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IxApplicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030145"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">iap</span></span><span>
+</span><span id="line-42"></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679030140"><span class="annot"><a href="#local-6989586621679030140"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621679030139"><span class="annot"><a href="#local-6989586621679030139"><span class="hs-identifier hs-type">j</span></a></span></span><span> </span><span id="local-6989586621679030138"><span class="annot"><a href="#local-6989586621679030138"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621679030137"><span class="annot"><a href="#local-6989586621679030137"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679030136"><span class="annot"><a href="#local-6989586621679030136"><span class="hs-identifier hs-type">b</span></a></span></span><span>
+</span><span id="line-43"></span><span>       </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030145"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030140"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030139"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679030137"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679030136"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030145"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030139"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030138"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030137"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030145"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030140"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030138"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030136"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621679030135"><span class="annot"><span class="annottext">iap :: Ix m i j (a -&gt; b) -&gt; Ix m j k a -&gt; Ix m i k b
+</span><a href="#local-6989586621679030135"><span class="hs-identifier hs-var hs-var hs-var hs-var">iap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m (a -&gt; b) -&gt; m a -&gt; m b)
+-&gt; Ix m i j (a -&gt; b) -&gt; Ix m j k a -&gt; Ix m i k b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">((m (a -&gt; b) -&gt; m a -&gt; m b)
+ -&gt; Ix m i j (a -&gt; b) -&gt; Ix m j k a -&gt; Ix m i k b)
+-&gt; (m (a -&gt; b) -&gt; m a -&gt; m b)
+-&gt; Ix m i j (a -&gt; b)
+-&gt; Ix m j k a
+-&gt; Ix m i k b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">m (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">(&lt;*&gt;)</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030145"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030137"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030136"><span class="hs-identifier hs-type">b</span></a></span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span id="local-6989586621679030134"><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679030134"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IxMonad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030134"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ibind</span></span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679030129"><span class="annot"><a href="#local-6989586621679030129"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621679030128"><span class="annot"><a href="#local-6989586621679030128"><span class="hs-identifier hs-type">j</span></a></span></span><span> </span><span id="local-6989586621679030127"><span class="annot"><a href="#local-6989586621679030127"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621679030126"><span class="annot"><a href="#local-6989586621679030126"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679030125"><span class="annot"><a href="#local-6989586621679030125"><span class="hs-identifier hs-type">b</span></a></span></span><span>
+</span><span id="line-51"></span><span>       </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679030126"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030134"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030128"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030127"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030125"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030134"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030129"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030128"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030126"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030134"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030129"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030127"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030125"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679030124"><span class="annot"><span class="annottext">ibind :: (a -&gt; Ix m j k b) -&gt; Ix m i j a -&gt; Ix m i k b
+</span><a href="#local-6989586621679030124"><span class="hs-identifier hs-var hs-var hs-var hs-var">ibind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; m b) -&gt; m a -&gt; m b)
+-&gt; (a -&gt; Ix m j k b) -&gt; Ix m i j a -&gt; Ix m i k b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; m b) -&gt; m a -&gt; m b)
+ -&gt; (a -&gt; Ix m j k b) -&gt; Ix m i j a -&gt; Ix m i k b)
+-&gt; ((a -&gt; m b) -&gt; m a -&gt; m b)
+-&gt; (a -&gt; Ix m j k b)
+-&gt; Ix m i j a
+-&gt; Ix m i k b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">(=&lt;&lt;)</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030134"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030126"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030125"><span class="hs-identifier hs-type">b</span></a></span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span id="local-6989586621679030122"><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679030122"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IxMonadZero</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030122"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">imzero</span></span><span>
+</span><span id="line-58"></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679030117"><span class="annot"><a href="#local-6989586621679030117"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621679030116"><span class="annot"><a href="#local-6989586621679030116"><span class="hs-identifier hs-type">j</span></a></span></span><span> </span><span id="local-6989586621679030115"><span class="annot"><a href="#local-6989586621679030115"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-59"></span><span>       </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030122"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030117"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030116"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030115"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679030114"><span class="annot"><span class="annottext">imzero :: Ix m i j a
+</span><a href="#local-6989586621679030114"><span class="hs-identifier hs-var hs-var hs-var hs-var">imzero</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Ix m i j a
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Ix m i j a) -&gt; m a -&gt; Ix m i j a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><span class="hs-identifier hs-var">mzero</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030122"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030115"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span id="local-6989586621679030112"><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679030112"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IxMonadPlus</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030112"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">implus</span></span><span>
+</span><span id="line-64"></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679030107"><span class="annot"><a href="#local-6989586621679030107"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621679030106"><span class="annot"><a href="#local-6989586621679030106"><span class="hs-identifier hs-type">j</span></a></span></span><span> </span><span id="local-6989586621679030105"><span class="annot"><a href="#local-6989586621679030105"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-65"></span><span>       </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030112"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030107"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030106"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030105"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030112"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030107"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030106"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030105"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-67"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030112"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030107"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030106"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030105"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679030104"><span class="annot"><span class="annottext">implus :: Ix m i j a -&gt; Ix m i j a -&gt; Ix m i j a
+</span><a href="#local-6989586621679030104"><span class="hs-identifier hs-var hs-var hs-var hs-var">implus</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m a -&gt; m a -&gt; m a) -&gt; Ix m i j a -&gt; Ix m i j a -&gt; Ix m i j a
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">((m a -&gt; m a -&gt; m a) -&gt; Ix m i j a -&gt; Ix m i j a -&gt; Ix m i j a)
+-&gt; (m a -&gt; m a -&gt; m a) -&gt; Ix m i j a -&gt; Ix m i j a -&gt; Ix m i j a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">m a -&gt; m a -&gt; m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">mplus</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030112"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679030105"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | Lift an 'm' action into 'Ix m', maintaining the current index.</span><span>
+</span><span id="line-73"></span><span id="local-6989586621679030100"><span id="local-6989586621679030101"><span id="local-6989586621679030102"><span class="annot"><a href="Control.Monad.Trans.Ix.html#liftIx"><span class="hs-identifier hs-type">liftIx</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679030102"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030101"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030102"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030100"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030100"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030101"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-74"></span><span id="liftIx"><span class="annot"><span class="annottext">liftIx :: m a -&gt; Ix m i i a
+</span><a href="Control.Monad.Trans.Ix.html#liftIx"><span class="hs-identifier hs-var hs-var">liftIx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Ix m i i a
+</span><span class="hs-identifier hs-var">coerce</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | Lift an 'm' action into 'Ix m', changing the current index. 'unsafeLiftIx'</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- is obviously unsafe due to the fact that it can arbitrarily change the</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- index.</span><span>
+</span><span id="line-80"></span><span id="local-6989586621679030096"><span id="local-6989586621679030097"><span id="local-6989586621679030098"><span id="local-6989586621679030099"><span class="annot"><a href="Control.Monad.Trans.Ix.html#unsafeLiftIx"><span class="hs-identifier hs-type">unsafeLiftIx</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679030099"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030098"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030099"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030097"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030096"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679030098"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-81"></span><span id="unsafeLiftIx"><span class="annot"><span class="annottext">unsafeLiftIx :: m a -&gt; Ix m i j a
+</span><a href="Control.Monad.Trans.Ix.html#unsafeLiftIx"><span class="hs-identifier hs-var hs-var">unsafeLiftIx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Ix m i j a
+</span><span class="hs-identifier hs-var">coerce</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span></pre></body></html>
