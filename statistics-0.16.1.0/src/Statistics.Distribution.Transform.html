@@ -1,0 +1,523 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679276831"><span id="local-6989586621679276832"></span></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, FlexibleContexts,
+    FlexibleInstances, UndecidableInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module    : Statistics.Distribution.Transform</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright : (c) 2013 John McDonnell;</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License   : BSD3</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Maintainer  : bos@serpentine.com</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Transformations over distributions</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Statistics.Distribution.Transform</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-15"></span><span>      </span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier">LinearTransform</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Statistics.Distribution.Transform.html#linTransFixedPoint"><span class="hs-identifier">linTransFixedPoint</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Statistics.Distribution.Transform.html#scaleAround"><span class="hs-identifier">scaleAround</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromJSON</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ToJSON</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Binary</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Data</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Data</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Statistics.Distribution.html"><span class="hs-identifier">Statistics.Distribution</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">D</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | Linear transformation applied to distribution.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- &gt; LinearTransform &#956; &#963; _</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- &gt; x' = &#956; + &#963;&#183;x</span><span>
+</span><span id="line-31"></span><span id="local-6989586621679276825"><span id="local-6989586621679276826"></span></span><span class="hs-keyword">data</span><span> </span><span id="LinearTransform"><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-var">LinearTransform</span></a></span></span><span> </span><span id="local-6989586621679277220"><span class="annot"><a href="#local-6989586621679277220"><span class="hs-identifier hs-type">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="LinearTransform"><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-var">LinearTransform</span></a></span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="linTransLocation"><span class="annot"><span class="annottext">forall d. LinearTransform d -&gt; Double
+</span><a href="Statistics.Distribution.Transform.html#linTransLocation"><span class="hs-identifier hs-var hs-var">linTransLocation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-comment">-- ^ Location parameter.</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="linTransScale"><span class="annot"><span class="annottext">forall d. LinearTransform d -&gt; Double
+</span><a href="Statistics.Distribution.Transform.html#linTransScale"><span class="hs-identifier hs-var hs-var">linTransScale</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-comment">-- ^ Scale parameter.</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="linTransDistr"><span class="annot"><span class="annottext">forall d. LinearTransform d -&gt; d
+</span><a href="Statistics.Distribution.Transform.html#linTransDistr"><span class="hs-identifier hs-var hs-var">linTransDistr</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679277220"><span class="hs-identifier hs-type">d</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-comment">-- ^ Distribution being transformed.</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679276813"><span id="local-6989586621679276819"><span class="annot"><span class="annottext">LinearTransform d -&gt; LinearTransform d -&gt; Bool
+forall d. Eq d =&gt; LinearTransform d -&gt; LinearTransform d -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: LinearTransform d -&gt; LinearTransform d -&gt; Bool
+$c/= :: forall d. Eq d =&gt; LinearTransform d -&gt; LinearTransform d -&gt; Bool
+== :: LinearTransform d -&gt; LinearTransform d -&gt; Bool
+$c== :: forall d. Eq d =&gt; LinearTransform d -&gt; LinearTransform d -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679276800"><span id="local-6989586621679276802"><span id="local-6989586621679276810"><span class="annot"><span class="annottext">Int -&gt; LinearTransform d -&gt; ShowS
+forall d. Show d =&gt; Int -&gt; LinearTransform d -&gt; ShowS
+forall d. Show d =&gt; [LinearTransform d] -&gt; ShowS
+forall d. Show d =&gt; LinearTransform d -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [LinearTransform d] -&gt; ShowS
+$cshowList :: forall d. Show d =&gt; [LinearTransform d] -&gt; ShowS
+show :: LinearTransform d -&gt; String
+$cshow :: forall d. Show d =&gt; LinearTransform d -&gt; String
+showsPrec :: Int -&gt; LinearTransform d -&gt; ShowS
+$cshowsPrec :: forall d. Show d =&gt; Int -&gt; LinearTransform d -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679276776"><span id="local-6989586621679276792"><span id="local-6989586621679276795"><span id="local-6989586621679276797"><span class="annot"><span class="annottext">ReadPrec [LinearTransform d]
+ReadPrec (LinearTransform d)
+ReadS [LinearTransform d]
+forall d. Read d =&gt; ReadPrec [LinearTransform d]
+forall d. Read d =&gt; ReadPrec (LinearTransform d)
+forall d. Read d =&gt; Int -&gt; ReadS (LinearTransform d)
+forall d. Read d =&gt; ReadS [LinearTransform d]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [LinearTransform d]
+$creadListPrec :: forall d. Read d =&gt; ReadPrec [LinearTransform d]
+readPrec :: ReadPrec (LinearTransform d)
+$creadPrec :: forall d. Read d =&gt; ReadPrec (LinearTransform d)
+readList :: ReadS [LinearTransform d]
+$creadList :: forall d. Read d =&gt; ReadS [LinearTransform d]
+readsPrec :: Int -&gt; ReadS (LinearTransform d)
+$creadsPrec :: forall d. Read d =&gt; Int -&gt; ReadS (LinearTransform d)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679276732"><span id="local-6989586621679276734"><span id="local-6989586621679276736"><span id="local-6989586621679276738"><span id="local-6989586621679276740"><span id="local-6989586621679276742"><span id="local-6989586621679276744"><span id="local-6989586621679276746"><span id="local-6989586621679276748"><span id="local-6989586621679276754"><span id="local-6989586621679276756"><span id="local-6989586621679276758"><span id="local-6989586621679276763"><span id="local-6989586621679276769"><span class="annot"><span class="annottext">LinearTransform d -&gt; DataType
+LinearTransform d -&gt; Constr
+forall {d}. Data d =&gt; Typeable (LinearTransform d)
+forall d. Data d =&gt; LinearTransform d -&gt; DataType
+forall d. Data d =&gt; LinearTransform d -&gt; Constr
+forall d.
+Data d =&gt;
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; LinearTransform d -&gt; LinearTransform d
+forall d u.
+Data d =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; LinearTransform d -&gt; u
+forall d u.
+Data d =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; LinearTransform d -&gt; [u]
+forall d r r'.
+Data d =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; LinearTransform d -&gt; r
+forall d r r'.
+Data d =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; LinearTransform d -&gt; r
+forall d (m :: * -&gt; *).
+(Data d, Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; LinearTransform d -&gt; m (LinearTransform d)
+forall d (m :: * -&gt; *).
+(Data d, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; LinearTransform d -&gt; m (LinearTransform d)
+forall d (c :: * -&gt; *).
+Data d =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (LinearTransform d)
+forall d (c :: * -&gt; *).
+Data d =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; LinearTransform d
+-&gt; c (LinearTransform d)
+forall d (t :: * -&gt; *) (c :: * -&gt; *).
+(Data d, Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (LinearTransform d))
+forall d (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(Data d, Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (LinearTransform d))
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (LinearTransform d)
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; LinearTransform d
+-&gt; c (LinearTransform d)
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (LinearTransform d))
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; LinearTransform d -&gt; m (LinearTransform d)
+$cgmapMo :: forall d (m :: * -&gt; *).
+(Data d, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; LinearTransform d -&gt; m (LinearTransform d)
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; LinearTransform d -&gt; m (LinearTransform d)
+$cgmapMp :: forall d (m :: * -&gt; *).
+(Data d, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; LinearTransform d -&gt; m (LinearTransform d)
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; LinearTransform d -&gt; m (LinearTransform d)
+$cgmapM :: forall d (m :: * -&gt; *).
+(Data d, Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; LinearTransform d -&gt; m (LinearTransform d)
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; LinearTransform d -&gt; u
+$cgmapQi :: forall d u.
+Data d =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; LinearTransform d -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; LinearTransform d -&gt; [u]
+$cgmapQ :: forall d u.
+Data d =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; LinearTransform d -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; LinearTransform d -&gt; r
+$cgmapQr :: forall d r r'.
+Data d =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; LinearTransform d -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; LinearTransform d -&gt; r
+$cgmapQl :: forall d r r'.
+Data d =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; LinearTransform d -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; LinearTransform d -&gt; LinearTransform d
+$cgmapT :: forall d.
+Data d =&gt;
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; LinearTransform d -&gt; LinearTransform d
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (LinearTransform d))
+$cdataCast2 :: forall d (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(Data d, Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (LinearTransform d))
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (LinearTransform d))
+$cdataCast1 :: forall d (t :: * -&gt; *) (c :: * -&gt; *).
+(Data d, Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (LinearTransform d))
+dataTypeOf :: LinearTransform d -&gt; DataType
+$cdataTypeOf :: forall d. Data d =&gt; LinearTransform d -&gt; DataType
+toConstr :: LinearTransform d -&gt; Constr
+$ctoConstr :: forall d. Data d =&gt; LinearTransform d -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (LinearTransform d)
+$cgunfold :: forall d (c :: * -&gt; *).
+Data d =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (LinearTransform d)
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; LinearTransform d
+-&gt; c (LinearTransform d)
+$cgfoldl :: forall d (c :: * -&gt; *).
+Data d =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; LinearTransform d
+-&gt; c (LinearTransform d)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall d x. Rep (LinearTransform d) x -&gt; LinearTransform d
+forall d x. LinearTransform d -&gt; Rep (LinearTransform d) x
+$cto :: forall d x. Rep (LinearTransform d) x -&gt; LinearTransform d
+$cfrom :: forall d x. LinearTransform d -&gt; Rep (LinearTransform d) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679276724"><span id="local-6989586621679276726"><span id="local-6989586621679277173"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679277173"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277173"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679276715"><span id="local-6989586621679276717"><span id="local-6989586621679276719"><span id="local-6989586621679276721"><span id="local-6989586621679277170"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679277170"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277170"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679276710"><span id="local-6989586621679277166"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="#local-6989586621679277166"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277166"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679276699"><span class="annot"><span class="annottext">get :: Get (LinearTransform d)
+</span><a href="#local-6989586621679276699"><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall d. Double -&gt; Double -&gt; d -&gt; LinearTransform d
+</span><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-var">LinearTransform</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621679276691"><span class="annot"><span class="annottext">put :: LinearTransform d -&gt; Put
+</span><a href="#local-6989586621679276691"><span class="hs-identifier hs-var hs-var hs-var hs-var">put</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276690"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276690"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679276689"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276689"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679276688"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276688"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276690"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276689"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276688"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | Apply linear transformation to distribution.</span><span>
+</span><span id="line-48"></span><span id="local-6989586621679276687"><span class="annot"><a href="Statistics.Distribution.Transform.html#scaleAround"><span class="hs-identifier hs-type">scaleAround</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>           </span><span class="hs-comment">-- ^ Fixed point</span><span>
+</span><span id="line-49"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>           </span><span class="hs-comment">-- ^ Scale parameter</span><span>
+</span><span id="line-50"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679276687"><span class="hs-identifier hs-type">d</span></a></span><span>                </span><span class="hs-comment">-- ^ Distribution</span><span>
+</span><span id="line-51"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276687"><span class="hs-identifier hs-type">d</span></a></span></span><span>
+</span><span id="line-52"></span><span id="scaleAround"><span class="annot"><span class="annottext">scaleAround :: forall d. Double -&gt; Double -&gt; d -&gt; LinearTransform d
+</span><a href="Statistics.Distribution.Transform.html#scaleAround"><span class="hs-identifier hs-var hs-var">scaleAround</span></a></span></span><span> </span><span id="local-6989586621679276682"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276682"><span class="hs-identifier hs-var">x0</span></a></span></span><span> </span><span id="local-6989586621679276681"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276681"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall d. Double -&gt; Double -&gt; d -&gt; LinearTransform d
+</span><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-var">LinearTransform</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276682"><span class="hs-identifier hs-var">x0</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276681"><span class="hs-identifier hs-var">sc</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276681"><span class="hs-identifier hs-var">sc</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | Get fixed point of linear transformation</span><span>
+</span><span id="line-55"></span><span id="local-6989586621679276679"><span class="annot"><a href="Statistics.Distribution.Transform.html#linTransFixedPoint"><span class="hs-identifier hs-type">linTransFixedPoint</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276679"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span>
+</span><span id="line-56"></span><span id="linTransFixedPoint"><span class="annot"><span class="annottext">linTransFixedPoint :: forall d. LinearTransform d -&gt; Double
+</span><a href="Statistics.Distribution.Transform.html#linTransFixedPoint"><span class="hs-identifier hs-var hs-var">linTransFixedPoint</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276674"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276674"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679276673"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276673"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span class="annot"><span class="annottext">d
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276674"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276673"><span class="hs-identifier hs-var">sc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679276669"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679276667"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; LinearTransform a -&gt; LinearTransform b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679276666"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679276666"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276665"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276665"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679276664"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276664"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276663"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679276663"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall d. Double -&gt; Double -&gt; d -&gt; LinearTransform d
+</span><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-var">LinearTransform</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276665"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276664"><span class="hs-identifier hs-var">sc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679276666"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679276663"><span class="hs-identifier hs-var">dist</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679276660"><span id="local-6989586621679277144"><span class="annot"><a href="Statistics.Distribution.html#Distribution"><span class="hs-identifier hs-type">D.Distribution</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277144"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#Distribution"><span class="hs-identifier hs-type">D.Distribution</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277144"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679276655"><span class="annot"><span class="annottext">cumulative :: LinearTransform d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#cumulative"><span class="hs-identifier hs-var hs-var hs-var hs-var">cumulative</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276653"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276653"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679276652"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276652"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276651"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276651"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679276650"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276650"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall d. Distribution d =&gt; d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#cumulative"><span class="hs-identifier hs-var">D.cumulative</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276651"><span class="hs-identifier hs-var">dist</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276650"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276653"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276652"><span class="hs-identifier hs-var">sc</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679277137"><span class="annot"><a href="Statistics.Distribution.html#ContDistr"><span class="hs-identifier hs-type">D.ContDistr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277137"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#ContDistr"><span class="hs-identifier hs-type">D.ContDistr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277137"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679276634"><span class="annot"><span class="annottext">density :: LinearTransform d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#density"><span class="hs-identifier hs-var hs-var hs-var hs-var">density</span></a></span></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276632"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276632"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679276631"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276631"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276630"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276630"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679276629"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276629"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall d. ContDistr d =&gt; d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#density"><span class="hs-identifier hs-var">D.density</span></a></span><span>    </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276630"><span class="hs-identifier hs-var">dist</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276629"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276632"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276631"><span class="hs-identifier hs-var">sc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276631"><span class="hs-identifier hs-var">sc</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679276622"><span class="annot"><span class="annottext">logDensity :: LinearTransform d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#logDensity"><span class="hs-identifier hs-var hs-var hs-var hs-var">logDensity</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276620"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276620"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679276619"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276619"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276618"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276618"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679276617"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276617"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall d. ContDistr d =&gt; d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#logDensity"><span class="hs-identifier hs-var">D.logDensity</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276618"><span class="hs-identifier hs-var">dist</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276617"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276620"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276619"><span class="hs-identifier hs-var">sc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">log</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276619"><span class="hs-identifier hs-var">sc</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679276612"><span class="annot"><span class="annottext">quantile :: LinearTransform d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#quantile"><span class="hs-identifier hs-var hs-var hs-var hs-var">quantile</span></a></span></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276610"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276610"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679276609"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276609"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276608"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276608"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679276607"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276607"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276610"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276609"><span class="hs-identifier hs-var">sc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">forall d. ContDistr d =&gt; d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#quantile"><span class="hs-identifier hs-var">D.quantile</span></a></span><span>      </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276608"><span class="hs-identifier hs-var">dist</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276607"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679276602"><span class="annot"><span class="annottext">complQuantile :: LinearTransform d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#complQuantile"><span class="hs-identifier hs-var hs-var hs-var hs-var">complQuantile</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276600"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276600"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679276599"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276599"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276598"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276598"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679276597"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276597"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276600"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276599"><span class="hs-identifier hs-var">sc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">forall d. ContDistr d =&gt; d -&gt; Double -&gt; Double
+</span><a href="Statistics.Distribution.html#complQuantile"><span class="hs-identifier hs-var">D.complQuantile</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276598"><span class="hs-identifier hs-var">dist</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276597"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679277132"><span class="annot"><a href="Statistics.Distribution.html#MaybeMean"><span class="hs-identifier hs-type">D.MaybeMean</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277132"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#MaybeMean"><span class="hs-identifier hs-type">D.MaybeMean</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277132"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621679276584"><span class="annot"><span class="annottext">maybeMean :: LinearTransform d -&gt; Maybe Double
+</span><a href="Statistics.Distribution.html#maybeMean"><span class="hs-identifier hs-var hs-var hs-var hs-var">maybeMean</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276582"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276582"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679276581"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276581"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276582"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall d. MaybeMean d =&gt; d -&gt; Maybe Double
+</span><a href="Statistics.Distribution.html#maybeMean"><span class="hs-identifier hs-var">D.maybeMean</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276581"><span class="hs-identifier hs-var">dist</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679277128"><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.html#Mean"><span class="hs-identifier hs-type">D.Mean</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277128"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#Mean"><span class="hs-identifier hs-type">D.Mean</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277128"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679276570"><span class="annot"><span class="annottext">mean :: LinearTransform d -&gt; Double
+</span><a href="Statistics.Distribution.html#mean"><span class="hs-identifier hs-var hs-var hs-var hs-var">mean</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276568"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276568"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679276567"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276567"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276568"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">forall d. Mean d =&gt; d -&gt; Double
+</span><a href="Statistics.Distribution.html#mean"><span class="hs-identifier hs-var">D.mean</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276567"><span class="hs-identifier hs-var">dist</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679277124"><span class="annot"><a href="Statistics.Distribution.html#MaybeVariance"><span class="hs-identifier hs-type">D.MaybeVariance</span></a></span><span>  </span><span class="annot"><a href="#local-6989586621679277124"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#MaybeVariance"><span class="hs-identifier hs-type">D.MaybeVariance</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277124"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679276553"><span class="annot"><span class="annottext">maybeVariance :: LinearTransform d -&gt; Maybe Double
+</span><a href="Statistics.Distribution.html#maybeVariance"><span class="hs-identifier hs-var hs-var hs-var hs-var">maybeVariance</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679276551"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276551"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276550"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276550"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276551"><span class="hs-identifier hs-var">sc</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276551"><span class="hs-identifier hs-var">sc</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall d. MaybeVariance d =&gt; d -&gt; Maybe Double
+</span><a href="Statistics.Distribution.html#maybeVariance"><span class="hs-identifier hs-var">D.maybeVariance</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276550"><span class="hs-identifier hs-var">dist</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span id="local-6989586621679276546"><span class="annot"><span class="annottext">maybeStdDev :: LinearTransform d -&gt; Maybe Double
+</span><a href="Statistics.Distribution.html#maybeStdDev"><span class="hs-identifier hs-var hs-var hs-var hs-var">maybeStdDev</span></a></span></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679276544"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276544"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276543"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276543"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276544"><span class="hs-identifier hs-var">sc</span></a></span><span class="hs-special">)</span><span>      </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall d. MaybeVariance d =&gt; d -&gt; Maybe Double
+</span><a href="Statistics.Distribution.html#maybeStdDev"><span class="hs-identifier hs-var">D.maybeStdDev</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276543"><span class="hs-identifier hs-var">dist</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679277120"><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.html#Variance"><span class="hs-identifier hs-type">D.Variance</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277120"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#Variance"><span class="hs-identifier hs-type">D.Variance</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277120"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679276526"><span class="annot"><span class="annottext">variance :: LinearTransform d -&gt; Double
+</span><a href="Statistics.Distribution.html#variance"><span class="hs-identifier hs-var hs-var hs-var hs-var">variance</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679276524"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276524"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276523"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276523"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276524"><span class="hs-identifier hs-var">sc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276524"><span class="hs-identifier hs-var">sc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">forall d. Variance d =&gt; d -&gt; Double
+</span><a href="Statistics.Distribution.html#variance"><span class="hs-identifier hs-var">D.variance</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276523"><span class="hs-identifier hs-var">dist</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span id="local-6989586621679276520"><span class="annot"><span class="annottext">stdDev :: LinearTransform d -&gt; Double
+</span><a href="Statistics.Distribution.html#stdDev"><span class="hs-identifier hs-var hs-var hs-var hs-var">stdDev</span></a></span></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679276518"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276518"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276517"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276517"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276518"><span class="hs-identifier hs-var">sc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">forall d. Variance d =&gt; d -&gt; Double
+</span><a href="Statistics.Distribution.html#stdDev"><span class="hs-identifier hs-var">D.stdDev</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276517"><span class="hs-identifier hs-var">dist</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679277116"><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.html#MaybeEntropy"><span class="hs-identifier hs-type">D.MaybeEntropy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277116"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#MaybeEntropy"><span class="hs-identifier hs-type">D.MaybeEntropy</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277116"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>  </span><span id="local-6989586621679276507"><span class="annot"><span class="annottext">maybeEntropy :: LinearTransform d -&gt; Maybe Double
+</span><a href="Statistics.Distribution.html#maybeEntropy"><span class="hs-identifier hs-var hs-var hs-var hs-var">maybeEntropy</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679276505"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276505"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall d. MaybeEntropy d =&gt; d -&gt; Maybe Double
+</span><a href="Statistics.Distribution.html#maybeEntropy"><span class="hs-identifier hs-var">D.maybeEntropy</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276505"><span class="hs-identifier hs-var">dist</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679277112"><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.html#Entropy"><span class="hs-identifier hs-type">D.Entropy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277112"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#Entropy"><span class="hs-identifier hs-type">D.Entropy</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277112"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621679276495"><span class="annot"><span class="annottext">entropy :: LinearTransform d -&gt; Double
+</span><a href="Statistics.Distribution.html#entropy"><span class="hs-identifier hs-var hs-var hs-var hs-var">entropy</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679276493"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276493"><span class="hs-identifier hs-var">dist</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall d. Entropy d =&gt; d -&gt; Double
+</span><a href="Statistics.Distribution.html#entropy"><span class="hs-identifier hs-var">D.entropy</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276493"><span class="hs-identifier hs-var">dist</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679277105"><span class="annot"><a href="Statistics.Distribution.html#ContGen"><span class="hs-identifier hs-type">D.ContGen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277105"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Statistics.Distribution.html#ContGen"><span class="hs-identifier hs-type">D.ContGen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679277105"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>  </span><span id="local-6989586621679276475"><span class="annot"><span class="annottext">genContVar :: forall g (m :: * -&gt; *).
+StatefulGen g m =&gt;
+LinearTransform d -&gt; g -&gt; m Double
+</span><a href="Statistics.Distribution.html#genContVar"><span class="hs-identifier hs-var hs-var hs-var hs-var">genContVar</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Distribution.Transform.html#LinearTransform"><span class="hs-identifier hs-type">LinearTransform</span></a></span><span> </span><span id="local-6989586621679276473"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276473"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679276472"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276472"><span class="hs-identifier hs-var">sc</span></a></span></span><span> </span><span id="local-6989586621679276471"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276471"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679276470"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679276470"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679276469"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276469"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall d g (m :: * -&gt; *).
+(ContGen d, StatefulGen g m) =&gt;
+d -&gt; g -&gt; m Double
+</span><a href="Statistics.Distribution.html#genContVar"><span class="hs-identifier hs-var">D.genContVar</span></a></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679276471"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679276470"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276473"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276472"><span class="hs-identifier hs-var">sc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679276469"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-94"></span></pre></body></html>

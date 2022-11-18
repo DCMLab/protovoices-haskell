@@ -1,0 +1,760 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679294137"><span id="local-6989586621679294138"><span id="local-6989586621679294139"><span id="local-6989586621679294140"><span id="local-6989586621679294141"><span id="local-6989586621679294142"><span id="local-6989586621679294143"><span id="local-6989586621679294144"><span id="local-6989586621679294145"></span></span></span></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE DeriveFunctor, DeriveDataTypeable,DeriveGeneric  #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Statistics.Test.Types</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier">Test</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#isSignificant"><span class="hs-identifier">isSignificant</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#TestResult"><span class="hs-identifier">TestResult</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#significant"><span class="hs-identifier">significant</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#PositionTest"><span class="hs-identifier">PositionTest</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM3</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromJSON</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ToJSON</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary</span></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Binary</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Data</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Data</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Statistics.Types.html"><span class="hs-identifier">Statistics.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Types.html#PValue"><span class="hs-identifier">PValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- | Result of hypothesis testing</span><span>
+</span><span id="line-21"></span><span id="local-6989586621679294132"><span id="local-6989586621679294133"></span></span><span class="hs-keyword">data</span><span> </span><span id="TestResult"><span class="annot"><a href="Statistics.Test.Types.html#TestResult"><span class="hs-identifier hs-var">TestResult</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Significant"><span class="annot"><a href="Statistics.Test.Types.html#Significant"><span class="hs-identifier hs-var">Significant</span></a></span></span><span>    </span><span class="hs-comment">-- ^ Null hypothesis should be rejected</span><span>
+</span><span id="line-22"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="NotSignificant"><span class="annot"><a href="Statistics.Test.Types.html#NotSignificant"><span class="hs-identifier hs-var">NotSignificant</span></a></span></span><span> </span><span class="hs-comment">-- ^ Data is compatible with hypothesis</span><span>
+</span><span id="line-23"></span><span>                  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679294126"><span id="local-6989586621679294128"><span class="annot"><span class="annottext">TestResult -&gt; TestResult -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: TestResult -&gt; TestResult -&gt; Bool
+$c/= :: TestResult -&gt; TestResult -&gt; Bool
+== :: TestResult -&gt; TestResult -&gt; Bool
+$c== :: TestResult -&gt; TestResult -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679294106"><span id="local-6989586621679294108"><span id="local-6989586621679294111"><span id="local-6989586621679294114"><span id="local-6989586621679294117"><span id="local-6989586621679294119"><span id="local-6989586621679294121"><span class="annot"><span class="annottext">Eq TestResult
+TestResult -&gt; TestResult -&gt; Bool
+TestResult -&gt; TestResult -&gt; Ordering
+TestResult -&gt; TestResult -&gt; TestResult
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: TestResult -&gt; TestResult -&gt; TestResult
+$cmin :: TestResult -&gt; TestResult -&gt; TestResult
+max :: TestResult -&gt; TestResult -&gt; TestResult
+$cmax :: TestResult -&gt; TestResult -&gt; TestResult
+&gt;= :: TestResult -&gt; TestResult -&gt; Bool
+$c&gt;= :: TestResult -&gt; TestResult -&gt; Bool
+&gt; :: TestResult -&gt; TestResult -&gt; Bool
+$c&gt; :: TestResult -&gt; TestResult -&gt; Bool
+&lt;= :: TestResult -&gt; TestResult -&gt; Bool
+$c&lt;= :: TestResult -&gt; TestResult -&gt; Bool
+&lt; :: TestResult -&gt; TestResult -&gt; Bool
+$c&lt; :: TestResult -&gt; TestResult -&gt; Bool
+compare :: TestResult -&gt; TestResult -&gt; Ordering
+$ccompare :: TestResult -&gt; TestResult -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679294099"><span id="local-6989586621679294101"><span id="local-6989586621679294103"><span class="annot"><span class="annottext">Int -&gt; TestResult -&gt; ShowS
+[TestResult] -&gt; ShowS
+TestResult -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [TestResult] -&gt; ShowS
+$cshowList :: [TestResult] -&gt; ShowS
+show :: TestResult -&gt; String
+$cshow :: TestResult -&gt; String
+showsPrec :: Int -&gt; TestResult -&gt; ShowS
+$cshowsPrec :: Int -&gt; TestResult -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span id="local-6989586621679294068"><span id="local-6989586621679294070"><span id="local-6989586621679294072"><span id="local-6989586621679294074"><span id="local-6989586621679294076"><span id="local-6989586621679294078"><span id="local-6989586621679294080"><span id="local-6989586621679294082"><span id="local-6989586621679294084"><span id="local-6989586621679294086"><span id="local-6989586621679294088"><span id="local-6989586621679294090"><span id="local-6989586621679294092"><span id="local-6989586621679294094"><span class="annot"><span class="annottext">Typeable TestResult
+TestResult -&gt; DataType
+TestResult -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; TestResult -&gt; TestResult
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; TestResult -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; TestResult -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; TestResult -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; TestResult -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; TestResult -&gt; m TestResult
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; TestResult -&gt; m TestResult
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c TestResult
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; TestResult -&gt; c TestResult
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c TestResult)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c TestResult)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; TestResult -&gt; m TestResult
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; TestResult -&gt; m TestResult
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; TestResult -&gt; m TestResult
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; TestResult -&gt; m TestResult
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; TestResult -&gt; m TestResult
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; TestResult -&gt; m TestResult
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; TestResult -&gt; u
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; TestResult -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; TestResult -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; TestResult -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; TestResult -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; TestResult -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; TestResult -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; TestResult -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; TestResult -&gt; TestResult
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; TestResult -&gt; TestResult
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c TestResult)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c TestResult)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c TestResult)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c TestResult)
+dataTypeOf :: TestResult -&gt; DataType
+$cdataTypeOf :: TestResult -&gt; DataType
+toConstr :: TestResult -&gt; Constr
+$ctoConstr :: TestResult -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c TestResult
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c TestResult
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; TestResult -&gt; c TestResult
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; TestResult -&gt; c TestResult
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">forall x. Rep TestResult x -&gt; TestResult
+forall x. TestResult -&gt; Rep TestResult x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep TestResult x -&gt; TestResult
+$cfrom :: forall x. TestResult -&gt; Rep TestResult x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679294060"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span>   </span><span class="annot"><a href="Statistics.Test.Types.html#TestResult"><span class="hs-identifier hs-type">TestResult</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679294052"><span class="annot"><span class="annottext">get :: Get TestResult
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-27"></span><span>      </span><span id="local-6989586621679294050"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679294050"><span class="hs-identifier hs-var">sig</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-28"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679294050"><span class="hs-identifier hs-var">sig</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">TestResult
+</span><a href="Statistics.Test.Types.html#Significant"><span class="hs-identifier hs-var">Significant</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">TestResult
+</span><a href="Statistics.Test.Types.html#NotSignificant"><span class="hs-identifier hs-var">NotSignificant</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span id="local-6989586621679294047"><span class="annot"><span class="annottext">put :: TestResult -&gt; Put
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">put</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">TestResult
+</span><a href="Statistics.Test.Types.html#Significant"><span class="hs-identifier hs-var">Significant</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679294041"><span id="local-6989586621679294043"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#TestResult"><span class="hs-identifier hs-type">TestResult</span></a></span></span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679294032"><span id="local-6989586621679294034"><span id="local-6989586621679294036"><span id="local-6989586621679294038"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span>   </span><span class="annot"><a href="Statistics.Test.Types.html#TestResult"><span class="hs-identifier hs-type">TestResult</span></a></span></span></span></span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679294029"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span>   </span><span class="annot"><a href="Statistics.Test.Types.html#TestResult"><span class="hs-identifier hs-type">TestResult</span></a></span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Result of statistical test.</span><span>
+</span><span id="line-37"></span><span id="local-6989586621679294026"><span id="local-6989586621679294027"></span></span><span class="hs-keyword">data</span><span> </span><span id="Test"><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-var">Test</span></a></span></span><span> </span><span id="local-6989586621679294855"><span class="annot"><a href="#local-6989586621679294855"><span class="hs-identifier hs-type">distr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Test"><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-var">Test</span></a></span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="testSignificance"><span class="annot"><span class="annottext">forall distr. Test distr -&gt; PValue Double
+</span><a href="Statistics.Test.Types.html#testSignificance"><span class="hs-identifier hs-var hs-var">testSignificance</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Types.html#PValue"><span class="hs-identifier hs-type">PValue</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-comment">-- ^ Probability of getting value of test statistics at least as</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-comment">--   extreme as measured.</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="testStatistics"><span class="annot"><span class="annottext">forall distr. Test distr -&gt; Double
+</span><a href="Statistics.Test.Types.html#testStatistics"><span class="hs-identifier hs-var hs-var">testStatistics</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-comment">-- ^ Statistic used for test.</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="testDistribution"><span class="annot"><span class="annottext">forall distr. Test distr -&gt; distr
+</span><a href="Statistics.Test.Types.html#testDistribution"><span class="hs-identifier hs-var hs-var">testDistribution</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679294855"><span class="hs-identifier hs-type">distr</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">-- ^ Distribution of test statistics if null hypothesis is correct.</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679294013"><span id="local-6989586621679294020"><span class="annot"><span class="annottext">Test distr -&gt; Test distr -&gt; Bool
+forall distr. Eq distr =&gt; Test distr -&gt; Test distr -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Test distr -&gt; Test distr -&gt; Bool
+$c/= :: forall distr. Eq distr =&gt; Test distr -&gt; Test distr -&gt; Bool
+== :: Test distr -&gt; Test distr -&gt; Bool
+$c== :: forall distr. Eq distr =&gt; Test distr -&gt; Test distr -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679293984"><span id="local-6989586621679293986"><span id="local-6989586621679293989"><span id="local-6989586621679293992"><span id="local-6989586621679293995"><span id="local-6989586621679294001"><span id="local-6989586621679294008"><span class="annot"><span class="annottext">Test distr -&gt; Test distr -&gt; Bool
+Test distr -&gt; Test distr -&gt; Ordering
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {distr}. Ord distr =&gt; Eq (Test distr)
+forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Bool
+forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Ordering
+forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Test distr
+min :: Test distr -&gt; Test distr -&gt; Test distr
+$cmin :: forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Test distr
+max :: Test distr -&gt; Test distr -&gt; Test distr
+$cmax :: forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Test distr
+&gt;= :: Test distr -&gt; Test distr -&gt; Bool
+$c&gt;= :: forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Bool
+&gt; :: Test distr -&gt; Test distr -&gt; Bool
+$c&gt; :: forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Bool
+&lt;= :: Test distr -&gt; Test distr -&gt; Bool
+$c&lt;= :: forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Bool
+&lt; :: Test distr -&gt; Test distr -&gt; Bool
+$c&lt; :: forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Bool
+compare :: Test distr -&gt; Test distr -&gt; Ordering
+$ccompare :: forall distr. Ord distr =&gt; Test distr -&gt; Test distr -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679293971"><span id="local-6989586621679293973"><span id="local-6989586621679293982"><span class="annot"><span class="annottext">Int -&gt; Test distr -&gt; ShowS
+forall distr. Show distr =&gt; Int -&gt; Test distr -&gt; ShowS
+forall distr. Show distr =&gt; [Test distr] -&gt; ShowS
+forall distr. Show distr =&gt; Test distr -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Test distr] -&gt; ShowS
+$cshowList :: forall distr. Show distr =&gt; [Test distr] -&gt; ShowS
+show :: Test distr -&gt; String
+$cshow :: forall distr. Show distr =&gt; Test distr -&gt; String
+showsPrec :: Int -&gt; Test distr -&gt; ShowS
+$cshowsPrec :: forall distr. Show distr =&gt; Int -&gt; Test distr -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span id="local-6989586621679293927"><span id="local-6989586621679293929"><span id="local-6989586621679293931"><span id="local-6989586621679293933"><span id="local-6989586621679293935"><span id="local-6989586621679293937"><span id="local-6989586621679293939"><span id="local-6989586621679293941"><span id="local-6989586621679293943"><span id="local-6989586621679293949"><span id="local-6989586621679293951"><span id="local-6989586621679293953"><span id="local-6989586621679293958"><span id="local-6989586621679293965"><span class="annot"><span class="annottext">Test distr -&gt; DataType
+Test distr -&gt; Constr
+forall {distr}. Data distr =&gt; Typeable (Test distr)
+forall distr. Data distr =&gt; Test distr -&gt; DataType
+forall distr. Data distr =&gt; Test distr -&gt; Constr
+forall distr.
+Data distr =&gt;
+(forall b. Data b =&gt; b -&gt; b) -&gt; Test distr -&gt; Test distr
+forall distr u.
+Data distr =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Test distr -&gt; u
+forall distr u.
+Data distr =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; Test distr -&gt; [u]
+forall distr r r'.
+Data distr =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Test distr -&gt; r
+forall distr r r'.
+Data distr =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Test distr -&gt; r
+forall distr (m :: * -&gt; *).
+(Data distr, Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Test distr -&gt; m (Test distr)
+forall distr (m :: * -&gt; *).
+(Data distr, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Test distr -&gt; m (Test distr)
+forall distr (c :: * -&gt; *).
+Data distr =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Test distr)
+forall distr (c :: * -&gt; *).
+Data distr =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Test distr -&gt; c (Test distr)
+forall distr (t :: * -&gt; *) (c :: * -&gt; *).
+(Data distr, Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Test distr))
+forall distr (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(Data distr, Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (Test distr))
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Test distr)
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Test distr -&gt; c (Test distr)
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Test distr))
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Test distr -&gt; m (Test distr)
+$cgmapMo :: forall distr (m :: * -&gt; *).
+(Data distr, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Test distr -&gt; m (Test distr)
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Test distr -&gt; m (Test distr)
+$cgmapMp :: forall distr (m :: * -&gt; *).
+(Data distr, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Test distr -&gt; m (Test distr)
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Test distr -&gt; m (Test distr)
+$cgmapM :: forall distr (m :: * -&gt; *).
+(Data distr, Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Test distr -&gt; m (Test distr)
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Test distr -&gt; u
+$cgmapQi :: forall distr u.
+Data distr =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Test distr -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Test distr -&gt; [u]
+$cgmapQ :: forall distr u.
+Data distr =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; Test distr -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Test distr -&gt; r
+$cgmapQr :: forall distr r r'.
+Data distr =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Test distr -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Test distr -&gt; r
+$cgmapQl :: forall distr r r'.
+Data distr =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Test distr -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Test distr -&gt; Test distr
+$cgmapT :: forall distr.
+Data distr =&gt;
+(forall b. Data b =&gt; b -&gt; b) -&gt; Test distr -&gt; Test distr
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (Test distr))
+$cdataCast2 :: forall distr (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(Data distr, Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (Test distr))
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Test distr))
+$cdataCast1 :: forall distr (t :: * -&gt; *) (c :: * -&gt; *).
+(Data distr, Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Test distr))
+dataTypeOf :: Test distr -&gt; DataType
+$cdataTypeOf :: forall distr. Data distr =&gt; Test distr -&gt; DataType
+toConstr :: Test distr -&gt; Constr
+$ctoConstr :: forall distr. Data distr =&gt; Test distr -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Test distr)
+$cgunfold :: forall distr (c :: * -&gt; *).
+Data distr =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Test distr)
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Test distr -&gt; c (Test distr)
+$cgfoldl :: forall distr (c :: * -&gt; *).
+Data distr =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Test distr -&gt; c (Test distr)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall distr x. Rep (Test distr) x -&gt; Test distr
+forall distr x. Test distr -&gt; Rep (Test distr) x
+$cto :: forall distr x. Rep (Test distr) x -&gt; Test distr
+$cfrom :: forall distr x. Test distr -&gt; Rep (Test distr) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span id="local-6989586621679293921"><span id="local-6989586621679293923"><span class="annot"><span class="annottext">forall a b. a -&gt; Test b -&gt; Test a
+forall a b. (a -&gt; b) -&gt; Test a -&gt; Test b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; Test b -&gt; Test a
+$c&lt;$ :: forall a b. a -&gt; Test b -&gt; Test a
+fmap :: forall a b. (a -&gt; b) -&gt; Test a -&gt; Test b
+$cfmap :: forall a b. (a -&gt; b) -&gt; Test a -&gt; Test b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679293915"><span id="local-6989586621679294841"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span>   </span><span class="annot"><a href="#local-6989586621679294841"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-type">Test</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679294841"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679293905"><span class="annot"><span class="annottext">get :: Get (Test d)
+</span><a href="#local-6989586621679293905"><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 a2 a3 r.
+Monad m =&gt;
+(a1 -&gt; a2 -&gt; a3 -&gt; r) -&gt; m a1 -&gt; m a2 -&gt; m a3 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM3</span></span><span> </span><span class="annot"><span class="annottext">forall distr. PValue Double -&gt; Double -&gt; distr -&gt; Test distr
+</span><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-var">Test</span></a></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621679293895"><span class="annot"><span class="annottext">put :: Test d -&gt; Put
+</span><a href="#local-6989586621679293895"><span class="hs-identifier hs-var hs-var hs-var hs-var">put</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-type">Test</span></a></span><span> </span><span id="local-6989586621679293894"><span class="annot"><span class="annottext">PValue Double
+</span><a href="#local-6989586621679293894"><span class="hs-identifier hs-var">sign</span></a></span></span><span> </span><span id="local-6989586621679293893"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679293893"><span class="hs-identifier hs-var">stat</span></a></span></span><span> </span><span id="local-6989586621679293892"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679293892"><span class="hs-identifier hs-var">distr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">PValue Double
+</span><a href="#local-6989586621679293894"><span class="hs-identifier hs-var">sign</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679293893"><span class="hs-identifier hs-var">stat</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679293892"><span class="hs-identifier hs-var">distr</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679293888"><span id="local-6989586621679293890"><span id="local-6989586621679294831"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679294831"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-type">Test</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679294831"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679293880"><span id="local-6989586621679293882"><span id="local-6989586621679293884"><span id="local-6989586621679293886"><span id="local-6989586621679294830"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span>   </span><span class="annot"><a href="#local-6989586621679294830"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-type">Test</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679294830"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679294828"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span>   </span><span class="annot"><a href="#local-6989586621679294828"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-type">Test</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679294828"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679293875"><span class="annot"><span class="annottext">rnf :: Test d -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">rnf</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-type">Test</span></a></span><span> </span><span class="annot"><span class="annottext">PValue Double
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679293873"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679293873"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. NFData a =&gt; a -&gt; ()
+</span><span class="hs-identifier hs-var">rnf</span></span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679293873"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | Check whether test is significant for given p-value.</span><span>
+</span><span id="line-57"></span><span id="local-6989586621679294827"><span class="annot"><a href="Statistics.Test.Types.html#isSignificant"><span class="hs-identifier hs-type">isSignificant</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Statistics.Types.html#PValue"><span class="hs-identifier hs-type">PValue</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#Test"><span class="hs-identifier hs-type">Test</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679294827"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#TestResult"><span class="hs-identifier hs-type">TestResult</span></a></span></span><span>
+</span><span id="line-58"></span><span id="isSignificant"><span class="annot"><span class="annottext">isSignificant :: forall d. PValue Double -&gt; Test d -&gt; TestResult
+</span><a href="Statistics.Test.Types.html#isSignificant"><span class="hs-identifier hs-var hs-var">isSignificant</span></a></span></span><span> </span><span id="local-6989586621679293870"><span class="annot"><span class="annottext">PValue Double
+</span><a href="#local-6989586621679293870"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679293869"><span class="annot"><span class="annottext">Test d
+</span><a href="#local-6989586621679293869"><span class="hs-identifier hs-var">t</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; TestResult
+</span><a href="Statistics.Test.Types.html#significant"><span class="hs-identifier hs-var">significant</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PValue Double
+</span><a href="#local-6989586621679293870"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall distr. Test distr -&gt; PValue Double
+</span><a href="Statistics.Test.Types.html#testSignificance"><span class="hs-identifier hs-var">testSignificance</span></a></span><span> </span><span class="annot"><span class="annottext">Test d
+</span><a href="#local-6989586621679293869"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | Test type for test which compare positional (mean,median etc.)</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--   information of samples.</span><span>
+</span><span id="line-64"></span><span id="local-6989586621679293867"><span id="local-6989586621679293868"></span></span><span class="hs-keyword">data</span><span> </span><span id="PositionTest"><span class="annot"><a href="Statistics.Test.Types.html#PositionTest"><span class="hs-identifier hs-var">PositionTest</span></a></span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="SamplesDiffer"><span class="annot"><a href="Statistics.Test.Types.html#SamplesDiffer"><span class="hs-identifier hs-var">SamplesDiffer</span></a></span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-comment">-- ^ Test whether samples differ in position. Null hypothesis is</span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-comment">--   samples are not different</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AGreater"><span class="annot"><a href="Statistics.Test.Types.html#AGreater"><span class="hs-identifier hs-var">AGreater</span></a></span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-comment">-- ^ Test if first sample (A) is larger than second (B). Null</span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-comment">--   hypothesis is first sample is not larger than second.</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BGreater"><span class="annot"><a href="Statistics.Test.Types.html#BGreater"><span class="hs-identifier hs-var">BGreater</span></a></span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-comment">-- ^ Test if second sample is larger than first.</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679293860"><span id="local-6989586621679293862"><span class="annot"><span class="annottext">PositionTest -&gt; PositionTest -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: PositionTest -&gt; PositionTest -&gt; Bool
+$c/= :: PositionTest -&gt; PositionTest -&gt; Bool
+== :: PositionTest -&gt; PositionTest -&gt; Bool
+$c== :: PositionTest -&gt; PositionTest -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679293841"><span id="local-6989586621679293843"><span id="local-6989586621679293846"><span id="local-6989586621679293849"><span id="local-6989586621679293852"><span id="local-6989586621679293854"><span id="local-6989586621679293856"><span class="annot"><span class="annottext">Eq PositionTest
+PositionTest -&gt; PositionTest -&gt; Bool
+PositionTest -&gt; PositionTest -&gt; Ordering
+PositionTest -&gt; PositionTest -&gt; PositionTest
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: PositionTest -&gt; PositionTest -&gt; PositionTest
+$cmin :: PositionTest -&gt; PositionTest -&gt; PositionTest
+max :: PositionTest -&gt; PositionTest -&gt; PositionTest
+$cmax :: PositionTest -&gt; PositionTest -&gt; PositionTest
+&gt;= :: PositionTest -&gt; PositionTest -&gt; Bool
+$c&gt;= :: PositionTest -&gt; PositionTest -&gt; Bool
+&gt; :: PositionTest -&gt; PositionTest -&gt; Bool
+$c&gt; :: PositionTest -&gt; PositionTest -&gt; Bool
+&lt;= :: PositionTest -&gt; PositionTest -&gt; Bool
+$c&lt;= :: PositionTest -&gt; PositionTest -&gt; Bool
+&lt; :: PositionTest -&gt; PositionTest -&gt; Bool
+$c&lt; :: PositionTest -&gt; PositionTest -&gt; Bool
+compare :: PositionTest -&gt; PositionTest -&gt; Ordering
+$ccompare :: PositionTest -&gt; PositionTest -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679293835"><span id="local-6989586621679293837"><span id="local-6989586621679293839"><span class="annot"><span class="annottext">Int -&gt; PositionTest -&gt; ShowS
+[PositionTest] -&gt; ShowS
+PositionTest -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [PositionTest] -&gt; ShowS
+$cshowList :: [PositionTest] -&gt; ShowS
+show :: PositionTest -&gt; String
+$cshow :: PositionTest -&gt; String
+showsPrec :: Int -&gt; PositionTest -&gt; ShowS
+$cshowsPrec :: Int -&gt; PositionTest -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span id="local-6989586621679293805"><span id="local-6989586621679293807"><span id="local-6989586621679293809"><span id="local-6989586621679293811"><span id="local-6989586621679293813"><span id="local-6989586621679293815"><span id="local-6989586621679293817"><span id="local-6989586621679293819"><span id="local-6989586621679293821"><span id="local-6989586621679293823"><span id="local-6989586621679293825"><span id="local-6989586621679293827"><span id="local-6989586621679293829"><span id="local-6989586621679293831"><span class="annot"><span class="annottext">Typeable PositionTest
+PositionTest -&gt; DataType
+PositionTest -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; PositionTest -&gt; PositionTest
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PositionTest -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PositionTest -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PositionTest -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PositionTest -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PositionTest -&gt; m PositionTest
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PositionTest -&gt; m PositionTest
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PositionTest
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PositionTest -&gt; c PositionTest
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PositionTest)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PositionTest)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PositionTest -&gt; m PositionTest
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PositionTest -&gt; m PositionTest
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PositionTest -&gt; m PositionTest
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PositionTest -&gt; m PositionTest
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PositionTest -&gt; m PositionTest
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PositionTest -&gt; m PositionTest
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PositionTest -&gt; u
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PositionTest -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PositionTest -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PositionTest -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PositionTest -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PositionTest -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PositionTest -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PositionTest -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; PositionTest -&gt; PositionTest
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; PositionTest -&gt; PositionTest
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PositionTest)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PositionTest)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PositionTest)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PositionTest)
+dataTypeOf :: PositionTest -&gt; DataType
+$cdataTypeOf :: PositionTest -&gt; DataType
+toConstr :: PositionTest -&gt; Constr
+$ctoConstr :: PositionTest -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PositionTest
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PositionTest
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PositionTest -&gt; c PositionTest
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PositionTest -&gt; c PositionTest
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">forall x. Rep PositionTest x -&gt; PositionTest
+forall x. PositionTest -&gt; Rep PositionTest x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep PositionTest x -&gt; PositionTest
+$cfrom :: forall x. PositionTest -&gt; Rep PositionTest x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679293799"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span>   </span><span class="annot"><a href="Statistics.Test.Types.html#PositionTest"><span class="hs-identifier hs-type">PositionTest</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679293782"><span class="annot"><span class="annottext">get :: Get PositionTest
+</span><a href="#local-6989586621679293782"><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679293781"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679293781"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679293781"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-79"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">PositionTest
+</span><a href="Statistics.Test.Types.html#SamplesDiffer"><span class="hs-identifier hs-var">SamplesDiffer</span></a></span><span>
+</span><span id="line-80"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">PositionTest
+</span><a href="Statistics.Test.Types.html#AGreater"><span class="hs-identifier hs-var">AGreater</span></a></span><span>
+</span><span id="line-81"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">PositionTest
+</span><a href="Statistics.Test.Types.html#BGreater"><span class="hs-identifier hs-var">BGreater</span></a></span><span>
+</span><span id="line-82"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Invalid PositionTest&quot;</span></span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621679293777"><span class="annot"><span class="annottext">put :: PositionTest -&gt; Put
+</span><a href="#local-6989586621679293777"><span class="hs-identifier hs-var hs-var hs-var hs-var">put</span></a></span></span><span> </span><span class="annot"><span class="annottext">PositionTest
+</span><a href="Statistics.Test.Types.html#SamplesDiffer"><span class="hs-identifier hs-var">SamplesDiffer</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">PositionTest
+</span><a href="Statistics.Test.Types.html#AGreater"><span class="hs-identifier hs-var">AGreater</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">PositionTest
+</span><a href="Statistics.Test.Types.html#BGreater"><span class="hs-identifier hs-var">BGreater</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679293773"><span id="local-6989586621679293775"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#PositionTest"><span class="hs-identifier hs-type">PositionTest</span></a></span></span></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679293765"><span id="local-6989586621679293767"><span id="local-6989586621679293769"><span id="local-6989586621679293771"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span>   </span><span class="annot"><a href="Statistics.Test.Types.html#PositionTest"><span class="hs-identifier hs-type">PositionTest</span></a></span></span></span></span></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679293763"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span>   </span><span class="annot"><a href="Statistics.Test.Types.html#PositionTest"><span class="hs-identifier hs-type">PositionTest</span></a></span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- | significant if parameter is 'True', not significant otherwise</span><span>
+</span><span id="line-91"></span><span class="annot"><a href="Statistics.Test.Types.html#significant"><span class="hs-identifier hs-type">significant</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Statistics.Test.Types.html#TestResult"><span class="hs-identifier hs-type">TestResult</span></a></span><span>
+</span><span id="line-92"></span><span id="significant"><span class="annot"><span class="annottext">significant :: Bool -&gt; TestResult
+</span><a href="Statistics.Test.Types.html#significant"><span class="hs-identifier hs-var hs-var">significant</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TestResult
+</span><a href="Statistics.Test.Types.html#Significant"><span class="hs-identifier hs-var">Significant</span></a></span><span>
+</span><span id="line-93"></span><span class="annot"><a href="Statistics.Test.Types.html#significant"><span class="hs-identifier hs-var">significant</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TestResult
+</span><a href="Statistics.Test.Types.html#NotSignificant"><span class="hs-identifier hs-var">NotSignificant</span></a></span><span>
+</span><span id="line-94"></span></pre></body></html>

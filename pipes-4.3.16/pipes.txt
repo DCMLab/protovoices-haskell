@@ -631,16 +631,6 @@ discard :: Monad m => a -> m ()
 -- | <tt><a>void</a> value</tt> discards or ignores the result of
 --   evaluation, such as the return value of an <a>IO</a> action.
 --   
---   Using <tt>ApplicativeDo</tt>: '<tt><a>void</a> as</tt>' can be
---   understood as the <tt>do</tt> expression
---   
---   <pre>
---   do as
---      pure ()
---   </pre>
---   
---   with an inferred <tt>Functor</tt> constraint.
---   
 --   <h4><b>Examples</b></h4>
 --   
 --   Replace the contents of a <tt><a>Maybe</a> <a>Int</a></tt> with unit:
@@ -731,7 +721,44 @@ mplus :: MonadPlus m => m a -> m a -> m a
 --   </ul>
 class Monad m => MonadIO (m :: Type -> Type)
 
--- | Lift a computation from the <a>IO</a> monad.
+-- | Lift a computation from the <a>IO</a> monad. This allows us to run IO
+--   computations in any monadic stack, so long as it supports these kinds
+--   of operations (i.e. <a>IO</a> is the base monad for the stack).
+--   
+--   <h3><b>Example</b></h3>
+--   
+--   <pre>
+--   import Control.Monad.Trans.State -- from the "transformers" library
+--   
+--   printState :: Show s =&gt; StateT s IO ()
+--   printState = do
+--     state &lt;- get
+--     liftIO $ print state
+--   </pre>
+--   
+--   Had we omitted <tt><a>liftIO</a></tt>, we would have ended up with
+--   this error:
+--   
+--   <pre>
+--   • Couldn't match type ‘IO’ with ‘StateT s IO’
+--    Expected type: StateT s IO ()
+--      Actual type: IO ()
+--   </pre>
+--   
+--   The important part here is the mismatch between <tt>StateT s IO
+--   ()</tt> and <tt><a>IO</a> ()</tt>.
+--   
+--   Luckily, we know of a function that takes an <tt><a>IO</a> a</tt> and
+--   returns an <tt>(m a)</tt>: <tt><a>liftIO</a></tt>, enabling us to run
+--   the program and see the expected results:
+--   
+--   <pre>
+--   &gt; evalStateT printState "hello"
+--   "hello"
+--   
+--   &gt; evalStateT printState 3
+--   3
+--   </pre>
 liftIO :: MonadIO m => IO a -> m a
 
 -- | The class of monad transformers. Instances should satisfy the
@@ -783,75 +810,31 @@ class (MFunctor t, MonadTrans t) => MMonad (t :: Type -> Type -> Type -> Type)
 --   <a>embed</a> is analogous to (<a>=&lt;&lt;</a>)
 embed :: forall (n :: Type -> Type) m b. (MMonad t, Monad n) => (forall a. () => m a -> t n a) -> t m b -> t n b
 
--- | Data structures that can be folded.
+-- | The Foldable class represents data structures that can be reduced to a
+--   summary value one element at a time. Strict left-associative folds are
+--   a good fit for space-efficient reduction, while lazy right-associative
+--   folds are a good fit for corecursive iteration, or for folds that
+--   short-circuit after processing an initial subsequence of the
+--   structure's elements.
 --   
---   For example, given a data type
---   
---   <pre>
---   data Tree a = Empty | Leaf a | Node (Tree a) a (Tree a)
---   </pre>
---   
---   a suitable instance would be
---   
---   <pre>
---   instance Foldable Tree where
---      foldMap f Empty = mempty
---      foldMap f (Leaf x) = f x
---      foldMap f (Node l k r) = foldMap f l `mappend` f k `mappend` foldMap f r
---   </pre>
---   
---   This is suitable even for abstract types, as the monoid is assumed to
---   satisfy the monoid laws. Alternatively, one could define
---   <tt>foldr</tt>:
+--   Instances can be derived automatically by enabling the
+--   <tt>DeriveFoldable</tt> extension. For example, a derived instance for
+--   a binary tree might be:
 --   
 --   <pre>
---   instance Foldable Tree where
---      foldr f z Empty = z
---      foldr f z (Leaf x) = f x z
---      foldr f z (Node l k r) = foldr f (f k (foldr f z r)) l
+--   {-# LANGUAGE DeriveFoldable #-}
+--   data Tree a = Empty
+--               | Leaf a
+--               | Node (Tree a) a (Tree a)
+--       deriving Foldable
 --   </pre>
 --   
---   <tt>Foldable</tt> instances are expected to satisfy the following
---   laws:
+--   A more detailed description can be found in the <b>Overview</b>
+--   section of <a>Data.Foldable#overview</a>.
 --   
---   <pre>
---   foldr f z t = appEndo (foldMap (Endo . f) t ) z
---   </pre>
---   
---   <pre>
---   foldl f z t = appEndo (getDual (foldMap (Dual . Endo . flip f) t)) z
---   </pre>
---   
---   <pre>
---   fold = foldMap id
---   </pre>
---   
---   <pre>
---   length = getSum . foldMap (Sum . const  1)
---   </pre>
---   
---   <tt>sum</tt>, <tt>product</tt>, <tt>maximum</tt>, and <tt>minimum</tt>
---   should all be essentially equivalent to <tt>foldMap</tt> forms, such
---   as
---   
---   <pre>
---   sum = getSum . foldMap Sum
---   </pre>
---   
---   but may be less defined.
---   
---   If the type is also a <a>Functor</a> instance, it should satisfy
---   
---   <pre>
---   foldMap f = fold . fmap f
---   </pre>
---   
---   which implies that
---   
---   <pre>
---   foldMap f . fmap g = foldMap (f . g)
---   </pre>
-class Foldable (t :: Type -> Type)
+--   For the class laws see the <b>Laws</b> section of
+--   <a>Data.Foldable#laws</a>.
+class Foldable (t :: TYPE LiftedRep -> Type)
 instance Pipes.Enumerable Pipes.ListT
 instance Pipes.Enumerable Control.Monad.Trans.Identity.IdentityT
 instance Pipes.Enumerable Control.Monad.Trans.Maybe.MaybeT
