@@ -111,14 +111,14 @@ instance (Show slc, Show o) => Show (GreedyState tr tr' slc o) where
     showFrozen frozen <> show mid <> showOpen open -- <> " " <> show ops
 
 -- | Helper function for showing the frozen part of a piece.
-showFrozen :: Show slc => Path tr' slc -> String
+showFrozen :: (Show slc) => Path tr' slc -> String
 showFrozen path = "⋊" <> go path
  where
   go (PathEnd _) = "="
   go (Path _ a rst) = go rst <> show a <> "="
 
 -- | Helper function for showing the open part of a piece.
-showOpen :: Show slc => Path tr slc -> String
+showOpen :: (Show slc) => Path tr slc -> String
 showOpen path = go path <> "⋉"
  where
   go (PathEnd _) = "-"
@@ -177,174 +177,208 @@ parseGreedy
   -> ExceptT String m (Analysis s f h tr slc)
   -- ^ the full parse or an error message
 parseGreedy eval pick input = do
-  (top, deriv) <- parse initState
+  (top, deriv) <- parse state0
   pure $ Analysis deriv $ PathEnd top
  where
-  initState = GSFrozen $ wrapPath Nothing (reversePath input)
+  state0 = initParseState eval input
+  parse state = do
+    result <- parseStep eval pick state
+    case result of
+      Left state' -> parse state'
+      Right result -> pure result
+
+{- | Initializes a parse state.
+Takes an evaluator and a (frozen) input path.
+Returns the parsing state that corresponds to the unparsed input.
+-}
+initParseState
+  :: forall tr tr' slc slc' v op
+   . Eval tr tr' slc slc' v
+  -> Path slc' tr'
+  -> GreedyState tr tr' slc op
+initParseState eval input = GSFrozen $ wrapPath Nothing (reversePath input)
+ where
   -- prepare the input: eval slices, wrap in Inner, add Start/Stop
   wrapPath :: Maybe tr' -> Path slc' tr' -> Path (Maybe tr') slc
   wrapPath eleft (PathEnd a) = Path eleft (evalSlice eval a) $ PathEnd Nothing
   wrapPath eleft (Path a e rst) =
     Path eleft (evalSlice eval a) $ wrapPath (Just e) rst
 
-  -- parsing loop
-  parse
-    :: GreedyState tr tr' slc (Leftmost s f h)
-    -> ExceptT String m (tr, [Leftmost s f h])
+{- | A single greedy parse step.
+ Enumerates a list of possible actions in the current state
+ and applies a policy function to select an action.
+ The resulting state is returned,
+ wrapped in a monad transformer stack containing
+ 'String' exceptions and the monad of the policy.
+-}
+parseStep
+  :: forall m tr tr' slc slc' s f h
+   . (Monad m)
+  => Eval tr tr' slc slc' (Leftmost s f h)
+  -- ^ the evaluator of the grammar to be used
+  -> ([Action slc tr s f h] -> ExceptT String m (Action slc tr s f h))
+  -- ^ the policy: picks a parsing action from a list of options
+  -- (determines the 'Monad' @m@, e.g., for randomness).
+  -> GreedyState tr tr' slc (Leftmost s f h)
+  -- ^ the current parsing state
+  -> ExceptT String m (Either (GreedyState tr tr' slc (Leftmost s f h)) (tr, [Leftmost s f h]))
+  -- ^ either the next state or the result of the parse.
+parseStep eval pick state = do
+  -- liftIO $ putStrLn "" >> print state
+  case state of
+    -- case 1: everything frozen
+    GSFrozen frozen -> case frozen of
+      -- only one transition: unfreeze and terminate
+      PathEnd trans -> do
+        (Trans thawed _, op) <-
+          pickSingle $
+            collectThawSingle Start trans Stop
+        finish (thawed, [LMSingle op])
+      -- several transition: unfreeze last and continue
+      Path t slice rst -> do
+        (thawed, op) <- pickSingle $ collectThawSingle (Inner slice) t Stop
+        continue $ GSSemiOpen rst slice (PathEnd thawed) [LMSingle op]
 
-  -- case 1: everything frozen
-  parse state = do
-    -- liftIO $ putStrLn "" >> print state
-    case state of
-      GSFrozen frozen -> case frozen of
-        -- only one transition: unfreeze and terminate
-        PathEnd trans -> do
-          (Trans thawed _, op) <-
-            pickSingle $
-              collectThawSingle Start trans Stop
-          pure (thawed, [LMSingle op])
-        -- several transition: unfreeze last and continue
-        Path t slice rst -> do
-          (thawed, op) <- pickSingle $ collectThawSingle (Inner slice) t Stop
-          parse $ GSSemiOpen rst slice (PathEnd thawed) [LMSingle op]
+    -- case 2: everything open
+    GSOpen open ops -> case open of
+      -- only one transition: terminate
+      PathEnd (Trans t _) -> finish (t, ops)
+      -- two transitions: unsplit single and terminate
+      Path tl slice (PathEnd tr) -> do
+        (Trans ttop _, optop) <-
+          pickSingle $
+            collectUnsplitSingle Start tl slice tr Stop
+        finish (ttop, LMSingle optop : ops)
+      -- more than two transitions: pick double operation and continue
+      Path tl sl (Path tm sr rst) -> do
+        let doubles = collectDoubles Start tl sl tm sr rst
+        ((topl, tops, topr), op) <- pickDouble doubles
+        continue $
+          GSOpen
+            (Path topl tops (pathSetHead rst topr))
+            (LMDouble op : ops)
 
-      -- case 2: everything open
-      GSOpen open ops -> case open of
-        -- only one transition: terminate
-        PathEnd (Trans t _) -> pure (t, ops)
-        -- two transitions: unsplit single and terminate
-        Path tl slice (PathEnd tr) -> do
-          (Trans ttop _, optop) <-
-            pickSingle $
-              collectUnsplitSingle Start tl slice tr Stop
-          pure (ttop, LMSingle optop : ops)
-        -- more than two transitions: pick double operation and continue
-        Path tl sl (Path tm sr rst) -> do
-          let doubles = collectDoubles Start tl sl tm sr rst
-          ((topl, tops, topr), op) <- pickDouble doubles
-          parse $
-            GSOpen
-              (Path topl tops (pathSetHead rst topr))
+    -- case 3: some parts frozen, some open
+    GSSemiOpen frozen mid open ops -> case open of
+      -- only one open transition: thaw
+      PathEnd topen -> case frozen of
+        PathEnd tfrozen -> do
+          ((thawed, _, _), op) <-
+            pickDouble $
+              collectThawLeft Start tfrozen mid topen Stop
+          continue $ GSOpen (Path thawed mid open) (LMDouble op : ops)
+        Path tfrozen sfrozen rstFrozen -> do
+          ((thawed, _, _), op) <-
+            pickDouble $
+              collectThawLeft (Inner sfrozen) tfrozen mid topen Stop
+          continue $
+            GSSemiOpen
+              rstFrozen
+              sfrozen
+              (Path thawed mid open)
               (LMDouble op : ops)
-
-      -- case 3: some parts frozen, some open
-      GSSemiOpen frozen mid open ops -> case open of
-        -- only one open transition: thaw
-        PathEnd topen -> case frozen of
+      -- two open transitions: thaw or unsplit single
+      Path topenl sopen (PathEnd topenr) -> do
+        let
+          unsplits =
+            Left <$> collectUnsplitSingle (Inner mid) topenl sopen topenr Stop
+        case frozen of
           PathEnd tfrozen -> do
-            ((thawed, _, _), op) <-
-              pickDouble $
-                collectThawLeft Start tfrozen mid topen Stop
-            parse $ GSOpen (Path thawed mid open) (LMDouble op : ops)
-          Path tfrozen sfrozen rstFrozen -> do
-            ((thawed, _, _), op) <-
-              pickDouble $
-                collectThawLeft (Inner sfrozen) tfrozen mid topen Stop
-            parse $
-              GSSemiOpen
-                rstFrozen
-                sfrozen
-                (Path thawed mid open)
-                (LMDouble op : ops)
-        -- two open transitions: thaw or unsplit single
-        Path topenl sopen (PathEnd topenr) -> do
-          let
-            unsplits =
-              Left <$> collectUnsplitSingle (Inner mid) topenl sopen topenr Stop
-          case frozen of
-            PathEnd tfrozen -> do
-              let
-                thaws =
-                  Right
-                    <$> collectThawLeft Start tfrozen mid topenl (Inner sopen)
-              action <- pick $ thaws <> unsplits
-              case action of
-                -- picked unsplit
-                Left (ActionSingle (_, parent, _) op) ->
-                  parse $
-                    GSSemiOpen
-                      frozen
-                      mid
-                      (PathEnd parent)
-                      (LMSingle op : ops)
-                -- picked thaw
-                Right (ActionDouble (_, thawed, _, _, _) op) ->
-                  parse $ GSOpen (Path thawed mid open) (LMDouble op : ops)
-            Path tfrozen sfrozen rstFrozen -> do
-              let thaws =
-                    Right
-                      <$> collectThawLeft
-                        (Inner sfrozen)
-                        tfrozen
-                        mid
-                        topenl
-                        (Inner sopen)
-              action <- pick $ thaws <> unsplits
-              case action of
-                -- picked unsplit
-                Left (ActionSingle (_, parent, _) op) ->
-                  parse $
-                    GSSemiOpen
-                      frozen
-                      mid
-                      (PathEnd parent)
-                      (LMSingle op : ops)
-                -- picked thaw
-                Right (ActionDouble (_, thawed, _, _, _) op) ->
-                  parse $
-                    GSSemiOpen
-                      rstFrozen
-                      sfrozen
-                      (Path thawed mid open)
-                      (LMDouble op : ops)
-        -- more than two open transitions: thaw or any double operation
-        Path topenl sopenl (Path topenm sopenr rstOpen) -> do
-          let doubles =
-                collectDoubles (Inner mid) topenl sopenl topenm sopenr rstOpen
-          case frozen of
-            PathEnd tfrozen -> do
-              let thaws =
-                    collectThawLeft Start tfrozen mid topenl (Inner sopenl)
-              action <- pickDouble $ thaws <> doubles
-              case action of
-                -- picked thaw
-                ((thawed, _, _), op@(LMDoubleFreezeLeft _)) ->
-                  parse $ GSOpen (Path thawed mid open) (LMDouble op : ops)
-                -- picked non-thaw
-                ((topl, tops, topr), op) ->
-                  parse $
-                    GSSemiOpen
-                      frozen
-                      mid
-                      (Path topl tops (pathSetHead rstOpen topr))
-                      (LMDouble op : ops)
-            Path tfrozen sfrozen rstFrozen -> do
-              let
-                thaws =
-                  collectThawLeft
-                    (Inner sfrozen)
-                    tfrozen
+            let
+              thaws =
+                Right
+                  <$> collectThawLeft Start tfrozen mid topenl (Inner sopen)
+            action <- pick $ thaws <> unsplits
+            case action of
+              -- picked unsplit
+              Left (ActionSingle (_, parent, _) op) ->
+                continue $
+                  GSSemiOpen
+                    frozen
                     mid
-                    topenl
-                    (Inner sopenl)
-              action <- pickDouble $ thaws <> doubles
-              case action of
-                -- picked thaw
-                ((thawed, _, _), op@(LMDoubleFreezeLeft _)) ->
-                  parse $
-                    GSSemiOpen
-                      rstFrozen
-                      sfrozen
-                      (Path thawed mid open)
-                      (LMDouble op : ops)
-                -- picked non-thaw
-                ((topl, tops, topr), op) ->
-                  parse $
-                    GSSemiOpen
-                      frozen
+                    (PathEnd parent)
+                    (LMSingle op : ops)
+              -- picked thaw
+              Right (ActionDouble (_, thawed, _, _, _) op) ->
+                continue $ GSOpen (Path thawed mid open) (LMDouble op : ops)
+          Path tfrozen sfrozen rstFrozen -> do
+            let thaws =
+                  Right
+                    <$> collectThawLeft
+                      (Inner sfrozen)
+                      tfrozen
                       mid
-                      (Path topl tops (pathSetHead rstOpen topr))
-                      (LMDouble op : ops)
+                      topenl
+                      (Inner sopen)
+            action <- pick $ thaws <> unsplits
+            case action of
+              -- picked unsplit
+              Left (ActionSingle (_, parent, _) op) ->
+                continue $
+                  GSSemiOpen
+                    frozen
+                    mid
+                    (PathEnd parent)
+                    (LMSingle op : ops)
+              -- picked thaw
+              Right (ActionDouble (_, thawed, _, _, _) op) ->
+                continue $
+                  GSSemiOpen
+                    rstFrozen
+                    sfrozen
+                    (Path thawed mid open)
+                    (LMDouble op : ops)
+      -- more than two open transitions: thaw or any double operation
+      Path topenl sopenl (Path topenm sopenr rstOpen) -> do
+        let doubles =
+              collectDoubles (Inner mid) topenl sopenl topenm sopenr rstOpen
+        case frozen of
+          PathEnd tfrozen -> do
+            let thaws =
+                  collectThawLeft Start tfrozen mid topenl (Inner sopenl)
+            action <- pickDouble $ thaws <> doubles
+            case action of
+              -- picked thaw
+              ((thawed, _, _), op@(LMDoubleFreezeLeft _)) ->
+                continue $ GSOpen (Path thawed mid open) (LMDouble op : ops)
+              -- picked non-thaw
+              ((topl, tops, topr), op) ->
+                continue $
+                  GSSemiOpen
+                    frozen
+                    mid
+                    (Path topl tops (pathSetHead rstOpen topr))
+                    (LMDouble op : ops)
+          Path tfrozen sfrozen rstFrozen -> do
+            let
+              thaws =
+                collectThawLeft
+                  (Inner sfrozen)
+                  tfrozen
+                  mid
+                  topenl
+                  (Inner sopenl)
+            action <- pickDouble $ thaws <> doubles
+            case action of
+              -- picked thaw
+              ((thawed, _, _), op@(LMDoubleFreezeLeft _)) ->
+                continue $
+                  GSSemiOpen
+                    rstFrozen
+                    sfrozen
+                    (Path thawed mid open)
+                    (LMDouble op : ops)
+              -- picked non-thaw
+              ((topl, tops, topr), op) ->
+                continue $
+                  GSSemiOpen
+                    frozen
+                    mid
+                    (Path topl tops (pathSetHead rstOpen topr))
+                    (LMDouble op : ops)
+ where
+  continue = pure . Left
+  finish = pure . Right
 
   pickSingle
     :: [ActionSingle slc tr s f] -> ExceptT String m (Trans tr, LeftmostSingle s f)
@@ -492,7 +526,7 @@ parseGreedy eval pick input = do
 {- | A policy that picks the next action at random.
  Must be partially applied with a random generator before passing to 'parseGreedy'.
 -}
-pickRandom :: StatefulGen g m => g -> [slc] -> ExceptT String m slc
+pickRandom :: (StatefulGen g m) => g -> [slc] -> ExceptT String m slc
 pickRandom _ [] = throwError "No candidates for pickRandom!"
 pickRandom gen xs = do
   i <- lift $ uniformRM (0, length xs - 1) gen
