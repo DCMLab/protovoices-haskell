@@ -15,6 +15,7 @@ import PVGrammar.Prob.Simple
   ( observeDerivation
   , sampleDerivation
   )
+import ReinforcementParser qualified as RL
 
 import Musicology.Core
 import Musicology.Core.Slicing
@@ -60,6 +61,7 @@ import Inference.Conjugate
 
 -- better do syntax
 import Language.Haskell.DoNotation qualified as Do
+import System.Random.Stateful (initStdGen, newIOGenM)
 
 -- import           Prelude                 hiding ( Monad(..)
 --                                                 , pure
@@ -74,10 +76,10 @@ import Language.Haskell.DoNotation qualified as Do
 testfile = "testdata/allemande.musicxml"
 
 bb =
-  "/home/chfin/dateien/dev/haskell/work/proto-voice-model/bluebossa.musicxml"
+  "/home/chfin/dateien/dev/haskell/work/proto-voice-model/testdata/bluebossa.musicxml"
 
 brahms1 =
-  "/home/chfin/dateien/dev/haskell/work/proto-voice-model/brahms1.musicxml"
+  "/home/chfin/dateien/dev/haskell/work/proto-voice-model/testdata/brahms1.musicxml"
 
 haydn5 = "/home/chfin/Uni/phd/data/kirlin_schenker/haydn5.xml"
 
@@ -207,11 +209,25 @@ derivBrahms = buildDerivation $ Do.do
   freeze FreezeOp
   freeze FreezeOp
  where
-  (>>) :: Do.BindSyntax x y z => x a -> y b -> z b
+  (>>) :: (Do.BindSyntax x y z) => x a -> y b -> z b
   (>>) = (Do.>>)
 
 -- mains
 -- =====
+
+mainRL n = do
+  input <- testslices 0 n
+  print input
+  gen <- initStdGen
+  mgen <- newIOGenM gen
+  Right (steps, top, deriv) <- RL.runEpisode mgen protoVoiceEvaluator (\_ _ -> 0) 1 input
+  putStrLn "Finished episode"
+  putStr "top: "
+  print top
+  putStrLn "derivation: "
+  forM_ deriv (\x -> putStr "- " >> print x)
+  putStrLn "RL steps: "
+  forM_ steps (\x -> putStr "- " >> print x)
 
 mainGreedy file = do
   input <- loadSurface file
@@ -285,7 +301,7 @@ logFull tc vc n = do
   mapM_ print $ vcGetByLength vc (n - 1)
 
 mainResult
-  :: Parsable e a v
+  :: (Parsable e a v)
   => Eval e [Edge (Pitch SInterval)] a [Pitch SInterval] v
   -> Int
   -> Int
@@ -295,7 +311,7 @@ mainResult evaluator from to = do
   input <- testslices from to
   parseSize evaluator input
 
-parseHaydn :: _ => _ -> IO r
+parseHaydn :: (_) => _ -> IO r
 parseHaydn eval = do
   slices <- slicesFromFile haydn5
   parseSize eval $ slicesToPath $ take 9 slices
