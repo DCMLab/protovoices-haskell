@@ -8,7 +8,7 @@ import Control.Monad.State qualified as ST
 import Data.Foldable qualified as F
 import Data.List.Extra qualified as E
 import Data.Maybe (catMaybes)
-import GreedyParser (Action, GreedyState (GSDone), initParseState, parseGreedy, parseStep, pickRandom)
+import GreedyParser (Action, GreedyState, initParseState, parseGreedy, parseStep, pickRandom)
 import PVGrammar (Edge, Edges, Notes, PVLeftmost)
 import System.Random (RandomGen)
 import System.Random.Shuffle (shuffle')
