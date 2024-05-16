@@ -12,12 +12,15 @@ import PVGrammar
 import PVGrammar.Generate
 import PVGrammar.Parse
 import PVGrammar.Prob.Simple
-  ( observeDerivation
+  ( PVParams (PVParams)
+  , observeDerivation
+  , observeDerivation'
   , sampleDerivation
+  , sampleDerivation'
   )
 import ReinforcementParser qualified as RL
 
-import Musicology.Core
+import Musicology.Core hiding ((<.>))
 import Musicology.Core.Slicing
 
 -- import Musicology.Internal.Helpers
@@ -25,7 +28,7 @@ import Musicology.MusicXML
 import Musicology.Pitch.Spelled as MT
 
 import Data.Either (partitionEithers)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, listToMaybe, mapMaybe)
 import Data.Ratio (Ratio (..))
 import Lens.Micro (over)
 
@@ -33,6 +36,7 @@ import Control.Monad
   ( foldM
   , forM
   , forM_
+  , replicateM
   )
 import Control.Monad.Except (runExceptT)
 import Data.HashSet qualified as HS
@@ -54,14 +58,29 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.String (fromString)
 import Inference.Conjugate
-  ( runTrace
+  ( Hyper
+  , Trace
+  , Uniform (uniformPrior)
+  , getPosterior
+  , runTrace
   , showTrace
   , traceTrace
   )
+import System.FilePath
+  ( (<.>)
+  , (</>)
+  )
+import System.FilePattern qualified as FP
+import System.FilePattern.Directory qualified as FP
 
 -- better do syntax
+
+import Data.Foldable qualified as F
 import Language.Haskell.DoNotation qualified as Do
+import ReinforcementParser (encodeStep)
+import System.Random.MWC.Probability qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
+import Torch qualified as T
 
 -- import           Prelude                 hiding ( Monad(..)
 --                                                 , pure
@@ -85,6 +104,9 @@ haydn5 = "/home/chfin/Uni/phd/data/kirlin_schenker/haydn5.xml"
 
 invention =
   "/home/chfin/Uni/phd/data/protovoice-annotations/bach/inventions/BWV_0784.musicxml"
+
+dataDir :: FilePath
+dataDir = "data/"
 
 -- getPitchGroups :: FilePath -> IO [[OnOff SPitch (Ratio Int)]]
 -- getPitchGroups file = do
@@ -215,19 +237,97 @@ derivBrahms = buildDerivation $ Do.do
 -- mains
 -- =====
 
+type Piece =
+  (String, PVAnalysis SPitch, Trace PVParams, Path [SPitch] [Edge SPitch])
+
+loadItem :: FilePath -> FilePath -> IO (Maybe Piece)
+loadItem dir name = do
+  ana <- loadAnalysis (dir </> name <.> "analysis.json")
+  case ana of
+    Left _err -> pure Nothing
+    Right a ->
+      if anaTop a == PathEnd topEdges
+        then do
+          surface <- loadSurface (dir </> name <.> "musicxml")
+          case observeDerivation' (anaDerivation a) of
+            Left _err -> do
+              putStrLn $ "could not observe trace for " <> name <> ", skipping."
+              pure Nothing
+            Right trace -> pure $ Just (name, a, trace, surface)
+        else do
+          putStrLn $ "derivation for " <> name <> " is incomplete, skipping."
+          pure Nothing
+
+loadDir :: FilePath -> [String] -> IO [Piece]
+loadDir dir exclude = do
+  files <- FP.getDirectoryFiles dir ["*.analysis.json"]
+  let getName file = FP.match "*.analysis.json" file >>= listToMaybe
+      names =
+        -- exclude duplicats
+        filter (`L.notElem` exclude) $ mapMaybe getName files
+  -- print names
+  items <- mapM (loadItem dir) names
+  pure $ catMaybes items
+
+learn :: Hyper PVParams -> [Piece] -> IO (Hyper PVParams)
+learn = foldM train
+ where
+  train prior (name, _, trace, _) =
+    case getPosterior prior trace sampleDerivation' of
+      Nothing -> do
+        putStrLn $ "couldn't compute posterior for " <> name <> ", skipping."
+        pure prior
+      Just post -> do
+        -- putStrLn $ "learned from " <> name <> "."
+        pure post
+
+learnParams = do
+  let prior = uniformPrior @PVParams
+  articleExamples <-
+    loadDir
+      (dataDir </> "theory-article")
+      ["05b_cello_prelude_1-4", "09a_hinunter", "03_bwv784_pattern"]
+  Just bwv939 <-
+    loadItem
+      (dataDir </> "bach" </> "fünf-kleine-präludien")
+      "BWV_0939"
+  Just bwv940 <-
+    loadItem
+      (dataDir </> "bach" </> "fünf-kleine-präludien")
+      "BWV_0940"
+  let dataset = bwv939 : bwv940 : articleExamples
+  -- let dataset = take 3 articleExamples
+  putStrLn "list of pieces:"
+  forM_ dataset $ \(name, _ana, _trace, _surface) -> do
+    putStrLn $ "  " <> name
+  let pitchSets = (\(_, _, _, surface) -> HS.fromList $ F.concat $ pathArounds surface) <$> dataset
+      allPitches = HS.unions pitchSets
+  putStr "fifths: "
+  print $ HS.map fifths allPitches
+  putStr "octaves: "
+  print $ HS.map octaves allPitches
+  -- compute overall posterior
+  learn prior dataset
+
 mainRL n = do
-  input <- testslices 0 n
-  print input
+  Just (_, rareAna, _, rare) <- loadItem "data/theory-article" "20a_sus"
   gen <- initStdGen
   mgen <- newIOGenM gen
-  Right (steps, top, deriv) <- RL.runEpisode mgen protoVoiceEvaluator (\_ _ -> 0) 1 input
-  putStrLn "Finished episode"
-  putStr "top: "
-  print top
-  putStrLn "derivation: "
-  forM_ deriv (\x -> putStr "- " >> print x)
-  putStrLn "RL steps: "
-  forM_ steps (\x -> putStr "- " >> print x)
+  genMWC <- MWC.create -- uses a fixed seed
+  posterior <- learnParams
+  typicalRewards <- replicateM 100 (RL.pvReward genMWC posterior rareAna)
+  putStr "expected optimal reward: "
+  print $ T.asValue @Double (T.mean $ T.asTensor typicalRewards)
+  RL.trainDQN mgen protoVoiceEvaluator (RL.encodeStep RL.defaultGSpec) (RL.pvReward genMWC posterior) [rare] n
+
+-- Right (steps, top, deriv) <- RL.runEpisode mgen protoVoiceEvaluator (\_ _ -> 0) 1 input
+-- putStrLn "Finished episode"
+-- putStr "top: "
+-- print top
+-- putStrLn "derivation: "
+-- forM_ deriv (\x -> putStr "- " >> print x)
+-- putStrLn "RL steps: "
+-- forM_ steps (\x -> putStr "- " >> print x)
 
 mainGreedy file = do
   input <- loadSurface file
@@ -343,4 +443,4 @@ mainRare = do
     Right g -> return $ Just g
   viewGraphs "rare.tex" $ catMaybes pics
 
-main = mainRare
+main = mainRL 100
