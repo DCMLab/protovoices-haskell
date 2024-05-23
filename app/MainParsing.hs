@@ -18,7 +18,8 @@ import PVGrammar.Prob.Simple
   , sampleDerivation
   , sampleDerivation'
   )
-import ReinforcementParser qualified as RL
+import ReinforcementParser.Learning qualified as RL
+import ReinforcementParser.Model qualified as RL
 
 import Musicology.Core hiding ((<.>))
 import Musicology.Core.Slicing
@@ -77,10 +78,11 @@ import System.FilePattern.Directory qualified as FP
 
 import Data.Foldable qualified as F
 import Language.Haskell.DoNotation qualified as Do
-import ReinforcementParser (encodeStep)
 import System.Random.MWC.Probability qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
 import Torch qualified as T
+import Torch.Typed qualified as TT
+import Torch.Typed.Tensor ()
 
 -- import           Prelude                 hiding ( Monad(..)
 --                                                 , pure
@@ -315,10 +317,12 @@ mainRL n = do
   mgen <- newIOGenM gen
   genMWC <- MWC.create -- uses a fixed seed
   posterior <- learnParams
-  typicalRewards <- replicateM 100 (RL.pvReward genMWC posterior rareAna)
+  typicalRewards <- replicateM 100 (RL.pvRewardExp posterior rareAna)
   putStr "expected optimal reward: "
-  print $ T.asValue @Double (T.mean $ T.asTensor typicalRewards)
-  RL.trainDQN mgen protoVoiceEvaluator (RL.encodeStep RL.defaultGSpec) (RL.pvReward genMWC posterior) [rare] n
+  print $ T.asValue @RL.QType (T.mean $ T.asTensor typicalRewards)
+  (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator (RL.encodeStep RL.defaultGSpec) (RL.pvRewardExp posterior) [rare] n
+  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
+  pure ()
 
 -- Right (steps, top, deriv) <- RL.runEpisode mgen protoVoiceEvaluator (\_ _ -> 0) 1 input
 -- putStrLn "Finished episode"
@@ -443,4 +447,4 @@ mainRare = do
     Right g -> return $ Just g
   viewGraphs "rare.tex" $ catMaybes pics
 
-main = mainRL 100
+main = mainRL 1000

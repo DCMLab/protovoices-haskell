@@ -175,7 +175,7 @@ import Text.ParserCombinators.ReadP qualified as ReadP
 data Path around between
   = Path !around !between !(Path around between)
   | PathEnd !around
-  deriving (Eq, Ord, Generic)
+  deriving (Eq, Ord, Generic, Functor)
 
 instance Bifunctor Path where
   bimap fa _ (PathEnd a) = PathEnd (fa a)
@@ -252,7 +252,7 @@ data StartStop a
 
 -- some instances for StartStop
 
-instance Show a => Show (StartStop a) where
+instance (Show a) => Show (StartStop a) where
   show Start = "⋊"
   show Stop = "⋉"
   show (Inner a) = show a
@@ -263,7 +263,7 @@ instance (Notation a) => Notation (StartStop a) where
   showNotation (Inner a) = showNotation a
   parseNotation = ReadP.pfail
 
-instance FromJSON a => FromJSON (StartStop a) where
+instance (FromJSON a) => FromJSON (StartStop a) where
   parseJSON (Aeson.String "start") = pure Start
   parseJSON (Aeson.String "stop") = pure Stop
   parseJSON other = Inner <$> parseJSON other
@@ -808,7 +808,7 @@ instance (Monoid w) => MI.IxMonad (IndexedWriter w) where
   ibind f (IW wa) = IW $ (runIW . f) =<< wa
 
 -- | 'MW.tell' for 'IndexedWriter'.
-itell :: Monoid w => w -> IndexedWriter w i j ()
+itell :: (Monoid w) => w -> IndexedWriter w i j ()
 itell = IW . MW.tell
 
 {- | A type-level wrapper for partial derivation info.
@@ -893,7 +893,7 @@ data Derivations a
     Cannot
   deriving (Eq, Ord, Generic)
 
-instance NFData a => NFData (Derivations a)
+instance (NFData a) => NFData (Derivations a)
 
 -- | A helper tag for pretty-printing derivations.
 data DerivOp
@@ -902,7 +902,7 @@ data DerivOp
   | OpThen
   deriving (Eq)
 
-instance Show a => Show (Derivations a) where
+instance (Show a) => Show (Derivations a) where
   show = go (0 :: Int) OpNone
    where
     indent n = stimesMonoid n "  "
@@ -937,13 +937,13 @@ mapDerivations f (Or a b) = mapDerivations f a R.+ mapDerivations f b
 mapDerivations f (Then a b) = mapDerivations f a R.* mapDerivations f b
 
 -- | Flatten the prefix-tree structure of 'Derivations' into a simple set of derivations.
-flattenDerivations :: Ord a => Derivations a -> S.Set [a]
+flattenDerivations :: (Ord a) => Derivations a -> S.Set [a]
 flattenDerivations = mapDerivations (\a -> S.singleton [a])
 
 {- | Flatten the prefix-tree structure of 'Derivations'
  into a simple list of (potentially redundant) derivations.
 -}
-flattenDerivationsRed :: Ord a => Derivations a -> [[a]]
+flattenDerivationsRed :: (Ord a) => Derivations a -> [[a]]
 flattenDerivationsRed (Do a) = pure [a]
 flattenDerivationsRed NoOp = pure []
 flattenDerivationsRed Cannot = []
@@ -955,7 +955,7 @@ flattenDerivationsRed (Then a b) = do
   pure (as <> bs)
 
 -- | Obtain the first derivation from a 'Derivations' tree.
-firstDerivation :: Ord a => Derivations a -> Maybe [a]
+firstDerivation :: (Ord a) => Derivations a -> Maybe [a]
 firstDerivation Cannot = Nothing
 firstDerivation NoOp = Just []
 firstDerivation (Do a) = Just [a]
@@ -997,7 +997,7 @@ variantDefaults rename =
     }
 
 -- | Convert special characters to TeX commands.
-showTex :: Show a => a -> String
+showTex :: (Show a) => a -> String
 showTex x = concatMap escapeTex $ show x
  where
   escapeTex '♭' = "$\\flat$"
@@ -1009,5 +1009,5 @@ showTex x = concatMap escapeTex $ show x
   escapeTex c = [c]
 
 -- | Convert special characters to TeX commands (using 'T.Text')
-showTexT :: Show a => a -> T.Text
+showTexT :: (Show a) => a -> T.Text
 showTexT = T.pack . showTex

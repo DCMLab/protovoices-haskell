@@ -54,6 +54,7 @@ import Data.HashMap.Strict qualified as HM
 import Data.IntMap.Strict qualified as IM
 import Data.Semiring qualified as R
 
+import Control.Monad (foldM, foldM_, mzero)
 import Control.Monad.State as ST
 
 import Control.DeepSeq
@@ -111,7 +112,7 @@ data Slice slc = Slice
 instance (Eq slc) => Hashable (Slice slc) where
   hashWithSalt s (Slice _ _ i _) = hashWithSalt s i
 
-instance Show slc => Show (Slice slc) where
+instance (Show slc) => Show (Slice slc) where
   show (Slice f c i l) =
     show f <> "-" <> show c <> "@" <> show i <> "-" <> show l
 
@@ -530,7 +531,7 @@ unsplit mg ((Transition ll lt lr l2nd) := vl) ((Transition _ !rt !rr _) := vr) =
 ------------------------
 
 -- | parallelized map
-pmap :: NFData b => (a -> b) -> [a] -> [b]
+pmap :: (NFData b) => (a -> b) -> [a] -> [b]
 pmap f = P.withStrategy (P.parList P.rdeepseq) . map f
 
 -- pmap = map
@@ -668,7 +669,7 @@ unsplitAll unsplitter n (!tchart, !vchart) = do
  Returns the combined semiring value of all full derivations.
 -}
 parse
-  :: Parsable tr slc v
+  :: (Parsable tr slc v)
   => (TChart tr slc v -> Either (VChart tr slc v) [Slice slc] -> Int -> IO ())
   -- ^ logging function
   -> Eval tr tr' slc slc' v
@@ -722,22 +723,22 @@ logSize tc vc n = do
   putStrLn $ "verts: " <> show nverts
 
 -- | Parse a piece using the 'logSize' logging function.
-parseSize :: Parsable tr slc v => Eval tr tr' slc slc' v -> Path slc' tr' -> IO v
+parseSize :: (Parsable tr slc v) => Eval tr tr' slc slc' v -> Path slc' tr' -> IO v
 parseSize = parse logSize
 
 -- | A logging function that does nothing.
-logNone :: Applicative f => p1 -> p2 -> p3 -> f ()
+logNone :: (Applicative f) => p1 -> p2 -> p3 -> f ()
 logNone _ _ _ = pure ()
 
 -- | Parse a piece without logging.
-parseSilent :: Parsable tr slc v => Eval tr tr' slc slc' v -> Path slc' tr' -> IO v
+parseSilent :: (Parsable tr slc v) => Eval tr tr' slc slc' v -> Path slc' tr' -> IO v
 parseSilent = parse logNone
 
 -- fancier logging
 -- ---------------
 
 -- | Generate TikZ code for a slice.
-printTikzSlice :: Show slc => Slice slc -> IO ()
+printTikzSlice :: (Show slc) => Slice slc -> IO ()
 printTikzSlice (Slice f sc sid l) = do
   putStrLn $
     "    \\node[slice,align=center] (slice"

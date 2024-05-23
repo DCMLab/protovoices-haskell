@@ -45,16 +45,16 @@ module Display
 
 import Common
 
-import qualified Data.Set as S
+import Data.Set qualified as S
 
 import Control.Monad (mzero)
-import qualified Control.Monad.State as ST
+import Control.Monad.State qualified as ST
 import Control.Monad.Trans (lift)
 import Data.Foldable (foldl')
-import qualified Data.List as L
-import qualified Data.Map as M
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import Data.List qualified as L
+import Data.Map qualified as M
+import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import System.Process (callCommand)
 
 import Data.Bifunctor (bimap)
@@ -105,7 +105,7 @@ popOpen :: DerivationOp slc tr (DerivTrans slc tr)
 popOpen = do
   graph <- ST.get
   case dgOpen graph of
-    [] -> mzero
+    [] -> ST.lift $ Left "popOpen: no transition to pop"
     t : ts -> do
       ST.put graph{dgOpen = ts}
       pure t
@@ -127,7 +127,7 @@ pushClosed newt = do
   ST.put $ graph{dgTransitions = trans', dgFrozen = frozen'}
 
 -- | Adds a new slice to the derivation graph.
-addSlice :: Ord slc => slc -> Int -> DerivationOp slc tr (DerivSlice slc)
+addSlice :: (Ord slc) => slc -> Int -> DerivationOp slc tr (DerivSlice slc)
 addSlice sliceContent depth = do
   graph <- ST.get
   let i = dgNextId graph
@@ -137,7 +137,7 @@ addSlice sliceContent depth = do
   pure newSlice
 
 -- | Adds a new horizontalization edge to the derivation graph.
-addHoriEdge :: Ord slc => (DerivSlice slc, DerivSlice slc) -> DerivationOp slc tr ()
+addHoriEdge :: (Ord slc) => (DerivSlice slc, DerivSlice slc) -> DerivationOp slc tr ()
 addHoriEdge edge = do
   graph <- ST.get
   let horis' = S.insert edge $ dgHoriEdges graph
