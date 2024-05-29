@@ -45,9 +45,9 @@ import System.Random.Stateful
  that indicates whether the transition is a transitive right (2nd) parent of a spread.
 -}
 data Trans tr = Trans
-  { _tContent :: !tr
+  { gtContent :: !tr
   -- ^ content of the transition
-  , _t2nd :: !Bool
+  , gt2nd :: !Bool
   -- ^ flag that indicates (transitive) right parents of spreads
   }
   deriving (Show)
@@ -411,7 +411,7 @@ getActions
   -> GreedyState tr tr' slc (Leftmost s f h)
   -- ^ the current parsing state
   -> [Action slc tr s f h]
-  -- ^ either the next state or the result of the parse.
+  -- ^ the list of possible actions
 getActions eval state =
   -- check which type of state we are in
   case state of
@@ -599,6 +599,76 @@ pickRandom _ [] = throwError "No candidates for pickRandom!"
 pickRandom gen xs = do
   i <- lift $ uniformRM (0, length xs - 1) gen
   pure $ xs !! i
+
+-- * Applying actions
+
+-- | Apply an action to a parsing state.
+applyAction
+  :: forall m tr tr' slc slc' s f h
+   . GreedyState tr tr' slc (Leftmost s f h)
+  -- ^ the current parsing state
+  -> Action slc tr s f h
+  -- ^ the action to be applied
+  -> Either String (Either (GreedyState tr tr' slc (Leftmost s f h)) (tr, [Leftmost s f h]))
+  -- ^ either the next state or an error message
+applyAction state action =
+  case state of
+    -- case 1: everything frozen
+    GSFrozen frozen ->
+      case action of
+        Left (ActionSingle (_, top, _) op@(LMSingleFreeze _)) ->
+          case frozen of
+            PathEnd _ -> finish top [LMSingle op]
+            Path _ slc rst -> continue $ GSSemiOpen rst slc (PathEnd top) [LMSingle op]
+        _ -> Left "cannot apply this operation to frozen state"
+    -- case 2: everything open
+    GSOpen open ops -> case open of
+      PathEnd tr -> finish tr ops
+      Path tl slice (PathEnd tr) ->
+        case action of
+          Left (ActionSingle (_, top, _) op@(LMSingleSplit _)) ->
+            finish top (LMSingle op : ops)
+          _ -> Left "cannot apply this operation to 2 open transitions"
+      Path tl sl (Path tm sm rst) ->
+        case action of
+          Right (ActionDouble _ (LMDoubleFreezeLeft _)) ->
+            Left "cannot apply unfreeze in open state"
+          Right (ActionDouble (_, topl, tops, topr, _) op) ->
+            continue $ GSOpen (Path topl tops (pathSetHead rst topr)) (LMDouble op : ops)
+    -- case 3: some open some closed
+    GSSemiOpen frozen mid open ops -> case action of
+      -- single op: unfreeze or unsplit
+      Left (ActionSingle (_, top, _) op) -> case op of
+        -- unfreeze single
+        LMSingleFreeze _ -> case frozen of
+          PathEnd _ -> continue $ GSOpen (Path top mid open) (LMSingle op : ops)
+          Path _ frs frrest ->
+            continue $ GSSemiOpen frrest frs (Path top mid open) (LMSingle op : ops)
+        -- unsplit single
+        LMSingleSplit _ -> case open of
+          PathEnd _ -> Left "cannot apply unsplit to single open transition"
+          Path topenl sopen rstopen ->
+            continue $ GSSemiOpen frozen mid (pathSetHead rstopen top) (LMSingle op : ops)
+      -- double op:
+      Right (ActionDouble (_, topl, tops, topr, _) op) -> case op of
+        -- unfreeze left
+        LMDoubleFreezeLeft _ -> case frozen of
+          PathEnd _ -> continue $ GSOpen (Path topl mid open) (LMDouble op : ops)
+          Path _ mid' frozen' ->
+            continue $ GSSemiOpen frozen' mid' (Path topl mid open) (LMDouble op : ops)
+        -- unsplit left
+        LMDoubleSplitLeft _ -> case open of
+          PathEnd _ -> Left "cannot apply unsplit to single open transition"
+          Path _ sopen rst ->
+            continue $ GSSemiOpen frozen mid (pathSetHead rst topl) (LMDouble op : ops)
+        -- unsplit right or unspread
+        _ -> case open of
+          Path _tl _sl (Path _tm _sr rst) ->
+            continue $ GSSemiOpen frozen mid (Path topl tops (pathSetHead rst topr)) (LMDouble op : ops)
+          _ -> Left "cannot apply unsplit right or unspread to less than 3 open transitions"
+ where
+  continue = pure . Left
+  finish (Trans top _) ops = pure $ Right (top, ops)
 
 -- * Entry Points
 

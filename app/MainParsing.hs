@@ -7,7 +7,7 @@ module Main where
 import ChartParser
 import Common
 import Display
-import GreedyParser as Greedy
+import GreedyParser qualified as Greedy
 import PVGrammar
 import PVGrammar.Generate
 import PVGrammar.Parse
@@ -38,6 +38,7 @@ import Control.Monad
   , forM
   , forM_
   , replicateM
+  , zipWithM_
   )
 import Control.Monad.Except (runExceptT)
 import Data.HashSet qualified as HS
@@ -77,6 +78,7 @@ import System.FilePattern.Directory qualified as FP
 -- better do syntax
 
 import Data.Foldable qualified as F
+import GreedyParser qualified as RL
 import Language.Haskell.DoNotation qualified as Do
 import System.Random.MWC.Probability qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
@@ -236,6 +238,51 @@ derivBrahms = buildDerivation $ Do.do
   (>>) :: (Do.BindSyntax x y z) => x a -> y b -> z b
   (>>) = (Do.>>)
 
+-- debugging RL
+
+startParsing :: FilePath -> IO (RL.PVState [])
+startParsing file = do
+  surface <- loadSurface file
+  pure $ Greedy.initParseState protoVoiceEvaluator surface
+
+listActions :: RL.QModel RL.DefaultQSpec -> RL.PVState [] -> IO ()
+listActions model state = zipWithM_ showAction (getActions state) [1 ..]
+ where
+  showAction action i = putStrLn $ show i <> ". " <> act <> "\n => " <> state' <> "\n q = " <> show q
+   where
+    state' = case RL.applyAction state action of
+      Left error -> error
+      Right state' -> show state'
+    q = RL.runQ RL.encodeStep model state action
+    act = case action of
+      Left (RL.ActionSingle _ singleAct) -> show singleAct
+      Right (RL.ActionDouble _ doubleAct) -> show doubleAct
+
+getActions :: RL.PVState [] -> [RL.PVAction]
+getActions = Greedy.getActions (protoVoiceEvaluator @[] @[])
+
+rateActions
+  :: (Foldable t)
+  => RL.QModel RL.DefaultQSpec
+  -> RL.PVState t
+  -> [RL.PVAction]
+  -> [RL.QType]
+rateActions model state actions = RL.runQ RL.encodeStep model state <$> actions
+
+pickAction :: RL.PVState [] -> Int -> RL.PVState []
+pickAction state i = applyAction state $ getActions state !! (i - 1)
+
+pickAction' :: RL.PVState [] -> Int -> Either String (Either (RL.PVState []) _)
+pickAction' state i = applyAction' state $ getActions state !! (i - 1)
+
+applyAction :: RL.PVState t -> RL.PVAction -> RL.PVState t
+applyAction state action = state'
+ where
+  (Right (Left state')) = RL.applyAction state action
+
+applyAction' :: RL.PVState t -> RL.PVAction -> Either String (Either (RL.PVState t) _)
+applyAction' = Greedy.applyAction
+
 -- mains
 -- =====
 
@@ -312,7 +359,7 @@ learnParams = do
   learn prior dataset
 
 mainRL n = do
-  Just (_, rareAna, _, rare) <- loadItem "data/theory-article" "20a_sus"
+  Just (_, rareAna, _, rare) <- loadItem "data/theory-article" "20a_sus" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
   gen <- initStdGen
   mgen <- newIOGenM gen
   genMWC <- MWC.create -- uses a fixed seed
@@ -320,7 +367,7 @@ mainRL n = do
   typicalRewards <- replicateM 100 (RL.pvRewardExp posterior rareAna)
   putStr "expected optimal reward: "
   print $ T.asValue @RL.QType (T.mean $ T.asTensor typicalRewards)
-  (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator (RL.encodeStep RL.defaultGSpec) (RL.pvRewardExp posterior) [rare] n
+  (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) [rare] n
   TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
   pure ()
 
@@ -447,4 +494,4 @@ mainRare = do
     Right g -> return $ Just g
   viewGraphs "rare.tex" $ catMaybes pics
 
-main = mainRL 1000
+main = mainRL 10_000

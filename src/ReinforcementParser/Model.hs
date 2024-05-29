@@ -43,14 +43,14 @@ import Graphics.Rendering.Chart.Backend.Cairo as Plt
 import Graphics.Rendering.Chart.Easy ((.=))
 import Graphics.Rendering.Chart.Easy qualified as Plt
 import Graphics.Rendering.Chart.Gtk qualified as Plt
-import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState, Trans (Trans), getActions, initParseState, parseGreedy, parseStep, pickRandom)
+import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState (..), Trans (Trans), getActions, initParseState, parseGreedy, parseStep, pickRandom)
 import Inference.Conjugate (HyperRep, Prior (expectedProbs), evalTraceLogP, sampleProbs)
 import Internal.MultiSet qualified as MS
 import Internal.TorchHelpers qualified as TH
 import Musicology.Pitch
 import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), InnerEdge, Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
 import PVGrammar.Generate (derivationPlayerPV)
-import PVGrammar.Parse (protoVoiceEvaluator)
+import PVGrammar.Parse (protoVoiceEvaluator, pvThaw)
 import PVGrammar.Prob.Simple (PVParams, observeDerivation, observeDerivation', sampleDerivation')
 import System.Random (RandomGen, getStdRandom)
 import System.Random.MWC.Distributions (categorical)
@@ -102,6 +102,9 @@ opts = T.withDType qDType $ T.withDevice device T.defaultOpts
 toOpts :: forall a. (Torch.Lens.HasTypes a T.Tensor) => a -> a
 toOpts = T.toDevice device . T.toType qDType
 
+activation :: QTensor shape -> QTensor shape
+activation = TT.selu
+
 -- Encoding
 -- ========
 
@@ -127,8 +130,12 @@ pitchesOneHot
      )
   => HS.HashSet SPitch
   -> QTensor (PShape spec)
-pitchesOneHot ps = TT.UnsafeMkTensor $ T.indexPut True indices values zeros
+pitchesOneHot ps = TT.UnsafeMkTensor out
  where
+  out =
+    if HS.null ps
+      then zeros
+      else T.indexPut True indices values zeros
   indices = fmap T.asTensor $ T.asValue @[[Int]] $ T.transpose2D $ T.asTensor (pitch2index @(GenFifthLow spec) @(GenOctaveLow spec) <$> F.toList ps)
   values = T.ones [F.length ps] opts
   zeros = T.zeros dims opts
@@ -143,10 +150,9 @@ encodeSlice
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
      )
-  => GeneralSpec spec
-  -> Notes SPitch
+  => Notes SPitch
   -> QTensor (PShape spec)
-encodeSlice genspec (Notes notes) =
+encodeSlice (Notes notes) =
   -- DT.trace ("ecoding slice" <> show notes) $
   pitchesOneHot @spec $ MS.toSet notes
 
@@ -160,6 +166,7 @@ data TransitionEncoding spec = TransitionEncoding
   , trencRight :: QTensor (PShape spec)
   , trencRoot :: Bool
   }
+  deriving (Show)
 
 edgesOneHot
   :: forall (spec :: TGeneralSpec)
@@ -170,12 +177,17 @@ edgesOneHot
      )
   => HS.HashSet (InnerEdge SPitch)
   -> QTensor (EShape spec)
-edgesOneHot es = TT.UnsafeMkTensor $ T.indexPut True indices values zeros
+edgesOneHot es = TT.UnsafeMkTensor out
  where
+  out =
+    if HS.null es
+      then zeros
+      else T.indexPut True indexTensors values zeros
   edge2index (p1, p2) =
     pitch2index @(GenFifthLow spec) @(GenOctaveLow spec) p1
       ++ pitch2index @(GenFifthLow spec) @(GenOctaveLow spec) p2
-  indices = fmap T.asTensor $ T.asValue @[[Int]] $ T.transpose2D $ T.asTensor (edge2index <$> F.toList es)
+  indices = edge2index <$> F.toList es
+  indexTensors = fmap T.asTensor $ T.asValue @[[Int]] $ T.transpose2D $ T.asTensor indices
   values = T.ones [F.length es] opts
   zeros = T.zeros dims opts
   fifthSize = TT.natValI @(GenFifthSize spec)
@@ -226,8 +238,8 @@ type DoubleTop s =
   )
 
 data ActionEncoding spec = ActionEncoding
-  { actionEncodingTop :: Either (SingleTop spec) (DoubleTop spec)
-  , actionEncodingOp :: Leftmost () () ()
+  { actionEncodingTop :: !(Either (SingleTop spec) (DoubleTop spec))
+  , actionEncodingOp :: !(Leftmost () () ())
   }
 
 encodePVAction
@@ -237,26 +249,25 @@ encodePVAction
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
      )
-  => GeneralSpec spec
-  -> PVAction
+  => PVAction
   -> ActionEncoding spec
-encodePVAction spec (Left (ActionSingle top action)) = ActionEncoding encTop encAction
+encodePVAction (Left (ActionSingle top action)) = ActionEncoding encTop encAction
  where
   (sl, GreedyParser.Trans t _2nd, sr) = top
-  encTop = Left (encodeSlice @spec spec <$> sl, encodeTransition @spec t, encodeSlice @spec spec <$> sr)
+  encTop = Left (encodeSlice @spec <$> sl, encodeTransition @spec t, encodeSlice @spec <$> sr)
   encAction = case action of
     LMSingleFreeze FreezeOp -> LMFreezeOnly ()
     LMSingleSplit _split -> LMSplitOnly ()
-encodePVAction spec (Right (ActionDouble top action)) = ActionEncoding encTop encAction
+encodePVAction (Right (ActionDouble top action)) = ActionEncoding encTop encAction
  where
   (sl, GreedyParser.Trans t1 _, sm, Trans t2 _, sr) = top
   encTop =
     Right
-      ( encodeSlice @spec spec <$> sl
+      ( encodeSlice @spec <$> sl
       , encodeTransition @spec t1
-      , encodeSlice @spec spec sm
+      , encodeSlice @spec sm
       , encodeTransition @spec t2
-      , encodeSlice @spec spec <$> sr
+      , encodeSlice @spec <$> sr
       )
   encAction = case action of
     LMDoubleFreezeLeft FreezeOp -> LMFreezeLeft ()
@@ -264,19 +275,82 @@ encodePVAction spec (Right (ActionDouble top action)) = ActionEncoding encTop en
     LMDoubleSplitRight split -> LMSplitRight ()
     LMDoubleSpread spread -> LMSpread ()
 
+-- State Encoding
+-- --------------
+
+data StateEncoding spec = StateEncoding
+  { stateEncodingMid :: !(StartStop (QTensor (PShape spec)))
+  , stateEncodingFrozen :: !(Maybe (TransitionEncoding spec, StartStop (QTensor (PShape spec))))
+  , stateEncodingOpen :: ![(TransitionEncoding spec, StartStop (QTensor (PShape spec)))]
+  }
+
+type PVState t =
+  GreedyState
+    (Edges SPitch)
+    (t (Edge SPitch))
+    (Notes SPitch)
+    (PVLeftmost SPitch)
+
+getFrozen
+  :: forall spec t
+   . ( Foldable t
+     , KnownInt (GenFifthLow spec)
+     , KnownInt (GenOctaveLow spec)
+     , KnownNat (GenFifthSize spec)
+     , KnownNat (GenOctaveSize spec)
+     )
+  => Path (Maybe (t (Edge SPitch))) (Notes SPitch)
+  -> (TransitionEncoding spec, StartStop (QTensor (PShape spec)))
+getFrozen frozen = case frozen of
+  PathEnd tr -> (encodeTransition $ pvThaw tr, Start)
+  Path tr slc _ ->
+    (encodeTransition $ pvThaw tr, Inner $ encodeSlice @spec slc)
+
+getOpen
+  :: forall spec
+   . ( KnownInt (GenFifthLow spec)
+     , KnownInt (GenOctaveLow spec)
+     , KnownNat (GenFifthSize spec)
+     , KnownNat (GenOctaveSize spec)
+     )
+  => Path (Trans (Edges SPitch)) (Notes SPitch)
+  -> [(TransitionEncoding spec, StartStop (QTensor (PShape spec)))]
+getOpen open = encodePair <$> pathTake 3 Inner Stop open
+ where
+  encodePair (Trans tr _, slc) = (encodeTransition tr, encodeSlice @spec <$> slc)
+
+encodePVState
+  :: forall spec t
+   . ( Foldable t
+     , KnownInt (GenFifthLow spec)
+     , KnownInt (GenOctaveLow spec)
+     , KnownNat (GenFifthSize spec)
+     , KnownNat (GenOctaveSize spec)
+     )
+  => PVState t
+  -> StateEncoding spec
+encodePVState (GSFrozen frozen) = StateEncoding Stop (Just $ getFrozen frozen) []
+encodePVState (GSOpen open _) = StateEncoding Start Nothing (getOpen open)
+encodePVState (GSSemiOpen frozen mid open _) =
+  StateEncoding (Inner $ encodeSlice @spec mid) (Just $ getFrozen frozen) (getOpen open)
+
 -- Step Encoding
 -- -------------
 
-newtype QEncoding spec = QEncoding
-  { _actionEncoding :: ActionEncoding spec
+data QEncoding spec = QEncoding
+  { qActionEncoding :: !(ActionEncoding spec)
+  , qStateEncoding :: !(StateEncoding spec)
   }
 
 encodeStep
-  :: GeneralSpec TGeneralSpecDefault
-  -> p
+  :: (Foldable t)
+  => PVState t
   -> PVAction
   -> QEncoding TGeneralSpecDefault
-encodeStep spec _ action = QEncoding (encodePVAction @TGeneralSpecDefault spec action)
+encodeStep state action =
+  QEncoding
+    (encodePVAction @TGeneralSpecDefault action)
+    (encodePVState @TGeneralSpecDefault state)
 
 -- Q net
 -- =====
@@ -291,8 +365,6 @@ defaultGSpec =
   GeneralSpec
 
 type data TGeneralSpec = TGenSpec TInt Nat TInt Nat Nat
-
-type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 16
 
 type family GenFifthLow (spec :: TGeneralSpec) where
   GenFifthLow (TGenSpec flow _ _ _ _) = flow
@@ -386,9 +458,9 @@ instance
   forward (SliceEncoder l1 l2 _ _) =
     TT.flattenAll
       >>> T.forward l1
-      >>> TT.relu
+      >>> activation
       >>> TT.forward l2
-      >>> TT.relu
+      >>> activation
   forwardStoch model = pure . T.forward model
 
 -- Transition Encoder
@@ -397,8 +469,8 @@ instance
 data TransitionSpec (hidden :: Nat) = TransitionSpec
 
 data TransitionEncoder spec hidden = TransitionEncoder
-  { -- TODO: should there be a separate trL1Pass?
-    trL1Inner :: !(TT.Linear (TT.Product (EShape spec)) hidden QDType QDevice)
+  { trL1Passing :: !(TT.Linear (TT.Product (EShape spec)) hidden QDType QDevice)
+  , trL1Inner :: !(TT.Linear (TT.Product (EShape spec)) hidden QDType QDevice)
   , trL1Left :: !(TT.Linear (TT.Product (PShape spec)) hidden QDType QDevice)
   , trL1Right :: !(TT.Linear (TT.Product (PShape spec)) hidden QDType QDevice)
   , trL1Root :: !(ConstEmb '[hidden])
@@ -416,6 +488,7 @@ instance
   where
   sample :: (GeneralSpec spec, TransitionSpec hidden) -> IO (TransitionEncoder spec hidden)
   sample _ = do
+    trL1Passing <- T.sample TT.LinearSpec
     trL1Inner <- T.sample TT.LinearSpec
     trL1Left <- T.sample TT.LinearSpec
     trL1Right <- T.sample TT.LinearSpec
@@ -434,14 +507,14 @@ instance
       (TransitionEncoding spec)
       (QTensor embshape)
   where
-  forward TransitionEncoder{..} TransitionEncoding{..} = TT.relu $ T.forward trL2 all'
+  forward TransitionEncoder{..} TransitionEncoding{..} = activation $ T.forward trL2 all'
    where
-    pass = TT.relu $ T.forward trL1Inner $ TT.flattenAll trencPassing
-    inner = TT.relu $ T.forward trL1Inner $ TT.flattenAll trencInner
-    left = TT.relu $ T.forward trL1Left $ TT.flattenAll trencLeft
-    right = TT.relu $ T.forward trL1Right $ TT.flattenAll trencRight
+    pass = activation $ T.forward trL1Passing $ TT.flattenAll trencPassing
+    inner = activation $ T.forward trL1Inner $ TT.flattenAll trencInner
+    left = activation $ T.forward trL1Left $ TT.flattenAll trencLeft
+    right = activation $ T.forward trL1Right $ TT.flattenAll trencRight
     all = pass + inner + left + right
-    all' = if trencRoot then all + TT.relu (T.forward trL1Root ()) else all
+    all' = if trencRoot then all + activation (T.forward trL1Root ()) else all
   forwardStoch = undefined
 
 -- ActionEncoder
@@ -450,8 +523,11 @@ instance
 data ActionSpec (hidden :: Nat) = ActionSpec
 
 data ActionEncoder spec hidden = ActionEncoder
-  { actTop1_2 :: TT.Linear (GenEmbSize spec + GenEmbSize spec) hidden QDType QDevice
-  , actTop1_3 :: TT.Linear (GenEmbSize spec + (GenEmbSize spec + GenEmbSize spec)) hidden QDType QDevice
+  { actTop1sl :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , actTop1sm :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , actTop1sr :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , actTop1t1 :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , actTop1t2 :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
   , actTop2 :: TT.Linear hidden (GenEmbSize spec) QDType QDevice
   , actSplit :: ConstEmb '[GenEmbSize spec - 3] -- TODO: fill in with actual module
   , actSpread :: ConstEmb '[GenEmbSize spec - 3] -- TODO: fill in with actual module
@@ -463,46 +539,58 @@ instance
   ( emb ~ GenEmbSize spec
   , KnownNat hidden
   , KnownNat emb
-  , KnownNat (emb + emb)
-  , KnownNat (emb + (emb + emb))
   , KnownNat (emb - 3)
   )
   => T.Randomizable (GeneralSpec spec, ActionSpec hidden) (ActionEncoder spec hidden)
   where
   sample :: (GeneralSpec spec, ActionSpec hidden) -> IO (ActionEncoder spec hidden)
-  sample (GeneralSpec, ActionSpec) =
-    ActionEncoder
-      <$> T.sample TT.LinearSpec
-      <*> T.sample TT.LinearSpec
-      <*> T.sample TT.LinearSpec
-      <*> T.sample ConstEmbSpec
-      <*> T.sample ConstEmbSpec
-      <*> T.sample ConstEmbSpec
+  sample (GeneralSpec, ActionSpec) = do
+    actTop1sl <- T.sample TT.LinearSpec
+    actTop1sm <- T.sample TT.LinearSpec
+    actTop1sr <- T.sample TT.LinearSpec
+    actTop1t1 <- T.sample TT.LinearSpec
+    actTop1t2 <- T.sample TT.LinearSpec
+    actTop2 <- T.sample TT.LinearSpec
+    actSplit <- T.sample ConstEmbSpec
+    actSpread <- T.sample ConstEmbSpec
+    actFreeze <- T.sample ConstEmbSpec
+    pure ActionEncoder{..}
 
 instance
-  forall (spec :: TGeneralSpec) slcHidden actHidden outShape emb
+  forall (spec :: TGeneralSpec) slcHidden trHidden actHidden outShape emb
    . ( emb ~ GenEmbSize spec
-     , outShape ~ '[emb + emb]
+     , outShape ~ '[emb]
      , emb ~ (emb - 3) + 3
      , TT.KnownShape (PShape spec)
+     , TT.KnownShape (EShape spec)
      )
-  => T.HasForward (ActionEncoder spec actHidden) (SliceEncoder spec slcHidden, ActionEncoding spec) (QTensor outShape)
+  => T.HasForward
+      (ActionEncoder spec actHidden)
+      (SliceEncoder spec slcHidden, TransitionEncoder spec trHidden, ActionEncoding spec)
+      (QTensor outShape)
   where
-  forward ActionEncoder{..} (slc, ActionEncoding top op) = TT.cat @0 (topEmb TT.:. opEmb TT.:. TT.HNil)
+  forward ActionEncoder{..} (slc, tr, ActionEncoding top op) = topEmb + opEmb
    where
-    hidden :: QTensor '[actHidden]
-    hidden = case top of
-      Left (sl, _t, sr) -> T.forward actTop1_2 $ TT.cat @0 (T.forward slc sl TT.:. T.forward slc sr TT.:. TT.HNil)
-      Right (sl, _t1, sm, _t2, sr) ->
+    topCombined :: QTensor '[actHidden]
+    topCombined = case top of
+      Left (sl, t, sr) ->
         let
-          embl = T.forward slc sl
-          embm = T.forward slc sm
-          embr = T.forward slc sr
-          slcEmb = TT.cat @0 (embl TT.:. embm TT.:. embr TT.:. TT.HNil)
+          embl = activation $ T.forward actTop1sl $ T.forward slc sl
+          embt = activation $ T.forward actTop1t1 $ T.forward slc sl
+          embr = activation $ T.forward actTop1sr $ T.forward slc sl
          in
-          T.forward actTop1_3 slcEmb
+          embl + embt + embr
+      Right (sl, t1, sm, t2, sr) ->
+        let
+          embl = activation $ T.forward actTop1sl $ T.forward slc sl
+          embm = activation $ T.forward actTop1sl $ T.forward slc sm
+          embr = activation $ T.forward actTop1sl $ T.forward slc sr
+          embt1 = activation $ T.forward actTop1sl $ T.forward tr t1
+          embt2 = activation $ T.forward actTop1sl $ T.forward tr t2
+         in
+          embl + embm + embr + embt1 + embt2
     topEmb :: QTensor '[GenEmbSize spec]
-    topEmb = TT.relu $ T.forward actTop2 $ TT.relu hidden
+    topEmb = activation $ T.forward actTop2 topCombined
     opEmb :: QTensor '[GenEmbSize spec]
     opEmb = case op of
       LMFreezeOnly _ -> TT.cat @0 (TT.selectIdx @0 opTypes 0 TT.:. T.forward actFreeze () TT.:. TT.HNil)
@@ -525,27 +613,124 @@ instance
           opts
   forwardStoch a i = pure $ T.forward a i
 
+-- State Encoder
+-- -------------
+
+data StateSpec (hidden :: Nat) = StateSpec
+
+data StateEncoder spec hidden = StateEncoder
+  { stL1mid :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL1frozenSlc :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL1frozenTr :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL1openSlc1 :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL1openSlc2 :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL1openSlc3 :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL1openTr1 :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL1openTr2 :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL1openTr3 :: TT.Linear (GenEmbSize spec) hidden QDType QDevice
+  , stL2 :: TT.Linear hidden hidden QDType QDevice
+  , stL3 :: TT.Linear hidden (GenEmbSize spec) QDType QDevice
+  }
+  deriving (Show, Generic, TT.Parameterized)
+
+instance
+  ( KnownNat (GenEmbSize spec)
+  , KnownNat hidden
+  )
+  => T.Randomizable (GeneralSpec spec, StateSpec hidden) (StateEncoder spec hidden)
+  where
+  sample _ = do
+    stL1mid <- TT.sample TT.LinearSpec
+    stL1frozenSlc <- TT.sample TT.LinearSpec
+    stL1frozenTr <- TT.sample TT.LinearSpec
+    stL1openSlc1 <- TT.sample TT.LinearSpec
+    stL1openSlc2 <- TT.sample TT.LinearSpec
+    stL1openSlc3 <- TT.sample TT.LinearSpec
+    stL1openTr1 <- TT.sample TT.LinearSpec
+    stL1openTr2 <- TT.sample TT.LinearSpec
+    stL1openTr3 <- TT.sample TT.LinearSpec
+    stL2 <- TT.sample TT.LinearSpec
+    stL3 <- TT.sample TT.LinearSpec
+    pure StateEncoder{..}
+
+instance
+  forall (spec :: TGeneralSpec) slcHidden trHidden stHidden outShape emb
+   . ( emb ~ GenEmbSize spec
+     , outShape ~ '[emb]
+     , TT.KnownShape (PShape spec)
+     , TT.KnownShape (EShape spec)
+     )
+  => T.HasForward
+      (StateEncoder spec stHidden)
+      (SliceEncoder spec slcHidden, TransitionEncoder spec trHidden, StateEncoding spec)
+      (QTensor outShape)
+  where
+  forward StateEncoder{..} (slc, tr, StateEncoding mid frozen open) =
+    fullEmb
+      & T.forward stL2
+      & activation
+      & T.forward stL3
+      & activation
+   where
+    -- embed the mid slice
+    midEmb = activation $ T.forward stL1mid $ T.forward slc mid
+    -- embed the frozen segment (if it exists) and add to midEmb
+    midAndFrozen = case frozen of
+      Nothing -> midEmb
+      Just (ft, fs) ->
+        let ftEmb = activation $ T.forward stL1frozenTr $ T.forward tr ft
+            fsEmb = activation $ T.forward stL1frozenSlc $ T.forward slc fs
+         in midEmb + ftEmb + fsEmb
+    -- embed an open segment using its respective layers
+    embedOpen ((ot, os), (l1tr, l1slc)) = otEmb + osEmb
+     where
+      otEmb = activation $ T.forward l1tr $ T.forward tr ot
+      osEmb = activation $ T.forward l1slc $ T.forward slc os
+    -- the list of layers for the 3 open transitions and slices
+    openEncoders =
+      [ (stL1openSlc1, stL1openTr1)
+      , (stL1openSlc2, stL1openTr2)
+      , (stL1openSlc3, stL1openTr3)
+      ]
+    -- embed the open segments and add them to mid and frozen
+    fullEmb = F.foldl' (+) midAndFrozen $ zipWith (curry embedOpen) open openEncoders
+  forwardStoch a i = pure $ T.forward a i
+
 -- Full Model
 -- ----------
 
 data SpecialSpec (hidden :: Nat) = SpecialSpec
 
-data QSpec (spec :: TGeneralSpec) specialSpec sliceSpec actionSpec
-  = QSpec (GeneralSpec spec) (SpecialSpec specialSpec) (SliceSpec sliceSpec) (ActionSpec actionSpec)
+data QSpec (spec :: TGeneralSpec) specialSpec sliceSpec transSpec actionSpec stateSpec
+  = QSpec
+      (GeneralSpec spec)
+      (SpecialSpec specialSpec)
+      (SliceSpec sliceSpec)
+      (TransitionSpec transSpec)
+      (ActionSpec actionSpec)
+      (StateSpec stateSpec)
 
 type family QSpecGeneral qspec where
-  QSpecGeneral (QSpec g _ _ _) = g
+  QSpecGeneral (QSpec g _ _ _ _ _) = g
 
 type family QSpecSpecial qspec where
-  QSpecSpecial (QSpec _ s _ _) = s
+  QSpecSpecial (QSpec _ s _ _ _ _) = s
 
 type family QSpecSlice qspec where
-  QSpecSlice (QSpec _ _ s _) = s
+  QSpecSlice (QSpec _ _ s _ _ _) = s
+
+type family QSpecTrans qspec where
+  QSpecTrans (QSpec _ _ _ t _ _) = t
 
 type family QSpecAction qspec where
-  QSpecAction (QSpec _ _ _ a) = a
+  QSpecAction (QSpec _ _ _ _ a _) = a
 
-type DefaultQSpec = QSpec TGeneralSpecDefault 32 32 32
+type family QSpecState qspec where
+  QSpecState (QSpec _ _ _ _ _ st) = st
+
+type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 32
+
+type DefaultQSpec = QSpec TGeneralSpecDefault 32 32 32 32 64
 
 defaultSpec :: DefaultQSpec
 defaultSpec =
@@ -553,51 +738,63 @@ defaultSpec =
     defaultGSpec
     SpecialSpec
     SliceSpec
+    TransitionSpec
     ActionSpec
+    StateSpec
 
 data QModel spec = QModel
   { qModelSlc :: !(SliceEncoder (QSpecGeneral spec) (QSpecSlice spec))
+  , qModelTr :: !(TransitionEncoder (QSpecGeneral spec) (QSpecTrans spec))
   , qModelAct :: !(ActionEncoder (QSpecGeneral spec) (QSpecAction spec))
-  , qModelFinal1 :: !(TT.Linear (GenEmbSize (QSpecGeneral spec) + GenEmbSize (QSpecGeneral spec)) (QSpecSpecial spec) QDType QDevice)
+  , qModelSt :: !(StateEncoder (QSpecGeneral spec) (QSpecState spec))
+  , qModelFinal1 :: !(TT.Linear (GenEmbSize (QSpecGeneral spec)) (QSpecSpecial spec) QDType QDevice)
   , qModelFinal2 :: !(TT.Linear (QSpecSpecial spec) 1 QDType QDevice)
   }
   deriving (Show, Generic, TT.Parameterized)
 
 instance
-  ( spec ~ QSpec g sp sl ac
+  ( spec ~ QSpec g sp sl tr ac st
   , embsize ~ GenEmbSize g
   , KnownNat sp
   , KnownNat sl
+  , KnownNat tr
   , KnownNat ac
+  , KnownNat st
   , KnownNat embsize
   , KnownNat (embsize - 3)
-  , KnownNat (embsize + embsize)
-  , KnownNat (embsize + (embsize + embsize))
-  , KnownNat (TT.Product (PShape g))
+  , -- , KnownNat (embsize + embsize)
+    -- , KnownNat (embsize + (embsize + embsize))
+    KnownNat (TT.Product (PShape g))
+  , KnownNat (TT.Product (EShape g))
   )
-  => T.Randomizable (QSpec g sp sl ac) (QModel spec)
+  => T.Randomizable (QSpec g sp sl tr ac st) (QModel spec)
   where
   sample :: spec -> IO (QModel spec)
-  sample (QSpec gspec sspec slcspec actspec) =
-    QModel
-      <$> T.sample (gspec, slcspec)
-      <*> T.sample (gspec, actspec)
-      <*> T.sample TT.LinearSpec
-      <*> T.sample TT.LinearSpec
+  sample (QSpec gspec sspec slcspec trspec actspec stspec) = do
+    qModelSlc <- T.sample (gspec, slcspec)
+    qModelTr <- T.sample (gspec, trspec)
+    qModelAct <- T.sample (gspec, actspec)
+    qModelSt <- T.sample (gspec, stspec)
+    qModelFinal1 <- T.sample TT.LinearSpec
+    qModelFinal2 <- T.sample TT.LinearSpec
+    pure QModel{..}
 
 instance
   ( gspec ~ QSpecGeneral spec
   , ((GenEmbSize gspec - 3) + 3) ~ GenEmbSize gspec
   , TT.KnownShape (PShape gspec)
+  , TT.KnownShape (EShape gspec)
   )
   => T.HasForward (QModel spec) (QEncoding gspec) (QTensor '[1])
   where
   forward :: QModel spec -> QEncoding (QSpecGeneral spec) -> QTensor '[1]
-  forward (QModel slc act final1 final2) (QEncoding actEnc) =
-    T.forward final2 $ TT.relu $ T.forward final1 actEmb
+  forward (QModel slc tr act st final1 final2) (QEncoding actEnc stEnc) =
+    T.forward final2 $ activation $ T.forward final1 (actEmb + stEmb)
    where
-    actEmb :: QTensor '[GenEmbSize gspec + GenEmbSize gspec]
-    actEmb = T.forward act (slc, actEnc)
+    actEmb :: QTensor '[GenEmbSize gspec]
+    actEmb = T.forward act (slc, tr, actEnc)
+    stEmb :: QTensor '[GenEmbSize gspec]
+    stEmb = T.forward st (slc, tr, stEnc)
 
   forwardStoch :: QModel spec -> QEncoding (QSpecGeneral spec) -> IO (QTensor '[1])
   forwardStoch model input = pure $ T.forward model input
@@ -632,6 +829,11 @@ loadModel path = do
     TT.load path
   params <- TT.hmapM' TT.MakeIndependent tensors
   pure $ TT.replaceParameters modelPlaceholder params
+
+modelSize :: QModel DefaultQSpec -> Int
+modelSize model = sum $ product <$> sizes
+ where
+  sizes = TT.hfoldr TH.ToList ([] :: [[Int]]) $ TT.hmap' TH.ShapeVal $ TT.flattenParameters model
 
 runQ
   :: (s -> a -> QEncoding (QSpecGeneral DefaultQSpec))

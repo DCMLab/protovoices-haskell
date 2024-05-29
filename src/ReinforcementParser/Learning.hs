@@ -3,6 +3,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# HLINT ignore "Use <$>" #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -78,15 +79,16 @@ gamma = 0.99
 -- interpolation factor between target and policy net
 tau :: QType -- T.Tensor -- QTensor '[]
 -- tau = toOpts $ T.asTensor @Double 0.05
-tau = 0.05
+tau = 0.1
 
-learningRate :: TT.LearningRate QDevice QDType
--- learningRate = toOpts $ T.asTensor @Double 0.01
-learningRate = 0.001
+learningRate :: Double -> TT.LearningRate QDevice QDType
+-- learningRate _ = 0.1
+-- learningRate progress = 0.01 + TT.mulScalar progress (-0.009)
+learningRate progress = 0.1 * TT.exp (TT.mulScalar progress (TT.log 0.1))
 
 -- replay buffer
 bufferSize :: Int
-bufferSize = 10_000
+bufferSize = 1_000
 
 replayN :: Int
 replayN = 200
@@ -96,13 +98,13 @@ epsStart :: QType
 epsStart = 0.9
 
 epsEnd :: QType
-epsEnd = 0.05
+epsEnd = 0.2
 
-epsDecay :: QType
-epsDecay = 1000
+-- epsDecay :: QType
+-- epsDecay = 2
 
-eps :: Int -> QType
-eps i = epsEnd + (epsStart - epsEnd) * exp (negate (fromIntegral i) / epsDecay)
+eps :: Int -> Int -> QType
+eps i n = epsStart * exp (log (epsEnd / epsStart) * fromIntegral i / fromIntegral n)
 
 -- device = T.Device T.CPU 0
 
@@ -121,10 +123,14 @@ newtype RPAction slc tr s f h = RPAction (Action slc tr s f h)
 data ReplayStep tr tr' slc s f h r = ReplayStep
   { _state :: !(RPState tr tr' slc s f h)
   , _action :: !(RPAction slc tr s f h)
+  , _step :: !(QEncoding (QSpecGeneral DefaultQSpec))
   , _nextState :: !(Maybe (RPState tr tr' slc s f h))
+  , _nextSteps :: ![QEncoding (QSpecGeneral DefaultQSpec)]
   , _reward :: !r
   }
-  deriving (Show)
+
+instance (Show slc, Show s, Show f, Show h, Show r) => Show (ReplayStep tr tr' slc s f h r) where
+  show (ReplayStep s _ _ s' _ r) = show s <> " -> " <> show s' <> " " <> show r
 
 data ReplayBuffer tr tr' slc s f h r
   = ReplayBuffer !Int ![ReplayStep tr tr' slc s f h r]
@@ -132,6 +138,9 @@ data ReplayBuffer tr tr' slc s f h r
 
 mkReplayBuffer :: Int -> ReplayBuffer tr tr' slc s f h r
 mkReplayBuffer n = ReplayBuffer n []
+
+seedReplayBuffer :: Int -> [ReplayStep tr tr' slc s f h r] -> ReplayBuffer tr tr' slc s f h r
+seedReplayBuffer n steps = ReplayBuffer n $ take n steps
 
 pushStep
   :: ReplayBuffer tr tr' slc s f h r
@@ -197,81 +206,103 @@ data DQNState opt tr tr' slc s f h r = DQNState
   , buffer :: !(ReplayBuffer tr tr' slc s f h r)
   }
 
-epsilonGreedyPolicy
-  :: (StatefulGen gen m)
-  => gen
-  -> QType
-  -> (state -> action -> QType)
-  -> state
-  -> [action]
-  -> m action
-epsilonGreedyPolicy gen epsilon q state actions = do
-  coin <- uniformRM (0, 1) gen
-  if coin >= epsilon
-    then pure $ E.maximumOn (q state) actions
-    else do
-      i <- uniformRM (0, length actions - 1) gen
-      pure $ actions !! i
+-- epsilonGreedyPolicy
+--   :: (StatefulGen gen m)
+--   => gen
+--   -> QType
+--   -> (embedding -> QTensor '[1])
+--   -> [embedding]
+--   -> m Int
+-- epsilonGreedyPolicy gen epsilon q actions = do
+--   coin <- uniformRM (0, 1) gen
+--   if coin >= epsilon
+--     then pure $ T.asValue $ T.argmax (T.Dim 0) T.RemoveDim $ T.cat (T.Dim 0) (TT.toDynamic . q <$> actions)
+--     else do
+--       uniformRM (0, length actions - 1) gen
 
 greedyPolicy
   :: (Applicative m)
-  => (state -> action -> QType)
-  -> state
-  -> [action]
-  -> m action
-greedyPolicy q state actions = do
-  pure $ E.maximumOn (q state) actions
+  => (embedding -> QTensor '[1])
+  -> [embedding]
+  -> m Int
+greedyPolicy q actions = do
+  pure $ T.asValue $ T.argmax (T.Dim 0) T.RemoveDim $ T.cat (T.Dim 0) (TT.toDynamic . q <$> actions)
+
+epsilonic
+  :: (StatefulGen gen m)
+  => gen
+  -> QType
+  -> ([embedding] -> m Int)
+  -> [embedding]
+  -> m Int
+epsilonic gen epsilon policy actions = do
+  coin <- uniformRM (0, 1) gen
+  if coin >= epsilon
+    then policy actions
+    else uniformRM (0, length actions - 1) gen
 
 softmaxPolicy
   :: (StatefulGen gen m)
   => gen
-  -> (state -> action -> QType)
-  -> state
-  -> [action]
-  -> m action
-softmaxPolicy gen q state actions = do
-  let probs = T.softmax (T.Dim 0) $ T.asTensor $ q state <$> actions
-  actionIndex <- categorical (V.fromList $ T.asValue $ T.toDType T.Double probs) gen
-  pure $ actions !! actionIndex
+  -> (embedding -> QTensor '[1])
+  -> [embedding]
+  -> m Int
+softmaxPolicy gen q actions = do
+  let probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . q <$> actions
+  categorical (V.fromList $ T.asValue $ T.toDType T.Double probs) gen
 
 runEpisode
-  :: forall tr tr' slc slc' s f h gen
-   . Eval tr tr' slc slc' (Leftmost s f h)
-  -> ( GreedyState tr tr' slc (Leftmost s f h)
-       -> [Action slc tr s f h]
-       -> IO (Action slc tr s f h)
+  :: forall tr tr' slc slc' s f h gen state action encoding
+   . ( state ~ GreedyState tr tr' slc (Leftmost s f h)
+     , action ~ Action slc tr s f h
+     , encoding ~ QEncoding (QSpecGeneral DefaultQSpec)
      )
+  => Eval tr tr' slc slc' (Leftmost s f h)
+  -> (state -> action -> encoding)
+  -> ([encoding] -> IO Int)
   -> Path slc' tr'
   -> IO
       ( Either
           String
-          ( [ ( GreedyState tr tr' slc (Leftmost s f h)
-              , Action slc tr s f h
-              , Maybe (GreedyState tr tr' slc (Leftmost s f h))
-              )
-            ]
-          , Analysis s f h tr slc
-          )
+          ([(state, action, encoding, Maybe (state, [encoding]))], Analysis s f h tr slc)
       )
-runEpisode !eval !policyF !input =
-  ST.evalStateT (ET.runExceptT $ go [] $ initParseState eval input) Nothing
+runEpisode !eval !encode !policyF !input =
+  ST.evalStateT (ET.runExceptT $ go [] Nothing $ initParseState eval input) (Nothing, [])
  where
-  go transitions state = do
-    ST.put Nothing -- TODO: have parseStep return the action instead of using State
+  go transitions prev state = do
+    -- run step
+    ST.put (Nothing, []) -- TODO: have parseStep return the action instead of using State
     result <- parseStep eval policy state
-    action <- ST.get
+    (actionAndEncoding, actions) <- ST.get
+    -- add previous step if it exists
+    let transitions' = case prev of
+          Nothing -> transitions
+          Just (prevState, prevAction) ->
+            addStep prevState prevAction (Just (state, actions)) transitions
+    -- evaluate current step
     case result of
-      Right (top, deriv) -> pure (addStep action Nothing transitions, Analysis deriv $ PathEnd top)
-      Left state' -> go (addStep action (Just state') transitions) state'
+      -- done parsing
+      Right (top, deriv) ->
+        pure (addStep state actionAndEncoding Nothing transitions', Analysis deriv $ PathEnd top)
+      -- continue parsing
+      Left state' -> go transitions' (Just (state, actionAndEncoding)) state'
    where
-    addStep Nothing _state' ts = ts
-    addStep (Just action) state' ts = (state, action, state') : ts
+    addStep
+      :: state
+      -> Maybe (action, encoding)
+      -> Maybe (state, [encoding])
+      -> [(state, action, encoding, Maybe (state, [encoding]))]
+      -> [(state, action, encoding, Maybe (state, [encoding]))]
+    addStep state Nothing _next ts = ts
+    addStep state (Just (action, actEnc)) next ts = (state, action, actEnc, next) : ts
 
-    policy :: [Action slc tr s f h] -> ET.ExceptT String (ST.StateT (Maybe (Action slc tr s f h)) IO) (Action slc tr s f h)
+    policy :: [action] -> ET.ExceptT String (ST.StateT (Maybe (action, encoding), [encoding]) IO) action
     policy [] = ET.throwError "no actions to select from"
     policy actions = do
-      action <- lift $ lift $ policyF state actions
-      ST.put (Just action)
+      let encodings = encode state <$> actions
+      actionIndex <- lift $ lift $ policyF encodings
+      let action = actions !! actionIndex
+      ST.put (Just (actions !! actionIndex, encodings !! actionIndex), encodings)
       pure action
 
 trainLoop
@@ -294,10 +325,14 @@ trainLoop
   -> Path slc' tr'
   -> DQNState opt tr tr' slc s f h QType
   -> Int
+  -> Int
   -> IO (DQNState opt tr tr' slc s f h QType, QType, QType)
-trainLoop !gen !eval !encode !reward !piece oldstate@(DQNState !pnet !tnet !opt !buffer) i = do
+trainLoop !gen !eval !encode !reward !piece oldstate@(DQNState !pnet !tnet !opt !buffer) i n = do
   -- 1. run episode, collect results
-  result <- runEpisode eval (epsilonGreedyPolicy gen (eps i) $ runQ encode pnet) piece
+  -- let policy q = epsilonic gen (eps i n) (greedyPolicy q)
+  -- let policy = softmaxPolicy gen
+  let policy q = epsilonic gen (eps i n) $ softmaxPolicy gen q
+  result <- runEpisode eval encode (policy $ T.forward pnet) piece
   case result of
     -- error? skip
     Left error -> do
@@ -314,8 +349,12 @@ trainLoop !gen !eval !encode !reward !piece oldstate@(DQNState !pnet !tnet !opt 
       (pnet', tnet', opt', loss) <- optimizeModels buffer'
       pure (DQNState pnet' tnet' opt' buffer', r, loss)
  where
-  mkStep r (state, action, state') =
-    ReplayStep (RPState state) (RPAction action) (RPState <$> state') r
+  mkStep r (!state, !action, !actEnc, !next) =
+    ReplayStep (RPState state) (RPAction action) actEnc state' steps' r
+   where
+    (!state', !steps') = case next of
+      Nothing -> (Nothing, [])
+      Just (s, acts) -> (Just $ RPState s, acts)
 
   -- A single optimization step for deep q learning (DQN)
   optimizeModels buffer' = do
@@ -332,10 +371,12 @@ trainLoop !gen !eval !encode !reward !piece oldstate@(DQNState !pnet !tnet !opt 
         !lossWithFake = TT.UnsafeMkTensor $ loss + TT.toDynamic (fakeLoss pnet)
     -- print loss
     -- optimize policy net
-    print lossWithFake
+    putStr $ "loss: " <> show (T.asValue @QType $ TT.toDynamic lossWithFake)
+    putStrLn $ "\tavgq: " <> show (T.asValue @QType $ T.mean $ T.stack (T.Dim 0) qsNow)
     -- let params = TT.flattenParameters pnet
     --     grads = TT.grad lossWithFake params
-    (pnet', opt') <- TT.runStep pnet opt lossWithFake learningRate
+    let lr = learningRate $ fromIntegral i / fromIntegral n
+    (pnet', opt') <- TT.runStep pnet opt lossWithFake lr
     -- update target net
     tparams <- TT.hmapM' TH.Detach $ TT.hmap' TT.ToDependent $ TT.flattenParameters tnet
     pparams <- TT.hmapM' TH.Detach $ TT.hmap' TT.ToDependent $ TT.flattenParameters pnet'
@@ -347,7 +388,7 @@ trainLoop !gen !eval !encode !reward !piece oldstate@(DQNState !pnet !tnet !opt 
 
   -- The loss function of a single replay step
   dqnValues :: _ -> (T.Tensor, T.Tensor) -- (QTensor '[1], QTensor '[1])
-  dqnValues (ReplayStep (RPState s) (RPAction a) s' r) = (qnow, qexpected)
+  dqnValues (ReplayStep _ _ step0Enc s' step1Encs r) = (qnow, qexpected)
    where
     qzero = TT.zeros
     qnext = case s' of
@@ -355,19 +396,28 @@ trainLoop !gen !eval !encode !reward !piece oldstate@(DQNState !pnet !tnet !opt 
       Just (RPState state') ->
         let
           nextQs :: [QTensor '[1]]
-          nextQs = runQ' encode tnet state' <$> getActions eval state'
+          nextQs = TT.forward tnet <$> step1Encs
+          -- nextQs = runQ' encode tnet state' <$> getActions eval state'
           toVal :: QTensor '[1] -> QType
           toVal = T.asValue @QType . TT.toDynamic
          in
           E.maximumOn toVal nextQs
-    qnow = TT.toDynamic $ T.forward pnet (encode s a)
+    qnow = TT.toDynamic $ T.forward pnet step0Enc -- (encode s a)
     qexpected = TT.toDynamic $ TT.addScalar r (gamma `TT.mul` qnext)
 
 -- delta = qnow - qexpected
 
 trainDQN
   :: forall gen tr tr' slc slc' s f h
-   . (StatefulGen gen IO, Show s, Show f, Show h)
+   . ( StatefulGen gen IO
+     , Show s
+     , Show f
+     , Show h
+     , s ~ Split SPitch -- TODO: keep fully open or specialize
+     , f ~ Freeze
+     , h ~ Spread SPitch
+     , Show slc
+     )
   => gen
   -> Eval tr tr' slc slc' (Leftmost s f h)
   -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding (QSpecGeneral DefaultQSpec))
@@ -384,7 +434,7 @@ trainDQN gen eval encode reward pieces n = do
   pure (reverse rewards, reverse losses, modelTrained) -- (modelTrained, rewards)
  where
   trainPiece i (state, rewards, losses) piece = do
-    (state', r, loss) <- trainLoop gen eval encode reward piece state i
+    (state', r, loss) <- trainLoop gen eval encode reward piece state i n
     pure (state', r : rewards, loss : rewards)
   trainEpoch (state, meanRewards, meanLosses, accuracies) i = do
     -- run epoch
@@ -396,18 +446,27 @@ trainDQN gen eval encode reward pieces n = do
     accuracies' <-
       if (i `mod` 10) == 0
         then do
-          results <- mapM (runEpisode eval $ greedyPolicy (runQ encode (pnet state'))) pieces
+          results <- mapM (runEpisode eval encode $ greedyPolicy (T.forward (pnet state'))) pieces
           case sequence results of
             Left error -> do
               putStrLn error
               pure $ (-inf) : accuracies
             Right episodes -> do
-              accs <- mapM (reward . snd) episodes
+              let analyses = map snd episodes
+              accs <- mapM reward analyses
+              when ((i `mod` 100) == 0) $ do
+                putStrLn "current best analyses:"
+                forM_ (zip analyses [1 ..]) $ \(Analysis deriv _, i) -> do
+                  mapM_ print deriv
+                  plotDeriv ("rl/deriv" <> show i <> ".tex") deriv
               pure $ Foldl.fold Foldl.mean accs : accuracies
         else pure accuracies
     -- logging
     when ((i `mod` 10) == 0) $ do
       putStrLn $ "epoch " <> show i
+      let (ReplayBuffer _ bcontent) = buffer state'
+      putStrLn $ "buffer size: " <> show (length bcontent)
+      -- mapM_ print $ take 10 bcontent
       plotHistory "rewards" $ reverse meanRewards'
       plotHistory "losses" $ reverse meanLosses'
       plotHistory "accuracy" $ reverse accuracies'
@@ -447,7 +506,7 @@ showHistory :: String -> [QType] -> IO ()
 showHistory title values = Plt.toWindow 60 40 $ mkHistoryPlot title values
 
 plotHistory :: String -> [QType] -> IO ()
-plotHistory title values = Plt.toFile Plt.def (title <> ".svg") $ mkHistoryPlot title values
+plotHistory title values = Plt.toFile Plt.def ("rl/" <> title <> ".svg") $ mkHistoryPlot title values
 
 plotDeriv :: (Foldable t) => FilePath -> t (Leftmost (Split SPitch) Freeze (Spread SPitch)) -> IO ()
 plotDeriv fn deriv = do

@@ -22,6 +22,9 @@ module PVGrammar.Parse
   , pvCountNoRepSplit
   , pvCountNoRepSplitRightBranch
   , pvCountNoRepSplitRightBranchSplitFirst
+
+    -- * Useful Helpers
+  , pvThaw
   ) where
 
 import Common
@@ -95,7 +98,7 @@ data Elaboration a b c d
  and splits it into lists for each elaboration type.
 -}
 partitionElaborations
-  :: Foldable t => t (Elaboration a b c d) -> ([a], [b], [c], [d])
+  :: (Foldable t) => t (Elaboration a b c d) -> ([a], [b], [c], [d])
 partitionElaborations = foldl' select ([], [], [], [])
  where
   select (a, b, c, d) (EReg t) = (t : a, b, c, d)
@@ -232,7 +235,7 @@ protoVoiceEvaluator =
     pvUnspreadLeft
     pvUnspreadRight
     pvUnsplit
-    pvThaw
+    (\_ t _ -> [(pvThaw t, FreezeOp)])
     pvSlice
 
 {- | Computes the verticalization (unspread) of a middle transition.
@@ -446,16 +449,12 @@ pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs right
     rightPassingChild ((_l, r), (m, orn)) =
       if orn == PassingLeft then Just (m, r) else Nothing
 
-{- | Computes all potential ways a surface transition could have been frozen.
- In this grammar, this operation is unique and just turns ties into edges.
--}
+-- | Unfreezes a single transition, which may be 'Nothing'.
 pvThaw
   :: (Foldable t, Ord n, Hashable n)
-  => StartStop (Notes n)
-  -> Maybe (t (Edge n))
-  -> StartStop (Notes n)
-  -> [(Edges n, Freeze)]
-pvThaw _ e _ = [(Edges (S.fromList $ maybe [] toList e) MS.empty, FreezeOp)]
+  => Maybe (t (Edge n))
+  -> Edges n
+pvThaw e = Edges (S.fromList $ maybe [] toList e) MS.empty
 
 pvSlice :: (Foldable t, Eq n, Hashable n) => t n -> Notes n
 pvSlice = Notes . MS.fromList . toList

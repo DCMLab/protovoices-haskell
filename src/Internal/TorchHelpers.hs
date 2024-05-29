@@ -62,3 +62,18 @@ instance
   => TT.Apply' (Interpolate num) (TT.Tensor dev dtype shape, TT.Tensor dev dtype shape) (TT.Tensor dev dtype shape)
   where
   apply' (Interpolate tau) (p, t) = TT.mulScalar tau p `TT.add` TT.mulScalar (1 - tau) t
+
+-- | Helper Type for getting the number of parameters in a model
+data ShapeVal = ShapeVal
+
+instance (TT.KnownShape shape) => TT.Apply' ShapeVal (TT.Tensor dev dtype shape) [Int] where
+  apply' _ t = TT.shapeVal @shape
+
+instance (TT.KnownShape shape) => TT.Apply' ShapeVal (TT.Parameter dev dtype shape) [Int] where
+  apply' _ t = TT.shapeVal @shape
+
+-- | Helper Type for getting a list out of a HList
+data ToList = ToList
+
+instance TT.Apply' ToList (t, [t]) [t] where
+  apply' _ (x, xs) = x : xs

@@ -23,6 +23,7 @@ module Common
   , reversePath
   , pathArounds
   , pathBetweens
+  , pathTake
 
     -- * StartStop #startstop#
 
@@ -236,6 +237,18 @@ pathArounds (PathEnd a) = [a]
 pathBetweens :: Path a b -> [b]
 pathBetweens (Path _ b rst) = b : pathBetweens rst
 pathBetweens _ = []
+
+{- | Takes at most @n@ '(a,b')' pairs from the path and returns it as a list,
+applying a function over the /betweens/.
+The last 'a' in the path (if taken) is paired with the provided @finalb@.
+The function @f@ is used to be able to map /betweens/ to a type with a default value.
+-}
+pathTake :: Int -> (b -> b') -> b' -> Path a b -> [(a, b')]
+pathTake n f finalb path = reverse $ go [] n path
+ where
+  go acc 0 _ = acc
+  go acc n (PathEnd a) = (a, finalb) : acc
+  go acc n (Path a b rst) = go ((a, f b) : acc) (n - 1) rst
 
 -- StartStop
 -- =========
