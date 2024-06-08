@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
 
-module ReinforcementParser.Encoding where
+module RL.Encoding where
 
 import Common
 import Data.Foldable qualified as F
@@ -26,7 +26,7 @@ import Musicology.Pitch
 import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), InnerEdge, Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
 import PVGrammar.Generate (derivationPlayerPV)
 import PVGrammar.Parse (protoVoiceEvaluator, pvThaw)
-import ReinforcementParser.ModelTypes
+import RL.ModelTypes
 import Torch qualified as T
 import Torch.Typed qualified as TT
 

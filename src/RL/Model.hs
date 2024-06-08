@@ -11,7 +11,7 @@
 {-# HLINT ignore "Use <$>" #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module ReinforcementParser.Model where
+module RL.Model where
 
 import Common
 import Control.Arrow ((>>>))
@@ -22,8 +22,8 @@ import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), intVal, intVal', type 
 import Debug.Trace qualified as DT
 import GHC.Generics (Generic)
 import Internal.TorchHelpers qualified as TH
-import ReinforcementParser.Encoding
-import ReinforcementParser.ModelTypes
+import RL.Encoding
+import RL.ModelTypes
 import Torch qualified as T
 import Torch.Typed qualified as TT
 

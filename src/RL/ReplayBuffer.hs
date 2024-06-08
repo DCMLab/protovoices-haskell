@@ -1,9 +1,9 @@
-module ReinforcementParser.ReplayBuffer where
+module RL.ReplayBuffer where
 
 import Common
 import GreedyParser
-import ReinforcementParser.Encoding
-import ReinforcementParser.ModelTypes
+import RL.Encoding
+import RL.ModelTypes
 import System.Random (RandomGen, getStdRandom)
 import System.Random.Shuffle (shuffle')
 import System.Random.Stateful as Rand (StatefulGen, UniformRange (uniformRM), split)

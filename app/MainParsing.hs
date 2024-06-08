@@ -18,7 +18,7 @@ import PVGrammar.Prob.Simple
   , sampleDerivation
   , sampleDerivation'
   )
-import ReinforcementParser qualified as RL
+import RL qualified
 
 import Musicology.Core hiding ((<.>))
 import Musicology.Core.Slicing

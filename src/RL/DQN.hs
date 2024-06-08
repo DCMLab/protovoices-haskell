@@ -7,7 +7,7 @@
 {-# HLINT ignore "Use <$>" #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module ReinforcementParser.Learning where
+module RL.DQN where
 
 import Common
 
@@ -37,10 +37,10 @@ import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), Notes (Notes), PVAnaly
 import PVGrammar.Generate (derivationPlayerPV)
 import PVGrammar.Parse (protoVoiceEvaluator)
 import PVGrammar.Prob.Simple (PVParams, evalDoubleStep, evalSingleStep, observeDerivation, observeDerivation', observeDoubleStepParsing, observeSingleStepParsing, sampleDerivation', sampleDoubleStepParsing, sampleSingleStepParsing)
-import ReinforcementParser.Encoding
-import ReinforcementParser.Model
-import ReinforcementParser.ModelTypes
-import ReinforcementParser.ReplayBuffer
+import RL.Encoding
+import RL.Model
+import RL.ModelTypes
+import RL.ReplayBuffer
 import System.Random.MWC.Distributions (categorical)
 import System.Random.MWC.Probability qualified as MWC
 import System.Random.Stateful as Rand (StatefulGen, UniformRange (uniformRM), split)
