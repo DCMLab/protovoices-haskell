@@ -18,8 +18,7 @@ import PVGrammar.Prob.Simple
   , sampleDerivation
   , sampleDerivation'
   )
-import ReinforcementParser.Learning qualified as RL
-import ReinforcementParser.Model qualified as RL
+import ReinforcementParser qualified as RL
 
 import Musicology.Core hiding ((<.>))
 import Musicology.Core.Slicing
@@ -367,7 +366,7 @@ mainRL n = do
   typicalRewards <- replicateM 100 (RL.pvRewardExp posterior rareAna)
   putStr "expected optimal reward: "
   print $ T.asValue @RL.QType (T.mean $ T.asTensor typicalRewards)
-  (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) [rare] n
+  (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) (RL.pvRewardAction posterior) [rare] n
   TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
   pure ()
 

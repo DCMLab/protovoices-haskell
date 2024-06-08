@@ -10,7 +10,8 @@
 module ReinforcementParser.Learning where
 
 import Common
-import Control.DeepSeq (force)
+
+-- import Control.DeepSeq (force)
 import Control.Exception (Exception, catch, onException)
 import Control.Foldl qualified as Foldl
 import Control.Monad (foldM, foldM_, forM_, replicateM, when)
@@ -19,33 +20,29 @@ import Control.Monad.Primitive (RealWorld)
 import Control.Monad.State qualified as ST
 import Control.Monad.Trans (lift)
 import Data.Foldable qualified as F
-import Data.HashSet qualified as HS
-import Data.Kind (Type)
 import Data.List.Extra qualified as E
-import Data.Maybe (catMaybes)
 import Data.Vector qualified as V
 import Debug.Trace qualified as DT
 import Display (replayDerivation, viewGraph)
 import GHC.Float (double2Float)
-import GHC.Generics (Generic)
 import Graphics.Rendering.Chart.Backend.Cairo as Plt
 import Graphics.Rendering.Chart.Easy ((.=))
 import Graphics.Rendering.Chart.Easy qualified as Plt
 import Graphics.Rendering.Chart.Gtk qualified as Plt
 import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState, Trans (Trans), getActions, initParseState, parseGreedy, parseStep, pickRandom)
-import Inference.Conjugate (HyperRep, Prior (expectedProbs), evalTraceLogP, sampleProbs)
-import Internal.MultiSet qualified as MS
+import Inference.Conjugate (Hyper, HyperRep, Prior (expectedProbs), evalTraceLogP, printTrace, sampleProbs)
 import Internal.TorchHelpers qualified as TH
 import Musicology.Pitch
 import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
 import PVGrammar.Generate (derivationPlayerPV)
 import PVGrammar.Parse (protoVoiceEvaluator)
-import PVGrammar.Prob.Simple (PVParams, observeDerivation, observeDerivation', sampleDerivation')
+import PVGrammar.Prob.Simple (PVParams, evalDoubleStep, evalSingleStep, observeDerivation, observeDerivation', observeDoubleStepParsing, observeSingleStepParsing, sampleDerivation', sampleDoubleStepParsing, sampleSingleStepParsing)
+import ReinforcementParser.Encoding
 import ReinforcementParser.Model
-import System.Random (RandomGen, getStdRandom)
+import ReinforcementParser.ModelTypes
+import ReinforcementParser.ReplayBuffer
 import System.Random.MWC.Distributions (categorical)
 import System.Random.MWC.Probability qualified as MWC
-import System.Random.Shuffle (shuffle')
 import System.Random.Stateful as Rand (StatefulGen, UniformRange (uniformRM), split)
 import Torch qualified as T
 import Torch.HList qualified as TT
@@ -108,55 +105,6 @@ eps i n = epsStart * exp (log (epsEnd / epsStart) * fromIntegral i / fromIntegra
 
 -- device = T.Device T.CPU 0
 
--- States and Actions
--- ------------------
-
-newtype RPState tr tr' slc s f h = RPState (GreedyState tr tr' slc (Leftmost s f h))
-  deriving (Show)
-
-newtype RPAction slc tr s f h = RPAction (Action slc tr s f h)
-  deriving (Show)
-
--- Replay Buffer
--- -------------
-
-data ReplayStep tr tr' slc s f h r = ReplayStep
-  { _state :: !(RPState tr tr' slc s f h)
-  , _action :: !(RPAction slc tr s f h)
-  , _step :: !(QEncoding (QSpecGeneral DefaultQSpec))
-  , _nextState :: !(Maybe (RPState tr tr' slc s f h))
-  , _nextSteps :: ![QEncoding (QSpecGeneral DefaultQSpec)]
-  , _reward :: !r
-  }
-
-instance (Show slc, Show s, Show f, Show h, Show r) => Show (ReplayStep tr tr' slc s f h r) where
-  show (ReplayStep s _ _ s' _ r) = show s <> " -> " <> show s' <> " " <> show r
-
-data ReplayBuffer tr tr' slc s f h r
-  = ReplayBuffer !Int ![ReplayStep tr tr' slc s f h r]
-  deriving (Show)
-
-mkReplayBuffer :: Int -> ReplayBuffer tr tr' slc s f h r
-mkReplayBuffer n = ReplayBuffer n []
-
-seedReplayBuffer :: Int -> [ReplayStep tr tr' slc s f h r] -> ReplayBuffer tr tr' slc s f h r
-seedReplayBuffer n steps = ReplayBuffer n $ take n steps
-
-pushStep
-  :: ReplayBuffer tr tr' slc s f h r
-  -> ReplayStep tr tr' slc s f h r
-  -> ReplayBuffer tr tr' slc s f h r
-pushStep (ReplayBuffer n queue) trans = ReplayBuffer n $ take n $ trans : queue
-
-sampleSteps
-  :: ReplayBuffer tr tr' slc s f h r
-  -> Int
-  -> IO [ReplayStep tr tr' slc s f h r]
-sampleSteps (ReplayBuffer _ queue) n = do
-  -- not great, but shuffle' doesn't integrated with StatefulGen
-  gen <- getStdRandom Rand.split
-  pure $ take n (shuffle' queue (length queue) gen)
-
 -- Reward
 -- ------
 
@@ -165,7 +113,7 @@ inf = 1 / 0
 
 pvRewardSample
   :: MWC.Gen RealWorld
-  -> PVParams HyperRep
+  -> Hyper PVParams
   -> PVAnalysis SPitch
   -> IO QType
 pvRewardSample gen hyper (Analysis deriv top) = do
@@ -181,20 +129,45 @@ pvRewardSample gen hyper (Analysis deriv top) = do
         pure (-inf)
       Just (_, logprob) -> pure logprob
 
-pvRewardExp :: PVParams HyperRep -> PVAnalysis SPitch -> IO QType
+pvRewardExp :: Hyper PVParams -> PVAnalysis SPitch -> IO QType
 pvRewardExp hyper (Analysis deriv top) =
   case trace of
     Left error -> do
       putStrLn $ "error giving reward: " <> error
       pure (-inf)
-    Right trace -> case evalTraceLogP probs trace sampleDerivation' of
-      Nothing -> do
-        putStrLn "Couldn't evaluate trace while giving reward"
-        pure (-inf)
-      Just (_, logprob) -> pure logprob
+    Right trace -> do
+      case evalTraceLogP probs trace sampleDerivation' of
+        Nothing -> do
+          putStrLn "Couldn't evaluate trace while giving reward"
+          pure (-inf)
+        Just (_, logprob) -> pure logprob
  where
   probs = expectedProbs @PVParams hyper
   trace = observeDerivation deriv top
+
+pvRewardAction
+  :: Hyper PVParams
+  -> PVAction
+  -> Maybe Bool
+  -> IO QType
+pvRewardAction hyper action decision = do
+  case result of
+    Left error -> do
+      putStrLn $ "error giving reward: " <> error
+      pure (-inf)
+    Right Nothing -> do
+      putStrLn "Couldn't evaluate trace while giving reward"
+      pure (-inf)
+    Right (Just (_, logprob)) -> pure logprob
+ where
+  probs = expectedProbs @PVParams hyper
+  singleTop (sl, Trans t _, sr) = (sl, t, sr)
+  doubleTop (sl, Trans tl _, sm, Trans tr _, sr) = (sl, tl, sm, tr, sr)
+  result = case action of
+    Left (ActionSingle top op) -> evalSingleStep probs (singleTop top) op decision
+    Right (ActionDouble top op) -> evalDoubleStep probs (doubleTop top) op decision
+
+-- Either
 
 -- Deep Q-Learning
 -- ---------------
@@ -252,10 +225,11 @@ softmaxPolicy gen q actions = do
   categorical (V.fromList $ T.asValue $ T.toDType T.Double probs) gen
 
 runEpisode
-  :: forall tr tr' slc slc' s f h gen state action encoding
+  :: forall tr tr' slc slc' s f h gen state action encoding step
    . ( state ~ GreedyState tr tr' slc (Leftmost s f h)
      , action ~ Action slc tr s f h
      , encoding ~ QEncoding (QSpecGeneral DefaultQSpec)
+     , step ~ (state, action, encoding, Maybe (state, [encoding]), Maybe Bool)
      )
   => Eval tr tr' slc slc' (Leftmost s f h)
   -> (state -> action -> encoding)
@@ -264,11 +238,12 @@ runEpisode
   -> IO
       ( Either
           String
-          ([(state, action, encoding, Maybe (state, [encoding]))], Analysis s f h tr slc)
+          ([step], Analysis s f h tr slc)
       )
 runEpisode !eval !encode !policyF !input =
   ST.evalStateT (ET.runExceptT $ go [] Nothing $ initParseState eval input) (Nothing, [])
  where
+  -- go :: [step] -> (state, Maybe (action, encoding), Maybe Bool) -> state -> [step]
   go transitions prev state = do
     -- run step
     ST.put (Nothing, []) -- TODO: have parseStep return the action instead of using State
@@ -277,24 +252,32 @@ runEpisode !eval !encode !policyF !input =
     -- add previous step if it exists
     let transitions' = case prev of
           Nothing -> transitions
-          Just (prevState, prevAction) ->
-            addStep prevState prevAction (Just (state, actions)) transitions
+          Just (prevState, prevAction, goLeft) ->
+            addStep prevState prevAction (Just (state, actions)) goLeft transitions
+    -- get previous "continueLeft" decision from previous action
+    let goLeft' = case prev of
+          Just (_, Just (Right (ActionDouble _ op), _), _) -> case op of
+            LMDoubleFreezeLeft _ -> Just True
+            LMDoubleSplitLeft _ -> Just True
+            _ -> Just False
+          _ -> Nothing
     -- evaluate current step
     case result of
       -- done parsing
       Right (top, deriv) ->
-        pure (addStep state actionAndEncoding Nothing transitions', Analysis deriv $ PathEnd top)
+        pure (addStep state actionAndEncoding Nothing goLeft' transitions', Analysis deriv $ PathEnd top)
       -- continue parsing
-      Left state' -> go transitions' (Just (state, actionAndEncoding)) state'
+      Left state' -> go transitions' (Just (state, actionAndEncoding, goLeft')) state'
    where
     addStep
       :: state
       -> Maybe (action, encoding)
       -> Maybe (state, [encoding])
-      -> [(state, action, encoding, Maybe (state, [encoding]))]
-      -> [(state, action, encoding, Maybe (state, [encoding]))]
-    addStep state Nothing _next ts = ts
-    addStep state (Just (action, actEnc)) next ts = (state, action, actEnc, next) : ts
+      -> Maybe Bool
+      -> [(state, action, encoding, Maybe (state, [encoding]), Maybe Bool)]
+      -> [(state, action, encoding, Maybe (state, [encoding]), Maybe Bool)]
+    addStep state Nothing _next _goLeft ts = ts
+    addStep state (Just (action, actEnc)) next goLeft ts = (state, action, actEnc, next, goLeft) : ts
 
     policy :: [action] -> ET.ExceptT String (ST.StateT (Maybe (action, encoding), [encoding]) IO) action
     policy [] = ET.throwError "no actions to select from"
@@ -322,12 +305,13 @@ trainLoop
   -> Eval tr tr' slc slc' (Leftmost s f h)
   -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding (QSpecGeneral DefaultQSpec))
   -> (Analysis s f h tr slc -> IO QType)
+  -> (Action slc tr s f h -> Maybe Bool -> IO QType)
   -> Path slc' tr'
   -> DQNState opt tr tr' slc s f h QType
   -> Int
   -> Int
   -> IO (DQNState opt tr tr' slc s f h QType, QType, QType)
-trainLoop !gen !eval !encode !reward !piece oldstate@(DQNState !pnet !tnet !opt !buffer) i n = do
+trainLoop !gen !eval !encode !reward !rewardStep !piece oldstate@(DQNState !pnet !tnet !opt !buffer) i n = do
   -- 1. run episode, collect results
   -- let policy q = epsilonic gen (eps i n) (greedyPolicy q)
   -- let policy = softmaxPolicy gen
@@ -340,21 +324,37 @@ trainLoop !gen !eval !encode !reward !piece oldstate@(DQNState !pnet !tnet !opt 
       pure (oldstate, 0, 0)
     Right (steps, analysis) -> do
       -- 2. compute reward and add steps to replay buffer
-      r <- reward analysis
-      let steps' = case steps of
-            [] -> []
-            last : rest -> mkStep r last : fmap (mkStep 0) rest
-          buffer' = F.foldl' pushStep buffer steps'
+      (steps', r) <- rewardEpisode steps analysis
+      -- rall <- reward analysis
+      -- putStrLn $ "total episode reward: " <> show r
+      -- putStrLn $ "hypothetical reward: " <> show rall
+      -- mapM_ print (anaDerivation analysis)
+      -- mapM_ print steps'
+      let buffer' = F.foldl' pushStep buffer steps'
       -- 3. optimize models
       (pnet', tnet', opt', loss) <- optimizeModels buffer'
       pure (DQNState pnet' tnet' opt' buffer', r, loss)
  where
-  mkStep r (!state, !action, !actEnc, !next) =
+  mkReplay r (!state, !action, !actEnc, !next, goLeft) =
     ReplayStep (RPState state) (RPAction action) actEnc state' steps' r
    where
     (!state', !steps') = case next of
       Nothing -> (Nothing, [])
       Just (s, acts) -> (Just $ RPState s, acts)
+  rewardEpisode steps analysis = do
+    r <- reward analysis
+    let steps' = case steps of
+          [] -> []
+          last : rest -> mkReplay r last : fmap (mkReplay 0) rest
+    pure (steps', r)
+  -- rewardSteps steps _analysis = do
+  --   steps' <- mapM mkStep steps
+  --   let r = sum $ replayReward <$> steps'
+  --   pure (steps', r)
+  --  where
+  --   mkStep step@(_, action, _, _, goLeft) = do
+  --     rstep <- rewardStep action goLeft
+  --     pure $ mkReplay rstep step
 
   -- A single optimization step for deep q learning (DQN)
   optimizeModels buffer' = do
@@ -417,16 +417,18 @@ trainDQN
      , f ~ Freeze
      , h ~ Spread SPitch
      , Show slc
+     , Show tr
      )
   => gen
   -> Eval tr tr' slc slc' (Leftmost s f h)
   -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding (QSpecGeneral DefaultQSpec))
   -> (Analysis s f h tr slc -> IO QType)
+  -> (Action slc tr s f h -> Maybe Bool -> IO QType)
   -> [Path slc' tr']
   -> Int
   -> IO ([QType], [QType], QModel DefaultQSpec)
-trainDQN gen eval encode reward pieces n = do
-  model0 <- mkQModel defaultSpec
+trainDQN gen eval encode reward rewardStep pieces n = do
+  model0 <- mkQModel
   let opt = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model0) -- T.GD
       buffer = mkReplayBuffer bufferSize
       state0 = DQNState model0 model0 opt buffer
@@ -434,7 +436,7 @@ trainDQN gen eval encode reward pieces n = do
   pure (reverse rewards, reverse losses, modelTrained) -- (modelTrained, rewards)
  where
   trainPiece i (state, rewards, losses) piece = do
-    (state', r, loss) <- trainLoop gen eval encode reward piece state i n
+    (state', r, loss) <- trainLoop gen eval encode reward rewardStep piece state i n
     pure (state', r : rewards, loss : rewards)
   trainEpoch (state, meanRewards, meanLosses, accuracies) i = do
     -- run epoch
@@ -470,19 +472,6 @@ trainDQN gen eval encode reward pieces n = do
       plotHistory "rewards" $ reverse meanRewards'
       plotHistory "losses" $ reverse meanLosses'
       plotHistory "accuracy" $ reverse accuracies'
-    -- when ((i `mod` 100) == 0) $ do
-    --   let DQNState{pnet} = state'
-    --       q !s !a = T.asValue $ T.forward pnet $ encode s a
-    --   results <-
-    --     replicateM 100 $
-    --       mapM
-    --         ( runEpisode eval $ softmaxPolicy gen q
-    --         -- epsilonGreedyPolicy gen (eps i) q
-    --         )
-    --         pieces
-    -- forM_ (snd <$> episodes) $ \(Analysis deriv _) -> do
-    --   putStrLn "average derivation currently:"
-    --   mapM_ print deriv
     pure (state', meanRewards', meanLosses', accuracies')
 
 -- Plotting
@@ -506,7 +495,7 @@ showHistory :: String -> [QType] -> IO ()
 showHistory title values = Plt.toWindow 60 40 $ mkHistoryPlot title values
 
 plotHistory :: String -> [QType] -> IO ()
-plotHistory title values = Plt.toFile Plt.def ("rl/" <> title <> ".svg") $ mkHistoryPlot title values
+plotHistory title values = Plt.toFile Plt.def ("rl/" <> title <> ".png") $ mkHistoryPlot title values
 
 plotDeriv :: (Foldable t) => FilePath -> t (Leftmost (Split SPitch) Freeze (Spread SPitch)) -> IO ()
 plotDeriv fn deriv = do

@@ -4,6 +4,9 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use for_" #-}
 
 {- | This module contains a simple (and musically rather naive)
  probabilistic model of protovoice derivations.
@@ -76,11 +79,13 @@ module PVGrammar.Prob.Simple
   , roundtrip
   , trainSinglePiece
 
-    -- * Likelihood model for ind
-  , sampleSingleStep
-  , observeSingleStep
-  , sampleDoubleStep
-  , observeDoubleStep
+    -- * Likelihood model for parsing
+  , sampleSingleStepParsing
+  , observeSingleStepParsing
+  , evalSingleStep
+  , sampleDoubleStepParsing
+  , observeDoubleStepParsing
+  , evalDoubleStep
   ) where
 
 import Common
@@ -1174,3 +1179,155 @@ observePassing notesLeft notesRight pNewPassing edges = sequence_ $ do
       Geometric0
       (pInner . pNewPassing)
       (edges MS.! (l, r))
+
+-- Helpers for bottom-up evaluation (parsing)
+-- ------------------------------------------
+
+{- | Sample a single step in a bottom-up context.
+Only used for evaluating the probability of a step, therefore returns '()'.
+-}
+sampleSingleStepParsing :: (_) => ContextSingle SPitch -> m ()
+sampleSingleStepParsing parents = do
+  op <- sampleSingleStep parents
+  case op of
+    LMSingleFreeze _ -> pure ()
+    LMSingleSplit _ -> do
+      sampleValue "continueLeft" Bernoulli $ pOuter . pDoubleLeft
+      pure ()
+
+{- | Observerse a single step in a bottom-up context.
+Since double operations don't know whether they have to make a "continueLeft" decision
+when going bottom-up, this decision is moved to the previous step, where the context is know.
+Therefore, if the following step would have to make this decision, it is added here.
+-}
+observeSingleStepParsing
+  :: ContextSingle SPitch
+  -- ^ the parent path
+  -> Maybe Bool
+  -- ^ If the following (generative) step is a double op,
+  -- this is the result of the "continueLeft" decision,
+  -- i.e., 'Just True' for split-left
+  -- and freeze-left and 'Just False' for spread and split-right.
+  -- If the following step is a single op, this is 'Nothing', as not decision is made.
+  -> LeftmostSingle (Split SPitch) Freeze
+  -- ^ the performed operation
+  -> Either String (Trace PVParams)
+observeSingleStepParsing parent decision op = flip execStateT (Trace mempty) $ do
+  -- observe the step as normal
+  observeSingleStep parent op
+  -- account for possible extra decision in next step
+  case decision of
+    Nothing -> pure ()
+    Just goLeft -> observeValue "continueLeft" Bernoulli (pOuter . pDoubleLeft) goLeft
+
+evalSingleStep
+  :: Probs PVParams
+  -> ContextSingle SPitch
+  -> LeftmostSingle (Split SPitch) Freeze
+  -> Maybe Bool
+  -> Either String (Maybe ((), Double))
+evalSingleStep probs parents op decision = do
+  trace <- observeSingleStepParsing parents decision op
+  -- DT.traceM $ snd $ showTrace trace $ sampleSingleStepParsing parents
+  pure $ evalTraceLogP probs trace $ sampleSingleStepParsing parents
+
+{- | Sample a double step in a bottom-up context.
+Only used for evaluating the probability of a step,
+therefore takes the "resulting" op and returns '()'.
+-}
+sampleDoubleStepParsing
+  :: (_)
+  => ContextDouble SPitch
+  -> LeftmostDouble (Split SPitch) Freeze (Spread SPitch)
+  -> m ()
+sampleDoubleStepParsing parents@(sliceL, transL, sliceM, transR, sliceR) op = do
+  if continueLeft
+    then
+      if freezable transL
+        then do
+          shouldFreeze <-
+            sampleValue "shouldFreeze (double)" Bernoulli $ pOuter . pDoubleLeftFreeze
+          if shouldFreeze
+            then
+              LMDoubleFreezeLeft <$> sampleFreeze (sliceL, transL, Inner sliceM)
+            else
+              LMDoubleSplitLeft <$> sampleSplit (sliceL, transL, Inner sliceM)
+        else LMDoubleSplitLeft <$> sampleSplit (sliceL, transL, Inner sliceM)
+    else do
+      shouldSplitRight <-
+        sampleValue "shouldSplitRight" Bernoulli $ pOuter . pDoubleRightSplit
+      if shouldSplitRight
+        then LMDoubleSplitRight <$> sampleSplit (Inner sliceM, transR, sliceR)
+        else LMDoubleSpread <$> sampleSpread parents
+  case op of
+    -- split right? no extra decision
+    LMDoubleSplitRight _ -> pure ()
+    -- reached the end? next step is single, so no extra decision
+    LMDoubleFreezeLeft _
+      | sliceR == Stop -> pure ()
+    -- all other cases: extra "continueLeft" decision in next step
+    _ -> do
+      sampleValue "continueLeft" Bernoulli $ pOuter . pDoubleLeft
+      pure ()
+ where
+  continueLeft = case op of
+    LMDoubleFreezeLeft _ -> True
+    LMDoubleSplitLeft _ -> True
+    _ -> False
+
+{- | Observerse a double step without knowing
+if it happened after a right split (e.g., when parsing).
+The extra decision that is necessary if it doesn't follow a right split
+is "moved" to the previous step.
+Therefore, this step is rated as if it follows a right split (not making the decision).
+In addition, if the following step would have to make the extra decision, it is added here.
+-}
+observeDoubleStepParsing
+  :: ContextDouble SPitch
+  -- ^ the parent path
+  -> Maybe Bool
+  -- ^ If the following (generative) step is a double op,
+  -- this is the result of the "continueLeft" decision,
+  -- i.e., 'Just True' for split-left
+  -- and freeze-left and 'Just False' for spread and split-right.
+  -- If the following step is a single op, this is 'Nothing', as not decision is made.
+  -> LeftmostDouble (Split SPitch) Freeze (Spread SPitch)
+  -- ^ the performed operation
+  -> Either String (Trace PVParams)
+observeDoubleStepParsing parents@(sliceL, transL, sliceM, transR, sliceR) decision op =
+  flip execStateT (Trace mempty) $ do
+    -- observe step but skip "continueLeft" decisions
+    case op of
+      LMDoubleFreezeLeft f -> do
+        observeValue "shouldFreeze (double)" Bernoulli (pOuter . pDoubleLeftFreeze) True
+        observeFreeze (sliceL, transL, Inner sliceM) f
+      LMDoubleSplitLeft s -> do
+        when (freezable transL) $
+          observeValue "shouldFreeze (double)" Bernoulli (pOuter . pDoubleLeftFreeze) False
+        observeSplit (sliceL, transL, Inner sliceM) s
+      LMDoubleSplitRight s -> do
+        observeValue "shouldSplitRight" Bernoulli (pOuter . pDoubleRightSplit) True
+        observeSplit (Inner sliceM, transR, sliceR) s
+      LMDoubleSpread h -> do
+        observeValue "shouldSplitRight" Bernoulli (pOuter . pDoubleRightSplit) False
+        observeSpread parents h
+    -- account for possible extra decision in next step, if this is a right split
+    case op of
+      -- right split? no extra decision can follow
+      LMDoubleSplitRight _ -> pure ()
+      -- otherwise? possible extra decision
+      _ -> case decision of
+        Nothing -> pure ()
+        Just goLeft -> observeValue "continueLeft" Bernoulli (pOuter . pDoubleLeft) goLeft
+
+evalDoubleStep
+  :: Probs PVParams
+  -> ContextDouble SPitch
+  -> LeftmostDouble (Split SPitch) Freeze (Spread SPitch)
+  -> Maybe Bool
+  -> Either String (Maybe ((), Double))
+evalDoubleStep probs parents op decision = do
+  trace <- observeDoubleStepParsing parents decision op
+  -- DT.traceM $ show trace
+  -- DT.traceM $ snd $ showTrace trace $ sampleDoubleStepParsing parents op
+  pure $ evalTraceLogP probs trace $ sampleDoubleStepParsing parents op
