@@ -40,17 +40,24 @@ import System.Random.Stateful
 
 -- * Parsing State
 
-{- | A transition during greedy parsing.
- Augments transition data with a flag
- that indicates whether the transition is a transitive right (2nd) parent of a spread.
--}
-data Trans tr = Trans
-  { gtContent :: !tr
-  -- ^ content of the transition
-  , gt2nd :: !Bool
-  -- ^ flag that indicates (transitive) right parents of spreads
-  }
-  deriving (Show)
+-- {- | A transition during greedy parsing.
+--  Augments transition data with a flag
+--  that indicates whether the transition is a transitive right (2nd) parent of a spread
+--  and/or the direct parent of a left/single-split or thaw.
+--  This allows the parser to enforce the following constraints:
+--  - right splits are not allowed directly before a left split or freeze
+--  - right splits
+-- -}
+-- data Trans tr = Trans
+--   { gtContent :: !tr
+--   -- ^ content of the transition
+--   , gtSpread2nd :: !Bool
+--   -- ^ flag that indicates (transitive) right parents of spreads
+--   , gtStage1Parent :: !Bool
+--   -- ^ flag that indicates that the edge is the parent of a freeze or left split,
+--   -- preventing it from being used for a right split.
+--   }
+--   deriving (Show)
 
 {- | The state of the greedy parse between steps.
  Generally, the current reduction consists of frozen transitions
@@ -89,7 +96,9 @@ data Trans tr = Trans
  > └ current position
  > represented as: ——[1]——[2]——[3]——
 
- The open and semiopen case additionally have a list of operations in generative order.
+ The open and semiopen case additionally have a list of operations in generative order,
+ and a flag that indicates whether the previous step was a left operation,
+ which would prevent continuing with a right unsplit.
 -}
 data GreedyState tr tr' slc op
   = GSFrozen !(Path (Maybe tr') slc)
@@ -98,12 +107,12 @@ data GreedyState tr tr' slc op
       -- ^ frozen transitions and slices from current point leftward
       , _gsMidSlice :: !slc
       -- ^ the slice at the current posision between gsFrozen and gsOpen
-      , _gsOpen :: !(Path (Trans tr) slc)
+      , _gsOpen :: !(Path tr slc)
       -- ^ non-frozen transitions and slices from current point rightward
       , _gsDeriv :: ![op]
       -- ^ derivation from current reduction to original surface
       }
-  | GSOpen !(Path (Trans tr) slc) ![op]
+  | GSOpen !(Path tr slc) ![op]
 
 instance (Show slc, Show o) => Show (GreedyState tr tr' slc o) where
   show (GSFrozen frozen) = showFrozen frozen <> "⋉"
@@ -127,15 +136,29 @@ showOpen path = go path <> "⋉"
 
 -- * Parsing Actions
 
+-- | Single parent of a parsing action
+data SingleParent slc tr = SingleParent !(StartStop slc) !tr !(StartStop slc)
+  deriving (Show)
+
 {- | A parsing action (reduction step) with a single parent transition.
  Combines the parent elements with a single-transition derivation operation.
 -}
 data ActionSingle slc tr s f
   = ActionSingle
-      (StartStop slc, Trans tr, StartStop slc)
+      (SingleParent slc tr)
       -- ^ parent transition (and adjacent slices)
       (LeftmostSingle s f)
       -- ^ single-transition operation
+  deriving (Show)
+
+-- | Single parent of a parsing action
+data DoubleParent slc tr
+  = DoubleParent
+      !(StartStop slc)
+      !tr
+      !slc
+      !tr
+      !(StartStop slc)
   deriving (Show)
 
 {- | A parsing action (reduction step) with two parent transitions.
@@ -143,12 +166,7 @@ data ActionSingle slc tr s f
 -}
 data ActionDouble slc tr s f h
   = ActionDouble
-      ( StartStop slc
-      , Trans tr
-      , slc
-      , Trans tr
-      , StartStop slc
-      )
+      (DoubleParent slc tr)
       -- ^ parent transitions and slice
       (LeftmostDouble s f h)
       -- ^ double-transition operation
@@ -231,7 +249,7 @@ parseStep eval pick state = do
     GSFrozen frozen -> case frozen of
       -- only one transition: unfreeze and terminate
       PathEnd trans -> do
-        (Trans thawed _, op) <-
+        (thawed, op) <-
           pickSingle $
             collectThawSingle eval Start trans Stop
         finish (thawed, [LMSingle op])
@@ -243,16 +261,16 @@ parseStep eval pick state = do
     -- case 2: everything open
     GSOpen open ops -> case open of
       -- only one transition: terminate
-      PathEnd (Trans t _) -> finish (t, ops)
+      PathEnd t -> finish (t, ops)
       -- two transitions: unsplit single and terminate
       Path tl slice (PathEnd tr) -> do
-        (Trans ttop _, optop) <-
+        (ttop, optop) <-
           pickSingle $
             collectUnsplitSingle eval Start tl slice tr Stop
         finish (ttop, LMSingle optop : ops)
       -- more than two transitions: pick double operation and continue
       Path tl sl (Path tm sr rst) -> do
-        let doubles = collectDoubles eval Start tl sl tm sr rst
+        let doubles = collectDoubles eval Start tl sl tm sr rst (lastWasLeft ops)
         ((topl, tops, topr), op) <- pickDouble doubles
         continue $
           GSOpen
@@ -292,7 +310,7 @@ parseStep eval pick state = do
             action <- pick $ thaws <> unsplits
             case action of
               -- picked unsplit
-              Left (ActionSingle (_, parent, _) op) ->
+              Left (ActionSingle (SingleParent _ parent _) op) ->
                 continue $
                   GSSemiOpen
                     frozen
@@ -300,7 +318,7 @@ parseStep eval pick state = do
                     (PathEnd parent)
                     (LMSingle op : ops)
               -- picked thaw
-              Right (ActionDouble (_, thawed, _, _, _) op) ->
+              Right (ActionDouble (DoubleParent _ thawed _ _ _) op) ->
                 continue $ GSOpen (Path thawed mid open) (LMDouble op : ops)
           Path tfrozen sfrozen rstFrozen -> do
             let thaws =
@@ -315,7 +333,7 @@ parseStep eval pick state = do
             action <- pick $ thaws <> unsplits
             case action of
               -- picked unsplit
-              Left (ActionSingle (_, parent, _) op) ->
+              Left (ActionSingle (SingleParent _ parent _) op) ->
                 continue $
                   GSSemiOpen
                     frozen
@@ -323,7 +341,7 @@ parseStep eval pick state = do
                     (PathEnd parent)
                     (LMSingle op : ops)
               -- picked thaw
-              Right (ActionDouble (_, thawed, _, _, _) op) ->
+              Right (ActionDouble (DoubleParent _ thawed _ _ _) op) ->
                 continue $
                   GSSemiOpen
                     rstFrozen
@@ -333,7 +351,7 @@ parseStep eval pick state = do
       -- more than two open transitions: thaw or any double operation
       Path topenl sopenl (Path topenm sopenr rstOpen) -> do
         let doubles =
-              collectDoubles eval (Inner mid) topenl sopenl topenm sopenr rstOpen
+              collectDoubles eval (Inner mid) topenl sopenl topenm sopenr rstOpen (lastWasLeft ops)
         case frozen of
           PathEnd tfrozen -> do
             let thaws =
@@ -384,23 +402,23 @@ parseStep eval pick state = do
   finish = pure . Right
 
   pickSingle
-    :: [ActionSingle slc tr s f] -> ExceptT String m (Trans tr, LeftmostSingle s f)
+    :: [ActionSingle slc tr s f] -> ExceptT String m (tr, LeftmostSingle s f)
   pickSingle actions = do
     -- liftIO $ putStrLn $ "pickSingle " <> show actions
     action <- pick $ Left <$> actions
     case action of
-      Left (ActionSingle (_, top, _) op) -> pure (top, op)
+      Left (ActionSingle (SingleParent _ top _) op) -> pure (top, op)
       Right _ -> throwError "pickSingle returned a double action"
 
   pickDouble
     :: [ActionDouble slc tr s f h]
-    -> ExceptT String m ((Trans tr, slc, Trans tr), LeftmostDouble s f h)
+    -> ExceptT String m ((tr, slc, tr), LeftmostDouble s f h)
   pickDouble actions = do
     -- liftIO $ putStrLn $ "pickDouble " <> show actions
     action <- pick $ Right <$> actions
     case action of
       Left _ -> throwError "pickDouble returned a single action"
-      Right (ActionDouble (_, topl, tops, topr, _) op) ->
+      Right (ActionDouble (DoubleParent _ topl tops topr _) op) ->
         pure ((topl, tops, topr), op)
 
 -- | Enumerates the list of possible actions in the current state
@@ -421,9 +439,9 @@ getActions eval state =
       Path t slice rst -> Left <$> collectThawSingle eval (Inner slice) t Stop
     -- case 2: everything open
     GSOpen open ops -> case open of
-      PathEnd (Trans t _) -> []
+      PathEnd _t -> []
       Path tl slice (PathEnd tr) -> Left <$> collectUnsplitSingle eval Start tl slice tr Stop
-      Path tl sl (Path tm sr rst) -> Right <$> collectDoubles eval Start tl sl tm sr rst
+      Path tl sl (Path tm sr rst) -> Right <$> collectDoubles eval Start tl sl tm sr rst (lastWasLeft ops)
     -- case 3: some parts frozen, some open
     -- check how many transitions are open
     GSSemiOpen frozen mid open ops -> case open of
@@ -438,18 +456,25 @@ getActions eval state =
           (Left <$> unsplits) <> (Right <$> thaws)
       -- more than two open transitions: thaw or any double operation
       Path t1 s1 (Path t2 s2 rstOpen) -> do
-        let doubles = collectDoubles eval (Inner mid) t1 s1 t2 s2 rstOpen
+        let doubles = collectDoubles eval (Inner mid) t1 s1 t2 s2 rstOpen (lastWasLeft ops)
             thaws = collectAllThawLeft eval frozen mid t1 (Inner s1)
         Right <$> (doubles <> thaws)
 
 -- helper functions for getActions and parseStep
 -- ---------------------------------------------
 
+lastWasLeft :: [Leftmost s f h] -> Bool
+lastWasLeft [] = False
+lastWasLeft (op : _) = case op of
+  LMSplitLeft _ -> True
+  LMFreezeLeft _ -> True
+  _ -> False
+
 collectAllThawLeft
   :: Eval tr tr' slc slc' (Leftmost s f h)
   -> Path (Maybe tr') slc
   -> slc
-  -> Trans tr
+  -> tr
   -> StartStop slc
   -> [ActionDouble slc tr s f h]
 collectAllThawLeft eval frozen sm tr sr =
@@ -469,7 +494,7 @@ collectThawSingle eval sl t sr =
     (evalUnfreeze eval sl t sr True)
  where
   getAction (t', op) = case op of
-    LMSingle sop -> Just $ ActionSingle (sl, Trans t' False, sr) sop
+    LMSingle sop -> Just $ ActionSingle (SingleParent sl t' sr) sop
     LMDouble _ -> Nothing
 
 collectThawLeft
@@ -477,45 +502,45 @@ collectThawLeft
   -> StartStop slc
   -> Maybe tr'
   -> slc
-  -> Trans tr
+  -> tr
   -> StartStop slc
   -> [ActionDouble slc tr s f h]
-collectThawLeft eval sl tl sm (Trans tr _) sr =
+collectThawLeft eval sl tl sm tr sr =
   mapMaybe
     getAction
     (evalUnfreeze eval sl tl (Inner sm) False)
  where
   getAction (thawed, op) = case op of
     LMDouble dop ->
-      Just $ ActionDouble (sl, Trans thawed False, sm, Trans tr False, sr) dop
+      Just $ ActionDouble (DoubleParent sl thawed sm tr sr) dop
     LMSingle _ -> Nothing
 
 collectUnsplitSingle
   :: Eval tr tr' slc slc' (Leftmost s f h)
   -> StartStop slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Trans tr
+  -> tr
   -> StartStop slc
   -> [ActionSingle slc tr s f]
-collectUnsplitSingle eval sl (Trans tl _) sm (Trans tr _) sr =
+collectUnsplitSingle eval sl tl sm tr sr =
   mapMaybe getAction $ evalUnsplit eval sl tl sm tr sr SingleOfOne
  where
   getAction (ttop, op) = case op of
-    LMSingle sop -> Just $ ActionSingle (sl, Trans ttop False, sr) sop
+    LMSingle sop -> Just $ ActionSingle (SingleParent sl ttop sr) sop
     LMDouble _ -> Nothing
 
 collectUnsplitLeft
   :: Eval tr tr' slc slc' (Leftmost s f h)
   -> StartStop slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Trans tr
+  -> tr
   -> StartStop slc
   -> [ActionDouble slc tr s f h]
-collectUnsplitLeft eval sstart (Trans tl _) sl (Trans tm _) sr (Trans tr _) send =
+collectUnsplitLeft eval sstart tl sl tm sr tr send =
   mapMaybe getAction $ evalUnsplit eval sstart tl sl tm (Inner sr) LeftOfTwo
  where
   getAction (ttop, op) = case op of
@@ -523,21 +548,22 @@ collectUnsplitLeft eval sstart (Trans tl _) sl (Trans tm _) sr (Trans tr _) send
     LMDouble dop ->
       Just $
         ActionDouble
-          (sstart, Trans ttop False, sr, Trans tr False, send)
+          (DoubleParent sstart ttop sr tr send)
           dop
 
 collectUnsplitRight
   :: Eval tr tr' slc slc' (Leftmost s f h)
   -> StartStop slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Trans tr
+  -> tr
   -> StartStop slc
+  -> Bool
   -> [ActionDouble slc tr s f h]
-collectUnsplitRight eval sstart tl sl (Trans tm m2nd) sr (Trans tr _) send
-  | not m2nd = []
+collectUnsplitRight eval sstart tl sl tm sr tr send afterLeft
+  | afterLeft = []
   | otherwise =
       mapMaybe getAction $
         evalUnsplit eval (Inner sl) tm sr tr send RightOfTwo
@@ -545,19 +571,19 @@ collectUnsplitRight eval sstart tl sl (Trans tm m2nd) sr (Trans tr _) send
   getAction (ttop, op) = case op of
     LMSingle _ -> Nothing
     LMDouble dop ->
-      Just $ ActionDouble (sstart, tl, sl, Trans ttop True, send) dop
+      Just $ ActionDouble (DoubleParent sstart tl sl ttop send) dop
 
 collectUnspreads
   :: Eval tr tr' slc slc' (Leftmost s f h)
   -> StartStop slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Trans tr
+  -> tr
   -> StartStop slc
   -> [ActionDouble slc tr s f h]
-collectUnspreads eval sstart (Trans tl _) sl (Trans tm _) sr (Trans tr _) send =
+collectUnspreads eval sstart tl sl tm sr tr send =
   catMaybes $ do
     -- List
     (sTop, op) <- maybeToList $ evalUnspreadMiddle eval (sl, tm, sr)
@@ -570,25 +596,26 @@ collectUnspreads eval sstart (Trans tl _) sl (Trans tm _) sr (Trans tr _) send =
     LMDouble dop ->
       Just $
         ActionDouble
-          (sstart, Trans lTop False, sTop, Trans rTop True, send)
+          (DoubleParent sstart lTop sTop rTop send)
           dop
 
 collectDoubles
   :: Eval tr tr' slc slc' (Leftmost s f h)
   -> StartStop slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Trans tr
+  -> tr
   -> slc
-  -> Path (Trans tr) slc
+  -> Path tr slc
+  -> Bool
   -> [ActionDouble slc tr s f h]
-collectDoubles eval sstart tl sl tm sr rst = leftUnsplits <> rightUnsplits <> unspreads
+collectDoubles eval sstart tl sl tm sr rst afterLeft = leftUnsplits <> rightUnsplits <> unspreads
  where
   (tr, send) = case rst of
     PathEnd t -> (t, Stop)
     Path t s _ -> (t, Inner s)
   leftUnsplits = collectUnsplitLeft eval sstart tl sl tm sr tr send
-  rightUnsplits = collectUnsplitRight eval sstart tl sl tm sr tr send
+  rightUnsplits = collectUnsplitRight eval sstart tl sl tm sr tr send afterLeft
   unspreads = collectUnspreads eval sstart tl sl tm sr tr send
 
 {- | A policy that picks the next action at random.
@@ -616,7 +643,7 @@ applyAction state action =
     -- case 1: everything frozen
     GSFrozen frozen ->
       case action of
-        Left (ActionSingle (_, top, _) op@(LMSingleFreeze _)) ->
+        Left (ActionSingle (SingleParent _ top _) op@(LMSingleFreeze _)) ->
           case frozen of
             PathEnd _ -> finish top [LMSingle op]
             Path _ slc rst -> continue $ GSSemiOpen rst slc (PathEnd top) [LMSingle op]
@@ -626,19 +653,19 @@ applyAction state action =
       PathEnd tr -> finish tr ops
       Path tl slice (PathEnd tr) ->
         case action of
-          Left (ActionSingle (_, top, _) op@(LMSingleSplit _)) ->
+          Left (ActionSingle (SingleParent _ top _) op@(LMSingleSplit _)) ->
             finish top (LMSingle op : ops)
           _ -> Left "cannot apply this operation to 2 open transitions"
       Path tl sl (Path tm sm rst) ->
         case action of
           Right (ActionDouble _ (LMDoubleFreezeLeft _)) ->
             Left "cannot apply unfreeze in open state"
-          Right (ActionDouble (_, topl, tops, topr, _) op) ->
+          Right (ActionDouble (DoubleParent _ topl tops topr _) op) ->
             continue $ GSOpen (Path topl tops (pathSetHead rst topr)) (LMDouble op : ops)
     -- case 3: some open some closed
     GSSemiOpen frozen mid open ops -> case action of
       -- single op: unfreeze or unsplit
-      Left (ActionSingle (_, top, _) op) -> case op of
+      Left (ActionSingle (SingleParent _ top _) op) -> case op of
         -- unfreeze single
         LMSingleFreeze _ -> case frozen of
           PathEnd _ -> continue $ GSOpen (Path top mid open) (LMSingle op : ops)
@@ -650,7 +677,7 @@ applyAction state action =
           Path topenl sopen rstopen ->
             continue $ GSSemiOpen frozen mid (pathSetHead rstopen top) (LMSingle op : ops)
       -- double op:
-      Right (ActionDouble (_, topl, tops, topr, _) op) -> case op of
+      Right (ActionDouble (DoubleParent _ topl tops topr _) op) -> case op of
         -- unfreeze left
         LMDoubleFreezeLeft _ -> case frozen of
           PathEnd _ -> continue $ GSOpen (Path topl mid open) (LMDouble op : ops)
@@ -668,7 +695,7 @@ applyAction state action =
           _ -> Left "cannot apply unsplit right or unspread to less than 3 open transitions"
  where
   continue = pure . Left
-  finish (Trans top _) ops = pure $ Right (top, ops)
+  finish top ops = pure $ Right (top, ops)
 
 -- * Entry Points
 

@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeData #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
 
 module RL.ModelTypes where
@@ -19,6 +20,8 @@ device = T.Device T.CPU 0
 
 type QDevice = '(TT.CPU, 0)
 
+-- type QDevice = '(TT.CUDA, 0)
+
 type QDType = TT.Double
 
 type QType = Double
@@ -33,6 +36,8 @@ opts = T.withDType qDType $ T.withDevice device T.defaultOpts
 
 toOpts :: forall a. (Torch.Lens.HasTypes a T.Tensor) => a -> a
 toOpts = T.toDevice device . T.toType qDType
+
+type FakeSize = 1337 :: Nat
 
 -- General Spec
 -- ------------
@@ -60,11 +65,23 @@ type family GenOctaveSize (spec :: TGeneralSpec) where
 type family GenEmbSize (spec :: TGeneralSpec) where
   GenEmbSize (TGenSpec _ _ _ _ esize) = esize
 
+type family PShape' (spec :: TGeneralSpec) where
+  PShape' (TGenSpec _ fs _ os _) = '[fs, os]
+
+type family PSize (spec :: TGeneralSpec) where
+  PSize (TGenSpec _ fs _ os _) = fs + os
+
 type family PShape (spec :: TGeneralSpec) where
-  PShape (TGenSpec _ fs _ os _) = '[fs, os]
+  PShape spec = '[FakeSize, PSize spec]
+
+type family EShape' (spec :: TGeneralSpec) where
+  EShape' (TGenSpec _ fs _ os _) = '[fs, os, fs, os]
+
+type family ESize (spec :: TGeneralSpec) where
+  ESize spec = PSize spec + PSize spec
 
 type family EShape (spec :: TGeneralSpec) where
-  EShape (TGenSpec _ fs _ os _) = '[fs, os, fs, os]
+  EShape spec = '[FakeSize, ESize spec]
 
 -- full model spec
 
@@ -91,3 +108,7 @@ type family QSpecState qspec where
 type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 32
 
 type DefaultQSpec = TQSpecData TGeneralSpecDefault 32 32 32 32 64
+
+-- type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 4
+
+-- type DefaultQSpec = TQSpecData TGeneralSpecDefault 2 2 2 2 4

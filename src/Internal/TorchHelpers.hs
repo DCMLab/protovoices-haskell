@@ -1,8 +1,11 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Internal.TorchHelpers where
 
+import Data.Kind (Type)
 import Torch qualified as TD
 import Torch.Typed qualified as TT
 
@@ -15,7 +18,7 @@ instance
   where
   apply' _ = TT.sumAll
 
--- | Helper Type to map sumAll over a HList.
+-- | Helper Type to fold a HList by adding the values.
 data Add = Add
 
 instance
@@ -32,6 +35,25 @@ instance
   => TT.Apply' Add (TT.Tensor dev dtype shape1, TT.Tensor dev dtype shape2) (TT.Tensor dev dtype shapeOut)
   where
   apply' _ (a, b) = TT.add a b
+
+-- | Helper Type to multiply a HList with a scalar
+newtype Mul num
+  = Mul num
+
+instance
+  (TT.Scalar num)
+  => TT.Apply' (Mul num) (TT.Tensor dev dtype shape) (TT.Tensor dev dtype shape)
+  where
+  apply' (Mul n) = TT.mulScalar n
+
+newtype Mul' dev dtype
+  = Mul' (TT.Tensor dev dtype '[])
+
+instance
+  (shape ~ TT.Broadcast '[] shape, TT.BasicArithmeticDTypeIsValid dev dtype)
+  => TT.Apply' (Mul' dev dtype) (TT.Tensor dev dtype shape) (TT.Tensor dev dtype shape)
+  where
+  apply' (Mul' n) = TT.mul n
 
 -- | Detach a typed tensor.
 detach :: TT.Tensor dev dtype shape -> IO (TT.Tensor dev dtype shape)
@@ -77,3 +99,13 @@ data ToList = ToList
 
 instance TT.Apply' ToList (t, [t]) [t] where
   apply' _ (x, xs) = x : xs
+
+-- -- | Helper Type for getting zeros like the parameters of a model
+-- data ZerosLike = ZerosLike
+
+-- instance TT.Apply' ZerosLike (TT.Tensor dev dtype shape) (TT.Tensor dev dtype shape) where
+--   apply' _ = TT.zerosLike
+
+type family ToModelTensors (params :: [Type]) :: [Type] where
+  ToModelTensors '[] = '[]
+  ToModelTensors (TT.Parameter dev dtype shape ': rst) = TT.Tensor dev dtype shape : ToModelTensors rst

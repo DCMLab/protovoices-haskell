@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# OPTIONS_GHC -Wno-all #-}
@@ -55,9 +56,11 @@ import Control.DeepSeq
   ( deepseq
   , force
   )
+import Control.Exception (SomeException, catch)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.String (fromString)
+import GHC.Stack (currentCallStack)
 import Inference.Conjugate
   ( Hyper
   , Trace
@@ -79,6 +82,7 @@ import System.FilePattern.Directory qualified as FP
 import Data.Foldable qualified as F
 import GreedyParser qualified as RL
 import Language.Haskell.DoNotation qualified as Do
+import RL.A2C (runAccuracy)
 import System.Random.MWC.Probability qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
 import Torch qualified as T
@@ -244,8 +248,13 @@ startParsing file = do
   surface <- loadSurface file
   pure $ Greedy.initParseState protoVoiceEvaluator surface
 
+rateState :: RL.QModel RL.DefaultQSpec -> RL.PVState [] -> RL.QTensor '[1]
+rateState model state = RL.forwardValue model $ RL.encodePVState state
+
 listActions :: RL.QModel RL.DefaultQSpec -> RL.PVState [] -> IO ()
-listActions model state = zipWithM_ showAction (getActions state) [1 ..]
+listActions model state = do
+  putStrLn $ "state value: " <> show (rateState model state)
+  zipWithM_ showAction (getActions state) [1 ..]
  where
   showAction action i = putStrLn $ show i <> ". " <> act <> "\n => " <> state' <> "\n q = " <> show q
    where
@@ -356,28 +365,6 @@ learnParams = do
   print $ HS.map octaves allPitches
   -- compute overall posterior
   learn prior dataset
-
-mainRL n = do
-  Just (_, rareAna, _, rare) <- loadItem "data/theory-article" "20a_sus" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
-  gen <- initStdGen
-  mgen <- newIOGenM gen
-  genMWC <- MWC.create -- uses a fixed seed
-  posterior <- learnParams
-  typicalRewards <- replicateM 100 (RL.pvRewardExp posterior rareAna)
-  putStr "expected optimal reward: "
-  print $ T.asValue @RL.QType (T.mean $ T.asTensor typicalRewards)
-  (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) (RL.pvRewardAction posterior) [rare] n
-  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
-  pure ()
-
--- Right (steps, top, deriv) <- RL.runEpisode mgen protoVoiceEvaluator (\_ _ -> 0) 1 input
--- putStrLn "Finished episode"
--- putStr "top: "
--- print top
--- putStrLn "derivation: "
--- forM_ deriv (\x -> putStr "- " >> print x)
--- putStrLn "RL steps: "
--- forM_ steps (\x -> putStr "- " >> print x)
 
 mainGreedy file = do
   input <- loadSurface file
@@ -493,4 +480,50 @@ mainRare = do
     Right g -> return $ Just g
   viewGraphs "rare.tex" $ catMaybes pics
 
-main = mainRL 10_000
+-- mainAdam = do
+--   (model :: TT.Linear 2 2 RL.QDType RL.QDevice) <- TT.sample TT.LinearSpec
+--   let opt = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model)
+--   let inputs = replicate 100_000 (1 :: RL.QType)
+--   (!model', !opt') <- foldM step (model, opt) inputs
+--   print model'
+--   pure ()
+--  where
+--   step :: (TT.Linear 2 2 RL.QDType RL.QDevice, _) -> RL.QType -> IO (TT.Linear 2 2 RL.QDType RL.QDevice, TT.Adam '[TT.Tensor RL.QDevice RL.QDType '[2, 2], TT.Tensor RL.QDevice RL.QDType '[2]])
+--   step (!m, !o) !i = TT.runStep m o loss 0.1
+--    where
+--     loss :: RL.QTensor '[]
+--     loss = TT.sumAll $ TT.forward m $ TT.UnsafeMkTensor @RL.QDevice @RL.QDType $ T.asTensor (i, i)
+
+-- main = mainAdam
+
+mainRL n = do
+  Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "05extra_cello_prelude_1-4_full" -- "10c_rare_int" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
+  Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
+  gen <- initStdGen
+  mgen <- newIOGenM gen
+  genMWC <- MWC.create -- uses a fixed seed
+  posterior <- learnParams
+  bestReward <- RL.pvRewardExp posterior pieceAna
+  putStrLn $ "optimal reward: " <> show bestReward
+  -- (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) (RL.pvRewardAction posterior) [piece] n
+  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
+  actor0 <- RL.mkQModel
+  critic0 <- RL.mkQModel
+  -- actor0 <- RL.loadModel "actor.ht"
+  -- critic0 <- RL.loadModel "critic.ht"
+  (rewards, losses, actor, critic) <-
+    RL.trainA2C protoVoiceEvaluator mgen posterior actor0 critic0 [piece] n
+  testBestReward <- RL.pvRewardExp posterior testAna
+  testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
+  case testAcc of
+    Left error -> putStrLn $ "Error: " <> error
+    Right (testReward, testDeriv) -> do
+      plotDeriv "rl/test-deriv.tex" $ anaDerivation testDeriv
+      putStrLn "test accuracy:"
+      putStrLn $ "  optimal: " <> show testBestReward
+      putStrLn $ "  actual: " <> show testReward
+  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
+  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
+  pure ()
+
+main = catch (mainRL 300) (\(e :: SomeException) -> currentCallStack >>= print >> print e)

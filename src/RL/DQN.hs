@@ -13,7 +13,6 @@ import Common
 
 -- import Control.DeepSeq (force)
 import Control.Exception (Exception, catch, onException)
-import Control.Foldl qualified as Foldl
 import Control.Monad (foldM, foldM_, forM_, replicateM, when)
 import Control.Monad.Except qualified as ET
 import Control.Monad.Primitive (RealWorld)
@@ -25,11 +24,7 @@ import Data.Vector qualified as V
 import Debug.Trace qualified as DT
 import Display (replayDerivation, viewGraph)
 import GHC.Float (double2Float)
-import Graphics.Rendering.Chart.Backend.Cairo as Plt
-import Graphics.Rendering.Chart.Easy ((.=))
-import Graphics.Rendering.Chart.Easy qualified as Plt
-import Graphics.Rendering.Chart.Gtk qualified as Plt
-import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState, Trans (Trans), getActions, initParseState, parseGreedy, parseStep, pickRandom)
+import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState, getActions, initParseState, parseGreedy, parseStep, pickRandom)
 import Inference.Conjugate (Hyper, HyperRep, Prior (expectedProbs), evalTraceLogP, printTrace, sampleProbs)
 import Internal.TorchHelpers qualified as TH
 import Musicology.Pitch
@@ -37,6 +32,7 @@ import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), Notes (Notes), PVAnaly
 import PVGrammar.Generate (derivationPlayerPV)
 import PVGrammar.Parse (protoVoiceEvaluator)
 import PVGrammar.Prob.Simple (PVParams, evalDoubleStep, evalSingleStep, observeDerivation, observeDerivation', observeDoubleStepParsing, observeSingleStepParsing, sampleDerivation', sampleDoubleStepParsing, sampleSingleStepParsing)
+import RL.Common
 import RL.Encoding
 import RL.Model
 import RL.ModelTypes
@@ -104,70 +100,6 @@ eps :: Int -> Int -> QType
 eps i n = epsStart * exp (log (epsEnd / epsStart) * fromIntegral i / fromIntegral n)
 
 -- device = T.Device T.CPU 0
-
--- Reward
--- ------
-
-inf :: QType
-inf = 1 / 0
-
-pvRewardSample
-  :: MWC.Gen RealWorld
-  -> Hyper PVParams
-  -> PVAnalysis SPitch
-  -> IO QType
-pvRewardSample gen hyper (Analysis deriv top) = do
-  let trace = observeDerivation deriv top
-  probs <- MWC.sample (sampleProbs @PVParams hyper) gen
-  case trace of
-    Left error -> do
-      putStrLn $ "error giving reward: " <> error
-      pure (-inf)
-    Right trace -> case evalTraceLogP probs trace sampleDerivation' of
-      Nothing -> do
-        putStrLn "Couldn't evaluate trace while giving reward"
-        pure (-inf)
-      Just (_, logprob) -> pure logprob
-
-pvRewardExp :: Hyper PVParams -> PVAnalysis SPitch -> IO QType
-pvRewardExp hyper (Analysis deriv top) =
-  case trace of
-    Left error -> do
-      putStrLn $ "error giving reward: " <> error
-      pure (-inf)
-    Right trace -> do
-      case evalTraceLogP probs trace sampleDerivation' of
-        Nothing -> do
-          putStrLn "Couldn't evaluate trace while giving reward"
-          pure (-inf)
-        Just (_, logprob) -> pure logprob
- where
-  probs = expectedProbs @PVParams hyper
-  trace = observeDerivation deriv top
-
-pvRewardAction
-  :: Hyper PVParams
-  -> PVAction
-  -> Maybe Bool
-  -> IO QType
-pvRewardAction hyper action decision = do
-  case result of
-    Left error -> do
-      putStrLn $ "error giving reward: " <> error
-      pure (-inf)
-    Right Nothing -> do
-      putStrLn "Couldn't evaluate trace while giving reward"
-      pure (-inf)
-    Right (Just (_, logprob)) -> pure logprob
- where
-  probs = expectedProbs @PVParams hyper
-  singleTop (sl, Trans t _, sr) = (sl, t, sr)
-  doubleTop (sl, Trans tl _, sm, Trans tr _, sr) = (sl, tl, sm, tr, sr)
-  result = case action of
-    Left (ActionSingle top op) -> evalSingleStep probs (singleTop top) op decision
-    Right (ActionDouble top op) -> evalDoubleStep probs (doubleTop top) op decision
-
--- Either
 
 -- Deep Q-Learning
 -- ---------------
@@ -437,13 +369,13 @@ trainDQN gen eval encode reward rewardStep pieces n = do
  where
   trainPiece i (state, rewards, losses) piece = do
     (state', r, loss) <- trainLoop gen eval encode reward rewardStep piece state i n
-    pure (state', r : rewards, loss : rewards)
+    pure (state', r : rewards, loss : losses)
   trainEpoch (state, meanRewards, meanLosses, accuracies) i = do
     -- run epoch
     (state', rewards, losses) <-
       foldM (trainPiece i) (state, [], []) pieces
-    let meanRewards' = Foldl.fold Foldl.mean rewards : meanRewards
-        meanLosses' = Foldl.fold Foldl.mean losses : meanLosses
+    let meanRewards' = mean rewards : meanRewards
+        meanLosses' = mean losses : meanLosses
     -- compute greedy reward ("accuracy")
     accuracies' <-
       if (i `mod` 10) == 0
@@ -461,7 +393,7 @@ trainDQN gen eval encode reward rewardStep pieces n = do
                 forM_ (zip analyses [1 ..]) $ \(Analysis deriv _, i) -> do
                   mapM_ print deriv
                   plotDeriv ("rl/deriv" <> show i <> ".tex") deriv
-              pure $ Foldl.fold Foldl.mean accs : accuracies
+              pure $ mean accs : accuracies
         else pure accuracies
     -- logging
     when ((i `mod` 10) == 0) $ do
@@ -476,31 +408,5 @@ trainDQN gen eval encode reward rewardStep pieces n = do
 
 -- Plotting
 -- --------
-
-mkHistoryPlot
-  :: String
-  -> [QType]
-  -> ST.StateT
-      (Plt.Layout Int QType)
-      (ST.State Plt.CState)
-      ()
-mkHistoryPlot title values = do
-  Plt.setColors $ Plt.opaque <$> [Plt.steelblue]
-  Plt.layout_title .= title
-  Plt.plot $ Plt.line title [points]
- where
-  points = zip [1 :: Int ..] values
-
-showHistory :: String -> [QType] -> IO ()
-showHistory title values = Plt.toWindow 60 40 $ mkHistoryPlot title values
-
-plotHistory :: String -> [QType] -> IO ()
-plotHistory title values = Plt.toFile Plt.def ("rl/" <> title <> ".png") $ mkHistoryPlot title values
-
-plotDeriv :: (Foldable t) => FilePath -> t (Leftmost (Split SPitch) Freeze (Spread SPitch)) -> IO ()
-plotDeriv fn deriv = do
-  case replayDerivation derivationPlayerPV deriv of
-    (Left err) -> putStrLn err
-    (Right g) -> viewGraph fn g
 
 hi s = putStrLn $ "Found the Exception:" <> s

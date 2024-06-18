@@ -1,10 +1,11 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE Strict #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
@@ -15,13 +16,19 @@ module RL.Model where
 
 import Common
 import Control.Arrow ((>>>))
+import Control.DeepSeq
 import Data.Foldable qualified as F
 import Data.Function ((&))
+import Data.Kind (Type)
+import Data.Proxy (Proxy (Proxy))
 import Data.Type.Equality (type (==))
 import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), intVal, intVal', type (*), type (+), type (-))
 import Debug.Trace qualified as DT
+import GHC.ForeignPtr qualified as Ptr
 import GHC.Generics (Generic)
+import GreedyParser (DoubleParent (DoubleParent), SingleParent (SingleParent))
 import Internal.TorchHelpers qualified as TH
+import NoThunks.Class (NoThunks (..), OnlyCheckWhnf (..), allNoThunks)
 import RL.Encoding
 import RL.ModelTypes
 import Torch qualified as T
@@ -36,6 +43,65 @@ activation = TT.gelu
 -- Q net
 -- =====
 
+-- orphan instances for NFData
+-- ---------------------------
+
+-- deriving newtype instance NFData T.IndependentTensor
+
+-- deriving instance NFData (TT.Parameter dev dtype shape)
+
+-- deriving instance NFData (TT.Linear nin nout dtype dev)
+
+-- orphan instances for NoThunks
+-- -----------------------------
+
+deriving via
+  OnlyCheckWhnf T.Tensor
+  instance
+    NoThunks T.Tensor
+
+instance NFData T.Tensor where
+  rnf tensor = ()
+
+deriving instance Generic (TT.Tensor dev dtype shape)
+deriving instance NoThunks (TT.Tensor dev dtype shape)
+deriving instance NFData (TT.Tensor dev dtype shape)
+
+deriving newtype instance NoThunks T.IndependentTensor
+deriving newtype instance NFData T.IndependentTensor
+
+-- deriving instance Generic (TT.Parameter dev dtype shape)
+deriving newtype instance NoThunks (TT.Parameter dev dtype shape)
+deriving newtype instance NFData (TT.Parameter dev dtype shape)
+
+deriving instance NoThunks (TT.Linear nin nout dtype dev)
+deriving instance NFData (TT.Linear nin nout dtype dev)
+
+deriving instance NoThunks (TT.LayerNorm shape dtype dev)
+deriving instance NFData (TT.LayerNorm shape dtype dev)
+
+instance NoThunks (TT.HList '[]) where
+  showTypeOf _ = "HNil"
+  wNoThunks ctxt TT.HNil = pure Nothing
+
+instance (NoThunks x, NoThunks (TT.HList xs)) => NoThunks (TT.HList (x : (xs :: [Type]))) where
+  showTypeOf _ = "HCons " <> showTypeOf (Proxy @x)
+  wNoThunks ctxt (x TT.:. xs) = allNoThunks [noThunks ctxt x, noThunks ctxt xs]
+
+instance NFData (TT.HList '[]) where
+  rnf TT.HNil = ()
+
+instance (NFData x, NFData (TT.HList xs)) => NFData (TT.HList (x : xs :: [Type])) where
+  rnf (x TT.:. xs) = deepseq x $ rnf xs
+
+deriving instance Generic (TT.Adam momenta)
+deriving instance (NoThunks (TT.HList momenta)) => NoThunks (TT.Adam momenta)
+deriving instance (NFData (TT.HList momenta)) => NFData (TT.Adam momenta)
+
+deriving instance Generic TT.GD
+deriving instance NoThunks TT.GD
+deriving instance NFData TT.GD
+
 -- Learned Constant Embeddings
 -- ---------------------------
 
@@ -43,7 +109,7 @@ data ConstEmbSpec (shape :: [Nat]) = ConstEmbSpec
 
 newtype ConstEmb shape = ConstEmb (TT.Parameter QDevice QDType shape)
   deriving (Show, Generic)
-  deriving anyclass (TT.Parameterized)
+  deriving newtype (TT.Parameterized, NFData, NoThunks)
 
 instance
   (TT.TensorOptions shape QDType QDevice)
@@ -64,17 +130,18 @@ instance T.HasForward (ConstEmb size) () (QTensor size) where
 data SliceSpec (hidden :: Nat) = SliceSpec
 
 data SliceEncoder spec hidden = SliceEncoder
-  { _slcL1 :: !(TT.Linear (TT.Product (PShape spec)) hidden QDType QDevice)
+  { _slcL1 :: !(TT.Linear (PSize spec) hidden QDType QDevice)
   , _slcL2 :: !(TT.Linear hidden (GenEmbSize spec) QDType QDevice)
   , _slcStart :: !(ConstEmb '[GenEmbSize spec])
   , _slcStop :: !(ConstEmb '[GenEmbSize spec])
+  -- TODO: learn embedding for empty slice
   }
-  deriving (Show, Generic, TT.Parameterized)
+  deriving (Show, Generic, TT.Parameterized, NoThunks, NFData)
 
 instance
   ( KnownNat hidden
   , KnownNat (GenEmbSize spec)
-  , KnownNat (TT.Product (PShape spec))
+  , KnownNat (PSize spec)
   )
   => T.Randomizable (GeneralSpec spec, SliceSpec hidden) (SliceEncoder spec hidden)
   where
@@ -87,8 +154,13 @@ instance
       <*> T.sample ConstEmbSpec
 
 instance
-  (embshape ~ '[GenEmbSize spec], pshape ~ PShape spec, TT.KnownShape pshape)
-  => TT.HasForward (SliceEncoder spec hidden) (StartStop (QTensor pshape)) (QTensor embshape)
+  ( embshape ~ '[GenEmbSize spec]
+  , pshape ~ PShape spec
+  , pshape ~ '[FakeSize, PSize spec]
+  , TT.KnownShape pshape
+  , KnownNat (GenEmbSize spec)
+  )
+  => TT.HasForward (SliceEncoder spec hidden) (StartStop (Maybe (QTensor pshape))) (QTensor embshape)
   where
   forward model@(SliceEncoder _ _ start stop) input =
     case input of
@@ -100,16 +172,32 @@ instance
 instance
   ( embshape ~ '[GenEmbSize spec]
   , pshape ~ PShape spec
+  , pshape ~ '[FakeSize, PSize spec]
+  , psize ~ PSize spec
+  , TT.KnownShape pshape
+  , KnownNat (GenEmbSize spec)
+  )
+  => T.HasForward (SliceEncoder spec hidden) (Maybe (QTensor pshape)) (QTensor embshape)
+  where
+  forward _ Nothing = TT.zeros
+  forward model (Just pitches) = T.forward model pitches
+  forwardStoch model = pure . T.forward model
+
+instance
+  ( embshape ~ '[GenEmbSize spec]
+  , pshape ~ PShape spec
+  , pshape ~ '[FakeSize, PSize spec]
+  , psize ~ PSize spec
   , TT.KnownShape pshape
   )
   => T.HasForward (SliceEncoder spec hidden) (QTensor pshape) (QTensor embshape)
   where
   forward (SliceEncoder l1 l2 _ _) =
-    TT.flattenAll
-      >>> T.forward l1
+    T.forward l1
       >>> activation
       >>> TT.forward l2
       >>> activation
+      >>> TT.sumDim @0
   forwardStoch model = pure . T.forward model
 
 -- Transition Encoder
@@ -118,20 +206,20 @@ instance
 data TransitionSpec (hidden :: Nat) = TransitionSpec
 
 data TransitionEncoder spec hidden = TransitionEncoder
-  { trL1Passing :: !(TT.Linear (TT.Product (EShape spec)) hidden QDType QDevice)
-  , trL1Inner :: !(TT.Linear (TT.Product (EShape spec)) hidden QDType QDevice)
-  , trL1Left :: !(TT.Linear (TT.Product (PShape spec)) hidden QDType QDevice)
-  , trL1Right :: !(TT.Linear (TT.Product (PShape spec)) hidden QDType QDevice)
+  { trL1Passing :: !(TT.Linear (ESize spec) hidden QDType QDevice)
+  , trL1Inner :: !(TT.Linear (ESize spec) hidden QDType QDevice)
+  , trL1Left :: !(TT.Linear (PSize spec) hidden QDType QDevice)
+  , trL1Right :: !(TT.Linear (PSize spec) hidden QDType QDevice)
   , trL1Root :: !(ConstEmb '[hidden])
   , trL2 :: !(TT.Linear hidden (GenEmbSize spec) QDType QDevice)
   }
-  deriving (Show, Generic, TT.Parameterized)
+  deriving (Show, Generic, TT.Parameterized, NoThunks, NFData)
 
 instance
   ( KnownNat hidden
   , KnownNat (GenEmbSize spec)
-  , KnownNat (TT.Product (PShape spec))
-  , KnownNat (TT.Product (EShape spec))
+  , KnownNat (PSize spec)
+  , KnownNat (ESize spec)
   )
   => T.Randomizable (GeneralSpec spec, TransitionSpec hidden) (TransitionEncoder spec hidden)
   where
@@ -148,8 +236,11 @@ instance
 instance
   forall spec hidden embshape
    . ( embshape ~ '[GenEmbSize spec]
+     , PShape spec ~ '[FakeSize, PSize spec]
+     , EShape spec ~ '[FakeSize, ESize spec]
      , TT.KnownShape (EShape spec)
      , TT.KnownShape (PShape spec)
+     , KnownNat hidden
      )
   => T.HasForward
       (TransitionEncoder spec hidden)
@@ -158,10 +249,22 @@ instance
   where
   forward TransitionEncoder{..} TransitionEncoding{..} = activation $ T.forward trL2 all'
    where
-    pass = activation $ T.forward trL1Passing $ TT.flattenAll trencPassing
-    inner = activation $ T.forward trL1Inner $ TT.flattenAll trencInner
-    left = activation $ T.forward trL1Left $ TT.flattenAll trencLeft
-    right = activation $ T.forward trL1Right $ TT.flattenAll trencRight
+    pass :: QTensor '[hidden]
+    pass = case trencPassing of
+      Nothing -> TT.zeros
+      Just edgesPassing -> TT.sumDim @0 $ activation $ T.forward trL1Passing edgesPassing
+    inner :: QTensor '[hidden]
+    inner = case trencInner of
+      Nothing -> TT.zeros
+      Just edgesInner -> TT.sumDim @0 $ activation $ T.forward trL1Inner edgesInner
+    left :: QTensor '[hidden]
+    left = case trencLeft of
+      Nothing -> TT.zeros
+      Just notes -> TT.sumDim @0 $ activation $ T.forward trL1Left notes
+    right :: QTensor '[hidden]
+    right = case trencRight of
+      Nothing -> TT.zeros
+      Just notes -> TT.sumDim @0 $ activation $ T.forward trL1Right notes
     all = pass + inner + left + right
     all' = if trencRoot then all + activation (T.forward trL1Root ()) else all
   forwardStoch = undefined
@@ -182,7 +285,7 @@ data ActionEncoder spec hidden = ActionEncoder
   , actSpread :: ConstEmb '[GenEmbSize spec - 3] -- TODO: fill in with actual module
   , actFreeze :: ConstEmb '[GenEmbSize spec - 3]
   }
-  deriving (Show, Generic, TT.Parameterized)
+  deriving (Show, Generic, TT.Parameterized, NoThunks, NFData)
 
 instance
   ( emb ~ GenEmbSize spec
@@ -210,8 +313,12 @@ instance
    . ( emb ~ GenEmbSize spec
      , outShape ~ '[emb]
      , emb ~ (emb - 3) + 3
+     , PShape spec ~ '[FakeSize, PSize spec]
      , TT.KnownShape (PShape spec)
      , TT.KnownShape (EShape spec)
+     , KnownNat (PSize spec)
+     , KnownNat emb
+     , KnownNat trHidden
      )
   => T.HasForward
       (ActionEncoder spec actHidden)
@@ -222,14 +329,14 @@ instance
    where
     topCombined :: QTensor '[actHidden]
     topCombined = case top of
-      Left (sl, t, sr) ->
+      Left (SingleParent sl t sr) ->
         let
           embl = activation $ T.forward actTop1sl $ T.forward slc sl
           embt = activation $ T.forward actTop1t1 $ T.forward slc sl
           embr = activation $ T.forward actTop1sr $ T.forward slc sl
          in
           embl + embt + embr
-      Right (sl, t1, sm, t2, sr) ->
+      Right (DoubleParent sl t1 sm t2 sr) ->
         let
           embl = activation $ T.forward actTop1sl $ T.forward slc sl
           embm = activation $ T.forward actTop1sl $ T.forward slc sm
@@ -280,7 +387,7 @@ data StateEncoder spec hidden = StateEncoder
   , stL2 :: TT.Linear hidden hidden QDType QDevice
   , stL3 :: TT.Linear hidden (GenEmbSize spec) QDType QDevice
   }
-  deriving (Show, Generic, TT.Parameterized)
+  deriving (Show, Generic, TT.Parameterized, NoThunks, NFData)
 
 instance
   ( KnownNat (GenEmbSize spec)
@@ -306,8 +413,12 @@ instance
   forall (spec :: TGeneralSpec) slcHidden trHidden stHidden outShape emb
    . ( emb ~ GenEmbSize spec
      , outShape ~ '[emb]
+     , PShape spec ~ [FakeSize, PSize spec]
      , TT.KnownShape (PShape spec)
      , TT.KnownShape (EShape spec)
+     , KnownNat (PSize spec)
+     , KnownNat trHidden
+     , KnownNat emb
      )
   => T.HasForward
       (StateEncoder spec stHidden)
@@ -345,8 +456,8 @@ instance
     fullEmb = F.foldl' (+) midAndFrozen $ zipWith (curry embedOpen) open openEncoders
   forwardStoch a i = pure $ T.forward a i
 
--- Full Model
--- ----------
+-- Full Q Model
+-- ------------
 
 data SpecialSpec (hidden :: Nat) = SpecialSpec
 
@@ -360,12 +471,17 @@ data QModel spec = QModel
   , qModelFinal1 :: !(TT.Linear (GenEmbSize (QSpecGeneral spec)) (QSpecSpecial spec) QDType QDevice)
   , qModelNorm1 :: !(TT.LayerNorm '[QSpecSpecial spec] QDType QDevice)
   , qModelFinal2 :: !(TT.Linear (QSpecSpecial spec) 1 QDType QDevice)
+  , qModelValue1 :: !(TT.Linear (GenEmbSize (QSpecGeneral spec)) (QSpecSpecial spec) QDType QDevice)
+  , qModelValueNorm :: !(TT.LayerNorm '[QSpecSpecial spec] QDType QDevice)
+  , qModelValue2 :: !(TT.Linear (QSpecSpecial spec) 1 QDType QDevice)
   }
-  deriving (Show, Generic, TT.Parameterized)
+  deriving (Show, Generic, TT.Parameterized, NoThunks, NFData)
 
 instance
   ( spec ~ TQSpecData g sp sl tr ac st
   , embsize ~ GenEmbSize g
+  , KnownNat (PSize g)
+  , KnownNat (ESize g)
   , KnownNat sp
   , KnownNat sl
   , KnownNat tr
@@ -373,10 +489,8 @@ instance
   , KnownNat st
   , KnownNat embsize
   , KnownNat (embsize - 3)
-  , -- , KnownNat (embsize + embsize)
-    -- , KnownNat (embsize + (embsize + embsize))
-    KnownNat (TT.Product (PShape g))
-  , KnownNat (TT.Product (EShape g))
+  -- , KnownNat (embsize + embsize)
+  -- , KnownNat (embsize + (embsize + embsize))
   )
   => T.Randomizable (QSpec spec) (QModel spec)
   where
@@ -389,20 +503,27 @@ instance
     qModelFinal1 <- T.sample TT.LinearSpec
     qModelNorm1 <- T.sample $ TT.LayerNormSpec 1e-05
     qModelFinal2 <- T.sample TT.LinearSpec
+    qModelValue1 <- T.sample TT.LinearSpec
+    qModelValueNorm <- T.sample $ TT.LayerNormSpec 1e-05
+    qModelValue2 <- T.sample TT.LinearSpec
     pure QModel{..}
 
 instance
   ( gspec ~ QSpecGeneral spec
   , ((GenEmbSize gspec - 3) + 3) ~ GenEmbSize gspec
+  , PShape gspec ~ '[FakeSize, PSize gspec]
   , TT.KnownShape (PShape gspec)
   , TT.KnownShape (EShape gspec)
   , KnownNat (QSpecSpecial spec)
+  , KnownNat (PSize gspec)
+  , KnownNat (GenEmbSize gspec)
+  , KnownNat (QSpecTrans spec)
   , TT.CheckIsSuffixOf '[QSpecSpecial spec] '[QSpecSpecial spec] (QSpecSpecial spec == QSpecSpecial spec)
   )
   => T.HasForward (QModel spec) (QEncoding gspec) (QTensor '[1])
   where
   forward :: QModel spec -> QEncoding (QSpecGeneral spec) -> QTensor '[1]
-  forward (QModel slc tr act st final1 norm1 final2) (QEncoding actEnc stEnc) =
+  forward (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncoding actEnc stEnc) =
     TT.log $
       TT.sigmoid $
         T.forward final2 $
@@ -417,6 +538,59 @@ instance
 
   forwardStoch :: QModel spec -> QEncoding (QSpecGeneral spec) -> IO (QTensor '[1])
   forwardStoch model input = pure $ T.forward model input
+
+forwardPolicy
+  :: forall spec gspec
+   . ( gspec ~ QSpecGeneral spec
+     , ((GenEmbSize gspec - 3) + 3) ~ GenEmbSize gspec
+     , PShape gspec ~ '[FakeSize, PSize gspec]
+     , TT.KnownShape (PShape gspec)
+     , TT.KnownShape (EShape gspec)
+     , KnownNat (PSize gspec)
+     , KnownNat (QSpecSpecial spec)
+     , KnownNat (GenEmbSize gspec)
+     , KnownNat (QSpecTrans spec)
+     , TT.CheckIsSuffixOf '[QSpecSpecial spec] '[QSpecSpecial spec] (QSpecSpecial spec == QSpecSpecial spec)
+     )
+  => QModel spec
+  -> QEncoding (QSpecGeneral spec)
+  -> QTensor '[1]
+forwardPolicy (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncoding actEnc stEnc) =
+  T.forward final2 $
+    activation $
+      T.forward norm1 $
+        T.forward final1 (actEmb + stEmb)
+ where
+  actEmb :: QTensor '[GenEmbSize gspec]
+  actEmb = T.forward act (slc, tr, actEnc)
+  stEmb :: QTensor '[GenEmbSize gspec]
+  stEmb = T.forward st (slc, tr, stEnc)
+
+forwardValue
+  :: forall spec gspec
+   . ( gspec ~ QSpecGeneral spec
+     , ((GenEmbSize gspec - 3) + 3) ~ GenEmbSize gspec
+     , PShape gspec ~ [FakeSize, PSize gspec]
+     , TT.KnownShape (PShape gspec)
+     , TT.KnownShape (EShape gspec)
+     , KnownNat (PSize gspec)
+     , KnownNat (GenEmbSize gspec)
+     , KnownNat (QSpecSpecial spec)
+     , KnownNat (QSpecTrans spec)
+     , TT.CheckIsSuffixOf '[QSpecSpecial spec] '[QSpecSpecial spec] (QSpecSpecial spec == QSpecSpecial spec)
+     )
+  => QModel spec
+  -> StateEncoding (QSpecGeneral spec)
+  -> QTensor '[1]
+forwardValue (QModel slc tr _ st _ _ _ value1 norm value2) stateEncoding =
+  TT.log $
+    TT.sigmoid $
+      T.forward value2 $
+        activation $
+          T.forward norm $
+            -- DT.traceShowId $
+            T.forward value1 $
+              T.forward st (slc, tr, stateEncoding)
 
 {- | A loss for any model with 0 gradients everywhere.
 Can be used to ensure that all parameters have a gradient,
