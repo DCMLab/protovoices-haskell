@@ -308,6 +308,19 @@ instance
     actFreeze <- T.sample ConstEmbSpec
     pure ActionEncoder{..}
 
+opTypes :: QTensor '[6, 3]
+opTypes =
+  TT.UnsafeMkTensor $!
+    T.asTensor' @[[QType]]
+      [ [0, 0, 0] -- freeze only
+      , [0, 1, 0] -- split only
+      , [1, 0, 0] -- freeze left
+      , [1, 0, 1] -- spread
+      , [1, 1, 0] -- freeze left
+      , [1, 1, 1] -- freeze right
+      ]
+      opts
+
 instance
   forall (spec :: TGeneralSpec) slcHidden trHidden actHidden outShape emb
    . ( emb ~ GenEmbSize spec
@@ -355,18 +368,6 @@ instance
       LMSpread _ -> TT.cat @0 (TT.selectIdx @0 opTypes 3 TT.:. T.forward actSpread () TT.:. TT.HNil)
       LMSplitLeft _ -> TT.cat @0 (TT.selectIdx @0 opTypes 4 TT.:. T.forward actSplit () TT.:. TT.HNil)
       LMSplitRight _ -> TT.cat @0 (TT.selectIdx @0 opTypes 5 TT.:. T.forward actSplit () TT.:. TT.HNil)
-    opTypes :: QTensor '[6, 3]
-    opTypes =
-      TT.UnsafeMkTensor $
-        T.asTensor' @[[QType]]
-          [ [0, 0, 0] -- freeze only
-          , [0, 1, 0] -- split only
-          , [1, 0, 0] -- freeze left
-          , [1, 0, 1] -- spread
-          , [1, 1, 0] -- freeze left
-          , [1, 1, 1] -- freeze right
-          ]
-          opts
   forwardStoch a i = pure $ T.forward a i
 
 -- State Encoder

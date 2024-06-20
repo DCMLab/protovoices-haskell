@@ -14,10 +14,12 @@ import PVGrammar.Generate
 import PVGrammar.Parse
 import PVGrammar.Prob.Simple
   ( PVParams (PVParams)
+  , loadPVHyper
   , observeDerivation
   , observeDerivation'
   , sampleDerivation
   , sampleDerivation'
+  , savePVHyper
   )
 import RL qualified
 
@@ -496,13 +498,17 @@ mainRare = do
 
 -- main = mainAdam
 
+mainPosterior = do
+  posterior <- learnParams
+  savePVHyper "posterior.json" posterior
+
 mainRL n = do
-  Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "05extra_cello_prelude_1-4_full" -- "10c_rare_int" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
-  Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
+  Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "10c_rare_int" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
+  -- Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
   gen <- initStdGen
   mgen <- newIOGenM gen
   genMWC <- MWC.create -- uses a fixed seed
-  posterior <- learnParams
+  (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
   bestReward <- RL.pvRewardExp posterior pieceAna
   putStrLn $ "optimal reward: " <> show bestReward
   -- (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) (RL.pvRewardAction posterior) [piece] n
@@ -513,17 +519,19 @@ mainRL n = do
   -- critic0 <- RL.loadModel "critic.ht"
   (rewards, losses, actor, critic) <-
     RL.trainA2C protoVoiceEvaluator mgen posterior actor0 critic0 [piece] n
-  testBestReward <- RL.pvRewardExp posterior testAna
-  testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
-  case testAcc of
-    Left error -> putStrLn $ "Error: " <> error
-    Right (testReward, testDeriv) -> do
-      plotDeriv "rl/test-deriv.tex" $ anaDerivation testDeriv
-      putStrLn "test accuracy:"
-      putStrLn $ "  optimal: " <> show testBestReward
-      putStrLn $ "  actual: " <> show testReward
+  -- testBestReward <- RL.pvRewardExp posterior testAna
+  -- testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
+  -- case testAcc of
+  --   Left error -> putStrLn $ "Error: " <> error
+  --   Right (testReward, testDeriv) -> do
+  --     plotDeriv "rl/test-deriv.tex" $ anaDerivation testDeriv
+  --     putStrLn "test accuracy:"
+  --     putStrLn $ "  optimal: " <> show testBestReward
+  --     putStrLn $ "  actual: " <> show testReward
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
   pure ()
 
-main = catch (mainRL 300) (\(e :: SomeException) -> currentCallStack >>= print >> print e)
+catchAll prog = catch prog (\(e :: SomeException) -> currentCallStack >>= print >> print e)
+
+main = catchAll $ mainRL 1

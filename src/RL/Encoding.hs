@@ -94,7 +94,7 @@ pitchesTokens
   => [SPitch]
   -> SliceEncoding spec
 pitchesTokens [] = Nothing
-pitchesTokens ps = Just $ TT.UnsafeMkTensor $ toOpts $ T.stack (T.Dim 0) (mkToken <$> ps)
+pitchesTokens ps = Just $! TT.UnsafeMkTensor $! toOpts $ T.stack (T.Dim 0) (mkToken <$> ps)
  where
   -- todo: batch oneHot
   mkToken p =
@@ -167,7 +167,7 @@ edgesTokens
   => [InnerEdge SPitch]
   -> Maybe (QTensor (EShape spec))
 edgesTokens [] = Nothing
-edgesTokens es = Just $ TT.UnsafeMkTensor $ toOpts $ T.stack (T.Dim 0) (mkToken <$> es)
+edgesTokens es = Just $! TT.UnsafeMkTensor $! toOpts $ T.stack (T.Dim 0) (mkToken <$> es)
  where
   -- todo: batch oneHot
   mkToken (p1, p2) =
@@ -320,10 +320,10 @@ encodePVState
      )
   => PVState t
   -> StateEncoding spec
-encodePVState (GSFrozen frozen) = StateEncoding Stop (Just $ getFrozen frozen) []
+encodePVState (GSFrozen frozen) = StateEncoding Stop (Just $! getFrozen frozen) []
 encodePVState (GSOpen open _) = StateEncoding Start Nothing (getOpen open)
 encodePVState (GSSemiOpen frozen mid open _) =
-  StateEncoding (Inner $ encodeSlice @spec mid) (Just $ getFrozen frozen) (getOpen open)
+  StateEncoding (Inner $ encodeSlice @spec mid) (Just $! getFrozen frozen) (getOpen open)
 
 -- Step Encoding
 -- -------------

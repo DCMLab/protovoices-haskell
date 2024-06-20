@@ -1,12 +1,13 @@
 {-# LANGUAGE DataKinds #-}
+{-# HLINT ignore "Use for_" #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use for_" #-}
 
 {- | This module contains a simple (and musically rather naive)
  probabilistic model of protovoice derivations.
@@ -59,6 +60,8 @@ module PVGrammar.Prob.Simple
     PVParams (..)
   , PVParamsOuter (..)
   , PVParamsInner (..)
+  , savePVHyper
+  , loadPVHyper
 
     -- * Likelihood Model
 
@@ -137,6 +140,8 @@ import GHC.Generics (Generic)
 import Inference.Conjugate
 
 -- import qualified Inference.Conjugate           as IC
+
+import Data.Aeson (FromJSON, ToJSON, eitherDecodeFileStrict, encodeFile)
 import Internal.MultiSet qualified as MS
 import Lens.Micro.TH (makeLenses)
 import Musicology.Pitch as MP hiding
@@ -150,6 +155,20 @@ import Musicology.Pitch as MP hiding
   )
 import System.Random.MWC.Probability (categorical)
 
+-- orphan instances
+-- ================
+
+deriving instance Generic (HyperRep Beta)
+deriving newtype instance ToJSON (HyperRep Beta)
+deriving newtype instance FromJSON (HyperRep Beta)
+
+deriving instance Generic (HyperRep (Dirichlet 3))
+deriving newtype instance ToJSON (HyperRep (Dirichlet 3))
+deriving newtype instance FromJSON (HyperRep (Dirichlet 3))
+
+-- parameters
+-- ==========
+
 -- | Parameters for decisions about outer operations (split, spread, freeze).
 data PVParamsOuter f = PVParamsOuter
   { _pSingleFreeze :: f Beta
@@ -159,9 +178,11 @@ data PVParamsOuter f = PVParamsOuter
   }
   deriving (Generic)
 
-deriving instance (Show (f Beta)) => Show (PVParamsOuter f)
-
 makeLenses ''PVParamsOuter
+
+deriving instance (Show (f Beta)) => Show (PVParamsOuter f)
+deriving instance (ToJSON (f Beta)) => ToJSON (PVParamsOuter f)
+deriving instance (FromJSON (f Beta)) => FromJSON (PVParamsOuter f)
 
 {- | Parameters for decisions about inner operations
  (elaboration and distribution within splits and spreads).
@@ -195,16 +216,25 @@ data PVParamsInner f = PVParamsInner
   }
   deriving (Generic)
 
+makeLenses ''PVParamsInner
+
 deriving instance
   ( Show (f Beta)
-  , Show (f Beta)
-  , Show (f Beta)
   , Show (f (Dirichlet 3))
-  , Show (f Beta)
   )
   => Show (PVParamsInner f)
 
-makeLenses ''PVParamsInner
+deriving instance
+  ( ToJSON (f Beta)
+  , ToJSON (f (Dirichlet 3))
+  )
+  => ToJSON (PVParamsInner f)
+
+deriving instance
+  ( FromJSON (f Beta)
+  , FromJSON (f (Dirichlet 3))
+  )
+  => FromJSON (PVParamsInner f)
 
 -- | The combined parameters for inner and outer operations.
 data PVParams f = PVParams
@@ -213,16 +243,34 @@ data PVParams f = PVParams
   }
   deriving (Generic)
 
+makeLenses ''PVParams
+
 deriving instance
   ( Show (f Beta)
-  , Show (f Beta)
-  , Show (f Beta)
   , Show (f (Dirichlet 3))
-  , Show (f Beta)
   )
   => Show (PVParams f)
 
-makeLenses ''PVParams
+deriving instance
+  ( ToJSON (f Beta)
+  , ToJSON (f (Dirichlet 3))
+  )
+  => ToJSON (PVParams f)
+
+deriving instance
+  ( FromJSON (f Beta)
+  , FromJSON (f (Dirichlet 3))
+  )
+  => FromJSON (PVParams f)
+
+savePVHyper :: FilePath -> Hyper PVParams -> IO ()
+savePVHyper = encodeFile
+
+loadPVHyper :: FilePath -> IO (Either String (Hyper PVParams))
+loadPVHyper = eitherDecodeFileStrict
+
+-- helper distribution
+-- ===================
 
 data MagicalOctaves = MagicalOctaves
   deriving (Eq, Ord, Show)
