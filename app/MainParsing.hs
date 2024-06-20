@@ -534,4 +534,4 @@ mainRL n = do
 
 catchAll prog = catch prog (\(e :: SomeException) -> currentCallStack >>= print >> print e)
 
-main = catchAll $ mainRL 1
+main = catchAll $ mainRL 10_000

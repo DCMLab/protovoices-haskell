@@ -39,6 +39,8 @@ import System.Random.Stateful (StatefulGen)
 import System.Random.Stateful qualified as Rand
 import Torch qualified as T
 import Torch.Typed qualified as TT
+import Torch.Typed.Optim.CppOptim qualified as TT
+import Torch.Typed.Optim.CppOptim qualified as TTC
 
 -- global settings
 -- ===============
@@ -68,10 +70,10 @@ nWorkers = 1
 data A2CState = A2CState
   { a2cActor :: !(QModel DefaultQSpec)
   , a2cCritic :: !(QModel DefaultQSpec)
-  , a2cOptActor :: !TT.GD -- !(TT.Adam ModelTensors)
+  , a2cOptActor :: !TT.GD -- !(TT.Adam ModelTensors) -- !(TT.CppOptimizerState TT.AdamOptions ModelParams) --
   , a2cOptCritic :: !TT.GD -- !(TT.Adam ModelTensors)
   }
-  deriving (Generic, NoThunks, NFData)
+  deriving (Generic)
 
 printTensors :: TT.HList ModelTensors -> IO ()
 printTensors (_ TT.:. t TT.:. _) = print t
@@ -221,6 +223,7 @@ runEpisode !eval !gen !hyper !input (A2CState !actor !critic !opta !optc) !i =
         delta = TT.addScalar r $ TT.squeezeAll $ TT.mulScalar gamma vS' - vS
         gradV = TT.grad (TT.squeezeAll vS + fakeLoss critic) (TT.flattenParameters critic)
         zV' = updateEligCritic gamma lambdaV zV gradV
+        actionLogProb :: QTensor '[]
         actionLogProb = TT.log $ TT.UnsafeMkTensor (T.squeezeAll (policy T.! actionIndex))
         gradP = TT.grad (actionLogProb + fakeLoss actor) (TT.flattenParameters actor)
         zP' = updateEligActor gamma lambdaP intensity zP gradP
@@ -232,6 +235,11 @@ runEpisode !eval !gen !hyper !input (A2CState !actor !critic !opta !optc) !i =
     -- let model' = TT.replaceParameters model params'
     --     opt' = opt
     (!actor', !opta') <- lift $ TT.runStep' actor opta (negate learningRate) $ mulModelTensors delta zP'
+    -- (!actor', !opta') <- lift $ do
+    --   advantage <- T.detach $ TT.toDynamic delta
+    --   let lossP :: QTensor '[]
+    --       lossP = negate actionLogProb `TT.mul` (TT.UnsafeMkTensor advantage :: QTensor '[])
+    --   TTC.runStep actor opta lossP
     (!critic', !optc') <- lift $ TT.runStep' critic optc (negate learningRate) $ mulModelTensors delta zV'
     let losses' = T.asValue (TT.toDynamic delta) `SL.Cons` losses
         reward' = reward + r
@@ -253,7 +261,7 @@ runEpisode !eval !gen !hyper !input (A2CState !actor !critic !opta !optc) !i =
     --   print $ qModelFinal2 model'
     case state' of
       Left s' -> go actor' critic' opta' optc' zV' zP' intensity' goleft' losses' reward' s'
-      Right _ -> pure $! force (A2CState actor' critic' (force opta') optc', reward', TT.toDouble (TT.squeezeAll vS) - r, mean losses')
+      Right _ -> pure (A2CState actor' critic' opta' optc', reward', TT.toDouble (TT.squeezeAll vS) - r, mean losses')
 
 runAccuracy
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Leftmost (Split SPitch) Freeze (Spread SPitch))
@@ -289,7 +297,7 @@ data A2CLoopState = A2CLoopState
   , a2clLosses :: SL.List QType
   , a2clAccs :: SL.List QType
   }
-  deriving (Generic, NoThunks)
+  deriving (Generic)
 
 trainA2C
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
@@ -302,9 +310,11 @@ trainA2C
   -> IO ([QType], [QType], QModel DefaultQSpec, QModel DefaultQSpec)
 trainA2C eval gen hyper actor0 critic0 pieces n = do
   -- print $ qModelFinal2 model0
-  let opta = TT.GD -- TT.mkAdam 0 0.9 0.99 (TT.flattenParameters actor0)
-      optc = TT.GD -- TT.mkAdam 0 0.9 0.99 (TT.flattenParameters critic0)
-      state0 = A2CState actor0 critic0 opta optc
+  -- opta <- TT.initOptimizer (TT.AdamOptions 0.0001 (0.9, 0.999) 1e-8 0 False) actor0
+  let
+    opta = TT.GD -- TT.mkAdam 0 0.9 0.99 (TT.flattenParameters actor0)
+    optc = TT.GD -- TT.mkAdam 0 0.9 0.99 (TT.flattenParameters critic0)
+    state0 = A2CState actor0 critic0 opta optc
   (A2CLoopState (A2CState actorTrained criticTrained _ _) rewards losses accs) <- T.foldLoop (A2CLoopState state0 SL.Nil SL.Nil SL.Nil) n trainEpoch
   pure (SL.toListReversed rewards, SL.toListReversed losses, actorTrained, criticTrained)
  where
@@ -320,11 +330,11 @@ trainA2C eval gen hyper actor0 critic0 pieces n = do
         pure (state', r `SL.Cons` rewards, loss `SL.Cons` losses)
   -- \| train one episode on each piece
   trainEpoch fullstate@(A2CLoopState !state !meanRewards !meanLosses !accuracies) !i = do
-    performGC
-    thunkCheck <- noThunks ["trainA2C", "trainEpoch"] fullstate
-    case thunkCheck of
-      Nothing -> pure ()
-      Just thunkInfo -> error $ "Unexpected thunk at " <> show (thunkContext thunkInfo)
+    -- performGC
+    -- thunkCheck <- noThunks ["trainA2C", "trainEpoch"] fullstate
+    -- case thunkCheck of
+    --   Nothing -> pure ()
+    --   Just thunkInfo -> error $ "Unexpected thunk at " <> show (thunkContext thunkInfo)
     -- run epoch
     (!state', !rewards, !losses) <-
       foldM (trainPiece i) (state, SL.Nil, SL.Nil) pieces
