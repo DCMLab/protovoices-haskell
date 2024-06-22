@@ -34,10 +34,30 @@ import Torch.Typed qualified as TT
 -- Encoding
 -- ========
 
+-- StartStop Encoding
+-- ------------------
+
+data StartStopEncoding batchShape innerShape = StartStopEnc
+  { ststTag :: QTensor batchShape
+  , ststInner :: QTensor (batchShape TT.++ innerShape)
+  }
+
+encodeStartStop
+  :: (TT.TensorOptions innerShape QDType QDevice)
+  => (a -> QTensor innerShape)
+  -> StartStop a
+  -> StartStopEncoding '[] innerShape
+encodeStartStop encoder val = case val of
+  Start -> StartStopEnc (mkTag 0) TT.zeros
+  Stop -> StartStopEnc (mkTag 1) TT.zeros
+  Inner a -> StartStopEnc (mkTag 2) $ encoder a
+ where
+  mkTag tag = TT.UnsafeMkTensor $ T.asTensor' @Int tag $ T.withDType T.Int64 opts
+
 -- Slice Encoding
 -- --------------
 
-type SliceEncoding spec = Maybe (QTensor (PShape spec))
+type SliceEncoding spec = QTensor (PShape spec)
 
 pitch2index
   :: forall (flow :: TInt) (olow :: TInt)
@@ -90,22 +110,29 @@ pitchesTokens
      , KnownInt (GenOctaveLow spec)
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
+     , KnownNat (PSize spec)
      )
   => [SPitch]
   -> SliceEncoding spec
-pitchesTokens [] = Nothing
-pitchesTokens ps = Just $! TT.UnsafeMkTensor $! toOpts $ T.stack (T.Dim 0) (mkToken <$> ps)
+pitchesTokens [] = TT.zeros -- undefined -- Nothing
+pitchesTokens ps = TT.UnsafeMkTensor $! encoding
  where
   -- todo: batch oneHot
-  mkToken p =
-    T.cat (T.Dim 0) [T.oneHot fifthSize f, T.oneHot octaveSize o]
-   where
-    f = T.asTensor' (fifths p - fifthLow) $ T.withDType T.Int64 opts
-    o = T.asTensor' (octaves p - octaveLow) $ T.withDType T.Int64 opts
+  -- mkToken p =
+  --   T.cat (T.Dim 0) [T.oneHot fifthSize f, T.oneHot octaveSize o]
+  --  where
+  --   f = T.asTensor' (fifths p - fifthLow) $ T.withDType T.Int64 opts
+  --   o = T.asTensor' (octaves p - octaveLow) $ T.withDType T.Int64 opts
+  pitches = take maxNotes ps
+  fs = T.asTensor' ((\p -> fifths p - fifthLow) <$> pitches) $ T.withDType T.Int64 opts
+  os = T.asTensor' ((\p -> octaves p - octaveLow) <$> pitches) $ T.withDType T.Int64 opts
+  onehots = toOpts $ T.cat (T.Dim 1) [T.oneHot fifthSize fs, T.oneHot octaveSize os]
+  encoding = T.constantPadNd1d [0, 0, 0, 10 - length pitches] 0 onehots
   fifthLow = fromIntegral $ intVal' @(GenFifthLow spec) proxy#
   octaveLow = fromIntegral $ intVal' @(GenOctaveLow spec) proxy#
   fifthSize = TT.natValI @(GenFifthSize spec)
   octaveSize = TT.natValI @(GenOctaveSize spec)
+  maxNotes = TT.natValI @MaxNotes
 
 encodeSlice
   :: forall (spec :: TGeneralSpec)
@@ -113,11 +140,24 @@ encodeSlice
      , KnownInt (GenOctaveLow spec)
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
+     , KnownNat (PSize spec)
      )
   => Notes SPitch
   -> SliceEncoding spec
 encodeSlice (Notes notes) =
   pitchesTokens @spec $ MS.toList notes
+
+encodeSSS
+  :: forall spec
+   . ( KnownInt (GenFifthLow spec)
+     , KnownInt (GenOctaveLow spec)
+     , KnownNat (GenFifthSize spec)
+     , KnownNat (GenOctaveSize spec)
+     , KnownNat (PSize spec)
+     )
+  => StartStop (Notes SPitch)
+  -> StartStopEncoding '[] (PShape spec)
+encodeSSS = encodeStartStop (encodeSlice @spec)
 
 -- Transition Encoding
 -- -------------------
@@ -195,6 +235,7 @@ encodeTransition
      , KnownInt (GenOctaveLow spec)
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
+     , KnownNat (PSize spec)
      )
   => Edges SPitch
   -> TransitionEncoding spec
@@ -238,6 +279,7 @@ encodePVAction
      , KnownInt (GenOctaveLow spec)
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
+     , KnownNat (PSize spec)
      )
   => PVAction
   -> ActionEncoding spec
@@ -270,7 +312,7 @@ encodePVAction (Right (ActionDouble top action)) = ActionEncoding encTop encActi
 -- --------------
 
 data StateEncoding spec = StateEncoding
-  { stateEncodingMid :: !(StartStop (SliceEncoding spec))
+  { stateEncodingMid :: !(StartStopEncoding '[] (PShape spec)) -- !(StartStop (SliceEncoding spec))
   , stateEncodingFrozen :: !(Maybe (TransitionEncoding spec, StartStop (SliceEncoding spec)))
   , stateEncodingOpen :: ![(TransitionEncoding spec, StartStop (SliceEncoding spec))]
   }
@@ -289,6 +331,7 @@ getFrozen
      , KnownInt (GenOctaveLow spec)
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
+     , KnownNat (PSize spec)
      )
   => Path (Maybe (t (Edge SPitch))) (Notes SPitch)
   -> (TransitionEncoding spec, StartStop (SliceEncoding spec))
@@ -303,6 +346,7 @@ getOpen
      , KnownInt (GenOctaveLow spec)
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
+     , KnownNat (PSize spec)
      )
   => Path (Edges SPitch) (Notes SPitch)
   -> [(TransitionEncoding spec, StartStop (SliceEncoding spec))]
@@ -317,13 +361,14 @@ encodePVState
      , KnownInt (GenOctaveLow spec)
      , KnownNat (GenFifthSize spec)
      , KnownNat (GenOctaveSize spec)
+     , KnownNat (PSize spec)
      )
   => PVState t
   -> StateEncoding spec
-encodePVState (GSFrozen frozen) = StateEncoding Stop (Just $! getFrozen frozen) []
-encodePVState (GSOpen open _) = StateEncoding Start Nothing (getOpen open)
+encodePVState (GSFrozen frozen) = StateEncoding (encodeSSS @spec Stop) (Just $! getFrozen frozen) []
+encodePVState (GSOpen open _) = StateEncoding (encodeSSS @spec Start) Nothing (getOpen open)
 encodePVState (GSSemiOpen frozen mid open _) =
-  StateEncoding (Inner $ encodeSlice @spec mid) (Just $! getFrozen frozen) (getOpen open)
+  StateEncoding (encodeSSS @spec $ Inner mid) (Just $! getFrozen frozen) (getOpen open)
 
 -- Step Encoding
 -- -------------

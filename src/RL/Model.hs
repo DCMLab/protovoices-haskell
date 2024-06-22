@@ -32,13 +32,20 @@ import NoThunks.Class (NoThunks (..), OnlyCheckWhnf (..), allNoThunks)
 import RL.Encoding
 import RL.ModelTypes
 import Torch qualified as T
+import Torch.Functional.Internal qualified as TI
 import Torch.Typed qualified as TT
+import Torch.Typed.VLTensor qualified as TT
 
 -- Global Settings
 -- ===============
 
 activation :: QTensor shape -> QTensor shape
 activation = TT.gelu
+
+-- Helper
+-- ======
+
+newtype Batched a = Batched {getBatched :: a}
 
 -- Q net
 -- =====
@@ -156,11 +163,11 @@ instance
 instance
   ( embshape ~ '[GenEmbSize spec]
   , pshape ~ PShape spec
-  , pshape ~ '[FakeSize, PSize spec]
+  , pshape ~ '[MaxNotes, PSize spec]
   , TT.KnownShape pshape
   , KnownNat (GenEmbSize spec)
   )
-  => TT.HasForward (SliceEncoder spec hidden) (StartStop (Maybe (QTensor pshape))) (QTensor embshape)
+  => TT.HasForward (SliceEncoder spec hidden) (StartStop (QTensor pshape)) (QTensor embshape)
   where
   forward model@(SliceEncoder _ _ start stop) input =
     case input of
@@ -172,21 +179,64 @@ instance
 instance
   ( embshape ~ '[GenEmbSize spec]
   , pshape ~ PShape spec
-  , pshape ~ '[FakeSize, PSize spec]
-  , psize ~ PSize spec
+  , pshape ~ '[MaxNotes, PSize spec]
   , TT.KnownShape pshape
   , KnownNat (GenEmbSize spec)
+  , KnownNat batch
   )
-  => T.HasForward (SliceEncoder spec hidden) (Maybe (QTensor pshape)) (QTensor embshape)
+  => TT.HasForward (SliceEncoder spec hidden) (StartStopEncoding '[batch] pshape) (QTensor (batch : embshape))
   where
-  forward _ Nothing = TT.zeros
-  forward model (Just pitches) = T.forward model pitches
-  forwardStoch model = pure . T.forward model
+  forward model@(SliceEncoder _ _ start stop) (StartStopEnc tag inner) = TT.UnsafeMkTensor $ T.indexSelect 0 (TT.toDynamic tag) (TT.toDynamic embs)
+   where
+    batchSize = TT.natValI @batch
+    innerEmb = T.forward model $ Batched inner
+    startEmb = T.forward start ()
+    startEmb' :: QTensor (batch : embshape)
+    startEmb' = TT.UnsafeMkTensor $ TI.tile (TT.toDynamic startEmb) [batchSize, 1]
+    stopEmb = T.forward stop ()
+    stopEmb' :: QTensor (batch : embshape)
+    stopEmb' = TT.UnsafeMkTensor $ TI.tile (TT.toDynamic stopEmb) [batchSize, 1]
+    embs = TT.stack @0 (startEmb' TT.:. stopEmb' TT.:. innerEmb TT.:. TT.HNil)
+  forwardStoch model input = pure $ T.forward model input
 
 instance
   ( embshape ~ '[GenEmbSize spec]
   , pshape ~ PShape spec
-  , pshape ~ '[FakeSize, PSize spec]
+  , pshape ~ '[MaxNotes, PSize spec]
+  , TT.KnownShape pshape
+  , KnownNat (GenEmbSize spec)
+  )
+  => TT.HasForward (SliceEncoder spec hidden) (StartStopEncoding '[] pshape) (QTensor embshape)
+  where
+  forward model (StartStopEnc tag inner) = TT.squeezeDim @0 $ T.forward model batchedEnc
+   where
+    batchedEnc :: StartStopEncoding '[1] pshape
+    batchedEnc = StartStopEnc (TT.unsqueeze @0 tag) (TT.unsqueeze @0 inner)
+  forwardStoch model input = pure $ T.forward model input
+
+instance
+  forall spec hidden batch pshape embshape psize
+   . ( embshape ~ '[GenEmbSize spec]
+     , pshape ~ PShape spec
+     , pshape ~ '[MaxNotes, PSize spec]
+     , psize ~ PSize spec
+     , TT.KnownShape pshape
+     )
+  => T.HasForward (SliceEncoder spec hidden) (Batched (QTensor (batch : pshape))) (QTensor (batch : embshape))
+  where
+  forward (SliceEncoder l1 l2 _ _) =
+    getBatched
+      >>> T.forward l1
+      >>> activation
+      >>> TT.forward l2
+      >>> activation
+      >>> TT.sumDim @1
+  forwardStoch model input = pure $ T.forward model input
+
+instance
+  ( embshape ~ '[GenEmbSize spec]
+  , pshape ~ PShape spec
+  , pshape ~ '[MaxNotes, PSize spec]
   , psize ~ PSize spec
   , TT.KnownShape pshape
   )
@@ -236,7 +286,7 @@ instance
 instance
   forall spec hidden embshape
    . ( embshape ~ '[GenEmbSize spec]
-     , PShape spec ~ '[FakeSize, PSize spec]
+     , PShape spec ~ '[MaxNotes, PSize spec]
      , EShape spec ~ '[FakeSize, ESize spec]
      , TT.KnownShape (EShape spec)
      , TT.KnownShape (PShape spec)
@@ -259,12 +309,10 @@ instance
       Just edgesInner -> TT.sumDim @0 $ activation $ T.forward trL1Inner edgesInner
     left :: QTensor '[hidden]
     left = case trencLeft of
-      Nothing -> TT.zeros
-      Just notes -> TT.sumDim @0 $ activation $ T.forward trL1Left notes
+      notes -> TT.sumDim @0 $ activation $ T.forward trL1Left notes
     right :: QTensor '[hidden]
     right = case trencRight of
-      Nothing -> TT.zeros
-      Just notes -> TT.sumDim @0 $ activation $ T.forward trL1Right notes
+      notes -> TT.sumDim @0 $ activation $ T.forward trL1Right notes
     all = pass + inner + left + right
     all' = if trencRoot then all + activation (T.forward trL1Root ()) else all
   forwardStoch = undefined
@@ -326,7 +374,7 @@ instance
    . ( emb ~ GenEmbSize spec
      , outShape ~ '[emb]
      , emb ~ (emb - 3) + 3
-     , PShape spec ~ '[FakeSize, PSize spec]
+     , PShape spec ~ '[MaxNotes, PSize spec]
      , TT.KnownShape (PShape spec)
      , TT.KnownShape (EShape spec)
      , KnownNat (PSize spec)
@@ -414,7 +462,7 @@ instance
   forall (spec :: TGeneralSpec) slcHidden trHidden stHidden outShape emb
    . ( emb ~ GenEmbSize spec
      , outShape ~ '[emb]
-     , PShape spec ~ [FakeSize, PSize spec]
+     , PShape spec ~ [MaxNotes, PSize spec]
      , TT.KnownShape (PShape spec)
      , TT.KnownShape (EShape spec)
      , KnownNat (PSize spec)
@@ -512,7 +560,7 @@ instance
 instance
   ( gspec ~ QSpecGeneral spec
   , ((GenEmbSize gspec - 3) + 3) ~ GenEmbSize gspec
-  , PShape gspec ~ '[FakeSize, PSize gspec]
+  , PShape gspec ~ '[MaxNotes, PSize gspec]
   , TT.KnownShape (PShape gspec)
   , TT.KnownShape (EShape gspec)
   , KnownNat (QSpecSpecial spec)
@@ -544,7 +592,7 @@ forwardPolicy
   :: forall spec gspec
    . ( gspec ~ QSpecGeneral spec
      , ((GenEmbSize gspec - 3) + 3) ~ GenEmbSize gspec
-     , PShape gspec ~ '[FakeSize, PSize gspec]
+     , PShape gspec ~ '[MaxNotes, PSize gspec]
      , TT.KnownShape (PShape gspec)
      , TT.KnownShape (EShape gspec)
      , KnownNat (PSize gspec)
@@ -571,7 +619,7 @@ forwardValue
   :: forall spec gspec
    . ( gspec ~ QSpecGeneral spec
      , ((GenEmbSize gspec - 3) + 3) ~ GenEmbSize gspec
-     , PShape gspec ~ [FakeSize, PSize gspec]
+     , PShape gspec ~ [MaxNotes, PSize gspec]
      , TT.KnownShape (PShape gspec)
      , TT.KnownShape (EShape gspec)
      , KnownNat (PSize gspec)

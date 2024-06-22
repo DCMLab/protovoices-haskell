@@ -38,6 +38,8 @@ toOpts = T.toDevice device . T.toType qDType
 
 type FakeSize = 1337 :: Nat
 
+type MaxNotes = 10 :: Nat
+
 -- General Spec
 -- ------------
 
@@ -71,7 +73,7 @@ type family PSize (spec :: TGeneralSpec) where
   PSize (TGenSpec _ fs _ os _) = fs + os
 
 type family PShape (spec :: TGeneralSpec) where
-  PShape spec = '[FakeSize, PSize spec]
+  PShape spec = '[MaxNotes, PSize spec]
 
 type family EShape' (spec :: TGeneralSpec) where
   EShape' (TGenSpec _ fs _ os _) = '[fs, os, fs, os]

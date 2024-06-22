@@ -503,7 +503,7 @@ mainPosterior = do
   savePVHyper "posterior.json" posterior
 
 mainRL n = do
-  Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "05b_cello_prelude_1-4" -- "10c_rare_int" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
+  Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "10c_rare_int" -- "05b_cello_prelude_1-4" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
   Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
   gen <- initStdGen
   mgen <- newIOGenM gen

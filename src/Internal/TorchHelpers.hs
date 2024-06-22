@@ -7,6 +7,7 @@ module Internal.TorchHelpers where
 
 import Data.Kind (Type)
 import Torch qualified as TD
+import Torch.Functional.Internal qualified as TFI
 import Torch.Typed qualified as TT
 
 -- | Helper Type to map sumAll over a HList.
