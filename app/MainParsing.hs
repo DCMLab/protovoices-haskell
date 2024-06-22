@@ -503,8 +503,8 @@ mainPosterior = do
   savePVHyper "posterior.json" posterior
 
 mainRL n = do
-  Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "10c_rare_int" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
-  -- Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
+  Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "05b_cello_prelude_1-4" -- "10c_rare_int" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
+  Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
   gen <- initStdGen
   mgen <- newIOGenM gen
   genMWC <- MWC.create -- uses a fixed seed
@@ -519,17 +519,17 @@ mainRL n = do
   -- critic0 <- RL.loadModel "critic.ht"
   (rewards, losses, actor, critic) <-
     RL.trainA2C protoVoiceEvaluator mgen posterior actor0 critic0 [piece] n
-  -- testBestReward <- RL.pvRewardExp posterior testAna
-  -- testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
-  -- case testAcc of
-  --   Left error -> putStrLn $ "Error: " <> error
-  --   Right (testReward, testDeriv) -> do
-  --     plotDeriv "rl/test-deriv.tex" $ anaDerivation testDeriv
-  --     putStrLn "test accuracy:"
-  --     putStrLn $ "  optimal: " <> show testBestReward
-  --     putStrLn $ "  actual: " <> show testReward
-  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
-  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
+  testBestReward <- RL.pvRewardExp posterior testAna
+  testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
+  case testAcc of
+    Left error -> putStrLn $ "Error: " <> error
+    Right (testReward, testDeriv) -> do
+      plotDeriv "rl/test-deriv.tex" $ anaDerivation testDeriv
+      putStrLn "test accuracy:"
+      putStrLn $ "  optimal: " <> show testBestReward
+      putStrLn $ "  actual: " <> show testReward
+  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
+  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
   pure ()
 
 catchAll prog = catch prog (\(e :: SomeException) -> currentCallStack >>= print >> print e)

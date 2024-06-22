@@ -62,24 +62,24 @@ learningRate :: TT.LearningRate QDevice QDType
 learningRate = 0.001
 
 nWorkers :: Int
-nWorkers = 1
+nWorkers = 2
 
 -- A2C
 -- ===
-
-data A2CState = A2CState
-  { a2cActor :: !(QModel DefaultQSpec)
-  , a2cCritic :: !(QModel DefaultQSpec)
-  , a2cOptActor :: !TT.GD -- !(TT.Adam ModelTensors) -- !(TT.CppOptimizerState TT.AdamOptions ModelParams) --
-  , a2cOptCritic :: !TT.GD -- !(TT.Adam ModelTensors)
-  }
-  deriving (Generic)
 
 printTensors :: TT.HList ModelTensors -> IO ()
 printTensors (_ TT.:. t TT.:. _) = print t
 
 printParams :: TT.HList ModelParams -> IO ()
 printParams (_ TT.:. t TT.:. _) = print t
+
+data A2CState = A2CState
+  { a2cActor :: !(QModel DefaultQSpec)
+  , a2cCritic :: !(QModel DefaultQSpec)
+  , a2cOptActor :: !TT.GD -- !(TT.CppOptimizerState TT.AdamOptions ModelParams) -- !(TT.Adam ModelTensors) --
+  , a2cOptCritic :: !TT.GD -- !(TT.Adam ModelTensors)
+  }
+  deriving (Generic)
 
 -- data StepResult = StepResult
 --   { stepState' :: !(Either (GreedyState (Edges SPitch) [Edge SPitch] (Notes SPitch) (PVLeftmost SPitch)) (Edges SPitch, [PVLeftmost SPitch]))
@@ -180,6 +180,106 @@ printParams (_ TT.:. t TT.:. _) = print t
 --       [] -> pure (A2CState actor critic opta' optc', mean rewards', mean losses')
 --       _ -> go actor critic opta' optc' intensity' losses' states' rewards'
 
+data A2CStepState = A2CStepState
+  { a2cStepZV :: !(TT.HList ModelTensors)
+  , a2cStepZP :: !(TT.HList ModelTensors)
+  , a2cStepIntensity :: !QType
+  , a2cStepReward :: !QType
+  , a2cStepGoLeft :: !(Maybe Bool)
+  , a2cStepState
+      :: !( GreedyState
+              (Edges SPitch)
+              [Edge SPitch]
+              (Notes SPitch)
+              (Leftmost (Split SPitch) Freeze (Spread SPitch))
+          )
+  }
+
+initPieceState
+  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
+  -> Path [SPitch] [Edge SPitch]
+  -> TT.HList ModelTensors
+  -> A2CStepState
+initPieceState eval input z0 = A2CStepState z0 z0 1 0 Nothing $ initParseState eval input
+
+pieceStep
+  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
+  -> Rand.IOGenM Rand.StdGen
+  -> Hyper PVParams
+  -> Int
+  -> A2CState
+  -> A2CStepState
+  -> ET.ExceptT String IO (A2CState, Either A2CStepState QType, QType)
+pieceStep eval gen hyper i (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward goleft state) = do
+  -- EitherT String IO
+  -- preparation: list actions, compute policy
+  let actions = getActions eval state
+      encodings = encodeStep state <$> actions
+      policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
+  -- choose action according to policy
+  actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
+  let action = actions !! actionIndex
+      goleft' = case action of
+        Right (ActionDouble _ op) -> case op of
+          LMDoubleFreezeLeft _ -> Just True
+          LMDoubleSplitLeft _ -> Just True
+          _ -> Just False
+        _ -> Nothing
+  -- apply action
+  state' <- ET.except $ applyAction state action
+  -- compute A2C update
+  -- r <- case state' of
+  --   Left _ -> 0
+  --   Right (top, deriv) -> lift $ reward (Analysis deriv (PathEnd top))
+  r <- lift $ pvRewardAction hyper action goleft
+  let vS = forwardValue critic $ encodePVState state
+      vS' = case state' of
+        Left s' -> forwardValue critic $ encodePVState s'
+        Right _ -> 0
+      delta = TT.addScalar r $ TT.squeezeAll $ TT.mulScalar gamma vS' - vS
+      gradV = TT.grad (TT.squeezeAll vS + fakeLoss critic) (TT.flattenParameters critic)
+      zV' = updateEligCritic gamma lambdaV zV gradV
+      actionLogProb :: QTensor '[]
+      actionLogProb = TT.log $ TT.UnsafeMkTensor (T.squeezeAll (policy T.! actionIndex))
+      gradP = TT.grad (actionLogProb + fakeLoss actor) (TT.flattenParameters actor)
+      zP' = updateEligActor gamma lambdaP intensity zP gradP
+      --     gradTotal = TT.hzipWith Add zV' zP'
+      intensity' = gamma * intensity
+  --     deltaTotal = TT.hmap' (Mul $ TT.toDouble $ learningRate * delta) gradTotal
+  --     params = TT.hmap' TT.ToDependent $ TT.flattenParameters model
+  -- params' <- lift $ TT.hmapM' TT.MakeIndependent $ TT.hzipWith Add params deltaTotal
+  -- let model' = TT.replaceParameters model params'
+  --     opt' = opt
+  (!actor', !opta') <- lift $ TT.runStep' actor opta (negate learningRate) $ mulModelTensors delta zP'
+  -- (!actor', !opta') <- lift $ do
+  --   advantage <- T.detach $ TT.toDynamic delta
+  --   let lossP :: QTensor '[]
+  --       lossP = negate actionLogProb `TT.mul` (TT.UnsafeMkTensor advantage :: QTensor '[])
+  --   TTC.runStep actor opta lossP
+  (!critic', !optc') <- lift $ TT.runStep' critic optc (negate learningRate) $ mulModelTensors delta zV'
+  let loss' = T.asValue $ TT.toDynamic delta
+      reward' = reward + r
+  lift $ when ((i `mod` 100) == 0) $ do
+    print state'
+    putStr "r = " >> print r
+    putStr "vS = " >> print vS
+    putStr "vS' = " >> print vS'
+    putStr "delta = " >> print delta
+  --   putStr "gradV = " >> printTensors gradV
+  --   putStr "zV' = " >> printTensors zV'
+  --   putStr "log π = " >> print actionLogProb
+  --   putStr "gradP = " >> printTensors gradP
+  --   putStr "zP' = " >> printTensors zP'
+  --   putStr "gradTotal = " >> printTensors gradTotal
+  --   putStr "deltaTotal = " >> printTensors deltaTotal
+  --   putStr "params' = " >> printParams params'
+  --   putStr "I' = " >> print intensity'
+  --   print $ qModelFinal2 model'
+  let pieceState' = case state' of
+        Left s' -> Left $ A2CStepState zV' zP' intensity' reward' goleft' s'
+        Right _ -> Right reward' -- TT.toDouble (TT.squeezeAll vS) - r
+  pure (A2CState actor' critic' opta' optc', pieceState', loss')
+
 runEpisode
   :: (_)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
@@ -188,80 +288,56 @@ runEpisode
   -> Path [SPitch] [Edge SPitch]
   -> A2CState
   -> Int
-  -> IO (Either String (A2CState, QType, QType, QType))
-runEpisode !eval !gen !hyper !input (A2CState !actor !critic !opta !optc) !i =
-  ET.runExceptT $ go actor critic opta optc elig0 elig0 1 Nothing SL.Nil 0 $ initParseState eval input
+  -> IO (Either String (A2CState, QType, QType))
+runEpisode !eval !gen !hyper !input !modelState !i =
+  ET.runExceptT $ go modelState (initPieceState eval input z0) SL.Nil
  where
-  elig0 :: TT.HList ModelTensors
-  elig0 = modelZeros actor
-  go actor critic opta optc zV zP intensity goleft losses reward state = do
-    -- EitherT String IO
-    -- preparation: list actions, compute policy
-    let actions = getActions eval state
-        encodings = encodeStep state <$> actions
-        policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-    -- choose action according to policy
-    actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
-    let action = actions !! actionIndex
-        goleft' = case action of
-          Right (ActionDouble _ op) -> case op of
-            LMDoubleFreezeLeft _ -> Just True
-            LMDoubleSplitLeft _ -> Just True
-            _ -> Just False
-          _ -> Nothing
-    -- apply action
-    state' <- ET.except $ applyAction state action
-    -- compute A2C update
-    -- r <- case state' of
-    --   Left _ -> 0
-    --   Right (top, deriv) -> lift $ reward (Analysis deriv (PathEnd top))
-    r <- lift $ pvRewardAction hyper action goleft
-    let vS = forwardValue critic $ encodePVState state
-        vS' = case state' of
-          Left s' -> forwardValue critic $ encodePVState s'
-          Right _ -> 0
-        delta = TT.addScalar r $ TT.squeezeAll $ TT.mulScalar gamma vS' - vS
-        gradV = TT.grad (TT.squeezeAll vS + fakeLoss critic) (TT.flattenParameters critic)
-        zV' = updateEligCritic gamma lambdaV zV gradV
-        actionLogProb :: QTensor '[]
-        actionLogProb = TT.log $ TT.UnsafeMkTensor (T.squeezeAll (policy T.! actionIndex))
-        gradP = TT.grad (actionLogProb + fakeLoss actor) (TT.flattenParameters actor)
-        zP' = updateEligActor gamma lambdaP intensity zP gradP
-        --     gradTotal = TT.hzipWith Add zV' zP'
-        intensity' = gamma * intensity
-    --     deltaTotal = TT.hmap' (Mul $ TT.toDouble $ learningRate * delta) gradTotal
-    --     params = TT.hmap' TT.ToDependent $ TT.flattenParameters model
-    -- params' <- lift $ TT.hmapM' TT.MakeIndependent $ TT.hzipWith Add params deltaTotal
-    -- let model' = TT.replaceParameters model params'
-    --     opt' = opt
-    (!actor', !opta') <- lift $ TT.runStep' actor opta (negate learningRate) $ mulModelTensors delta zP'
-    -- (!actor', !opta') <- lift $ do
-    --   advantage <- T.detach $ TT.toDynamic delta
-    --   let lossP :: QTensor '[]
-    --       lossP = negate actionLogProb `TT.mul` (TT.UnsafeMkTensor advantage :: QTensor '[])
-    --   TTC.runStep actor opta lossP
-    (!critic', !optc') <- lift $ TT.runStep' critic optc (negate learningRate) $ mulModelTensors delta zV'
-    let losses' = T.asValue (TT.toDynamic delta) `SL.Cons` losses
-        reward' = reward + r
-    lift $ when ((i `mod` 100) == 0) $ do
-      print state'
-      putStr "r = " >> print r
-      putStr "vS = " >> print vS
-      putStr "vS' = " >> print vS'
-      putStr "delta = " >> print delta
-    --   putStr "gradV = " >> printTensors gradV
-    --   putStr "zV' = " >> printTensors zV'
-    --   putStr "log π = " >> print actionLogProb
-    --   putStr "gradP = " >> printTensors gradP
-    --   putStr "zP' = " >> printTensors zP'
-    --   putStr "gradTotal = " >> printTensors gradTotal
-    --   putStr "deltaTotal = " >> printTensors deltaTotal
-    --   putStr "params' = " >> printParams params'
-    --   putStr "I' = " >> print intensity'
-    --   print $ qModelFinal2 model'
-    case state' of
-      Left s' -> go actor' critic' opta' optc' zV' zP' intensity' goleft' losses' reward' s'
-      Right _ -> pure (A2CState actor' critic' opta' optc', reward', TT.toDouble (TT.squeezeAll vS) - r, mean losses')
+  z0 :: TT.HList ModelTensors
+  z0 = modelZeros $ a2cActor modelState
+  go modelState pieceState losses = do
+    (modelState', pieceState', loss) <- pieceStep eval gen hyper i modelState pieceState
+    let losses' = loss `SL.Cons` losses
+    case pieceState' of
+      Left ps' -> go modelState' ps' losses'
+      Right reward -> pure (modelState', reward, mean losses')
+
+runEpisodes
+  :: (_)
+  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
+  -> Rand.IOGenM Rand.StdGen
+  -> Hyper PVParams
+  -> Path [SPitch] [Edge SPitch]
+  -> A2CState
+  -> Int
+  -> IO (Either String (A2CState, QType, QType))
+runEpisodes !eval !gen !hyper !input !modelState !i =
+  ET.runExceptT $ go modelState states0 SL.Nil []
+ where
+  z0 :: TT.HList ModelTensors
+  z0 = modelZeros $ a2cActor modelState
+  -- initialize workers, each with a copy of the piece
+  states0 = replicate nWorkers $ initPieceState eval input z0
+  -- Worker folding function:
+  -- The accumulator takes the current model state, a list of live piece states,
+  -- list of losses and list of rewards.
+  -- The element is the state of the current piece.
+  -- Performs a single step forward on the piece, updating the model state and collecting loss.
+  -- If the new piece state after the step is a terminal state,
+  -- the reward is added to the reward list and the piece is dropped.
+  -- If the new state is not terminal, it is added to the list of live piece states.
+  iterWorker (ms, pss, ls, rs) ps = do
+    (ms', ps'_, loss) <- pieceStep eval gen hyper i ms ps
+    let ls' = loss `SL.Cons` ls
+    pure $ case ps'_ of
+      Left ps' -> (ms', ps' : pss, ls', rs)
+      Right result -> (ms', pss, ls', result : rs)
+  -- run the episode step by step
+  go modelState pieceStates losses rewards = do
+    (modelState', pieceStates', losses', rewards') <-
+      foldM iterWorker (modelState, [], losses, rewards) pieceStates
+    case pieceStates of
+      [] -> pure (modelState', mean rewards', mean losses')
+      _ -> go modelState' pieceStates' losses' rewards'
 
 runAccuracy
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Leftmost (Split SPitch) Freeze (Spread SPitch))
@@ -325,7 +401,7 @@ trainA2C eval gen hyper actor0 critic0 pieces n = do
       Left error -> do
         putStrLn $ "Episode error: " <> error
         pure (state, rewards, losses)
-      Right (state', r, rdelta, loss) -> do
+      Right (state', r, loss) -> do
         putStrLn $ "loss: " <> show loss
         pure (state', r `SL.Cons` rewards, loss `SL.Cons` losses)
   -- \| train one episode on each piece
