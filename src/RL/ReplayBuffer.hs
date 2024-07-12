@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module RL.ReplayBuffer where
 
 import Common
@@ -23,9 +25,9 @@ newtype RPAction slc tr s f h = RPAction (Action slc tr s f h)
 data ReplayStep tr tr' slc s f h r = ReplayStep
   { replayState :: !(RPState tr tr' slc s f h)
   , replayAction :: !(RPAction slc tr s f h)
-  , replayStep :: !(QEncoding (QSpecGeneral DefaultQSpec))
+  , replayStep :: !(QEncoding '[] (QSpecGeneral DefaultQSpec))
   , replayNextState :: !(Maybe (RPState tr tr' slc s f h))
-  , replayNextSteps :: ![QEncoding (QSpecGeneral DefaultQSpec)]
+  , replayNextSteps :: ![QEncoding '[] (QSpecGeneral DefaultQSpec)]
   , replayReward :: !r
   }
 

@@ -38,6 +38,9 @@ toOpts = T.toDevice device . T.toType qDType
 
 type FakeSize = 1337 :: Nat
 
+type MaxPitches = 10 :: Nat
+type MaxEdges = 10 :: Nat
+
 -- General Spec
 -- ------------
 

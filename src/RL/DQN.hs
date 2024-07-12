@@ -160,7 +160,7 @@ runEpisode
   :: forall tr tr' slc slc' s f h gen state action encoding step
    . ( state ~ GreedyState tr tr' slc (Leftmost s f h)
      , action ~ Action slc tr s f h
-     , encoding ~ QEncoding (QSpecGeneral DefaultQSpec)
+     , encoding ~ QEncoding '[] (QSpecGeneral DefaultQSpec)
      , step ~ (state, action, encoding, Maybe (state, [encoding]), Maybe Bool)
      )
   => Eval tr tr' slc slc' (Leftmost s f h)
@@ -235,7 +235,7 @@ trainLoop
   (_)
   => gen
   -> Eval tr tr' slc slc' (Leftmost s f h)
-  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding (QSpecGeneral DefaultQSpec))
+  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[] (QSpecGeneral DefaultQSpec))
   -> (Analysis s f h tr slc -> IO QType)
   -> (Action slc tr s f h -> Maybe Bool -> IO QType)
   -> Path slc' tr'
@@ -353,7 +353,7 @@ trainDQN
      )
   => gen
   -> Eval tr tr' slc slc' (Leftmost s f h)
-  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding (QSpecGeneral DefaultQSpec))
+  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[] (QSpecGeneral DefaultQSpec))
   -> (Analysis s f h tr slc -> IO QType)
   -> (Action slc tr s f h -> Maybe Bool -> IO QType)
   -> [Path slc' tr']

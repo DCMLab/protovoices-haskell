@@ -153,14 +153,15 @@ instance
       <*> T.sample ConstEmbSpec
       <*> T.sample ConstEmbSpec
 
+{- | HasForward for slice wrapped in StartStop.
+Could be removed is StateEncoding is changed to QStartStop.
+-}
 instance
   ( embshape ~ '[GenEmbSize spec]
-  , pshape ~ PShape spec
-  , pshape ~ '[FakeSize, PSize spec]
-  , TT.KnownShape pshape
+  , psize ~ PSize spec
   , KnownNat (GenEmbSize spec)
   )
-  => TT.HasForward (SliceEncoder spec hidden) (StartStop (Maybe (QTensor pshape))) (QTensor embshape)
+  => TT.HasForward (SliceEncoder spec hidden) (StartStop (QBoundedList MaxPitches '[] '[psize])) (QTensor embshape)
   where
   forward model@(SliceEncoder _ _ start stop) input =
     case input of
@@ -169,35 +170,61 @@ instance
       Stop -> T.forward stop ()
   forwardStoch model input = pure $ T.forward model input
 
+{- | HasForward for slice wrappend in QStartStop (batchable).
+Currently constrained to no batch.
+-}
 instance
   ( embshape ~ '[GenEmbSize spec]
-  , pshape ~ PShape spec
-  , pshape ~ '[FakeSize, PSize spec]
   , psize ~ PSize spec
-  , TT.KnownShape pshape
   , KnownNat (GenEmbSize spec)
   )
-  => T.HasForward (SliceEncoder spec hidden) (Maybe (QTensor pshape)) (QTensor embshape)
+  => TT.HasForward (SliceEncoder spec hidden) (QStartStop '[] (QBoundedList MaxPitches '[] '[psize])) (QTensor embshape)
   where
-  forward _ Nothing = TT.zeros
-  forward model (Just pitches) = T.forward model pitches
-  forwardStoch model = pure . T.forward model
+  forward model@(SliceEncoder _ _ start stop) (QStartStop tag input) = TT.squeezeDim @0 out
+   where
+    -- compute the possible outputs for start/stop/inner
+    outStart = TT.forward start ()
+    outStop = TT.forward stop ()
+    outInner = T.forward model input
+    -- combine the outputs into one tensor
+    combined = TT.stack @0 $ outStart TT.:. outInner TT.:. outStop TT.:. TT.HNil
+    -- use gather to select the right output.
+    -- gather can select different elements from 'dim' for each position,
+    -- so we expand the tag to the right shape, selecting the *same* 'dim'-index everywhere
+    out = TT.gatherDim @0 (TT.expand @'[1, GenEmbSize spec] False tag) combined
 
+  -- case input of
+  --   Inner slc -> T.forward model slc
+  --   Start -> T.forward start ()
+  --   Stop -> T.forward stop ()
+  forwardStoch model input = pure $ T.forward model input
+
+-- instance
+--   ( embshape ~ '[GenEmbSize spec]
+--   , pshape ~ PShape spec
+--   , pshape ~ '[FakeSize, PSize spec]
+--   , psize ~ PSize spec
+--   , TT.KnownShape pshape
+--   , KnownNat (GenEmbSize spec)
+--   )
+--   => T.HasForward (SliceEncoder spec hidden) (QMaybe '[] (QTensor pshape)) (QTensor embshape)
+--   where
+--   forward model (QMaybe mask pitches) = mask `TT.mul` T.forward model pitches
+--   forwardStoch model = pure . T.forward model
+
+-- | HasFoward for slice (batchable). Currently constrained to no batch.
 instance
   ( embshape ~ '[GenEmbSize spec]
-  , pshape ~ PShape spec
-  , pshape ~ '[FakeSize, PSize spec]
   , psize ~ PSize spec
-  , TT.KnownShape pshape
   )
-  => T.HasForward (SliceEncoder spec hidden) (QTensor pshape) (QTensor embshape)
+  => T.HasForward (SliceEncoder spec hidden) (QBoundedList MaxPitches '[] '[psize]) (QTensor embshape)
   where
-  forward (SliceEncoder l1 l2 _ _) =
-    T.forward l1
-      >>> activation
-      >>> TT.forward l2
-      >>> activation
-      >>> TT.sumDim @0
+  forward (SliceEncoder l1 l2 _ _) (QBoundedList mask input) = out
+   where
+    out1 = activation $ T.forward l1 input
+    out2 = activation $ T.forward l2 out1
+    outMasked = TT.mul (TT.unsqueeze @1 mask) out2
+    out = TT.sumDim @0 outMasked
   forwardStoch model = pure . T.forward model
 
 -- Transition Encoder
@@ -244,27 +271,27 @@ instance
      )
   => T.HasForward
       (TransitionEncoder spec hidden)
-      (TransitionEncoding spec)
+      (TransitionEncoding '[] spec)
       (QTensor embshape)
   where
   forward TransitionEncoder{..} TransitionEncoding{..} = activation $ T.forward trL2 all'
    where
     pass :: QTensor '[hidden]
-    pass = case trencPassing of
-      Nothing -> TT.zeros
-      Just edgesPassing -> TT.sumDim @0 $ activation $ T.forward trL1Passing edgesPassing
+    pass =
+      let QBoundedList mask edgesPassing = trencPassing
+       in TT.sumDim @0 $ TT.mul (TT.unsqueeze @1 mask) $ activation $ T.forward trL1Passing edgesPassing
     inner :: QTensor '[hidden]
-    inner = case trencInner of
-      Nothing -> TT.zeros
-      Just edgesInner -> TT.sumDim @0 $ activation $ T.forward trL1Inner edgesInner
+    inner =
+      let QBoundedList mask edgesInner = trencInner
+       in TT.sumDim @0 $ TT.mul (TT.unsqueeze @1 mask) $ activation $ T.forward trL1Inner edgesInner
     left :: QTensor '[hidden]
-    left = case trencLeft of
-      Nothing -> TT.zeros
-      Just notes -> TT.sumDim @0 $ activation $ T.forward trL1Left notes
+    left =
+      let QBoundedList mask notes = trencLeft
+       in TT.sumDim @0 $ TT.mul (TT.unsqueeze @1 mask) $ activation $ T.forward trL1Left notes
     right :: QTensor '[hidden]
-    right = case trencRight of
-      Nothing -> TT.zeros
-      Just notes -> TT.sumDim @0 $ activation $ T.forward trL1Right notes
+    right =
+      let QBoundedList mask notes = trencRight
+       in TT.sumDim @0 $ TT.mul (TT.unsqueeze @1 mask) $ activation $ T.forward trL1Right notes
     all = pass + inner + left + right
     all' = if trencRoot then all + activation (T.forward trL1Root ()) else all
   forwardStoch = undefined
@@ -335,39 +362,39 @@ instance
      )
   => T.HasForward
       (ActionEncoder spec actHidden)
-      (SliceEncoder spec slcHidden, TransitionEncoder spec trHidden, ActionEncoding spec)
+      (SliceEncoder spec slcHidden, TransitionEncoder spec trHidden, ActionEncoding '[] spec)
       (QTensor outShape)
   where
-  forward ActionEncoder{..} (slc, tr, ActionEncoding top op) = topEmb + opEmb
+  forward ActionEncoder{..} (slc, tr, ActionEncoding top opIndex) = topEmb + opEmb
    where
     topCombined :: QTensor '[actHidden]
     topCombined = case top of
-      Left (SingleParent sl t sr) ->
+      -- Left (SingleTop sl t sr) ->
+      --   let
+      --     embl = activation $ T.forward actTop1sl $ T.forward slc sl
+      --     embt = activation $ T.forward actTop1t1 $ T.forward tr t
+      --     embr = activation $ T.forward actTop1sr $ T.forward slc sr
+      --    in
+      --     embl + embt + embr
+      (ActionTop sl t1 (QMaybe smMask sm) (QMaybe t2Mask t2) sr) ->
         let
           embl = activation $ T.forward actTop1sl $ T.forward slc sl
-          embt = activation $ T.forward actTop1t1 $ T.forward slc sl
-          embr = activation $ T.forward actTop1sr $ T.forward slc sl
-         in
-          embl + embt + embr
-      Right (DoubleParent sl t1 sm t2 sr) ->
-        let
-          embl = activation $ T.forward actTop1sl $ T.forward slc sl
-          embm = activation $ T.forward actTop1sl $ T.forward slc sm
-          embr = activation $ T.forward actTop1sl $ T.forward slc sr
-          embt1 = activation $ T.forward actTop1sl $ T.forward tr t1
-          embt2 = activation $ T.forward actTop1sl $ T.forward tr t2
+          embm = activation $ T.forward actTop1sm $ T.forward slc sm
+          embr = TT.mul smMask $ activation $ T.forward actTop1sr $ T.forward slc sr
+          embt1 = TT.mul t2Mask $ activation $ T.forward actTop1t1 $ T.forward tr t1
+          embt2 = activation $ T.forward actTop1t2 $ T.forward tr t2
          in
           embl + embm + embr + embt1 + embt2
     topEmb :: QTensor '[GenEmbSize spec]
     topEmb = activation $ T.forward actTop2 topCombined
-    opEmb :: QTensor '[GenEmbSize spec]
-    opEmb = case op of
-      LMFreezeOnly _ -> TT.cat @0 (TT.selectIdx @0 opTypes 0 TT.:. T.forward actFreeze () TT.:. TT.HNil)
-      LMSplitOnly _ -> TT.cat @0 (TT.selectIdx @0 opTypes 1 TT.:. T.forward actSplit () TT.:. TT.HNil)
-      LMFreezeLeft _ -> TT.cat @0 (TT.selectIdx @0 opTypes 2 TT.:. T.forward actFreeze () TT.:. TT.HNil)
-      LMSpread _ -> TT.cat @0 (TT.selectIdx @0 opTypes 3 TT.:. T.forward actSpread () TT.:. TT.HNil)
-      LMSplitLeft _ -> TT.cat @0 (TT.selectIdx @0 opTypes 4 TT.:. T.forward actSplit () TT.:. TT.HNil)
-      LMSplitRight _ -> TT.cat @0 (TT.selectIdx @0 opTypes 5 TT.:. T.forward actSplit () TT.:. TT.HNil)
+    opFreeze = T.forward actFreeze ()
+    opSplit = T.forward actSplit ()
+    opSpread = T.forward actSpread ()
+    opCombined = TT.stack @0 $ opFreeze TT.:. opSplit TT.:. opFreeze TT.:. opSpread TT.:. opSplit TT.:. opSplit TT.:. TT.HNil
+    opEmbeddings :: QTensor '[6, emb]
+    opEmbeddings = TT.cat @1 $ opTypes TT.:. opCombined TT.:. TT.HNil
+    opEmb :: QTensor '[emb]
+    opEmb = TT.squeezeDim @0 $ TT.gatherDim @0 (TT.expand @'[1, emb] False opIndex) opEmbeddings
   forwardStoch a i = pure $ T.forward a i
 
 -- State Encoder
@@ -521,9 +548,9 @@ instance
   , KnownNat (QSpecTrans spec)
   , TT.CheckIsSuffixOf '[QSpecSpecial spec] '[QSpecSpecial spec] (QSpecSpecial spec == QSpecSpecial spec)
   )
-  => T.HasForward (QModel spec) (QEncoding gspec) (QTensor '[1])
+  => T.HasForward (QModel spec) (QEncoding '[] gspec) (QTensor '[1])
   where
-  forward :: QModel spec -> QEncoding (QSpecGeneral spec) -> QTensor '[1]
+  forward :: QModel spec -> QEncoding '[] (QSpecGeneral spec) -> QTensor '[1]
   forward (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncoding actEnc stEnc) =
     TT.log $
       TT.sigmoid $
@@ -537,7 +564,7 @@ instance
     stEmb :: QTensor '[GenEmbSize gspec]
     stEmb = T.forward st (slc, tr, stEnc)
 
-  forwardStoch :: QModel spec -> QEncoding (QSpecGeneral spec) -> IO (QTensor '[1])
+  forwardStoch :: QModel spec -> QEncoding '[] (QSpecGeneral spec) -> IO (QTensor '[1])
   forwardStoch model input = pure $ T.forward model input
 
 forwardPolicy
@@ -554,7 +581,7 @@ forwardPolicy
      , TT.CheckIsSuffixOf '[QSpecSpecial spec] '[QSpecSpecial spec] (QSpecSpecial spec == QSpecSpecial spec)
      )
   => QModel spec
-  -> QEncoding (QSpecGeneral spec)
+  -> QEncoding '[] (QSpecGeneral spec)
   -> QTensor '[1]
 forwardPolicy (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncoding actEnc stEnc) =
   T.forward final2 $
@@ -630,7 +657,7 @@ modelSize model = sum $ product <$> sizes
   sizes = TT.hfoldr TH.ToList ([] :: [[Int]]) $ TT.hmap' TH.ShapeVal $ TT.flattenParameters model
 
 runQ
-  :: (s -> a -> QEncoding (QSpecGeneral DefaultQSpec))
+  :: (s -> a -> QEncoding '[] (QSpecGeneral DefaultQSpec))
   -> QModel DefaultQSpec
   -> s
   -> a
@@ -638,7 +665,7 @@ runQ
 runQ !encode !model s a = T.asValue $ TT.toDynamic $ T.forward model $ encode s a
 
 runQ'
-  :: (s -> a -> QEncoding (QSpecGeneral DefaultQSpec))
+  :: (s -> a -> QEncoding '[] (QSpecGeneral DefaultQSpec))
   -> QModel DefaultQSpec
   -> s
   -> a
