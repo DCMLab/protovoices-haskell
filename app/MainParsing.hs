@@ -503,14 +503,20 @@ mainPosterior = do
   savePVHyper "posterior.json" posterior
 
 mainRL n = do
-  Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "05b_cello_prelude_1-4" -- "10c_rare_int" -- "10c_rare_int" -- "05extra_cello_prelude_1-4_full"
-  Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
+  -- Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "10c_rare_int" -- "05b_cello_prelude_1-4" -- "05extra_cello_prelude_1-4_full"
+  -- Just (_, pieceAna2, _, piece2) <- loadItem "data/theory-article" "20a_sus"
+  items <- catMaybes <$> mapM (loadItem "data/theory-article") ["10c_rare_int", "20a_sus", "04a_bwv784_top", "19b_quiescenza", "20b_cadence"]
+  -- Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
   gen <- initStdGen
   mgen <- newIOGenM gen
   genMWC <- MWC.create -- uses a fixed seed
   (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
-  bestReward <- RL.pvRewardExp posterior pieceAna
-  putStrLn $ "optimal reward: " <> show bestReward
+  -- bestReward <- RL.pvRewardExp posterior pieceAna
+  -- bestReward2 <- RL.pvRewardExp posterior pieceAna2
+  -- putStrLn $ "optimal reward: " <> show bestReward
+  -- putStrLn $ "optimal reward 2: " <> show bestReward2
+  bestRewards <- forM items $ \(_, ana, _, _) -> RL.pvRewardExp posterior ana
+  let pieces = (\(_, _, _, piece) -> piece) <$> items
   -- (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) (RL.pvRewardAction posterior) [piece] n
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
   actor0 <- RL.mkQModel
@@ -518,16 +524,16 @@ mainRL n = do
   -- actor0 <- RL.loadModel "actor.ht"
   -- critic0 <- RL.loadModel "critic.ht"
   (rewards, losses, actor, critic) <-
-    RL.trainA2C protoVoiceEvaluator mgen posterior actor0 critic0 [piece] n
-  testBestReward <- RL.pvRewardExp posterior testAna
-  testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
-  case testAcc of
-    Left error -> putStrLn $ "Error: " <> error
-    Right (testReward, testDeriv) -> do
-      plotDeriv "rl/test-deriv.tex" $ anaDerivation testDeriv
-      putStrLn "test accuracy:"
-      putStrLn $ "  optimal: " <> show testBestReward
-      putStrLn $ "  actual: " <> show testReward
+    RL.trainA2C protoVoiceEvaluator mgen posterior (Just bestRewards) actor0 critic0 pieces n
+  -- testBestReward <- RL.pvRewardExp posterior testAna
+  -- testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
+  -- case testAcc of
+  --   Left error -> putStrLn $ "Error: " <> error
+  --   Right (testReward, testDeriv) -> do
+  --     plotDeriv "rl/test-deriv.tex" $ anaDerivation testDeriv
+  --     putStrLn "test accuracy:"
+  --     putStrLn $ "  optimal: " <> show testBestReward
+  --     putStrLn $ "  actual: " <> show testReward
   TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
   TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
   pure ()

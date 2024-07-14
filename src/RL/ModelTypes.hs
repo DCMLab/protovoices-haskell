@@ -107,9 +107,9 @@ type family QSpecAction qspec where
 type family QSpecState qspec where
   QSpecState (TQSpecData _ _ _ _ _ st) = st
 
-type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 32
+type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 64
 
-type DefaultQSpec = TQSpecData TGeneralSpecDefault 32 32 32 32 64
+type DefaultQSpec = TQSpecData TGeneralSpecDefault 64 64 64 64 128
 
 -- type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 4
 

@@ -5,8 +5,11 @@ module RL.Common where
 
 import Common
 import Control.Foldl qualified as Foldl
+import Control.Monad (forM_)
 import Control.Monad.Primitive (RealWorld)
 import Control.Monad.State qualified as ST
+import Data.Colour.Palette.ColorSet
+import Data.Colour.Palette.ColorSet (d3Colors2)
 import Display
 import Graphics.Rendering.Chart.Backend.Cairo as Plt
 import Graphics.Rendering.Chart.Easy ((.=))
@@ -20,6 +23,7 @@ import PVGrammar
 import PVGrammar.Generate (derivationPlayerPV)
 import PVGrammar.Prob.Simple
 import RL.ModelTypes
+import StrictList qualified as SL
 import System.Random.MWC.Probability qualified as MWC
 import Torch.Typed qualified as TT
 
@@ -28,6 +32,11 @@ import Torch.Typed qualified as TT
 
 mean :: (Foldable t) => t QType -> QType
 mean = Foldl.fold Foldl.mean
+
+zipWithStrict :: (a -> b -> c) -> SL.List a -> SL.List b -> SL.List c
+zipWithStrict f SL.Nil _ = SL.Nil
+zipWithStrict f _ SL.Nil = SL.Nil
+zipWithStrict f (SL.Cons x xs) (SL.Cons y ys) = SL.Cons (f x y) $ zipWithStrict f xs ys
 
 -- plotting
 -- --------
@@ -46,11 +55,70 @@ mkHistoryPlot title values = do
  where
   points = zip [1 :: Int ..] values
 
+mkHistoriesPlot
+  :: String
+  -> [[QType]]
+  -> ST.StateT
+      (Plt.Layout Int QType)
+      (ST.State Plt.CState)
+      ()
+mkHistoriesPlot title series = do
+  Plt.setColors $
+    Plt.opaque <$> (d3Colors2 Dark <$> [0 .. 9]) ++ (d3Colors2 Light <$> [0 .. 9])
+  Plt.layout_title .= title
+  forM_ (zip series [1 ..]) $ \(values, i) -> do
+    let points = zip [1 :: Int ..] values
+    Plt.plot $ Plt.line (show i) [points]
+
+mkHistoryPlot'
+  :: String
+  -> QType
+  -> [QType]
+  -> ST.StateT
+      (Plt.Layout Int QType)
+      (ST.State Plt.CState)
+      ()
+mkHistoryPlot' title target values = do
+  Plt.setColors $ Plt.opaque <$> [Plt.steelblue, Plt.orange]
+  Plt.layout_title .= title
+  Plt.plot $ Plt.line title [points]
+  Plt.plot $ Plt.line "target" [[(1, target), (length values, target)]]
+ where
+  points = zip [1 :: Int ..] values
+
+mkHistoriesPlot'
+  :: String
+  -> [QType]
+  -> [[QType]]
+  -> ST.StateT
+      (Plt.Layout Int QType)
+      (ST.State Plt.CState)
+      ()
+mkHistoriesPlot' title targets series = do
+  Plt.setColors $
+    Plt.opaque <$> (d3Colors2 Dark <$> [0 .. 9]) ++ (d3Colors2 Light <$> [0 .. 9])
+  Plt.layout_title .= title
+  forM_ (zip3 targets series [1 ..]) $ \(target, values, i) -> do
+    let points = zip [1 :: Int ..] values
+    Plt.plot $ Plt.line (show i) [points, [(1, target), (length values, target)]]
+
+fileOpts :: Plt.FileOptions
+fileOpts = Plt.def{_fo_format = Plt.SVG}
+
 showHistory :: String -> [QType] -> IO ()
 showHistory title values = Plt.toWindow 60 40 $ mkHistoryPlot title values
 
 plotHistory :: String -> [QType] -> IO ()
-plotHistory title values = Plt.toFile Plt.def ("rl/" <> title <> ".png") $ mkHistoryPlot title values
+plotHistory title values = Plt.toFile fileOpts ("rl/" <> title <> ".svg") $ mkHistoryPlot title values
+
+plotHistories :: String -> [[QType]] -> IO ()
+plotHistories title values = Plt.toFile fileOpts ("rl/" <> title <> ".svg") $ mkHistoriesPlot title values
+
+plotHistory' :: String -> QType -> [QType] -> IO ()
+plotHistory' title target values = Plt.toFile fileOpts ("rl/" <> title <> ".svg") $ mkHistoryPlot' title target values
+
+plotHistories' :: String -> [QType] -> [[QType]] -> IO ()
+plotHistories' title target values = Plt.toFile fileOpts ("rl/" <> title <> ".svg") $ mkHistoriesPlot' title target values
 
 plotDeriv :: (Foldable t) => FilePath -> t (Leftmost (Split SPitch) Freeze (Spread SPitch)) -> IO ()
 plotDeriv fn deriv = do
@@ -97,7 +165,7 @@ pvRewardExp hyper (Analysis deriv top) =
         Nothing -> do
           putStrLn "Couldn't evaluate trace while giving reward"
           pure (-inf)
-        Just (_, logprob) -> pure logprob
+        Just (_, logprob) -> pure $ logprob / fromIntegral (length deriv)
  where
   probs = expectedProbs @PVParams hyper
   trace = observeDerivation deriv top
@@ -106,8 +174,9 @@ pvRewardAction
   :: Hyper PVParams
   -> PVAction
   -> Maybe Bool
+  -> Int
   -> IO QType
-pvRewardAction hyper action decision = do
+pvRewardAction hyper action decision len = do
   case result of
     Left error -> do
       putStrLn $ "error giving reward: " <> error
@@ -115,7 +184,7 @@ pvRewardAction hyper action decision = do
     Right Nothing -> do
       putStrLn "Couldn't evaluate trace while giving reward"
       pure (-inf)
-    Right (Just (_, logprob)) -> pure logprob
+    Right (Just (_, logprob)) -> pure $ logprob / fromIntegral (2 * len + 1)
  where
   probs = expectedProbs @PVParams hyper
   singleTop (SingleParent sl t sr) = (sl, t, sr)

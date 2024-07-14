@@ -10,7 +10,7 @@ module RL.A2C where
 import Common
 import Control.DeepSeq (NFData, force)
 import Control.Foldl qualified as Foldl
-import Control.Monad (foldM, forM_, when)
+import Control.Monad (foldM, forM, forM_, when)
 import Control.Monad.Except qualified as ET
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
@@ -207,15 +207,18 @@ pieceStep
   -> Rand.IOGenM Rand.StdGen
   -> Hyper PVParams
   -> Int
+  -> Int
   -> A2CState
   -> A2CStepState
   -> ET.ExceptT String IO (A2CState, Either A2CStepState QType, QType)
-pieceStep eval gen hyper i (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward goleft state) = do
+pieceStep eval gen hyper i len (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward goleft state) = do
   -- EitherT String IO
   -- preparation: list actions, compute policy
-  let actions = getActions eval state
-      encodings = encodeStep state <$> actions
-      policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
+  -- TODO: smarter cap than taking 200 actions
+  let actions = take 200 $ getActions eval state
+      -- encodings = encodeStep state <$> actions
+      -- policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
+      policy = withBatchedEncoding state actions (runBatchedPolicy actor)
   -- choose action according to policy
   actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
   let action = actions !! actionIndex
@@ -231,7 +234,7 @@ pieceStep eval gen hyper i (A2CState actor critic opta optc) (A2CStepState zV zP
   -- r <- case state' of
   --   Left _ -> 0
   --   Right (top, deriv) -> lift $ reward (Analysis deriv (PathEnd top))
-  r <- lift $ pvRewardAction hyper action goleft
+  r <- lift $ pvRewardAction hyper action goleft len
   let vS = forwardValue critic $ encodePVState state
       vS' = case state' of
         Left s' -> forwardValue critic $ encodePVState s'
@@ -280,6 +283,7 @@ pieceStep eval gen hyper i (A2CState actor critic opta optc) (A2CStepState zV zP
         Right _ -> Right reward' -- TT.toDouble (TT.squeezeAll vS) - r
   pure (A2CState actor' critic' opta' optc', pieceState', loss')
 
+-- | Run an episode on a single worker.
 runEpisode
   :: (_)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
@@ -294,13 +298,15 @@ runEpisode !eval !gen !hyper !input !modelState !i =
  where
   z0 :: TT.HList ModelTensors
   z0 = modelZeros $ a2cActor modelState
+  len = pathLen input
   go modelState pieceState losses = do
-    (modelState', pieceState', loss) <- pieceStep eval gen hyper i modelState pieceState
+    (modelState', pieceState', loss) <- pieceStep eval gen hyper i len modelState pieceState
     let losses' = loss `SL.Cons` losses
     case pieceState' of
       Left ps' -> go modelState' ps' losses'
       Right reward -> pure (modelState', reward, mean losses')
 
+-- | Run an episode on several workers.
 runEpisodes
   :: (_)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
@@ -315,6 +321,7 @@ runEpisodes !eval !gen !hyper !input !modelState !i =
  where
   z0 :: TT.HList ModelTensors
   z0 = modelZeros $ a2cActor modelState
+  len = pathLen input
   -- initialize workers, each with a copy of the piece
   states0 = replicate nWorkers $ initPieceState eval input z0
   -- Worker folding function:
@@ -326,7 +333,7 @@ runEpisodes !eval !gen !hyper !input !modelState !i =
   -- the reward is added to the reward list and the piece is dropped.
   -- If the new state is not terminal, it is added to the list of live piece states.
   iterWorker (ms, pss, ls, rs) ps = do
-    (ms', ps'_, loss) <- pieceStep eval gen hyper i ms ps
+    (ms', ps'_, loss) <- pieceStep eval gen hyper i len ms ps
     let ls' = loss `SL.Cons` ls
     pure $ case ps'_ of
       Left ps' -> (ms', ps' : pss, ls', rs)
@@ -348,7 +355,7 @@ runAccuracy
 runAccuracy !eval !hyper !actor !input = ET.runExceptT $ go 0 $ initParseState eval input
  where
   go cost state = do
-    let actions = getActions eval state
+    let actions = take 200 $ getActions eval state
         encodings = encodeStep state <$> actions
         probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
         best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
@@ -356,7 +363,7 @@ runAccuracy !eval !hyper !actor !input = ET.runExceptT $ go 0 $ initParseState e
         bestprob = probs T.! best
         cost' = cost + T.log bestprob
     state' <- ET.except $ applyAction state action
-    lift $ print probs
+    -- lift $ print probs
     case state' of
       Left s' -> go cost' s'
       Right (top, deriv) -> do
@@ -369,9 +376,9 @@ deriving instance (NoThunks a) => NoThunks (SL.List a)
 
 data A2CLoopState = A2CLoopState
   { a2clState :: A2CState
-  , a2clRewards :: SL.List QType
-  , a2clLosses :: SL.List QType
-  , a2clAccs :: SL.List QType
+  , a2clRewards :: SL.List (SL.List QType)
+  , a2clLosses :: SL.List (SL.List QType)
+  , a2clAccs :: SL.List (SL.List QType)
   }
   deriving (Generic)
 
@@ -379,33 +386,40 @@ trainA2C
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> Hyper PVParams
+  -> Maybe [QType]
   -> QModel DefaultQSpec
   -> QModel DefaultQSpec
   -> [Path [SPitch] [Edge SPitch]]
   -> Int
-  -> IO ([QType], [QType], QModel DefaultQSpec, QModel DefaultQSpec)
-trainA2C eval gen hyper actor0 critic0 pieces n = do
+  -> IO ([[QType]], [QType], QModel DefaultQSpec, QModel DefaultQSpec)
+trainA2C eval gen hyper targets actor0 critic0 pieces n = do
   -- print $ qModelFinal2 model0
   -- opta <- TT.initOptimizer (TT.AdamOptions 0.0001 (0.9, 0.999) 1e-8 0 False) actor0
   let
     opta = TT.GD -- TT.mkAdam 0 0.9 0.99 (TT.flattenParameters actor0)
     optc = TT.GD -- TT.mkAdam 0 0.9 0.99 (TT.flattenParameters critic0)
+    emptyStat = SL.fromListReversed (replicate (length pieces) SL.Nil)
     state0 = A2CState actor0 critic0 opta optc
-  (A2CLoopState (A2CState actorTrained criticTrained _ _) rewards losses accs) <- T.foldLoop (A2CLoopState state0 SL.Nil SL.Nil SL.Nil) n trainEpoch
-  pure (SL.toListReversed rewards, SL.toListReversed losses, actorTrained, criticTrained)
+  (A2CLoopState (A2CState actorTrained criticTrained _ _) rewards losses accs) <- T.foldLoop (A2CLoopState state0 emptyStat emptyStat emptyStat) n trainEpoch
+  pure
+    ( SL.toListReversed $ SL.toListReversed <$> rewards
+    , SL.toListReversed $ mean <$> losses
+    , actorTrained
+    , criticTrained
+    )
  where
   -- \| train a single episode on a single piece
-  trainPiece i (!state, !rewards, !losses) !piece = do
+  trainPiece i (!state, !rewards, !losses) (!piece, !j) = do
     result <- runEpisode eval gen hyper piece state i
     case result of
       Left error -> do
         putStrLn $ "Episode error: " <> error
         pure (state, rewards, losses)
       Right (state', r, loss) -> do
-        putStrLn $ "loss: " <> show loss
+        putStrLn $ "loss " <> show j <> ": " <> show loss
         pure (state', r `SL.Cons` rewards, loss `SL.Cons` losses)
   -- \| train one episode on each piece
-  trainEpoch fullstate@(A2CLoopState !state !meanRewards !meanLosses !accuracies) !i = do
+  trainEpoch fullstate@(A2CLoopState !state !rewardsHist !lossHist !accuracies) !i = do
     -- performGC
     -- thunkCheck <- noThunks ["trainA2C", "trainEpoch"] fullstate
     -- case thunkCheck of
@@ -413,34 +427,41 @@ trainA2C eval gen hyper actor0 critic0 pieces n = do
     --   Just thunkInfo -> error $ "Unexpected thunk at " <> show (thunkContext thunkInfo)
     -- run epoch
     (!state', !rewards, !losses) <-
-      foldM (trainPiece i) (state, SL.Nil, SL.Nil) pieces
-    let meanRewards' = mean rewards `SL.Cons` meanRewards
-        meanLosses' = mean losses `SL.Cons` meanLosses
+      foldM (trainPiece i) (state, SL.Nil, SL.Nil) (zip pieces [1 ..])
+    let rewardsHist' = zipWithStrict SL.Cons rewards rewardsHist
+        lossHist' = zipWithStrict SL.Cons losses lossHist
     -- compute greedy reward ("accuracy")
     accuracies' <-
       if (i `mod` 10) == 0
         then do
           results <- mapM (runAccuracy eval hyper (a2cActor state)) pieces
-          case sequence results of
-            Left error -> do
-              putStrLn error
-              pure $ (-inf) `SL.Cons` accuracies
-            Right episodes -> do
-              let accs = fst <$> episodes
-                  analyses = snd <$> episodes
-              when ((i `mod` 100) == 0) $ do
-                putStrLn "current best analyses:"
-                forM_ (zip analyses [1 ..]) $ \(Analysis deriv _, i) -> do
+          newAccs <- forM (zip results [1 ..]) $ \(result, j) ->
+            case result of
+              Left error -> do
+                putStrLn error
+                pure (-inf)
+              Right (acc, Analysis deriv top) -> do
+                when ((i `mod` 100) == 0) $ do
+                  putStrLn $ "current best analysis (piece " <> show j <> "):"
                   mapM_ print deriv
-                  plotDeriv ("rl/deriv" <> show i <> ".tex") deriv
-              pure $ mean accs `SL.Cons` accuracies
+                  plotDeriv ("rl/deriv" <> show j <> ".tex") deriv
+                pure acc
+          pure $ zipWithStrict SL.Cons (SL.fromListReversed newAccs) accuracies
         else pure accuracies
     -- logging
     when ((i `mod` 10) == 0) $ do
       putStrLn $ "epoch " <> show i
       -- mapM_ print $ take 10 bcontent
-      plotHistory "rewards" $ SL.toListReversed meanRewards'
-      plotHistory "losses" $ SL.toListReversed meanLosses'
-      plotHistory "accuracy" $ SL.toListReversed accuracies'
+      let rews = SL.toListReversed <$> SL.toListReversed rewardsHist'
+          accs = SL.toListReversed <$> SL.toListReversed accuracies'
+          losses = SL.toListReversed <$> SL.toListReversed lossHist'
+      plotHistories "losses" losses
+      case targets of
+        Nothing -> do
+          plotHistories "rewards" rews
+          plotHistories "accuracy" accs
+        Just ts -> do
+          plotHistories' "rewards" ts rews
+          plotHistories' "accuracy" ts accs
     -- print $ qModelFinal2 (a2cModel state)
-    pure $ A2CLoopState state' meanRewards' meanLosses' accuracies'
+    pure $ A2CLoopState state' rewardsHist' lossHist' accuracies'
