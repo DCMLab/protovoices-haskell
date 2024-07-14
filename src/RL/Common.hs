@@ -100,7 +100,17 @@ mkHistoriesPlot' title targets series = do
   Plt.layout_title .= title
   forM_ (zip3 targets series [1 ..]) $ \(target, values, i) -> do
     let points = zip [1 :: Int ..] values
-    Plt.plot $ Plt.line (show i) [points, [(1, target), (length values, target)]]
+    Plt.plot $ do
+      color <- Plt.takeColor
+      histLine <- Plt.liftEC $ do
+        Plt.plot_lines_values .= [points]
+        Plt.plot_lines_title .= show i
+        Plt.plot_lines_style . Plt.line_color .= color
+      targetLine <- Plt.liftEC $ do
+        Plt.plot_lines_values .= [[(1, target), (length values, target)]]
+        Plt.plot_lines_style . Plt.line_color .= color
+        Plt.plot_lines_style . Plt.line_dashes .= [10, 10]
+      pure $ Plt.joinPlot (Plt.toPlot histLine) (Plt.toPlot targetLine)
 
 fileOpts :: Plt.FileOptions
 fileOpts = Plt.def{_fo_format = Plt.SVG}
