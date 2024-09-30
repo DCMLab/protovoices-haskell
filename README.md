@@ -55,6 +55,17 @@ and modules that are specific to the protovoice grammar.
   - [PVGrammar.Prob.Simple](src/PVGrammar/Prob/Simple.hs)
     ([docs](https://dcmlab.github.io/protovoices-haskell/proto-voice-model-0.1.0.0/PVGrammar-Prob-Simple.html))
     A probabilistic model of the PV grammar.
+- [RL](src/RL)
+  A reinforcement-learning agent for parsing pieces (uses `GreedyParser`).
+  Examples of usage can be found in `MainParsing` (see below).
+  - [RL.Common](src/RL/Common.hs): common code like reward and plotting functions.
+  - [RL.ModelTypes](src/RL/ModelTypes.hs): type-level model parameters (e.g. tensor sizes).
+  - [RL.Encoding](src/RL/Encoding.hs): translating protovoice datastructures into HaskTorch tensors.
+  - [RL.Model](src/RL/Model.hs): the NN model used by the RL agents.
+  - [RL.DQN](src/RL/Model.hs): implementation of a Deep Q-Learning agent.
+  - [RL.ReplayBuffers](src/RL/ReplayBuffers.hs): used by `RL.DQN`.
+  - [RL.A2C](src/RL/A2C.hs): implementation of an Advantage Actor Critic agent.
+  - [RL.A2CHelpers](src/RL/A2CHelpers.hs): HaskTorch helper functions used by `RL.A2C`.
 
 ### Executables (`app/`)
 
