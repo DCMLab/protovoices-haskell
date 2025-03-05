@@ -59,6 +59,7 @@ import System.Process (callCommand)
 
 import Data.Bifunctor (bimap)
 import Data.String (IsString)
+import System.FilePath qualified as FP
 
 -- derivation graphs
 -- =================
@@ -453,7 +454,7 @@ viewGraph
   :: (Eq slc, Eq tr, Show slc, Show tr) => FilePath -> DerivationGraph slc tr -> IO ()
 viewGraph fn g = do
   writeGraph fn g
-  callCommand $ "pdflatex " <> fn
+  callCommand $ "pdflatex -output-directory=\"" <> FP.takeDirectory fn <> "\" " <> fn
 
 -- | Write a several derivation graphs to a @tex@ file.
 writeGraphs
@@ -471,4 +472,4 @@ viewGraphs
   :: (Show tr, Show slc, Eq slc, Eq tr) => FilePath -> [DerivationGraph slc tr] -> IO ()
 viewGraphs fn gs = do
   writeGraphs fn gs
-  callCommand $ "pdflatex " <> fn
+  callCommand $ "pdflatex -output-directory=\"" <> FP.takeDirectory fn <> "\" " <> fn

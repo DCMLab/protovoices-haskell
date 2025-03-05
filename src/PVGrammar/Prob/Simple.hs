@@ -83,6 +83,22 @@ module PVGrammar.Prob.Simple
   , trainSinglePiece
 
     -- * Likelihood model for parsing
+
+    -- | We need these specialized functions because of a dependency across steps:
+    -- During a double step (elaborating two transitions),
+    -- the process must decide whether to elaborate the left or right transition.
+    -- To normalize the derivation order, we can't elaborate the left transition
+    -- after the right one.
+    -- That means that the model *sometimes* has to make the decision to go right,
+    -- and sometimes not (i.e., after a right split).
+    -- During parsing, we don't know whether this decision had to be made or not,
+    -- since we don't know the previous derivation step yet.
+    -- Therefore, we don't include the decision in the current step,
+    -- but at the end of the previous one (in generation order),
+    -- where the context is known.
+    -- As a consequence, the result of this decision (if made)
+    -- needs to be passed to the functions scoring the previous step.
+    -- When parsing, make sure to maintain this information.
   , sampleSingleStepParsing
   , observeSingleStepParsing
   , evalSingleStep
@@ -1254,9 +1270,9 @@ observeSingleStepParsing
   -> Maybe Bool
   -- ^ If the following (generative) step is a double op,
   -- this is the result of the "continueLeft" decision,
-  -- i.e., 'Just True' for split-left
-  -- and freeze-left and 'Just False' for spread and split-right.
-  -- If the following step is a single op, this is 'Nothing', as not decision is made.
+  -- i.e., 'Just True' for split-left and freeze-left,
+  -- and 'Just False' for spread and split-right.
+  -- If the following step is a single op, this is 'Nothing' (as no decision is made).
   -> LeftmostSingle (Split SPitch) Freeze
   -- ^ the performed operation
   -> Either String (Trace PVParams)

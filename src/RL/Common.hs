@@ -9,13 +9,13 @@ import Control.Monad (forM_)
 import Control.Monad.Primitive (RealWorld)
 import Control.Monad.State qualified as ST
 import Data.Colour.Palette.ColorSet
-import Data.Colour.Palette.ColorSet (d3Colors2)
+import Data.Maybe (listToMaybe)
 import Display
 import Graphics.Rendering.Chart.Backend.Cairo as Plt
 import Graphics.Rendering.Chart.Easy ((.=))
 import Graphics.Rendering.Chart.Easy qualified as Plt
 import Graphics.Rendering.Chart.Gtk qualified as Plt
-import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), DoubleParent (DoubleParent), SingleParent (SingleParent))
+import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), DoubleParent (DoubleParent), GreedyState, SingleParent (SingleParent), gsOps, opGoesLeft)
 import Inference.Conjugate (Hyper, HyperRep, Prior (expectedProbs), evalTraceLogP, printTrace, sampleProbs)
 import Internal.TorchHelpers
 import Musicology.Pitch (SPitch)
@@ -141,16 +141,22 @@ plotDeriv fn deriv = do
 
 type PVAction = Action (Notes SPitch) (Edges SPitch) (Split SPitch) Freeze (Spread SPitch)
 
+type PVActionResult = Either (GreedyState (Edges SPitch) [Edge SPitch] (Notes SPitch) (PVLeftmost SPitch)) (Edges SPitch, [PVLeftmost SPitch])
+
+type PVRewardFn label = PVActionResult -> PVAction -> label -> IO QType
+
 inf :: QType
 inf = 1 / 0
 
 pvRewardSample
   :: MWC.Gen RealWorld
   -> Hyper PVParams
-  -> PVAnalysis SPitch
-  -> IO QType
-pvRewardSample gen hyper (Analysis deriv top) = do
-  let trace = observeDerivation deriv top
+  -> PVRewardFn label
+-- -> PVAnalysis SPitch
+-- -> IO QType
+pvRewardSample _ _ (Left _) _ _ = pure 0
+pvRewardSample gen hyper (Right (top, deriv)) _ _ = do
+  let trace = observeDerivation deriv (PathEnd top)
   probs <- MWC.sample (sampleProbs @PVParams hyper) gen
   case trace of
     Left error -> do
@@ -162,8 +168,13 @@ pvRewardSample gen hyper (Analysis deriv top) = do
         pure (-inf)
       Just (_, logprob) -> pure logprob
 
-pvRewardExp :: Hyper PVParams -> PVAnalysis SPitch -> IO QType
-pvRewardExp hyper (Analysis deriv top) =
+pvRewardExp :: Hyper PVParams -> PVRewardFn label -- PVAnalysis SPitch -> IO QType
+pvRewardExp _ (Left _) _ _ = pure 0
+pvRewardExp hyper (Right (top, deriv)) _ _ =
+  pvRewardExp' hyper (Analysis deriv (PathEnd top))
+
+pvRewardExp' :: Hyper PVParams -> PVAnalysis SPitch -> IO QType
+pvRewardExp' hyper (Analysis deriv top) =
   case trace of
     Left err -> do
       putStrLn $ "error giving reward: " <> err
@@ -180,13 +191,13 @@ pvRewardExp hyper (Analysis deriv top) =
   probs = expectedProbs @PVParams hyper
   trace = observeDerivation deriv top
 
-pvRewardAction
-  :: Hyper PVParams
-  -> PVAction
-  -> Maybe Bool
-  -> Int
-  -> IO QType
-pvRewardAction hyper action decision len = do
+pvRewardActionByLen
+  :: Hyper PVParams -> PVRewardFn Int
+-- -> PVAction
+-- -> Maybe Bool
+-- -> Int
+-- -> IO QType
+pvRewardActionByLen hyper state action len = do
   case result of
     Left error -> do
       putStrLn $ "error giving reward: " <> error
@@ -199,6 +210,10 @@ pvRewardAction hyper action decision len = do
   probs = expectedProbs @PVParams hyper
   singleTop (SingleParent sl t sr) = (sl, t, sr)
   doubleTop (DoubleParent sl tl sm tr sr) = (sl, tl, sm, tr, sr)
+  ops = case state of
+    Left gs -> gsOps gs
+    Right (_, deriv) -> deriv
+  decision = opGoesLeft =<< listToMaybe (drop 1 ops)
   result = case action of
     Left (ActionSingle top op) -> evalSingleStep probs (singleTop top) op decision
     Right (ActionDouble top op) -> evalDoubleStep probs (doubleTop top) op decision

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# VERSION="2.6.0"
+# ROCM_VERSION="6.2.4"
 VERSION="2.3.1"
 ROCM_VERSION="6.0"
 #VERSION="2.0.0"

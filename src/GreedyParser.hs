@@ -134,6 +134,11 @@ showOpen path = go path <> "⋉"
   go (PathEnd _) = "-"
   go (Path _ a rst) = "-" <> show a <> go rst
 
+gsOps :: GreedyState tr tr' slc op -> [op]
+gsOps (GSFrozen _) = []
+gsOps (GSOpen _ ops) = ops
+gsOps (GSSemiOpen _ _ _ ops) = ops
+
 -- * Parsing Actions
 
 -- | Single parent of a parsing action
@@ -174,6 +179,32 @@ data ActionDouble slc tr s f h
 
 -- | An alias that combines 'ActionSingle' and 'ActionDouble', representing all possible reduction steps.
 type Action slc tr s f h = Either (ActionSingle slc tr s f) (ActionDouble slc tr s f h)
+
+{- | A helper function that checks whether an action:
+- - is a double action and goes left ('Just True')
+- - is a double action and goes right ('Just False')
+- - is a single action ('Nothing', doesn't have to choose).
+- (See 'opGoesLeft'.)
+-}
+actionGoesLeft :: Action slc tr s f h -> Maybe Bool
+actionGoesLeft (Right (ActionDouble _ op)) = case op of
+  LMDoubleFreezeLeft _ -> Just True
+  LMDoubleSplitLeft _ -> Just True
+  _ -> Just False
+actionGoesLeft _ = Nothing
+
+{- | A helper function that checks whether a derivation operation:
+- - is a double op and goes left ('Just True')
+- - is a double op and goes right ('Just False')
+- - is a single op ('Nothing', doesn't have to choose).
+- (See 'actionGoesLeft'.)
+-}
+opGoesLeft :: Leftmost s f h -> Maybe Bool
+opGoesLeft (LMDouble lmd) = case lmd of
+  LMDoubleFreezeLeft _ -> Just True
+  LMDoubleSplitLeft _ -> Just True
+  _ -> Just False
+opGoesLeft _ = Nothing
 
 -- * Parsing Algorithm
 
