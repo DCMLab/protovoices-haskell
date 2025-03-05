@@ -187,7 +187,7 @@ instance
   , GSpecConstraints spec
   , KnownNat hidden
   )
-  => TT.HasForward (SliceEncoder spec hidden) (StartStop (QBoundedList MaxPitches '[] (1 : pshape))) (QTensor embshape)
+  => TT.HasForward (SliceEncoder spec hidden) (StartStop (SliceEncoding '[] spec)) (QTensor embshape)
   where
   forward model@(SliceEncoder _ _ start stop) input =
     case input of
@@ -206,7 +206,7 @@ instance
   , KnownNat hidden
   , GSpecConstraints spec
   )
-  => TT.HasForward (SliceEncoder spec hidden) (QStartStop '[] (QBoundedList MaxPitches '[] (1 : pshape))) (QTensor embshape)
+  => TT.HasForward (SliceEncoder spec hidden) (QStartStop '[] (SliceEncoding '[] spec)) (QTensor embshape)
   where
   forward model@(SliceEncoder _ _ start stop) (QStartStop tag input) = TT.squeezeDim @0 out
    where
@@ -240,7 +240,7 @@ instance
   , TT.KnownShape pshape
   , GSpecConstraints spec
   )
-  => TT.HasForward (SliceEncoder spec hidden) (QStartStop '[batchSize] (QBoundedList MaxPitches '[batchSize] (1 : pshape))) (QTensor embshape)
+  => TT.HasForward (SliceEncoder spec hidden) (QStartStop '[batchSize] (SliceEncoding '[batchSize] spec)) (QTensor embshape)
   where
   forward model@(SliceEncoder _ _ start stop) (QStartStop tag input) = TT.squeezeDim @0 out
    where
@@ -326,10 +326,11 @@ instance
   , KnownNat hidden
   , GSpecConstraints spec
   )
-  => T.HasForward (SliceEncoder spec hidden) (QBoundedList MaxPitches '[] (1 : pshape)) (QTensor embshape)
+  => T.HasForward (SliceEncoder spec hidden) (SliceEncoding '[] spec) (QTensor embshape)
   where
-  forward (SliceEncoder l1 l2 _ _) (QBoundedList mask input) = out
+  forward (SliceEncoder l1 l2 _ _) slice = out
    where
+    (QBoundedList mask input) = getSlice @spec slice
     out1 :: QTensor (MaxPitches : hidden : pshape)
     out1 = activation $ TT.conv2dForward @'(1, 1) @'(fpad, opad) l1 input
     out2 :: QTensor (MaxPitches : emb : pshape)
@@ -354,12 +355,13 @@ instance
   , KnownNat batchSize
   , GSpecConstraints spec
   )
-  => T.HasForward (SliceEncoder spec hidden) (QBoundedList MaxPitches '[batchSize] (1 : pshape)) (QTensor embshape)
+  => T.HasForward (SliceEncoder spec hidden) (SliceEncoding '[batchSize] spec) (QTensor embshape)
   where
-  forward (SliceEncoder l1 l2 _ _) (QBoundedList mask input) =
+  forward (SliceEncoder l1 l2 _ _) slice =
     case proof of
       (Refl, Refl) -> out
        where
+        (QBoundedList mask input) = getSlice @spec slice
         inputShaped :: QTensor '[batchSize * MaxPitches, 1, fifths, octaves]
         inputShaped = TT.reshape input
         out1 :: QTensor '[batchSize * MaxPitches, hidden, fifths, octaves]
@@ -486,7 +488,7 @@ instance
     runConv
       :: (KnownNat nin)
       => TT.Conv2d nin hidden (FifthSize spec) (OctaveSize spec) QDType QDevice
-      -> QBoundedList MaxEdges '[] (nin : pshape)
+      -> QBoundedList QDType MaxEdges '[] (nin : pshape)
       -> QTensor (hidden : pshape)
     runConv conv (QBoundedList mask edges) = TT.sumDim @0 $ TT.mul mask' out
      where
@@ -499,9 +501,9 @@ instance
     inner :: QTensor (hidden : pshape)
     inner = runConv trL1Inner trencInner
     left :: QTensor (hidden : pshape)
-    left = runConv trL1Left trencLeft
+    left = runConv trL1Left $ getSlice @spec trencLeft
     right :: QTensor (hidden : pshape)
-    right = runConv trL1Right trencRight
+    right = runConv trL1Right $ getSlice @spec trencRight
     root :: QTensor '[hidden, 1, 1]
     root = TT.reshape $ TT.mul trencRoot (activation (T.forward trL1Root ()))
     all :: QTensor (hidden : pshape)
@@ -534,7 +536,7 @@ instance
       :: forall nin
        . (KnownNat nin)
       => TT.Conv2d nin hidden (FifthSize spec) (OctaveSize spec) QDType QDevice
-      -> QBoundedList MaxEdges '[batchSize] (nin : pshape)
+      -> QBoundedList QDType MaxEdges '[batchSize] (nin : pshape)
       -> QTensor (batchSize : hidden : pshape)
     runConv conv (QBoundedList mask edges) = TT.sumDim @1 $ TT.mul mask' outReshaped
      where
@@ -551,9 +553,9 @@ instance
     inner :: QTensor (batchSize : hidden : pshape)
     inner = runConv trL1Inner trencInner
     left :: QTensor (batchSize : hidden : pshape)
-    left = runConv trL1Left trencLeft
+    left = runConv trL1Left $ getSlice @spec trencLeft
     right :: QTensor (batchSize : hidden : pshape)
-    right = runConv trL1Right trencRight
+    right = runConv trL1Right $ getSlice @spec trencRight
     root :: QTensor '[batchSize, hidden, 1, 1]
     root = TT.reshape $ TT.mul (TT.unsqueeze @1 trencRoot) $ activation $ T.forward trL1Root ()
     all :: QTensor (batchSize : hidden : pshape)

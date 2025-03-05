@@ -85,21 +85,22 @@ instance (Batchable a) => Batchable (QMaybe shape a) where
 -- Masked List
 -- -----------
 
-data QBoundedList (maxLen :: Nat) (batchShape :: [Nat]) (innerShape :: [Nat])
+data QBoundedList (dtype :: TT.DType) (maxLen :: Nat) (batchShape :: [Nat]) (innerShape :: [Nat])
   = QBoundedList
   { qlMask :: QTensor (batchShape TT.++ '[maxLen])
-  , qlContent :: QTensor (batchShape TT.++ '[maxLen] TT.++ innerShape)
+  , qlContent :: TT.Tensor QDevice dtype (batchShape TT.++ '[maxLen] TT.++ innerShape)
   }
   deriving (Show)
 
 qBoundedList
-  :: forall maxLen innerShape
+  :: forall dtype maxLen innerShape
    . ( KnownNat maxLen
      , TT.KnownShape innerShape
      , TT.TensorOptions innerShape QDType QDevice
+     , TT.TensorOptions innerShape dtype QDevice
      )
-  => [QTensor innerShape]
-  -> QBoundedList maxLen '[] innerShape
+  => [TT.Tensor QDevice dtype innerShape]
+  -> QBoundedList dtype maxLen '[] innerShape
 qBoundedList [] = QBoundedList TT.zeros TT.zeros
 qBoundedList lst = QBoundedList (TT.UnsafeMkTensor mask) (TT.UnsafeMkTensor paddedContent)
  where
@@ -114,19 +115,19 @@ qBoundedList lst = QBoundedList (TT.UnsafeMkTensor mask) (TT.UnsafeMkTensor padd
   paddedContent = T.constantPadNd1d padSpec 0 content
   mask = T.cat (T.Dim 0) [T.ones [len] opts, T.zeros [padLen] opts]
 
-instance Stackable (QBoundedList maxLen batchShape innerShape) where
+instance Stackable (QBoundedList dtype maxLen batchShape innerShape) where
   type
-    Stacked (QBoundedList maxLen batchShape innerShape) n =
-      QBoundedList maxLen (n ': batchShape) innerShape
+    Stacked (QBoundedList dtype maxLen batchShape innerShape) n =
+      QBoundedList dtype maxLen (n ': batchShape) innerShape
   stack xs = QBoundedList masks contents
    where
     masks = TT.vecStack @0 $ qlMask <$> xs
     contents = TT.vecStack @0 $ qlContent <$> xs
 
-instance Batchable (QBoundedList maxLen batchShape innerShape) where
+instance Batchable (QBoundedList dtype maxLen batchShape innerShape) where
   type
-    Batched (QBoundedList maxLen batchShape innerShape) =
-      QBoundedList maxLen (1 : batchShape) innerShape
+    Batched (QBoundedList dtype maxLen batchShape innerShape) =
+      QBoundedList dtype maxLen (1 : batchShape) innerShape
   addBatchDim (QBoundedList mask content) =
     QBoundedList (TT.unsqueeze @0 mask) (TT.unsqueeze @0 content)
 
@@ -174,17 +175,101 @@ instance (Batchable a) => Batchable (QStartStop shape a) where
 -- Slice Encoding
 -- ==============
 
-type SliceEncoding batchShape spec = QBoundedList MaxPitches batchShape (1 : PShape spec) -- '[PSize spec]
+-- types of slice encodings
+-- ------------------------
+
+newtype SliceEncodingSparse batchShape spec = SliceEncodingSparse
+  {getSliceEncodingSparse :: QBoundedList TT.Int64 MaxPitches batchShape '[2]}
+  deriving (Show)
+
+instance Stackable (SliceEncodingSparse batchShape spec) where
+  type Stacked (SliceEncodingSparse batchShape spec) n = SliceEncodingSparse (n ': batchShape) spec
+  stack slices = SliceEncodingSparse $ stack $ getSliceEncodingSparse <$> slices
+
+instance Batchable (SliceEncodingSparse shape spec) where
+  type Batched (SliceEncodingSparse shape spec) = SliceEncodingSparse (1 ': shape) spec
+  addBatchDim (SliceEncodingSparse slice) = SliceEncodingSparse $ addBatchDim slice
+
+newtype SliceEncodingDense batchShape spec = SliceEncodingDense
+  {getSliceEncodingDense :: QBoundedList QDType MaxPitches batchShape (1 : PShape spec)}
+  deriving (Show)
+
+instance Stackable (SliceEncodingDense batchShape spec) where
+  type Stacked (SliceEncodingDense batchShape spec) n = SliceEncodingDense (n ': batchShape) spec
+  stack slices = SliceEncodingDense $ stack $ getSliceEncodingDense <$> slices
+
+instance Batchable (SliceEncodingDense shape spec) where
+  type Batched (SliceEncodingDense shape spec) = SliceEncodingDense (1 ': shape) spec
+  addBatchDim (SliceEncodingDense slice) = SliceEncodingDense $ addBatchDim slice
+
+-- choose slice encoding type:
+-- ---------------------------
+
+type SliceEncoding = SliceEncodingDense
+
+getSlice
+  :: forall spec batchShape
+   . ( KnownNat (FifthSize spec)
+     , KnownNat (OctaveSize spec)
+     , TT.KnownShape batchShape
+     )
+  => SliceEncoding batchShape spec
+  -> QBoundedList QDType MaxPitches batchShape (1 : PShape spec)
+getSlice = getSliceEncodingDense -- . sliceIndex2OneHot
+
+encodePitches
+  :: forall (spec :: TGeneralSpec)
+   . ( KnownInt (FifthLow spec)
+     , KnownInt (OctaveLow spec)
+     , KnownNat (FifthSize spec)
+     , KnownNat (OctaveSize spec)
+     , TT.TensorOptions (PShape spec) QDType QDevice
+     )
+  => [SPitch]
+  -> SliceEncoding '[] spec
+encodePitches = pitchesOneHots
+
+sliceIndex2OneHot
+  :: forall (spec :: TGeneralSpec) batchShape
+   . ( KnownNat (FifthSize spec)
+     , KnownNat (OctaveSize spec)
+     , TT.KnownShape batchShape
+     )
+  => SliceEncodingSparse batchShape spec
+  -> SliceEncodingDense batchShape spec
+sliceIndex2OneHot (SliceEncodingSparse (QBoundedList mask values)) =
+  SliceEncodingDense $ QBoundedList mask values'
+ where
+  fifthSize = TT.natValI @(FifthSize spec)
+  octaveSize = TT.natValI @(OctaveSize spec)
+  shape = TT.shapeVal @batchShape
+  hotF = T.toType qDType $ T.oneHot fifthSize $ T.select (-1) 0 $ TT.toDynamic values
+  hotO = T.toType qDType $ T.oneHot octaveSize $ T.select (-1) 1 $ TT.toDynamic values
+  outer = T.einsum "...i,...j->...ij" [hotF, hotO] [1, 0]
+  values' = TT.UnsafeMkTensor $ T.unsqueeze (T.Dim (-3)) outer
+
+-- slice variants
+-- --------------
 
 pitch2index
-  :: forall (flow :: TInt) (olow :: TInt)
-   . (KnownInt flow, KnownInt olow)
+  :: forall (spec :: TGeneralSpec)
+   . ( KnownInt (FifthLow spec)
+     , KnownInt (OctaveLow spec)
+     , KnownNat (FifthSize spec)
+     , KnownNat (OctaveSize spec)
+     )
   => SPitch
   -> [Int]
-pitch2index p = [fifths p - fifthLow, octaves p - octaveLow]
+pitch2index p =
+  [ clamp fifthSize (fifths p - fifthLow)
+  , clamp octaveSize (octaves p - octaveLow)
+  ]
  where
-  fifthLow = fromIntegral $ intVal' @flow proxy#
-  octaveLow = fromIntegral $ intVal' @olow proxy#
+  clamp m i = max 0 $ min m i
+  fifthLow = fromIntegral $ intVal' @(FifthLow spec) proxy#
+  octaveLow = fromIntegral $ intVal' @(OctaveLow spec) proxy#
+  fifthSize = TT.natValI @(FifthSize spec)
+  octaveSize = TT.natValI @(OctaveSize spec)
 
 pitchesMultiHot
   :: forall (spec :: TGeneralSpec)
@@ -201,64 +286,38 @@ pitchesMultiHot ps = TT.UnsafeMkTensor out
     if HS.null ps
       then zeros
       else T.indexPut True indices values zeros
-  ~indices = T.asTensor <$> Data.List.transpose (pitch2index @(FifthLow spec) @(OctaveLow spec) <$> F.toList ps)
+  ~indices = T.asTensor <$> Data.List.transpose (pitch2index @spec <$> F.toList ps)
   values = T.ones [F.length ps] opts
   zeros = T.zeros dims opts
   fifthSize = TT.natValI @(FifthSize spec)
   octaveSize = TT.natValI @(OctaveSize spec)
   dims = [fifthSize, octaveSize]
 
-encodeSliceMultiHot
+pitchesOneHots
   :: forall (spec :: TGeneralSpec)
    . ( KnownInt (FifthLow spec)
      , KnownInt (OctaveLow spec)
      , KnownNat (FifthSize spec)
      , KnownNat (OctaveSize spec)
-     )
-  => Notes SPitch
-  -> QTensor (PShape spec)
-encodeSliceMultiHot (Notes notes) =
-  -- DT.trace ("ecoding slice" <> show notes) $
-  pitchesMultiHot @spec $ MS.toSet notes
-
-pitchesOneHots
-  :: forall (spec :: TGeneralSpec) (maxLen :: Nat)
-   . ( KnownInt (FifthLow spec)
-     , KnownInt (OctaveLow spec)
-     , KnownNat (FifthSize spec)
-     , KnownNat (OctaveSize spec)
      , TT.TensorOptions (PShape spec) QDType QDevice
-     , KnownNat maxLen
      )
   => [SPitch]
-  -> QBoundedList maxLen '[] (1 : PShape spec)
-pitchesOneHots [] = QBoundedList TT.zeros TT.zeros
-pitchesOneHots ps = QBoundedList mask (TT.reshape out)
+  -> SliceEncodingDense '[] spec
+pitchesOneHots [] = SliceEncodingDense $ QBoundedList TT.zeros TT.zeros
+pitchesOneHots ps = SliceEncodingDense $ QBoundedList mask (TT.reshape out)
  where
   pitches = take maxPitches ps
   n = length pitches
-  maxPitches = TT.natValI @maxLen
-  mkIndex i pitch = i : pitch2index @(FifthLow spec) @(OctaveLow spec) pitch
+  maxPitches = TT.natValI @MaxPitches
+  mkIndex i pitch = i : pitch2index @spec pitch
   indices = T.asTensor <$> Data.List.transpose (zipWith mkIndex [0 ..] pitches)
   values = T.ones [n] opts
-  zeros :: QTensor (maxLen ': PShape spec)
+  zeros :: QTensor (MaxPitches ': PShape spec)
   zeros = TT.zeros
-  out :: QTensor (maxLen : PShape spec)
+  out :: QTensor (MaxPitches : PShape spec)
   out = TT.UnsafeMkTensor $ T.indexPut True indices values $ TT.toDynamic zeros
-  mask :: QTensor '[maxLen]
+  mask :: QTensor '[MaxPitches]
   mask = TT.UnsafeMkTensor $ T.cat (T.Dim 0) [values, T.zeros [maxPitches - n] opts]
-
-encodeSliceOneHots
-  :: forall spec t
-   . ( KnownInt (FifthLow spec)
-     , KnownInt (OctaveLow spec)
-     , KnownNat (FifthSize spec)
-     , KnownNat (OctaveSize spec)
-     , TT.TensorOptions (PShape spec) QDType QDevice
-     )
-  => Notes SPitch
-  -> QBoundedList MaxPitches '[] (1 : PShape spec)
-encodeSliceOneHots (Notes ps) = pitchesOneHots @spec $ MS.toList ps
 
 pitchesTokens
   :: forall (spec :: TGeneralSpec)
@@ -269,7 +328,7 @@ pitchesTokens
      , KnownNat (PSize spec)
      )
   => [SPitch]
-  -> QBoundedList MaxPitches '[] '[PSize spec] -- SliceEncoding '[] spec
+  -> QBoundedList QDType MaxPitches '[] '[PSize spec] -- SliceEncoding '[] spec
 pitchesTokens ps = qBoundedList (mkToken <$> ps)
  where
   -- todo: batch oneHot
@@ -283,18 +342,19 @@ pitchesTokens ps = qBoundedList (mkToken <$> ps)
   fifthSize = TT.natValI @(FifthSize spec)
   octaveSize = TT.natValI @(OctaveSize spec)
 
-encodeSliceTokens
+pitchesIndices
   :: forall (spec :: TGeneralSpec)
    . ( KnownInt (FifthLow spec)
      , KnownInt (OctaveLow spec)
      , KnownNat (FifthSize spec)
      , KnownNat (OctaveSize spec)
-     , KnownNat (PSize spec)
      )
-  => Notes SPitch
-  -> QBoundedList MaxPitches '[] '[PSize spec] -- SliceEncoding '[] spec
-encodeSliceTokens (Notes notes) =
-  pitchesTokens @spec $ MS.toList notes
+  => [SPitch]
+  -> SliceEncodingSparse '[] spec
+pitchesIndices ps = SliceEncodingSparse $ qBoundedList (mkToken <$> ps)
+ where
+  mkIndex = pitch2index @spec
+  mkToken p = TT.UnsafeMkTensor $ T.asTensor' (mkIndex p) $ T.withDType T.Int64 opts
 
 encodeSlice
   :: forall (spec :: TGeneralSpec)
@@ -306,7 +366,8 @@ encodeSlice
      )
   => Notes SPitch
   -> SliceEncoding '[] spec
-encodeSlice = encodeSliceOneHots @spec
+-- encodeSlice = encodeSliceIndices @spec
+encodeSlice (Notes notes) = encodePitches @spec $ MS.toList notes
 
 emptySlice
   :: forall spec
@@ -318,14 +379,14 @@ emptySlice
      , TT.TensorOptions (PShape spec) QDType QDevice
      )
   => SliceEncoding '[] spec
-emptySlice = encodeSliceOneHots @spec $ Notes MS.empty
+emptySlice = encodePitches @spec []
 
 -- Transition Encoding
 -- ===================
 
 data TransitionEncoding batchShape spec = TransitionEncoding
-  { trencPassing :: QBoundedList MaxEdges batchShape (2 ': PShape spec)
-  , trencInner :: QBoundedList MaxEdges batchShape (2 ': PShape spec)
+  { trencPassing :: QBoundedList QDType MaxEdges batchShape (2 ': PShape spec)
+  , trencInner :: QBoundedList QDType MaxEdges batchShape (2 ': PShape spec)
   , trencLeft :: SliceEncoding batchShape spec
   , trencRight :: SliceEncoding batchShape spec
   , trencRoot :: QTensor batchShape
@@ -370,8 +431,8 @@ edgesMultiHot es = TT.UnsafeMkTensor out
       then zeros
       else T.indexPut True indexTensors values zeros
   edge2index (p1, p2) =
-    pitch2index @(FifthLow spec) @(OctaveLow spec) p1
-      ++ pitch2index @(FifthLow spec) @(OctaveLow spec) p2
+    pitch2index @spec p1
+      ++ pitch2index @spec p2
   indices = edge2index <$> F.toList es
   ~indexTensors = T.asTensor <$> Data.List.transpose indices
   values = T.ones [F.length es] opts
@@ -389,11 +450,11 @@ edgesOneHots
      , KnownInt (FifthLow spec)
      )
   => [InnerEdge SPitch]
-  -> QBoundedList MaxEdges '[] (2 ': PShape spec)
+  -> QBoundedList QDType MaxEdges '[] (2 ': PShape spec)
 edgesOneHots es = QBoundedList mask $ TT.cat @1 (hots1 TT.:. hots2 TT.:. TT.HNil)
  where
-  QBoundedList mask hots1 = pitchesOneHots @spec $ fst <$> es
-  QBoundedList _ hots2 = pitchesOneHots @spec @MaxEdges $ snd <$> es
+  SliceEncodingDense (QBoundedList mask hots1) = pitchesOneHots @spec $ fst <$> es
+  SliceEncodingDense (QBoundedList _ hots2) = pitchesOneHots @spec $ snd <$> es
 
 edgesTokens
   :: forall (spec :: TGeneralSpec)
@@ -404,7 +465,7 @@ edgesTokens
      , KnownNat (PSize spec + PSize spec)
      )
   => [InnerEdge SPitch]
-  -> QBoundedList MaxEdges '[] '[ESize spec] -- Maybe (QTensor (EShape spec))
+  -> QBoundedList QDType MaxEdges '[] '[ESize spec] -- Maybe (QTensor (EShape spec))
 edgesTokens es = qBoundedList (mkToken <$> es)
  where
   -- todo: batch oneHot

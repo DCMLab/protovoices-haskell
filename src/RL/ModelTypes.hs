@@ -15,11 +15,11 @@ import Torch.Typed qualified as TT
 -- ---------------
 
 device :: T.Device
-device = T.Device T.CPU 0
-type QDevice = '(TT.CPU, 0)
+-- device = T.Device T.CPU 0
+-- type QDevice = '(TT.CPU, 0)
 
--- device = T.Device T.CUDA 0
--- type QDevice = '(TT.CUDA, 0)
+device = T.Device T.CUDA 0
+type QDevice = '(TT.CUDA, 0)
 
 type QDType = TT.Double
 

@@ -147,7 +147,7 @@ mainPlot = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
       pieces = dataToSlices . notes <$> take 20 chords
-  actor <- RL.loadModel "actor.ht"
+  actor <- RL.mkQModel -- RL.loadModel "actor.ht"
   forM_ (zip pieces [1 ..]) $ \(piece, i) -> do
     result <- parseA2C actor piece
     case result of
