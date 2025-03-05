@@ -515,8 +515,9 @@ mainRL n = do
   -- bestReward2 <- RL.pvRewardExp posterior pieceAna2
   -- putStrLn $ "optimal reward: " <> show bestReward
   -- putStrLn $ "optimal reward 2: " <> show bestReward2
-  bestRewards <- forM items $ \(_, ana, _, _) -> RL.pvRewardExp posterior ana
-  let pieces = (\(_, _, _, piece) -> piece) <$> items
+  bestRewards <- forM items $ \(_, ana, _, _) -> RL.pvRewardExp' posterior ana
+  let pieces = (\(_, _, _, piece) -> (piece, pathLen piece)) <$> items
+  let fReward = RL.pvRewardActionByLen posterior
   -- (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) (RL.pvRewardAction posterior) [piece] n
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
   actor0 <- RL.mkQModel
@@ -524,7 +525,7 @@ mainRL n = do
   -- actor0 <- RL.loadModel "actor.ht"
   -- critic0 <- RL.loadModel "critic.ht"
   (rewards, losses, actor, critic) <-
-    RL.trainA2C protoVoiceEvaluator mgen posterior (Just bestRewards) actor0 critic0 pieces n
+    RL.trainA2C protoVoiceEvaluator mgen fReward (Just bestRewards) actor0 critic0 pieces n
   -- testBestReward <- RL.pvRewardExp posterior testAna
   -- testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
   -- case testAcc of
@@ -540,4 +541,4 @@ mainRL n = do
 
 catchAll prog = catch prog (\(e :: SomeException) -> currentCallStack >>= print >> print e)
 
-main = catchAll $ mainRL 10_000
+main = catchAll $ mainRL 5000

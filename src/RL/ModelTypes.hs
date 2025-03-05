@@ -52,38 +52,47 @@ defaultGSpec =
 
 type data TGeneralSpec = TGenSpec TInt Nat TInt Nat Nat
 
-type family GenFifthLow (spec :: TGeneralSpec) where
-  GenFifthLow (TGenSpec flow _ _ _ _) = flow
+type family FifthLow (spec :: TGeneralSpec) where
+  FifthLow (TGenSpec flow _ _ _ _) = flow
 
-type family GenFifthSize (spec :: TGeneralSpec) where
-  GenFifthSize (TGenSpec _ fsize _ _ _) = fsize
+type family FifthPadding (spec :: TGeneralSpec) where
+  FifthPadding (TGenSpec _ fpad _ _ _) = fpad
 
-type family GenOctaveLow (spec :: TGeneralSpec) where
-  GenOctaveLow (TGenSpec _ _ olow _ _) = olow
+type family FifthSize (spec :: TGeneralSpec) where
+  FifthSize spec = (2 * FifthPadding spec) + 1
 
-type family GenOctaveSize (spec :: TGeneralSpec) where
-  GenOctaveSize (TGenSpec _ _ _ osize _) = osize
+type family OctaveLow (spec :: TGeneralSpec) where
+  OctaveLow (TGenSpec _ _ olow _ _) = olow
 
-type family GenEmbSize (spec :: TGeneralSpec) where
-  GenEmbSize (TGenSpec _ _ _ _ esize) = esize
+type family OctavePadding (spec :: TGeneralSpec) where
+  OctavePadding (TGenSpec _ _ _ opad _) = opad
 
-type family PShape' (spec :: TGeneralSpec) where
-  PShape' (TGenSpec _ fs _ os _) = '[fs, os]
+type family OctaveSize (spec :: TGeneralSpec) where
+  OctaveSize spec = (2 * OctavePadding spec) + 1
+
+type family EmbSize (spec :: TGeneralSpec) where
+  EmbSize (TGenSpec _ _ _ _ esize) = esize
+
+type family PShape (spec :: TGeneralSpec) where
+  PShape spec = '[FifthSize spec, OctaveSize spec]
 
 type family PSize (spec :: TGeneralSpec) where
   PSize (TGenSpec _ fs _ os _) = fs + os
 
-type family PShape (spec :: TGeneralSpec) where
-  PShape spec = '[FakeSize, PSize spec]
+type family EmbShape (spec :: TGeneralSpec) where
+  EmbShape spec = EmbSize spec ': PShape spec
 
-type family EShape' (spec :: TGeneralSpec) where
-  EShape' (TGenSpec _ fs _ os _) = '[fs, os, fs, os]
+-- type family PShape' (spec :: TGeneralSpec) where
+--   PShape' spec = '[FakeSize, PSize spec]
+
+-- type family EShape (spec :: TGeneralSpec) where
+--   EShape' (TGenSpec _ fs _ os _) = '[fs, os, fs, os]
 
 type family ESize (spec :: TGeneralSpec) where
   ESize spec = PSize spec + PSize spec
 
-type family EShape (spec :: TGeneralSpec) where
-  EShape spec = '[FakeSize, ESize spec]
+type family EShape' (spec :: TGeneralSpec) where
+  EShape' spec = '[FakeSize, ESize spec]
 
 -- full model spec
 
@@ -107,9 +116,22 @@ type family QSpecAction qspec where
 type family QSpecState qspec where
   QSpecState (TQSpecData _ _ _ _ _ st) = st
 
-type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 64
+type TGeneralSpecDefault =
+  TGenSpec
+    (Neg 3) -- lowest fifth
+    6 -- fifths padding (fifth size = 2 * fpad + 1)
+    (Pos 2) -- lowest octave
+    2 -- octave padding (octave size = 2 * opad + 1)
+    8 -- embedding size
 
-type DefaultQSpec = TQSpecData TGeneralSpecDefault 64 64 64 64 128
+type DefaultQSpec =
+  TQSpecData
+    TGeneralSpecDefault -- general specs
+    8 -- output module hidden size
+    8 -- slice module hidden size
+    8 -- transition module hidden size
+    8 -- action model hidden size
+    8 -- state model hidden size
 
 -- type TGeneralSpecDefault = TGenSpec (Neg 3) 12 (Pos 2) 5 4
 

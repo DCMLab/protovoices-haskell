@@ -6,6 +6,7 @@
 module Internal.TorchHelpers where
 
 import Data.Kind (Type)
+import Torch qualified as T
 import Torch qualified as TD
 import Torch.Typed qualified as TT
 
@@ -109,3 +110,14 @@ instance TT.Apply' ToList (t, [t]) [t] where
 type family ToModelTensors (params :: [Type]) :: [Type] where
   ToModelTensors '[] = '[]
   ToModelTensors (TT.Parameter dev dtype shape ': rst) = TT.Tensor dev dtype shape : ToModelTensors rst
+
+-- | Run a batched operation in an unbatched context
+withBatchDim
+  :: forall dev1 dtype1 shape1 dev2 dtype2 shape2
+   . (TT.Tensor dev1 dtype1 (1 : shape1) -> TT.Tensor dev2 dtype2 (1 : shape2))
+  -> TT.Tensor dev1 dtype1 shape1
+  -> TT.Tensor dev2 dtype2 shape2
+withBatchDim op input = TT.squeezeDim @0 $ op batchedIn
+ where
+  batchedIn :: TT.Tensor dev1 dtype1 (1 : shape1)
+  batchedIn = TT.unsqueeze @0 input
