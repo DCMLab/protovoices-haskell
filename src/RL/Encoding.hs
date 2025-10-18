@@ -703,6 +703,7 @@ data QEncoding batchShape spec = QEncoding
   { qActionEncoding :: !(ActionEncoding batchShape spec)
   , qStateEncoding :: !(StateEncoding spec)
   }
+  deriving (Show)
 
 instance Batchable (QEncoding shape spec) where
   type Batched (QEncoding shape spec) = QEncoding (1 : shape) spec

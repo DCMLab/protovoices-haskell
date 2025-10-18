@@ -229,7 +229,7 @@ instance
     out = TT.gatherDim @0 tag' combined
   forwardStoch model input = pure $ T.forward model input
 
--- | HasForward for slice wrappend in QStartStop (batched).
+-- | HasForward for slice wrapped in QStartStop (batched).
 instance
   ( emb ~ EmbSize spec
   , pshape ~ PShape spec
@@ -797,8 +797,8 @@ instance
     embl = runConv actTop1sl $ T.forward slc sl
     embm = runConv actTop1sm $ T.forward slc sm
     embr = runConvMasked smMask actTop1sr $ T.forward slc sr
-    embt1 = runConvMasked t2Mask actTop1t1 $ T.forward tr t1
-    embt2 = runConv actTop1t2 $ T.forward tr t2
+    embt1 = runConv actTop1t1 $ T.forward tr t1
+    embt2 = runConvMasked t2Mask actTop1t2 $ T.forward tr t2
     topCombined :: QTensor (batchSize : actHidden : pshape)
     topCombined = embl + embm + embr + embt1 + embt2
     topEmb :: QTensor (batchSize : emb : pshape)

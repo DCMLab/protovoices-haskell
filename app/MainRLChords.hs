@@ -8,6 +8,7 @@ module Main where
 import Common
 import Control.Monad (forM_)
 import Control.Monad.Except qualified as ET
+import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict, withObject, (.:))
 import Data.List (zipWith4)
@@ -102,12 +103,14 @@ parseA2C !actor !input = ET.runExceptT $ go $ initParseState eval input
  where
   eval = protoVoiceEvaluator
   go !state = do
-    let actions = take 200 $ getActions eval state
-        -- encodings = RL.encodeStep state <$> actions
+    let actions = take 20 $ getActions eval state
+        encodings = RL.encodeStep state <$> actions
         -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . RL.forwardPolicy actor <$> encodings
         probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
         best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
-        action = actions !! best
+        -- dummy = RL.withBatchedEncoding state actions (`seq` ())
+        -- best = 0
+        action = seq probs $ actions !! best
     state' <- ET.except $ applyAction state action
     case state' of
       Left s' -> go s'
@@ -133,10 +136,10 @@ mainRL n = do
   genMWC <- MWC.create -- uses a fixed seed
   (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
   let fReward = RL.pvRewardActionByLen posterior
-  -- actor0 <- RL.mkQModel
-  -- critic0 <- RL.mkQModel
-  actor0 <- RL.loadModel "actor.ht"
-  critic0 <- RL.loadModel "critic.ht"
+  actor0 <- RL.mkQModel
+  critic0 <- RL.mkQModel
+  -- actor0 <- RL.loadModel "actor.ht"
+  -- critic0 <- RL.loadModel "critic.ht"
   (rewards, losses, actor, critic) <-
     RL.trainA2C protoVoiceEvaluator mgen fReward Nothing actor0 critic0 pieces n
   TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
@@ -147,14 +150,13 @@ mainPlot = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
       pieces = dataToSlices . notes <$> take 20 chords
-  actor <- RL.mkQModel -- RL.loadModel "actor.ht"
+  actor <- RL.loadModel "actor.ht"
   forM_ (zip pieces [1 ..]) $ \(piece, i) -> do
     result <- parseA2C actor piece
     case result of
       Left err -> putStrLn $ "chord " <> show i <> ": " <> err
-      Right (Analysis deriv top) ->
+      Right (Analysis deriv top) -> do
         print $ length deriv
-
--- RL.plotDeriv ("/tmp/rl/deriv" <> show i <> ".tex") deriv
+        RL.plotDeriv ("/tmp/rl/deriv" <> show i <> ".tex") deriv
 
 main = mainPlot
