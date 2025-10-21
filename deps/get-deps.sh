@@ -12,7 +12,7 @@ case $1 in
         url="https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${VERSION}%2Bcpu.zip"
         ;;
     cuda)
-        filename="libtorch-shared-with-deps-${VERSION}+cuda.zip"
+        filename="libtorch-shared-with-deps-${VERSION}+cuda${CUDA_VERSION}.zip"
         url="https://download.pytorch.org/libtorch/cu${CUDA_VERSION}/libtorch-shared-with-deps-${VERSION}%2Bcu${CUDA_VERSION}.zip"
         ;;
     rocm)
