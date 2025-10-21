@@ -4,7 +4,7 @@
 # ROCM_VERSION="6.0"
 VERSION="2.9.0"
 ROCM_VERSION="6.4"
-CUDA_VERSION="118"
+CUDA_VERSION="130"
 
 case $1 in
     cpu)
