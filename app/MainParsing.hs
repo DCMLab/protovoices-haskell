@@ -250,10 +250,10 @@ startParsing file = do
   surface <- loadSurface file
   pure $ Greedy.initParseState protoVoiceEvaluator surface
 
-rateState :: RL.QModel RL.DefaultQSpec -> RL.PVState [] -> RL.QTensor '[1]
+rateState :: RL.QModel -> RL.PVState [] -> RL.QTensor '[1]
 rateState model state = RL.forwardValue model $ RL.encodePVState state
 
-listActions :: RL.QModel RL.DefaultQSpec -> RL.PVState [] -> IO ()
+listActions :: RL.QModel -> RL.PVState [] -> IO ()
 listActions model state = do
   putStrLn $ "state value: " <> show (rateState model state)
   zipWithM_ showAction (getActions state) [1 ..]
@@ -273,7 +273,7 @@ getActions = Greedy.getActions (protoVoiceEvaluator @[] @[])
 
 rateActions
   :: (Foldable t)
-  => RL.QModel RL.DefaultQSpec
+  => RL.QModel
   -> RL.PVState t
   -> [RL.PVAction]
   -> [RL.QType]

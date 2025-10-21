@@ -74,8 +74,8 @@ printParams :: TT.HList ModelParams -> IO ()
 printParams (_ TT.:. t TT.:. _) = print t
 
 data A2CState = A2CState
-  { a2cActor :: !(QModel DefaultQSpec)
-  , a2cCritic :: !(QModel DefaultQSpec)
+  { a2cActor :: !QModel
+  , a2cCritic :: !QModel
   , a2cOptActor :: !TT.GD -- !(TT.CppOptimizerState TT.AdamOptions ModelParams) -- !(TT.Adam ModelTensors) --
   , a2cOptCritic :: !TT.GD -- !(TT.Adam ModelTensors)
   }
@@ -242,7 +242,7 @@ runEpisodes !eval !gen !fReward !input !label !modelState !i =
 runAccuracy
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Leftmost (Split SPitch) Freeze (Spread SPitch))
   -> PVRewardFn label
-  -> QModel DefaultQSpec
+  -> QModel
   -> (Path slc' [Edge SPitch], label)
   -> IO (Either String (QType, Analysis (Split SPitch) Freeze (Spread SPitch) (Edges SPitch) slc))
 runAccuracy !eval !fReward !actor (!input, !label) = ET.runExceptT $ go 0 0 $ initParseState eval input
@@ -282,11 +282,11 @@ trainA2C
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
   -> Maybe [QType]
-  -> QModel DefaultQSpec
-  -> QModel DefaultQSpec
+  -> QModel
+  -> QModel
   -> [(Path [SPitch] [Edge SPitch], label)]
   -> Int
-  -> IO ([[QType]], [QType], QModel DefaultQSpec, QModel DefaultQSpec)
+  -> IO ([[QType]], [QType], QModel, QModel)
 trainA2C eval gen fReward targets actor0 critic0 pieces n = do
   -- print $ qModelFinal2 model0
   -- opta <- TT.initOptimizer (TT.AdamOptions 0.0001 (0.9, 0.999) 1e-8 0 False) actor0

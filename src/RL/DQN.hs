@@ -105,10 +105,10 @@ eps i n = epsStart * exp (log (epsEnd / epsStart) * fromIntegral i / fromIntegra
 -- ---------------
 
 data DQNState opt tr tr' slc s f h r = DQNState
-  { pnet :: !(QModel DefaultQSpec)
-  , tnet :: !(QModel DefaultQSpec)
+  { pnet :: !QModel
+  , tnet :: !QModel
   , opt :: !opt
-  , buffer :: !(ReplayBuffer tr tr' slc s f h r)
+  , buffer :: !(ReplayBuffer tr tr' slc s f h)
   }
 
 -- epsilonGreedyPolicy
@@ -160,7 +160,7 @@ runEpisode
   :: forall tr tr' slc slc' s f h gen state action encoding step
    . ( state ~ GreedyState tr tr' slc (Leftmost s f h)
      , action ~ Action slc tr s f h
-     , encoding ~ QEncoding '[] (QSpecGeneral DefaultQSpec)
+     , encoding ~ QEncoding '[]
      , step ~ (state, action, encoding, Maybe (state, [encoding]), Maybe Bool)
      )
   => Eval tr tr' slc slc' (Leftmost s f h)
@@ -223,7 +223,7 @@ runEpisode !eval !encode !policyF !input =
 trainLoop
   :: forall tr tr' slc slc' s f h gen opt -- params (grads :: [Type])
    . -- . ( StatefulGen gen IO
-  --   , params ~ TT.Parameters (QModel DefaultQSpec)
+  --   , params ~ TT.Parameters QModel
   --   , TT.HasGrad (TT.HList params) (TT.HList grads)
   --   , TT.Optimizer opt grads grads T.Double QDevice
   --   , TT.HMap' TT.ToDependent params grads
@@ -235,7 +235,7 @@ trainLoop
   (_)
   => gen
   -> Eval tr tr' slc slc' (Leftmost s f h)
-  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[] (QSpecGeneral DefaultQSpec))
+  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[])
   -> (Analysis s f h tr slc -> IO QType)
   -> (Action slc tr s f h -> Maybe Bool -> IO QType)
   -> Path slc' tr'
@@ -353,12 +353,12 @@ trainDQN
      )
   => gen
   -> Eval tr tr' slc slc' (Leftmost s f h)
-  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[] (QSpecGeneral DefaultQSpec))
+  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[])
   -> (Analysis s f h tr slc -> IO QType)
   -> (Action slc tr s f h -> Maybe Bool -> IO QType)
   -> [Path slc' tr']
   -> Int
-  -> IO ([QType], [QType], QModel DefaultQSpec)
+  -> IO ([QType], [QType], QModel)
 trainDQN gen eval encode reward rewardStep pieces n = do
   model0 <- mkQModel
   let opt = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model0) -- T.GD

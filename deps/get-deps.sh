@@ -1,11 +1,9 @@
 #!/bin/sh
 
-# VERSION="2.6.0"
-# ROCM_VERSION="6.2.4"
-VERSION="2.3.1"
-ROCM_VERSION="6.0"
-#VERSION="2.0.0"
-#ROCM_VERSION="5.4.2"
+# VERSION="2.3.1"
+# ROCM_VERSION="6.0"
+VERSION="2.9.0"
+ROCM_VERSION="6.4"
 CUDA_VERSION="118"
 
 case $1 in
@@ -18,8 +16,8 @@ case $1 in
         url="https://download.pytorch.org/libtorch/cu${CUDA_VERSION}/libtorch-cxx11-abi-shared-with-deps-${VERSION}%2Bcu${CUDA_VERSION}.zip"
         ;;
     rocm)
-        filename="libtorch-cxx11-abi-shared-with-deps-${VERSION}+rocm.zip"
-        url="https://download.pytorch.org/libtorch/rocm${ROCM_VERSION}/libtorch-cxx11-abi-shared-with-deps-${VERSION}%2Brocm${ROCM_VERSION}.zip"
+        filename="libtorch-shared-with-deps-${VERSION}+rocm${ROCM_VERSION}.zip"
+        url="https://download.pytorch.org/libtorch/rocm${ROCM_VERSION}/libtorch-shared-with-deps-${VERSION}%2Brocm${ROCM_VERSION}.zip"
         ;;
     *)
         echo "Pick cpu, cuda, or rocm!"

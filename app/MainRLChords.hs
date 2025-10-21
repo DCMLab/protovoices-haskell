@@ -96,7 +96,7 @@ dataToSlices dataNotes =
 -- --------------
 
 parseA2C
-  :: RL.QModel RL.DefaultQSpec
+  :: RL.QModel
   -> Path [SPitch] [Edge SPitch]
   -> IO (Either String (PVAnalysis SPitch))
 parseA2C !actor !input = ET.runExceptT $ go $ initParseState eval input
@@ -159,4 +159,4 @@ mainPlot = do
         print $ length deriv
         RL.plotDeriv ("/tmp/rl/deriv" <> show i <> ".tex") deriv
 
-main = mainPlot
+main = mainRL 1

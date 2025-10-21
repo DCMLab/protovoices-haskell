@@ -12,7 +12,7 @@ import Torch.Typed qualified as TT
 -- helpers for operating on HLists
 -- ===============================
 
-type ModelParams = TT.Parameters (QModel DefaultQSpec)
+type ModelParams = TT.Parameters QModel
 type ModelTensors = ToModelTensors ModelParams
 
 newtype UpdateEligCritic = UpdateEligCritic QType
@@ -39,7 +39,7 @@ mulModelTensors :: QTensor '[] -> TT.HList ModelTensors -> TT.HList ModelTensors
 mulModelTensors factor = force $ TT.hmap' (Mul' factor)
 {-# NOINLINE mulModelTensors #-}
 
-modelZeros :: QModel DefaultQSpec -> TT.HList ModelTensors
+modelZeros :: QModel -> TT.HList ModelTensors
 modelZeros model = force $ TT.hmap' TT.ZerosLike $ TT.flattenParameters model
 {-# NOINLINE modelZeros #-}
 
