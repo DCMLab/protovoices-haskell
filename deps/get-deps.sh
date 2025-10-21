@@ -9,11 +9,11 @@ CUDA_VERSION="130"
 case $1 in
     cpu)
         filename="libtorch-cxx11-abi-shared-with-deps-${VERSION}+cpu.zip"
-        url="https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-${VERSION}%2Bcpu.zip"
+        url="https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${VERSION}%2Bcpu.zip"
         ;;
     cuda)
         filename="libtorch-cxx11-abi-shared-with-deps-${VERSION}+cuda.zip"
-        url="https://download.pytorch.org/libtorch/cu${CUDA_VERSION}/libtorch-cxx11-abi-shared-with-deps-${VERSION}%2Bcu${CUDA_VERSION}.zip"
+        url="https://download.pytorch.org/libtorch/cu${CUDA_VERSION}/libtorch-shared-with-deps-${VERSION}%2Bcu${CUDA_VERSION}.zip"
         ;;
     rocm)
         filename="libtorch-shared-with-deps-${VERSION}+rocm${ROCM_VERSION}.zip"
