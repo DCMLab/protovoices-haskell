@@ -562,14 +562,23 @@ instance
     -- embed the mid slice
     midEmb :: QTensor (QStateHidden : PShape)
     midEmb = activation $ runConv stL1mid $ T.forward slc mid
+    -- embed the frozen segments
+    embedFrozen (ft, fs) = ftEmb + fsEmb
+     where
+      ftEmb = activation $ runConv stL1frozenTr $ T.forward tr ft
+      fsEmb = activation $ runConv stL1frozenSlc $ T.forward slc fs
+    frozenEmb = (F.foldl' (+) TT.zeros $ embedFrozen <$> frozen) / scaling
+     where
+      scaling = if null frozen then 1 else fromIntegral (length frozen)
     -- embed the frozen segment (if it exists) and add to midEmb
     midAndFrozen :: QTensor (QStateHidden : PShape)
-    midAndFrozen = case frozen of
-      Nothing -> midEmb
-      Just (ft, fs) ->
-        let ftEmb = activation $ runConv stL1frozenTr $ T.forward tr ft
-            fsEmb = activation $ runConv stL1frozenSlc $ T.forward slc fs
-         in midEmb + ftEmb + fsEmb
+    midAndFrozen = midEmb + frozenEmb
+    -- midAndFrozen = case frozen of
+    --   Nothing -> midEmb
+    --   Just (ft, fs) ->
+    --     let ftEmb = activation $ runConv stL1frozenTr $ T.forward tr ft
+    --         fsEmb = activation $ runConv stL1frozenSlc $ T.forward slc fs
+    --      in midEmb + ftEmb + fsEmb
     -- embed an open segment using its respective layers
     embedOpen (ot, os) (l1tr, l1slc) = otEmb + osEmb
      where

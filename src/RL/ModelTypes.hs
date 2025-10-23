@@ -44,7 +44,7 @@ type MaxEdges = 10 :: Nat
 -- General Spec
 -- ------------
 
-type CommonHiddenSize = 32
+type CommonHiddenSize = 8
 
 type FifthLow = Neg 3
 type FifthPadding = 6

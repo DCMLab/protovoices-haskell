@@ -11,6 +11,7 @@ import Control.Monad.Except qualified as ET
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict, withObject, (.:))
+import Data.Aeson qualified as JSON
 import Data.List (zipWith4)
 import Data.Ratio (Ratio (..), denominator, numerator, (%))
 import Data.TypeLits (KnownNat)
@@ -129,8 +130,8 @@ mainLoading = do
 mainRL n = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
-      inputs = dataToSlices . notes <$> take 20 chords
-      pieces = (\piece -> (piece, pathLen piece)) <$> inputs
+      pieces = (\chord -> (dataToSlices chord, length $ total_onset chord)) . notes <$> chords
+  -- pieces = (\piece -> (piece, pathLen piece)) <$> inputs
   gen <- initStdGen
   mgen <- newIOGenM gen
   genMWC <- MWC.create -- uses a fixed seed
@@ -142,21 +143,23 @@ mainRL n = do
   -- critic0 <- RL.loadModel "critic.ht"
   (rewards, losses, actor, critic) <-
     RL.trainA2C protoVoiceEvaluator mgen fReward Nothing actor0 critic0 pieces n
-  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
-  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
+  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
+  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
   pure ()
 
 mainPlot = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
-      pieces = dataToSlices . notes <$> take 20 chords
-  actor <- RL.loadModel "actor.ht"
+      pieces = dataToSlices . notes <$> take 10 chords
+  actor <- RL.loadModel "actor_checkpoint.ht"
   forM_ (zip pieces [1 ..]) $ \(piece, i) -> do
     result <- parseA2C actor piece
     case result of
       Left err -> putStrLn $ "chord " <> show i <> ": " <> err
-      Right (Analysis deriv top) -> do
+      Right ana@(Analysis deriv top) -> do
         print $ length deriv
-        RL.plotDeriv ("/tmp/rl/deriv" <> show i <> ".tex") deriv
+        let fn = "/tmp/rl/deriv" <> show i <> ".tex"
+        -- JSON.encodeFile fn ana
+        RL.plotDeriv fn deriv
 
-main = mainRL 1
+main = mainPlot

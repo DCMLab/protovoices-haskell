@@ -527,7 +527,7 @@ encodePVAction (Right (ActionDouble top action)) = ActionEncoding encTop encActi
 
 data StateEncoding = StateEncoding
   { stateEncodingMid :: !(StartStop (SliceEncoding '[]))
-  , stateEncodingFrozen :: !(Maybe (TransitionEncoding '[], StartStop (SliceEncoding '[])))
+  , stateEncodingFrozen :: ![(TransitionEncoding '[], StartStop (SliceEncoding '[]))]
   , stateEncodingOpen :: ![(TransitionEncoding '[], StartStop (SliceEncoding '[]))]
   }
   deriving (Show)
@@ -540,13 +540,18 @@ type PVState t =
     (PVLeftmost SPitch)
 
 getFrozen
-  :: (Foldable t)
+  :: forall t
+   . (Foldable t)
   => Path (Maybe (t (Edge SPitch))) (Notes SPitch)
-  -> (TransitionEncoding '[], StartStop (SliceEncoding '[]))
-getFrozen frozen = case frozen of
-  PathEnd tr -> (encodeTransition $ pvThaw tr, Start)
-  Path tr slc _ ->
-    (encodeTransition $ pvThaw tr, Inner $ encodeSlice slc)
+  -> [(TransitionEncoding '[], StartStop (SliceEncoding '[]))]
+getFrozen frozen = encodePair <$> pathTake 3 Inner Start frozen
+ where
+  encodePair (tr, slc) = (encodeTransition $ pvThaw tr, encodeSlice <$> slc)
+
+-- case frozen of
+-- PathEnd tr -> (encodeTransition $ pvThaw tr, Start)
+-- Path tr slc _ ->
+--   (encodeTransition $ pvThaw tr, Inner $ encodeSlice slc)
 
 getOpen
   :: Path (Edges SPitch) (Notes SPitch)
@@ -559,10 +564,10 @@ encodePVState
   :: (Foldable t)
   => PVState t
   -> StateEncoding
-encodePVState (GSFrozen frozen) = StateEncoding Stop (Just $! getFrozen frozen) []
-encodePVState (GSOpen open _) = StateEncoding Start Nothing (getOpen open)
+encodePVState (GSFrozen frozen) = StateEncoding Stop (getFrozen frozen) []
+encodePVState (GSOpen open _) = StateEncoding Start [] (getOpen open)
 encodePVState (GSSemiOpen frozen mid open _) =
-  StateEncoding (Inner $ encodeSlice mid) (Just $! getFrozen frozen) (getOpen open)
+  StateEncoding (Inner $ encodeSlice mid) (getFrozen frozen) (getOpen open)
 
 -- Step Encoding
 -- -------------

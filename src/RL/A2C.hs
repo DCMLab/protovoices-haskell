@@ -16,6 +16,7 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
 import Data.Either (partitionEithers)
 import Data.Foldable qualified as F
+import Data.List qualified as L
 import Data.Maybe (mapMaybe)
 import Data.Vector qualified as V
 import Debug.Trace qualified as DT
@@ -59,7 +60,7 @@ lambdaP = 0.3
 
 -- learning rate
 learningRate :: TT.LearningRate QDevice QDType
-learningRate = 0.001
+learningRate = 0.01
 
 nWorkers :: Int
 nWorkers = 2
@@ -198,46 +199,46 @@ runEpisode !eval !gen !fReward !input !label !modelState !i =
       Left ps' -> go modelState' ps' losses'
       Right reward -> pure (modelState', reward, mean losses')
 
--- | Run an episode on several workers.
-runEpisodes
-  :: (_)
-  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
-  -> Rand.IOGenM Rand.StdGen
-  -> PVRewardFn label
-  -> Path [SPitch] [Edge SPitch]
-  -> label
-  -> A2CState
-  -> Int
-  -> IO (Either String (A2CState, QType, QType))
-runEpisodes !eval !gen !fReward !input !label !modelState !i =
-  ET.runExceptT $ go modelState states0 SL.Nil []
- where
-  z0 :: TT.HList ModelTensors
-  z0 = modelZeros $ a2cActor modelState
-  -- len = pathLen input
-  -- initialize workers, each with a copy of the piece
-  states0 = replicate nWorkers $ initPieceState eval input z0
-  -- Worker folding function:
-  -- The accumulator takes the current model state, a list of live piece states,
-  -- list of losses and list of rewards.
-  -- The element is the state of the current piece.
-  -- Performs a single step forward on the piece, updating the model state and collecting loss.
-  -- If the new piece state after the step is a terminal state,
-  -- the reward is added to the reward list and the piece is dropped.
-  -- If the new state is not terminal, it is added to the list of live piece states.
-  iterWorker (ms, pss, ls, rs) ps = do
-    (ms', ps'_, loss) <- pieceStep eval gen i fReward label ms ps
-    let ls' = loss `SL.Cons` ls
-    pure $ case ps'_ of
-      Left ps' -> (ms', ps' : pss, ls', rs)
-      Right result -> (ms', pss, ls', result : rs)
-  -- run the episode step by step
-  go modelState pieceStates losses rewards = do
-    (modelState', pieceStates', losses', rewards') <-
-      foldM iterWorker (modelState, [], losses, rewards) pieceStates
-    case pieceStates of
-      [] -> pure (modelState', mean rewards', mean losses')
-      _ -> go modelState' pieceStates' losses' rewards'
+-- -- | Run an episode on several workers.
+-- runEpisodes
+--   :: (_)
+--   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
+--   -> Rand.IOGenM Rand.StdGen
+--   -> PVRewardFn label
+--   -> Path [SPitch] [Edge SPitch]
+--   -> label
+--   -> A2CState
+--   -> Int
+--   -> IO (Either String (A2CState, QType, QType))
+-- runEpisodes !eval !gen !fReward !input !label !modelState !i =
+--   ET.runExceptT $ go modelState states0 SL.Nil []
+--  where
+--   z0 :: TT.HList ModelTensors
+--   z0 = modelZeros $ a2cActor modelState
+--   -- len = pathLen input
+--   -- initialize workers, each with a copy of the piece
+--   states0 = replicate nWorkers $ initPieceState eval input z0
+--   -- Worker folding function:
+--   -- The accumulator takes the current model state, a list of live piece states,
+--   -- list of losses and list of rewards.
+--   -- The element is the state of the current piece.
+--   -- Performs a single step forward on the piece, updating the model state and collecting loss.
+--   -- If the new piece state after the step is a terminal state,
+--   -- the reward is added to the reward list and the piece is dropped.
+--   -- If the new state is not terminal, it is added to the list of live piece states.
+--   iterWorker (ms, pss, ls, rs) ps = do
+--     (ms', ps'_, loss) <- pieceStep eval gen i fReward label ms ps
+--     let ls' = loss `SL.Cons` ls
+--     pure $ case ps'_ of
+--       Left ps' -> (ms', ps' : pss, ls', rs)
+--       Right result -> (ms', pss, ls', result : rs)
+--   -- run the episode step by step
+--   go modelState pieceStates losses rewards = do
+--     (modelState', pieceStates', losses', rewards') <-
+--       foldM iterWorker (modelState, [], losses, rewards) pieceStates
+--     case pieceStates of
+--       [] -> pure (modelState', mean rewards', mean losses')
+--       _ -> go modelState' pieceStates' losses' rewards'
 
 runAccuracy
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Leftmost (Split SPitch) Freeze (Spread SPitch))
@@ -346,12 +347,14 @@ trainA2C eval gen fReward targets actor0 critic0 pieces n = do
           pure $ zipWithStrict SL.Cons (SL.fromListReversed newAccs) accuracies
         else pure accuracies
     -- logging
-    when ((i `mod` 10) == 0) $ do
+    when ((i `mod` 1) == 0) $ do
       -- putStrLn $ "epoch " <> show i
       -- mapM_ print $ take 10 bcontent
       let rews = SL.toListReversed <$> SL.toListReversed rewardsHist'
           accs = SL.toListReversed <$> SL.toListReversed accuracies'
           losses = SL.toListReversed <$> SL.toListReversed lossHist'
+          avgReward = mean <$> L.transpose rews
+          avgAbsLoss = (mean . fmap abs) <$> L.transpose losses
       plotHistories "losses" losses
       case targets of
         Nothing -> do
@@ -360,5 +363,9 @@ trainA2C eval gen fReward targets actor0 critic0 pieces n = do
         Just ts -> do
           plotHistories' "rewards" ts rews
           plotHistories' "accuracy" ts accs
-    -- print $ qModelFinal2 (a2cModel state)
+      plotHistory "mean_reward" avgReward
+      plotHistory "mean_loss" avgAbsLoss
+      -- print $ qModelFinal2 (a2cModel state)
+      TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters $ a2cActor state) "actor_checkpoint.ht"
+      TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters $ a2cCritic state) "critic_checkpoint.ht"
     pure $ A2CLoopState state' rewardsHist' lossHist' accuracies'

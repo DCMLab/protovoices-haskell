@@ -66,9 +66,10 @@ mkHistoriesPlot title series = do
   Plt.setColors $
     Plt.opaque <$> (d3Colors2 Dark <$> [0 .. 9]) ++ (d3Colors2 Light <$> [0 .. 9])
   Plt.layout_title .= title
+  Plt.layout_legend .= Nothing
   forM_ (zip series [1 ..]) $ \(values, i) -> do
     let points = zip [1 :: Int ..] values
-    Plt.plot $ Plt.line (show i) [points]
+    Plt.plot $ Plt.line "" [points]
 
 mkHistoryPlot'
   :: String
