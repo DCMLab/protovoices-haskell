@@ -134,6 +134,7 @@ import Data.Aeson
   ( FromJSON (..)
   , ToJSON (..)
   , (.:)
+  , (.=)
   )
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (unexpected)
@@ -280,6 +281,15 @@ instance (FromJSON a) => FromJSON (StartStop a) where
   parseJSON (Aeson.String "start") = pure Start
   parseJSON (Aeson.String "stop") = pure Stop
   parseJSON other = Inner <$> parseJSON other
+
+instance (ToJSON a) => ToJSON (StartStop a) where
+  toJSON Start = Aeson.String "start"
+  toJSON Stop = Aeson.String "stop"
+  toJSON (Inner a) = Aeson.toJSON a
+
+  toEncoding Start = "start"
+  toEncoding Stop = "stop"
+  toEncoding (Inner a) = Aeson.toEncoding a
 
 -- some helper functions for StartStop
 
@@ -646,6 +656,33 @@ instance (FromJSON s, FromJSON f, FromJSON h, FromJSON tr, FromJSON slc) => From
       trans <- v .: "trans" >>= parseTrans
       rslice <- v .: "rslice" >>= parseSlice
       pure (trans, rslice)
+
+instance forall s f h tr slc. (ToJSON s, ToJSON f, ToJSON h, ToJSON tr, ToJSON slc) => ToJSON (Analysis s f h tr slc) where
+  toJSON (Analysis deriv top) =
+    Aeson.object
+      [ "derivation" .= deriv
+      , "start" .= (Start :: StartStop slc)
+      , "topSegments" .= segments
+      , "styles" .= Aeson.Null
+      ]
+   where
+    toSegment tr slc = Aeson.object ["trans" .= tr, "rslice" .= slc]
+    trs = pathArounds top
+    slcs = (Inner <$> pathBetweens top) <> [Stop]
+    segments = zipWith toSegment trs slcs
+
+  toEncoding (Analysis deriv top) =
+    Aeson.pairs
+      ( "derivation" .= deriv
+          <> "start" .= (Start :: StartStop slc)
+          <> "topSegments" .= segments
+          <> "styles" .= Aeson.Null
+      )
+   where
+    toSegment tr slc = Aeson.object ["trans" .= tr, "rslice" .= slc]
+    trs = pathArounds top
+    slcs = (Inner <$> pathBetweens top) <> [Stop]
+    segments = zipWith toSegment trs slcs
 
 -- | Prints the steps and intermediate configurations of a derivation.
 debugAnalysis
