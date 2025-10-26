@@ -92,19 +92,19 @@ data A2CStepState = A2CStepState
               (Edges SPitch)
               [Edge SPitch]
               (Notes SPitch)
-              (Leftmost (Split SPitch) Freeze (Spread SPitch))
+              (PVLeftmost SPitch)
           )
   }
 
 initPieceState
-  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
-  -> Path [SPitch] [Edge SPitch]
+  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
+  -> Path [Note SPitch] [Edge SPitch]
   -> TT.HList ModelTensors
   -> A2CStepState
 initPieceState eval input z0 = A2CStepState z0 z0 1 0 $ initParseState eval input
 
 pieceStep
-  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
+  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> Int
   -> PVRewardFn label
@@ -178,10 +178,10 @@ pieceStep eval gen i fReward len (A2CState actor critic opta optc) (A2CStepState
 -- | Run an episode on a single worker.
 runEpisode
   :: (_)
-  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
+  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
-  -> Path [SPitch] [Edge SPitch]
+  -> Path [Note SPitch] [Edge SPitch]
   -> label
   -> A2CState
   -> Int
@@ -241,7 +241,7 @@ runEpisode !eval !gen !fReward !input !label !modelState !i =
 --       _ -> go modelState' pieceStates' losses' rewards'
 
 runAccuracy
-  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Leftmost (Split SPitch) Freeze (Spread SPitch))
+  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Spread SPitch) (PVLeftmost SPitch)
   -> PVRewardFn label
   -> QModel
   -> (Path slc' [Edge SPitch], label)
@@ -279,13 +279,13 @@ data A2CLoopState = A2CLoopState
   deriving (Generic)
 
 trainA2C
-  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
+  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
   -> Maybe [QType]
   -> QModel
   -> QModel
-  -> [(Path [SPitch] [Edge SPitch], label)]
+  -> [(Path [Note SPitch] [Edge SPitch], label)]
   -> Int
   -> IO ([[QType]], [QType], QModel, QModel)
 trainA2C eval gen fReward targets actor0 critic0 pieces n = do

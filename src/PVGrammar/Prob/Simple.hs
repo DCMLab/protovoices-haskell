@@ -1,7 +1,8 @@
 {-# LANGUAGE DataKinds #-}
-{-# HLINT ignore "Use for_" #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# HLINT ignore "Use for_" #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -150,6 +151,7 @@ import Data.Map.Strict qualified as M
 import Data.Maybe
   ( catMaybes
   , fromMaybe
+  , mapMaybe
   )
 import Debug.Trace qualified as DT
 import GHC.Generics (Generic)
@@ -227,7 +229,7 @@ data PVParamsInner f = PVParamsInner
   , -- spread
     _pNewPassingMid :: f Beta
   , _pNoteSpreadDirection :: f (Dirichlet 3)
-  , _pNotesOnOtherSide :: f Beta
+  , _pNotesOnOtherSide :: f Beta -- TODO: remove this, not needed anymore
   , _pSpreadRepetitionEdge :: f Beta
   }
   deriving (Generic)
@@ -320,6 +322,7 @@ roundtrip fn = do
       case traceE of
         Left err -> error err
         Right trace -> do
+          print trace
           pure $ traceTrace trace sampleDerivation'
 
 {- | Helper function: Load a single derivation
@@ -568,14 +571,14 @@ observeFreeze _parents FreezeOp = pure ()
 
 -- helper for sampleSplit and observeSplit
 collectElabos
-  :: [(Edge SPitch, [(SPitch, o1)])]
-  -> [(InnerEdge SPitch, [(SPitch, PassingOrnament)])]
-  -> [(SPitch, [(SPitch, o2)])]
-  -> [(SPitch, [(SPitch, o3)])]
-  -> ( M.Map (StartStop SPitch, StartStop SPitch) [(SPitch, o1)]
-     , M.Map (SPitch, SPitch) [(SPitch, PassingOrnament)]
-     , M.Map SPitch [(SPitch, o2)]
-     , M.Map SPitch [(SPitch, o3)]
+  :: [(Edge SPitch, [(Note SPitch, o1)])]
+  -> [(InnerEdge SPitch, [(Note SPitch, PassingOrnament)])]
+  -> [(Note SPitch, [(Note SPitch, o2)])]
+  -> [(Note SPitch, [(Note SPitch, o3)])]
+  -> ( M.Map (StartStop (Note SPitch), StartStop (Note SPitch)) [(Note SPitch, o1)]
+     , M.Map (Note SPitch, Note SPitch) [(Note SPitch, PassingOrnament)]
+     , M.Map (Note SPitch) [(Note SPitch, o2)]
+     , M.Map (Note SPitch) [(Note SPitch, o3)]
      , S.HashSet (Edge SPitch)
      , S.HashSet (Edge SPitch)
      )
@@ -613,11 +616,11 @@ collectElabos childrenT childrenNT childrenL childrenR =
 
 -- helper for sampleSplit and observeSplit
 collectNotes
-  :: [(Edge SPitch, [(SPitch, o1)])]
-  -> [(InnerEdge SPitch, [(SPitch, PassingOrnament)])]
-  -> [(SPitch, [(SPitch, o2)])]
-  -> [(SPitch, [(SPitch, o3)])]
-  -> [SPitch]
+  :: [(Edge SPitch, [(Note SPitch, o1)])]
+  -> [(InnerEdge SPitch, [(Note SPitch, PassingOrnament)])]
+  -> [(Note SPitch, [(Note SPitch, o2)])]
+  -> [(Note SPitch, [(Note SPitch, o3)])]
+  -> [Note SPitch]
 collectNotes childrenT childrenNT childrenL childrenR =
   let notesT = concatMap (fmap fst . snd) childrenT
       notesNT = concatMap (fmap fst . snd) childrenNT
@@ -626,7 +629,7 @@ collectNotes childrenT childrenNT childrenL childrenR =
    in L.sort $ notesT <> notesNT <> notesFromL <> notesFromR
 
 sampleSplit :: forall m. (_) => ContextSingle SPitch -> m (Split SPitch)
-sampleSplit (sliceL, _edges@(Edges ts nts), sliceR) = do
+sampleSplit (sliceL, edges@(Edges ts nts), sliceR) = do
   -- DT.traceM $ "\nPerforming split (smp) on: " <> show edges
   -- ornament regular edges at least once
   childrenT <- mapM sampleT $ L.sort $ S.toList ts
@@ -637,23 +640,23 @@ sampleSplit (sliceL, _edges@(Edges ts nts), sliceR) = do
   -- ornament left notes
   childrenL <- case getInner sliceL of
     Nothing -> pure []
-    Just (Notes notes) -> mapM sampleL $ L.sort $ MS.toList notes
+    Just (Notes notes) -> mapM sampleL $ L.sort $ S.toList notes
   -- DT.traceM $ "childrenL (smp): " <> show childrenL
   -- ornament right notes
   childrenR <- case getInner sliceR of
     Nothing -> pure []
-    Just (Notes notes) -> mapM sampleR $ L.sort $ MS.toList notes
+    Just (Notes notes) -> mapM sampleR $ L.sort $ S.toList notes
   -- DT.traceM $ "childrenR (smp): " <> show childrenR
   -- introduce new passing edges left and right
   let notes = collectNotes childrenT childrenNT childrenL childrenR
   passLeft <- case getInner sliceL of
     Nothing -> pure MS.empty
     Just (Notes notesl) ->
-      samplePassing (L.sort $ MS.toList notesl) notes pNewPassingLeft
+      samplePassing (L.sort $ S.toList notesl) notes pNewPassingLeft
   passRight <- case getInner sliceR of
     Nothing -> pure MS.empty
     Just (Notes notesr) ->
-      samplePassing notes (L.sort $ MS.toList notesr) pNewPassingRight
+      samplePassing notes (L.sort $ S.toList notesr) pNewPassingRight
   let (splitReg, splitPass, fromLeft, fromRight, leftEdges, rightEdges) =
         collectElabos childrenT childrenNT childrenL childrenR
   -- decide which edges to keep
@@ -687,13 +690,13 @@ observeSplit (sliceL, _edges@(Edges ts nts), sliceR) _splitOp@(SplitOp splitTs s
     -- observe ornaments of left notes
     childrenL <- case getInner sliceL of
       Nothing -> pure []
-      Just (Notes notes) -> mapM (observeL fromLeft) $ L.sort $ MS.toList notes
+      Just (Notes notes) -> mapM (observeL fromLeft) $ L.sort $ S.toList notes
     -- DT.traceM $ "childrenL (obs): " <> show childrenL
     -- observe ornaments of right notes
     childrenR <- case getInner sliceR of
       Nothing -> pure []
       Just (Notes notes) ->
-        mapM (observeR fromRight) $ L.sort $ MS.toList notes
+        mapM (observeR fromRight) $ L.sort $ S.toList notes
     -- DT.traceM $ "childrenR (obs): " <> show childrenR
     -- observe new passing edges
     let notes = collectNotes childrenT childrenNT childrenL childrenR
@@ -701,7 +704,7 @@ observeSplit (sliceL, _edges@(Edges ts nts), sliceR) _splitOp@(SplitOp splitTs s
       Nothing -> pure ()
       Just (Notes notesl) ->
         observePassing
-          (L.sort $ MS.toList notesl)
+          (L.sort $ S.toList notesl)
           notes
           pNewPassingLeft
           passLeft
@@ -710,7 +713,7 @@ observeSplit (sliceL, _edges@(Edges ts nts), sliceR) _splitOp@(SplitOp splitTs s
       Just (Notes notesr) ->
         observePassing
           notes
-          (L.sort $ MS.toList notesr)
+          (L.sort $ S.toList notesr)
           pNewPassingRight
           passRight
     -- observe which edges are kept
@@ -719,18 +722,18 @@ observeSplit (sliceL, _edges@(Edges ts nts), sliceR) _splitOp@(SplitOp splitTs s
     observeKeepEdges pKeepL leftEdges keepLeft
     observeKeepEdges pKeepR rightEdges keepRight
 
-sampleRootNote :: (_) => m SPitch
-sampleRootNote = do
+sampleRootNote :: (_) => Int -> m (Note SPitch)
+sampleRootNote i = do
   fifthsSign <- sampleConst "rootFifthsSign" Bernoulli 0.5
   fifthsN <- sampleValue "rootFifthsN" Geometric0 $ pInner . pRootFifths
   os <- sampleConst "rootOctave" MagicalOctaves ()
   let fs = if fifthsSign then fifthsN else negate (fifthsN + 1)
       p = (emb <$> spc fs) +^ (octave ^* (os + 4))
   -- DT.traceM $ "root note (sample): " <> show p
-  pure p
+  pure $ Note p ("root" <> show i)
 
-observeRootNote :: SPitch -> PVObs ()
-observeRootNote child = do
+observeRootNote :: (Note SPitch) -> PVObs ()
+observeRootNote (Note child _) = do
   observeConst "rootFifthsSign" Bernoulli 0.5 fifthsSign
   observeValue "rootFifthsN" Geometric0 (pInner . pRootFifths) fifthsN
   observeConst "rootOctave" MagicalOctaves () (octaves child - 4)
@@ -789,18 +792,22 @@ observeNeighbor goesUp ref nb = do
       observeValue "nbAlt" Geometric0 (pInner . pNBAlt) altN
       observeConst "nbAltUp" Bernoulli 0.5 altUp
 
-sampleDoubleChild :: (_) => SPitch -> SPitch -> m (SPitch, DoubleOrnament)
-sampleDoubleChild pl pr
+mkChildId1 pid i o = "(" <> pid <> ")-" <> o <> show i
+mkChildId2 il ir i o = "(" <> il <> ")-" <> o <> show i <> "-(" <> ir <> ")"
+
+sampleDoubleChild :: (_) => i -> Note SPitch -> Note SPitch -> m (Note SPitch, DoubleOrnament)
+sampleDoubleChild i (Note pl il) (Note pr ir)
   | degree pl == degree pr = do
       rep <-
         sampleValue "repeatOverNeighbor" Bernoulli $ pInner . pRepeatOverNeighbor
       if rep
         then do
           os <- sampleOctaveShift "doubleChildOctave"
-          pure (pl +^ os, FullRepeat)
+          pure (Note (pl +^ os) (mkChildId2 il ir i "r"), FullRepeat)
         else do
           stepUp <- sampleConst "stepUp" Bernoulli 0.5
-          (,FullNeighbor) <$> sampleNeighbor stepUp pl
+          nb <- sampleNeighbor stepUp pl
+          pure (Note nb (mkChildId2 il ir i "n"), FullNeighbor)
   | otherwise = do
       repeatLeft <-
         sampleValue "repeatLeftOverRight" Bernoulli $
@@ -818,11 +825,11 @@ sampleDoubleChild pl pr
           else pure unison
       os <- sampleOctaveShift "doubleChildOctave"
       if repeatLeft
-        then pure (pl +^ os +^ alt, RightRepeatOfLeft)
-        else pure (pr +^ os +^ alt, LeftRepeatOfRight)
+        then pure (Note (pl +^ os +^ alt) (mkChildId2 il ir i "rn"), RightRepeatOfLeft)
+        else pure (Note (pr +^ os +^ alt) (mkChildId2 il ir i "nr"), LeftRepeatOfRight)
 
-observeDoubleChild :: SPitch -> SPitch -> SPitch -> PVObs ()
-observeDoubleChild pl pr child
+observeDoubleChild :: Note SPitch -> Note SPitch -> Note SPitch -> PVObs ()
+observeDoubleChild (Note pl _) (Note pr _) (Note child _)
   | degree pl == degree pr = do
       let isRep = pc child == pc pl
       observeValue
@@ -857,24 +864,24 @@ observeDoubleChild pl pr child
           (abs alt)
       observeOctaveShift "doubleChildOctave" $ ref `pto` child
 
-sampleT :: (_) => Edge SPitch -> m (Edge SPitch, [(SPitch, DoubleOrnament)])
+sampleT :: (_) => Edge SPitch -> m (Edge SPitch, [(Note SPitch, DoubleOrnament)])
 sampleT (l, r) = do
   -- DT.traceM $ "elaborating T (smp): " <> show (l, r)
   n <- sampleValue "elaborateRegular" Geometric1 $ pInner . pElaborateRegular
-  children <- permutationPlate n $ case (l, r) of
+  children <- permutationPlate n $ \i -> case (l, r) of
     (Start, Stop) -> do
-      child <- sampleRootNote
+      child <- sampleRootNote i
       pure $ Just (child, RootNote)
-    (Inner pl, Inner pr) -> do
-      (child, orn) <- sampleDoubleChild pl pr
+    (Inner nl, Inner nr) -> do
+      (child, orn) <- sampleDoubleChild i nl nr
       pure $ Just (child, orn)
     _ -> pure Nothing
   pure ((l, r), catMaybes children)
 
 observeT
-  :: M.Map (Edge SPitch) [(SPitch, DoubleOrnament)]
+  :: M.Map (Edge SPitch) [(Note SPitch, DoubleOrnament)]
   -> Edge SPitch
-  -> PVObs (Edge SPitch, [(SPitch, DoubleOrnament)])
+  -> PVObs (Edge SPitch, [(Note SPitch, DoubleOrnament)])
 observeT splitTs parents = do
   -- DT.traceM $ "elaborating T (obs): " <> show parents
   let children = fromMaybe [] $ M.lookup parents splitTs
@@ -957,28 +964,30 @@ observeNonMidPassing pl pr child orn = do
     else observeNeighbor (not dirUp) pr child
 
 sampleNT
-  :: (_) => (InnerEdge SPitch, Int) -> m (InnerEdge SPitch, [(SPitch, PassingOrnament)])
-sampleNT ((pl, pr), n) = do
+  :: (_) => (InnerEdge SPitch, Int) -> m (InnerEdge SPitch, [(Note SPitch, PassingOrnament)])
+sampleNT ((nl@(Note pl il), nr@(Note pr ir)), n) = do
   -- DT.traceM $ "Elaborating edge (smp): " <> show ((pl, pr), n)
   let dist = degree $ iabs $ pc pl `pto` pc pr
   -- DT.traceM    $  "passing from "    <> showNotation pl    <> " to "    <> showNotation pr    <> ": "    <> show dist    <> " steps."
-  children <- permutationPlate n $ case dist of
-    1 -> sampleChromPassing pl pr
-    2 -> do
-      connect <- sampleValue "passingConnect" Bernoulli $ pInner . pConnect
-      if connect then sampleMidPassing pl pr else sampleNonMidPassing pl pr
-    _ -> sampleNonMidPassing pl pr
-  pure ((pl, pr), children)
+  children <- permutationPlate n $ \i -> do
+    (child, orn) <- case dist of
+      1 -> sampleChromPassing pl pr
+      2 -> do
+        connect <- sampleValue "passingConnect" Bernoulli $ pInner . pConnect
+        if connect then sampleMidPassing pl pr else sampleNonMidPassing pl pr
+      _ -> sampleNonMidPassing pl pr
+    pure (Note child $ mkChildId2 il ir i "p", orn)
+  pure ((nl, nr), children)
 
 observeNT
   :: (_)
-  => M.Map (InnerEdge SPitch) [(SPitch, PassingOrnament)]
+  => M.Map (InnerEdge SPitch) [(Note SPitch, PassingOrnament)]
   -> (InnerEdge SPitch, Int)
-  -> PVObs (InnerEdge SPitch, [(SPitch, PassingOrnament)])
-observeNT splitNTs ((pl, pr), _n) = do
+  -> PVObs (InnerEdge SPitch, [(Note SPitch, PassingOrnament)])
+observeNT splitNTs ((nl@(Note pl _), nr@(Note pr _)), _n) = do
   -- DT.traceM $ "Elaborating edge (obs): " <> show ((pl, pr), n)
-  let children = fromMaybe [] $ M.lookup (pl, pr) splitNTs
-  forM_ children $ \(child, orn) -> case degree $ iabs $ pc pl `pto` pc pr of
+  let children = fromMaybe [] $ M.lookup (nl, nr) splitNTs
+  forM_ children $ \(Note child _, orn) -> case degree $ iabs $ pc pl `pto` pc pr of
     1 -> observeChromPassing pl pr child
     2 -> case orn of
       PassingMid -> do
@@ -988,18 +997,18 @@ observeNT splitNTs ((pl, pr), _n) = do
         observeValue "passingConnect" Bernoulli (pInner . pConnect) False
         observeNonMidPassing pl pr child orn
     _ -> observeNonMidPassing pl pr child orn
-  pure ((pl, pr), children)
+  pure ((nl, nr), children)
 
 sampleSingleOrn
   :: (_)
-  => SPitch
+  => Note SPitch
   -> o
   -> o
   -> Accessor PVParamsInner Beta
-  -> m (SPitch, [(SPitch, o)])
-sampleSingleOrn parent oRepeat oNeighbor pElaborate = do
+  -> m (Note SPitch, [(Note SPitch, o)])
+sampleSingleOrn parent@(Note ppitch pid) oRepeat oNeighbor pElaborate = do
   n <- sampleValue "elaborateSingle" Geometric0 $ pInner . pElaborate
-  children <- permutationPlate n $ do
+  children <- permutationPlate n $ \i -> do
     rep <-
       sampleValue "repeatOverNeighborSingle" Bernoulli $
         pInner
@@ -1007,27 +1016,27 @@ sampleSingleOrn parent oRepeat oNeighbor pElaborate = do
     if rep
       then do
         os <- sampleOctaveShift "singleChildOctave"
-        pure (parent +^ os, oRepeat)
+        pure (Note (ppitch +^ os) (mkChildId1 pid i "r"), oRepeat)
       else do
         stepUp <- sampleConst "singleUp" Bernoulli 0.5
-        child <- sampleNeighbor stepUp parent
-        pure (child, oNeighbor)
+        child <- sampleNeighbor stepUp ppitch
+        pure (Note child (mkChildId1 pid i "n"), oNeighbor)
   pure (parent, children)
 
 observeSingleOrn
-  :: M.Map SPitch [(SPitch, o)]
-  -> SPitch
+  :: M.Map (Note SPitch) [(Note SPitch, o)]
+  -> Note SPitch
   -> Accessor PVParamsInner Beta
-  -> PVObs (SPitch, [(SPitch, o)])
-observeSingleOrn table parent pElaborate = do
+  -> PVObs (Note SPitch, [(Note SPitch, o)])
+observeSingleOrn table parent@(Note ppitch _) pElaborate = do
   let children = fromMaybe [] $ M.lookup parent table
   observeValue
     "elaborateSingle"
     Geometric0
     (pInner . pElaborate)
     (length children)
-  forM_ children $ \(child, _) -> do
-    let rep = pc child == pc parent
+  forM_ children $ \(Note child _, _) -> do
+    let rep = pc child == pc ppitch
     observeValue
       "repeatOverNeighborSingle"
       Bernoulli
@@ -1035,30 +1044,30 @@ observeSingleOrn table parent pElaborate = do
       rep
     if rep
       then do
-        observeOctaveShift "singleChildOctave" (parent `pto` child)
+        observeOctaveShift "singleChildOctave" (ppitch `pto` child)
       else do
-        let dir = direction (pc parent `pto` pc child)
+        let dir = direction (pc ppitch `pto` pc child)
             up = dir == GT
         observeConst "singleUp" Bernoulli 0.5 up
-        observeNeighbor up parent child
+        observeNeighbor up ppitch child
   pure (parent, children)
 
-sampleL :: (_) => SPitch -> m (SPitch, [(SPitch, RightOrnament)])
+sampleL :: (_) => Note SPitch -> m (Note SPitch, [(Note SPitch, RightOrnament)])
 sampleL parent = sampleSingleOrn parent RightRepeat RightNeighbor pElaborateL
 
 observeL
-  :: M.Map SPitch [(SPitch, RightOrnament)]
-  -> SPitch
-  -> PVObs (SPitch, [(SPitch, RightOrnament)])
+  :: M.Map (Note SPitch) [(Note SPitch, RightOrnament)]
+  -> Note SPitch
+  -> PVObs (Note SPitch, [(Note SPitch, RightOrnament)])
 observeL ls parent = observeSingleOrn ls parent pElaborateL
 
-sampleR :: (_) => SPitch -> m (SPitch, [(SPitch, LeftOrnament)])
+sampleR :: (_) => Note SPitch -> m (Note SPitch, [(Note SPitch, LeftOrnament)])
 sampleR parent = sampleSingleOrn parent LeftRepeat LeftNeighbor pElaborateR
 
 observeR
-  :: M.Map SPitch [(SPitch, LeftOrnament)]
-  -> SPitch
-  -> PVObs (SPitch, [(SPitch, LeftOrnament)])
+  :: M.Map (Note SPitch) [(Note SPitch, LeftOrnament)]
+  -> Note SPitch
+  -> PVObs (Note SPitch, [(Note SPitch, LeftOrnament)])
 observeR rs parent = observeSingleOrn rs parent pElaborateR
 
 sampleKeepEdges
@@ -1088,19 +1097,17 @@ observeKeepEdges pKeep candidates kept =
 sampleSpread :: (_) => ContextDouble SPitch -> m (Spread SPitch)
 sampleSpread (_sliceL, _transL, Notes sliceM, _transR, _sliceR) = do
   -- distribute notes
-  dists <- mapM distNote $ MS.toOccurList sliceM
-  let notesLeft = catMaybes $ flip fmap dists $ \((note, n), to) -> case to of
-        ToRight dl -> if n - dl > 0 then Just note else Nothing
-        _ -> Just note
-      notesRight = catMaybes $ flip fmap dists $ \((note, n), to) -> case to of
-        ToLeft dr -> if n - dr > 0 then Just note else Nothing
-        _ -> Just note
+  let notes = L.sort $ S.toList sliceM
+  dists <- mapM distNote notes
+  -- DT.traceM $ "dists (sm):" <> show dists
+  let notesLeft = mapMaybe leftSpreadChild dists
+      notesRight = mapMaybe rightSpreadChild dists
   -- generate repetition edges
   repeats <- sequence $ do
     -- List
     l <- notesLeft
     r <- notesRight
-    guard $ pc l == pc r
+    guard $ pc (notePitch l) == pc (notePitch r)
     pure $ do
       -- m
       rep <-
@@ -1112,51 +1119,51 @@ sampleSpread (_sliceL, _transL, Notes sliceM, _transR, _sliceR) = do
   -- generate passing edges
   passEdges <- samplePassing notesLeft notesRight pNewPassingMid
   -- construct result
-  let distMap = HM.fromList (Bi.first fst <$> dists)
+  let distMap = HM.fromList (zip notes dists)
       edges = Edges repEdges passEdges
   pure $ SpreadOp distMap edges
  where
+  leftifyID (Note p i) = Note p (i <> "l")
+  rightifyID (Note p i) = Note p (i <> "r")
   -- distribute a note to the two child slices
-  distNote (note, n) = do
+  distNote note = do
     dir <-
       sampleValue "noteSpreadDirection" (Categorical @3) $
         pInner
           . pNoteSpreadDirection
-    to <- case dir of
-      0 -> pure ToBoth
-      1 -> do
-        nother <-
-          sampleValue "notesOnOtherSide" (Binomial $ n - 1) $
-            pInner
-              . pNotesOnOtherSide
-        pure $ ToLeft $ n - nother
-      _ -> do
-        nother <-
-          sampleValue "notesOnOtherSide" (Binomial $ n - 1) $
-            pInner
-              . pNotesOnOtherSide
-        pure $ ToRight $ n - nother
-    pure ((note, n), to)
+    pure $ case dir of
+      0 -> SpreadBothChildren (leftifyID note) (rightifyID note)
+      1 -> SpreadLeftChild $ leftifyID note
+      2 -> SpreadRightChild $ rightifyID note
+
+-- 0 -> pure ToBoth
+-- 1 -> do
+--   nother <-
+--     sampleValue "notesOnOtherSide" (Binomial $ n - 1) $
+--       pInner
+--         . pNotesOnOtherSide
+--   pure $ ToLeft $ n - nother
+-- _ -> do
+--   nother <-
+--     sampleValue "notesOnOtherSide" (Binomial $ n - 1) $
+--       pInner
+--         . pNotesOnOtherSide
+--   pure $ ToRight $ n - nother
+-- pure ((note, n), to)
 
 observeSpread :: ContextDouble SPitch -> Spread SPitch -> PVObs ()
 observeSpread (_sliceL, _transL, Notes sliceM, _transR, _sliceR) (SpreadOp obsDists (Edges repEdges passEdges)) =
   do
     -- observe note distribution
-    dists <- mapM (observeNoteDist obsDists) $ MS.toOccurList sliceM
-    let notesLeft = catMaybes $ flip fmap dists $ \((note, n), to) ->
-          case to of
-            ToRight dl -> if n - dl > 0 then Just note else Nothing
-            _ -> Just note
-        notesRight = catMaybes $ flip fmap dists $ \((note, n), to) ->
-          case to of
-            ToLeft dr -> if n - dr > 0 then Just note else Nothing
-            _ -> Just note
+    dists <- mapM (observeNoteDist obsDists) $ L.sort $ S.toList sliceM
+    let notesLeft = mapMaybe leftSpreadChild dists
+        notesRight = mapMaybe rightSpreadChild dists
     -- observe repetition edges
     sequence_ $ do
       -- List
       l <- notesLeft
       r <- notesRight
-      guard $ pc l == pc r
+      guard $ pc (notePitch l) == pc (notePitch r)
       pure $
         observeValue
           "spreadRepeatEdge"
@@ -1166,45 +1173,35 @@ observeSpread (_sliceL, _transL, Notes sliceM, _transR, _sliceR) (SpreadOp obsDi
     -- observe passing edges
     observePassing notesLeft notesRight pNewPassingMid passEdges
  where
-  observeNoteDist distMap (parent, n) = case HM.lookup parent distMap of
+  observeNoteDist distMap parent = case HM.lookup parent distMap of
     Nothing ->
-      lift $ Left $ "Note " <> showNotation parent <> " is not distributed."
+      lift $ Left $ "Note " <> show parent <> " is not distributed."
     Just dir -> do
       case dir of
-        ToBoth -> do
+        SpreadBothChildren _ _ ->
           observeValue
             "noteSpreadDirection"
             (Categorical @3)
             (pInner . pNoteSpreadDirection)
             0
-        ToLeft ndiff -> do
+        SpreadLeftChild _ ->
           observeValue
             "noteSpreadDirection"
             (Categorical @3)
             (pInner . pNoteSpreadDirection)
             1
-          observeValue
-            "notesOnOtherSide"
-            (Binomial $ n - 1)
-            (pInner . pNotesOnOtherSide)
-            (n - ndiff)
-        ToRight ndiff -> do
+        SpreadRightChild _ -> do
           observeValue
             "noteSpreadDirection"
             (Categorical @3)
             (pInner . pNoteSpreadDirection)
             2
-          observeValue
-            "notesOnOtherSide"
-            (Binomial $ n - 1)
-            (pInner . pNotesOnOtherSide)
-            (n - ndiff)
-      pure ((parent, n), dir)
+      pure dir
 
 samplePassing
   :: (_)
-  => [SPitch]
-  -> [SPitch]
+  => [Note SPitch]
+  -> [Note SPitch]
   -> Accessor PVParamsInner Beta
   -> m (MS.MultiSet (InnerEdge SPitch))
 samplePassing notesLeft notesRight pNewPassing =
@@ -1214,7 +1211,7 @@ samplePassing notesLeft notesRight pNewPassing =
     -- DT.traceM $ "notesRight (smp)" <> show notesRight
     l <- notesLeft
     r <- notesRight
-    let step = iabs (pc l `pto` pc r)
+    let step = iabs (pc (notePitch l) `pto` pc (notePitch r))
     guard $ degree step >= 2 || (degree step == 1 && alteration step >= 0)
     -- DT.traceM $ "parent edge (sample)" <> show (l, r)
     pure $ do
@@ -1223,8 +1220,8 @@ samplePassing notesLeft notesRight pNewPassing =
       pure $ replicate n (l, r)
 
 observePassing
-  :: [SPitch]
-  -> [SPitch]
+  :: [Note SPitch]
+  -> [Note SPitch]
   -> Accessor PVParamsInner Beta
   -> MS.MultiSet (InnerEdge SPitch)
   -> PVObs ()
@@ -1234,7 +1231,7 @@ observePassing notesLeft notesRight pNewPassing edges = sequence_ $ do
   -- DT.traceM $ "notesRight (obs)" <> show notesRight
   l <- notesLeft
   r <- notesRight
-  let step = iabs (pc l `pto` pc r)
+  let step = iabs (pc (notePitch l) `pto` pc (notePitch r))
   guard $ degree step >= 2 || (degree step == 1 && alteration step >= 0)
   -- DT.traceM $ "parent edge (obs)" <> show (l, r)
   pure $

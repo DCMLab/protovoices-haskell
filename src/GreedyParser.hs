@@ -217,7 +217,7 @@ opGoesLeft _ = Nothing
 parseGreedy
   :: forall m tr tr' slc slc' s f h
    . (Monad m, MonadIO m, Show tr', Show slc, Show tr, Show s, Show f, Show h)
-  => Eval tr tr' slc slc' (Leftmost s f h)
+  => Eval tr tr' slc slc' h (Leftmost s f h)
   -- ^ the evaluator of the grammar to be used
   -> ([Action slc tr s f h] -> ExceptT String m (Action slc tr s f h))
   -- ^ the policy: picks a parsing action from a list of options
@@ -242,8 +242,8 @@ Takes an evaluator and a (frozen) input path.
 Returns the parsing state that corresponds to the unparsed input.
 -}
 initParseState
-  :: forall tr tr' slc slc' v op
-   . Eval tr tr' slc slc' v
+  :: forall tr tr' slc slc' h v op
+   . Eval tr tr' slc slc' h v
   -> Path slc' tr'
   -> GreedyState tr tr' slc op
 initParseState eval input = GSFrozen $ wrapPath Nothing (reversePath input)
@@ -264,7 +264,7 @@ initParseState eval input = GSFrozen $ wrapPath Nothing (reversePath input)
 parseStep
   :: forall m tr tr' slc slc' s f h
    . (Monad m)
-  => Eval tr tr' slc slc' (Leftmost s f h)
+  => Eval tr tr' slc slc' h (Leftmost s f h)
   -- ^ the evaluator of the grammar to be used
   -> ([Action slc tr s f h] -> ExceptT String m (Action slc tr s f h))
   -- ^ the policy: picks a parsing action from a list of options
@@ -455,7 +455,7 @@ parseStep eval pick state = do
 -- | Enumerates the list of possible actions in the current state
 getActions
   :: forall m tr tr' slc slc' s f h
-   . Eval tr tr' slc slc' (Leftmost s f h)
+   . Eval tr tr' slc slc' h (Leftmost s f h)
   -- ^ the evaluator of the grammar to be used
   -> GreedyState tr tr' slc (Leftmost s f h)
   -- ^ the current parsing state
@@ -502,7 +502,7 @@ lastWasLeft (op : _) = case op of
   _ -> False
 
 collectAllThawLeft
-  :: Eval tr tr' slc slc' (Leftmost s f h)
+  :: Eval tr tr' slc slc' h (Leftmost s f h)
   -> Path (Maybe tr') slc
   -> slc
   -> tr
@@ -514,7 +514,7 @@ collectAllThawLeft eval frozen sm tr sr =
     Path tfrozen sl _ -> collectThawLeft eval (Inner sl) tfrozen sm tr sr
 
 collectThawSingle
-  :: Eval tr tr' slc slc' (Leftmost s f h)
+  :: Eval tr tr' slc slc' h (Leftmost s f h)
   -> StartStop slc
   -> Maybe tr'
   -> StartStop slc
@@ -529,7 +529,7 @@ collectThawSingle eval sl t sr =
     LMDouble _ -> Nothing
 
 collectThawLeft
-  :: Eval tr tr' slc slc' (Leftmost s f h)
+  :: Eval tr tr' slc slc' h (Leftmost s f h)
   -> StartStop slc
   -> Maybe tr'
   -> slc
@@ -547,7 +547,7 @@ collectThawLeft eval sl tl sm tr sr =
     LMSingle _ -> Nothing
 
 collectUnsplitSingle
-  :: Eval tr tr' slc slc' (Leftmost s f h)
+  :: Eval tr tr' slc slc' h (Leftmost s f h)
   -> StartStop slc
   -> tr
   -> slc
@@ -562,7 +562,7 @@ collectUnsplitSingle eval sl tl sm tr sr =
     LMDouble _ -> Nothing
 
 collectUnsplitLeft
-  :: Eval tr tr' slc slc' (Leftmost s f h)
+  :: Eval tr tr' slc slc' h (Leftmost s f h)
   -> StartStop slc
   -> tr
   -> slc
@@ -583,7 +583,7 @@ collectUnsplitLeft eval sstart tl sl tm sr tr send =
           dop
 
 collectUnsplitRight
-  :: Eval tr tr' slc slc' (Leftmost s f h)
+  :: Eval tr tr' slc slc' h (Leftmost s f h)
   -> StartStop slc
   -> tr
   -> slc
@@ -605,7 +605,7 @@ collectUnsplitRight eval sstart tl sl tm sr tr send afterLeft
       Just $ ActionDouble (DoubleParent sstart tl sl ttop send) dop
 
 collectUnspreads
-  :: Eval tr tr' slc slc' (Leftmost s f h)
+  :: Eval tr tr' slc slc' h (Leftmost s f h)
   -> StartStop slc
   -> tr
   -> slc
@@ -617,9 +617,9 @@ collectUnspreads
 collectUnspreads eval sstart tl sl tm sr tr send =
   catMaybes $ do
     -- List
-    (sTop, op) <- maybeToList $ evalUnspreadMiddle eval (sl, tm, sr)
-    lTop <- evalUnspreadLeft eval (tl, sl) sTop
-    rTop <- evalUnspreadRight eval (sr, tr) sTop
+    (sTop, us, op) <- evalUnspreadMiddle eval (sl, tm, sr)
+    lTop <- evalUnspreadLeft eval (tl, sl) sTop us
+    rTop <- evalUnspreadRight eval (sr, tr) sTop us
     pure $ getAction lTop sTop rTop op
  where
   getAction lTop sTop rTop op = case op of
@@ -631,7 +631,7 @@ collectUnspreads eval sstart tl sl tm sr tr send =
           dop
 
 collectDoubles
-  :: Eval tr tr' slc slc' (Leftmost s f h)
+  :: Eval tr tr' slc slc' h (Leftmost s f h)
   -> StartStop slc
   -> tr
   -> slc
@@ -733,7 +733,7 @@ applyAction state action =
 -- | Parse a piece randomly using a fresh random number generator.
 parseRandom
   :: (Show tr', Show slc, Show tr, Show s, Show f, Show h)
-  => Eval tr tr' slc slc' (Leftmost s f h)
+  => Eval tr tr' slc slc' h (Leftmost s f h)
   -- ^ the grammar's evaluator
   -> Path slc' tr'
   -- ^ the input piece
@@ -749,7 +749,7 @@ parseRandom'
   :: (Show tr', Show slc, Show tr, Show s, Show f, Show h, StatefulGen g IO)
   => g
   -- ^ a random number generator
-  -> Eval tr tr' slc slc' (Leftmost s f h)
+  -> Eval tr tr' slc slc' h (Leftmost s f h)
   -- ^ the grammar's evaluator
   -> Path slc' tr'
   -- ^ the input piece

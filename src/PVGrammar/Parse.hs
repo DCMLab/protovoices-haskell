@@ -9,7 +9,7 @@ module PVGrammar.Parse
 
     -- | Evaluators that directly return protovoice operations.
     -- They can be embedded into a semiring using 'mapEvalScore'.
-    IsNote
+    IsPitch
   , protoVoiceEvaluator
   , protoVoiceEvaluatorNoRepSplit
 
@@ -55,6 +55,7 @@ import Data.Maybe
   , mapMaybe
   , maybeToList
   )
+import Data.Traversable (for)
 import GHC.Generics (Generic)
 import Internal.MultiSet qualified as MS
 import Musicology.Core
@@ -63,6 +64,8 @@ import Musicology.Core
   , Pitched (..)
   , isStep
   )
+
+import Debug.Trace qualified as DT
 
 -- helper type: Either for terminal and non-terminal edges
 -- -------------------------------------------------------
@@ -110,9 +113,9 @@ partitionElaborations = foldl' select ([], [], [], [])
 -- ======================
 
 -- | A constraint alias for note types.
-type IsNote :: Type -> Constraint
-type IsNote n =
-  (HasPitch n, Diatonic (ICOf (IntervalOf n)), Eq (ICOf (IntervalOf n)))
+type IsPitch :: Type -> Constraint
+type IsPitch n =
+  (HasPitch n, Diatonic (ICOf (IntervalOf n)), Eq (ICOf (IntervalOf n)), Eq (IntervalOf n))
 
 -- | Checks if the middle pitch is between the left and the right pitch.
 between
@@ -137,37 +140,30 @@ between pl pm pr =
  or a terminal edge for all other operations.
 -}
 findOrnament
-  :: (IsNote n)
-  => StartStop n
-  -> StartStop n
-  -> StartStop n
-  -> Bool
-  -> Bool
+  :: (IsPitch n)
+  => StartStop (Note n)
+  -> Note n
+  -> StartStop (Note n)
   -> Maybe
       ( EdgeEither
           (DoubleOrnament, Edge n)
           (PassingOrnament, InnerEdge n)
       )
-findOrnament (Inner l) (Inner m) (Inner r) True True
+findOrnament (Inner l) m (Inner r)
   | pl == pm && pm == pr = Just $ Reg (FullRepeat, (Inner l, Inner r))
   | pl == pm && so = Just $ Reg (RightRepeatOfLeft, (Inner l, Inner r))
   | pm == pr && so = Just $ Reg (LeftRepeatOfRight, (Inner l, Inner r))
- where
-  pl = pc $ pitch l
-  pm = pc $ pitch m
-  pr = pc $ pitch r
-  so = isStep $ pl `pto` pr
-findOrnament (Inner l) (Inner m) (Inner r) _ _
   | pl == pr && s1 = Just $ Reg (FullNeighbor, (Inner l, Inner r))
   | s1 && s2 && between pl pm pr = Just $ Pass (PassingMid, (l, r))
  where
-  pl = pc $ pitch l
-  pm = pc $ pitch m
-  pr = pc $ pitch r
+  pl = pc $ pitch $ notePitch l
+  pm = pc $ pitch $ notePitch m
+  pr = pc $ pitch $ notePitch r
   s1 = isStep $ pl `pto` pm
   s2 = isStep $ pm `pto` pr
-findOrnament Start (Inner _) Stop _ _ = Just $ Reg (RootNote, (Start, Stop))
-findOrnament _ _ _ _ _ = Nothing
+  so = isStep $ pl `pto` pr
+findOrnament Start _ Stop = Just $ Reg (RootNote, (Start, Stop))
+findOrnament _ _ _ = Nothing
 
 {- | Attempts to reduce three notes as a passing motion
  where one of the child edges is a non-terminal edge.
@@ -179,44 +175,44 @@ findOrnament _ _ _ _ _ = Nothing
  Exactly one side must be a 'Reg' and the other an 'Pass', otherwise the reduction fails.
 -}
 findPassing
-  :: (IsNote n)
-  => EdgeEither (StartStop n) n
-  -> n
-  -> EdgeEither (StartStop n) n
+  :: (IsPitch n)
+  => EdgeEither (StartStop (Note n)) (Note n)
+  -> Note n
+  -> EdgeEither (StartStop (Note n)) (Note n)
   -> Maybe (InnerEdge n, PassingOrnament)
 findPassing (Reg (Inner l)) m (Pass r)
   | isStep (pl `pto` pm) && between pl pm pr =
       Just ((l, r), PassingLeft)
  where
-  pl = pc $ pitch l
-  pm = pc $ pitch m
-  pr = pc $ pitch r
+  pl = pc $ pitch $ notePitch l
+  pm = pc $ pitch $ notePitch m
+  pr = pc $ pitch $ notePitch r
 findPassing (Pass l) m (Reg (Inner r))
   | isStep (pm `pto` pr) && between pl pm pr =
       Just ((l, r), PassingRight)
  where
-  pl = pc $ pitch l
-  pm = pc $ pitch m
-  pr = pc $ pitch r
+  pl = pc $ pitch $ notePitch l
+  pm = pc $ pitch $ notePitch m
+  pr = pc $ pitch $ notePitch r
 findPassing _ _ _ = Nothing
 
-findRightOrnament :: (IsNote n) => n -> n -> Maybe RightOrnament
+findRightOrnament :: (IsPitch n) => (Note n) -> (Note n) -> Maybe RightOrnament
 findRightOrnament l m
   | pl == pm = Just RightRepeat
   | isStep (pl `pto` pm) = Just RightNeighbor
   | otherwise = Nothing
  where
-  pl = pc $ pitch l
-  pm = pc $ pitch m
+  pl = pc $ pitch $ notePitch l
+  pm = pc $ pitch $ notePitch m
 
-findLeftOrnament :: (IsNote n) => n -> n -> Maybe LeftOrnament
+findLeftOrnament :: (IsPitch n) => (Note n) -> (Note n) -> Maybe LeftOrnament
 findLeftOrnament m r
   | pm == pr = Just LeftRepeat
   | isStep (pm `pto` pr) = Just LeftNeighbor
   | otherwise = Nothing
  where
-  pm = pc $ pitch m
-  pr = pc $ pitch r
+  pm = pc $ pitch $ notePitch m
+  pr = pc $ pitch $ notePitch r
 
 -- evaluator interface
 -- ===================
@@ -227,8 +223,8 @@ findLeftOrnament m r
  but can be embedded into different semirings using 'mapEvalScore'.
 -}
 protoVoiceEvaluator
-  :: (Foldable t, Foldable t2, Eq n, Ord n, IsNote n, Notation n, Hashable n)
-  => Eval (Edges n) (t (Edge n)) (Notes n) (t2 n) (PVLeftmost n)
+  :: (Foldable t, Foldable t2, Eq n, Ord n, IsPitch n, Notation n, Hashable n)
+  => Eval (Edges n) (t (Edge n)) (Notes n) (t2 (Note n)) (Spread n) (PVLeftmost n)
 protoVoiceEvaluator =
   mkLeftmostEval
     pvUnspreadMiddle
@@ -238,41 +234,174 @@ protoVoiceEvaluator =
     (\_ t _ -> [(pvThaw t, FreezeOp)])
     pvSlice
 
-{- | Computes the verticalization (unspread) of a middle transition.
- If the verticalization is admitted, returns the corresponding operation.
+{- | Computes the possible verticalizations (unspread) of a middle transition.
+ The verticalization fails if the middle transition contains regular edges
+ that are not repetitions.
+ Otherwise, unspread matches notes connected by a repetition edge
+ and then lists all possible /maximal matchings/
+ between the non-paired notes in the left and right slice.
+ The remaining unmatched notes are verticalized as "single children".
 -}
+
+-- implementation details: see note [Unspread]
 pvUnspreadMiddle
-  :: (Eq n, Ord n, Hashable n, IsNote n)
-  => UnspreadMiddle (Edges n) (Notes n) (Spread n)
-pvUnspreadMiddle (Notes nl, edges, Notes nr)
-  | any notARepetition (edgesReg edges) = Nothing
-  | otherwise = Just (Notes top, op)
+  :: forall n
+   . (Eq n, Ord n, Hashable n, IsPitch n, Notation n)
+  => UnspreadMiddle (Edges n) (Notes n) (Spread n) (Spread n)
+pvUnspreadMiddle (Notes notesl, edges@(Edges regular passing), Notes notesr)
+  | any (not . isRepetition) regular = [] -- can't unspread non-repetition edges
+  | otherwise = do
+      -- List monad
+      -- choose a matching for the unpaired notes
+      matching <- unpairedMatchings
+      -- add to the paired matching
+      let pairs = foldl' (\m (l, r) -> insertPair l r m) repPairs matching
+          -- find pitches that have not been matched
+          matchedl = S.fromList $ fmap fst matching
+          matchedr = S.fromList $ fmap fst matching
+          leftoverl = S.toList $ unpairedl `S.difference` matchedl
+          leftoverr = S.toList $ unpairedr `S.difference` matchedr
+          -- create single parents for the leftover notes
+          singlel = fmap (\l -> (mkParent1 l, SpreadLeftChild l)) leftoverl
+          singler = fmap (\r -> (mkParent1 r, SpreadRightChild r)) leftoverr
+          -- combine all mappings
+          mappings = HM.union pairs $ HM.fromList (singlel <> singler)
+          top = Notes $ HM.keysSet mappings
+          op = SpreadOp mappings edges
+      pure $ (top, op, op)
  where
-  notARepetition (p1, p2) = fmap (pc . pitch) p1 /= fmap (pc . pitch) p2
-  top = MS.maxUnion nl nr
-  leftMS = nl MS.\\ nr
-  left = HM.fromList $ fmap ToLeft <$> MS.toOccurList leftMS
-  rightMS = nr MS.\\ nl
-  right = HM.fromList $ fmap ToRight <$> MS.toOccurList rightMS
-  bothSet =
-    S.intersection (MS.toSet nl) (MS.toSet nr)
-      `S.difference` (MS.toSet leftMS `S.union` MS.toSet rightMS)
-  both = S.foldl' (\m k -> HM.insert k ToBoth m) HM.empty bothSet
-  op = SpreadOp (left <> right <> both) edges
+  isRepetition (p1, p2) = fmap (pc . pitch . notePitch) p1 == fmap (pc . pitch . notePitch) p2
+  mkParent2 (Note p1 i1) (Note p2 i2) = Note p1 (i1 <> "+" <> i1)
+  mkParent1 (Note p i) = Note p (i <> "'")
+  insertPair l r m = HM.insert (mkParent2 l r) (SpreadBothChildren l r) m
+
+  -- pairs notes at repetition edges and collects the unpaired notes
+  pairRep (paired, nl, nr) edge@(ssl, ssr)
+    | Inner l <- ssl
+    , Inner r <- ssr
+    , pitch (notePitch l) == pitch (notePitch r) =
+        ( insertPair l r paired
+        , S.delete l nl
+        , S.delete r nr
+        )
+    | otherwise = (paired, nl, nr)
+  (repPairs, unpairedl, unpairedr) = foldl' pairRep (HM.empty, notesl, notesr) $ regular
+
+  -- collects the pitches of unpaired notes left and right
+  unpairedPitches = S.toList $ S.map notePitch unpairedl
+  unpairedlList = S.toList unpairedl
+  unpairedrList = S.toList unpairedr
+
+  -- splits the unpaired notes by pitch,
+  -- then computes all possible matchings for each group.
+  -- note that only pitches from one side need to be checked
+  -- since pitches on the other side that are not included in a group
+  -- cannot be matched in the first place
+  pairingGroups :: [[[(Note n, Note n)]]]
+  pairingGroups = flip fmap unpairedPitches $ \p ->
+    let ls = filter ((== p) . notePitch) unpairedlList
+        rs = filter ((== p) . notePitch) unpairedrList
+     in matchGroup ls rs
+
+  -- Computes all possible matchings within a pitch group,
+  -- i.e. between two sets of notes with the same pitch
+  matchGroup :: [Note n] -> [Note n] -> [[(Note n, Note n)]]
+  matchGroup ls rs =
+    if length ls < length rs
+      then allMatches ls rs
+      else fmap (fmap $ \(a, b) -> (b, a)) $ allMatches rs ls
+   where
+    allMatches :: [Note n] -> [Note n] -> [[(Note n, Note n)]]
+    allMatches [] _ = pure []
+    allMatches (a : as) bs = do
+      -- List monad
+      b <- bs
+      let bs' = filter (/= b) bs
+      rest <- allMatches as bs'
+      pure $ (a, b) : rest
+
+  -- A list of possible matchings of unpaired notes.
+  -- Takes all combintations of matchings per pitch group
+  -- and then concatenates the groups within each combination.
+  unpairedMatchings :: [[(Note n, Note n)]]
+  unpairedMatchings = fmap concat $ cartProd pairingGroups
+
+{-
+Note [Unspread]
+~~~~~~~~~~~~~~~
+
+Unspread performs the following steps
+1. Check if the transition contains non-repeating regular edges.
+   If so, reject the unspread (return []).
+2. Pair all notes that are connected by a repeating edge.
+3. Compute all /maximal matchings/ for the remaining notes.
+   This can be modelled as a matching problem in a bipartite graph
+   where the notes from the left and right child slice are the two groups of vertices
+   and pairs of notes with the same pitch are the candidate edges.
+   However, because of this construction, we can make additional assumptions:
+   - the graph can be decomposed into separated components (one for each pitch)
+   - within each component, any note on the left can be matched with any note on the right
+   Accordingly, the maximal matchings for the unpaired notes can be computed like this:
+   1. Partition the graph into components, one per pitch.
+      It is sufficient to do this using the pitches of one side
+      since notes on the other side that are not included this way
+      don't have a partner that they could be matched to anyways.
+   2. Within each group, find the side with fewer pitches
+      and compute all possible matchings with notes on the other side.
+      This is implemented in the list monad by going through the notes on the smaller side,
+      non-deterministically choosing a partner note from the other side,
+      and removing that note from the pool.
+      For each group, this results in a list of possiblem matchings.
+   3. Find all combintations of group-level matchings across groups,
+      i.e. the cartesian product of the matching lists for all groups.
+      For each combination, combine the group-level matchings to one complete matching.
+4. For each matching found in step 3 (together with the edge-paired notes),
+   compute the corresponding verticalization.
+   non-matched notes on either side are explained as "single children"
+   with their own parent in the output slice.
+-}
 
 {- | Computes all left parent transitions for a verticalization and a left child transition.
  Here, this operation is always admitted and unique,
  so the edges from the child transition are just passed through.
 -}
-pvUnspreadLeft :: UnspreadLeft (Edges n) (Notes n)
-pvUnspreadLeft (el, _) _ = [el]
+pvUnspreadLeft :: (Hashable n) => UnspreadLeft (Edges n) (Notes n) (Spread n)
+pvUnspreadLeft (Edges reg pass, _) _ (SpreadOp mapping _) = maybeToList remapped
+ where
+  mappingList = HM.toList mapping
+  inverseByLeft = catMaybes $ fmap (\(p, s) -> (,p) <$> leftSpreadChild s) mappingList
+  leftMapping = HM.fromList inverseByLeft
+  remapped = do
+    -- Maybe
+    reg' <- flip traverseSet reg $ \(l, r) -> do
+      rn <- getInner r
+      rn' <- HM.lookup rn leftMapping
+      pure (l, Inner rn')
+    pass' <- flip MS.traverse pass $ \(ln, rn) -> do
+      rn' <- HM.lookup rn leftMapping
+      pure (ln, rn')
+    pure $ Edges reg' pass'
 
 {- | Computes all right parent transition for a verticalization and a right child transition.
  Here, this operation is always admitted and unique,
  so the edges from the child transition are just passed through.
 -}
-pvUnspreadRight :: UnspreadRight (Edges n) (Notes n)
-pvUnspreadRight (_, er) _ = [er]
+pvUnspreadRight :: (Hashable n) => UnspreadRight (Edges n) (Notes n) (Spread n)
+pvUnspreadRight (_, Edges reg pass) _ (SpreadOp mapping _) = maybeToList remapped
+ where
+  mappingList = HM.toList mapping
+  inverseByRight = catMaybes $ fmap (\(p, s) -> (,p) <$> rightSpreadChild s) mappingList
+  rightMapping = HM.fromList inverseByRight
+  remapped = do
+    -- Maybe
+    reg' <- flip traverseSet reg $ \(l, r) -> do
+      ln <- getInner l
+      ln' <- HM.lookup ln rightMapping
+      pure (l, Inner ln')
+    pass' <- flip MS.traverse pass $ \(ln, rn) -> do
+      ln' <- HM.lookup ln rightMapping
+      pure (ln', rn)
+    pure $ Edges reg' pass'
 
 {- | Computes all possible unsplits of two child transitions.
  Since transitions here only represent the certain edges,
@@ -280,140 +409,144 @@ pvUnspreadRight (_, er) _ = [er]
  which are not present in the child transitions.
 -}
 pvUnsplit
-  :: (IsNote n, Notation n, Ord n, Hashable n)
+  :: forall n
+   . (IsPitch n, Notation n, Ord n, Hashable n)
   => StartStop (Notes n)
   -> Edges n
   -> Notes n
   -> Edges n
   -> StartStop (Notes n)
   -> [(Edges n, Split n)]
-pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs rightPass) notesr =
-  map mkTop combinations
+pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs rightPass) notesr = do
+  -- List
+  -- pick one combination
+  reduction <- cartProd reductions
+  -- construct split from reduction
+  pure $ mkTop $ partitionElaborations reduction
  where
-  -- preprocessing of the notes left and right of the unsplit
-  !innerL = Reg <$> innerNotes notesl
-  !innerR = Reg <$> innerNotes notesr
+  !innerL = innerNotes notesl
+  !innerR = innerNotes notesr
 
-  -- find all reduction options for every pitch
-  !options = noteOptions <$> MS.toOccurList notesm
-  noteOptions (note, nocc)
-    | nocc < MS.size mandatoryLeft || nocc < MS.size mandatoryRight =
-        []
+  reductions
+    :: [ [ Elaboration
+            (Edge n, (Note n, DoubleOrnament))
+            (InnerEdge n, (Note n, PassingOrnament))
+            (Note n, (Note n, RightOrnament))
+            (Note n, (Note n, LeftOrnament))
+         ]
+       ]
+  reductions = findReductions <$> S.toList notesm
+
+  -- finds all possible reductions for a single middle note
+  findReductions
+    :: Note n
+    -> [ Elaboration
+          (Edge n, (Note n, DoubleOrnament))
+          (InnerEdge n, (Note n, PassingOrnament))
+          (Note n, (Note n, RightOrnament))
+          (Note n, (Note n, LeftOrnament))
+       ]
+  findReductions note
+    -- more than one mandatory edge left or right -> no reduction possible
+    | length leftRegParent > 1 || length rightRegParent > 1 = []
+    -- case 1: two mandatory parents: must use both
+    | [(lparent, _)] <- leftRegParent
+    , [(_, rparent)] <- rightRegParent =
+        helperDouble lparent note rparent
+    -- case 2: mandatory parent left: choose right parent or none
+    | [(lparent, _)] <- leftRegParent =
+        let double = do
+              rparent <- innerR
+              helperDouble lparent note rparent
+            passing = helperPassingRight lparent note rightPassParents
+            single = helperSingleLeft lparent note
+         in double <> passing <> single
+    -- case 3: mandatory parent right
+    | [(_, rparent)] <- rightRegParent =
+        let double = do
+              lparent <- innerL
+              helperDouble lparent note rparent
+            passing = helperPassingLeft leftPassParents note rparent
+            single = helperSingleRight note rparent
+         in double <> passing <> single
+    -- case 4: no mandatory parents
     | otherwise =
-        partitionElaborations
-          <$> enumerateOptions mandatoryLeft mandatoryRight nocc
+        let double = do
+              lparent <- innerL
+              rparent <- innerR
+              helperDouble lparent note rparent
+            rightPassing = do
+              lparent <- innerL
+              helperPassingRight lparent note rightPassParents
+            leftPassing = do
+              rparent <- innerR
+              helperPassingLeft leftPassParents note rparent
+            leftSingle = do
+              lparent <- innerL
+              helperSingleLeft lparent note
+            rightSingle = do
+              rparent <- innerR
+              helperSingleRight note rparent
+         in double <> leftPassing <> rightPassing <> leftSingle <> rightSingle
    where
-    -- compute the mandatory edges for the current pitch:
-    mleftRegs = S.map (Reg . fst) $ S.filter ((== Inner note) . snd) leftRegs
-    mleftPass = MS.map (Pass . fst) $ MS.filter ((== note) . snd) leftPass
-    mrightRegs = S.map (Reg . snd) $ S.filter ((== Inner note) . fst) rightRegs
-    mrightPass = MS.map (Pass . snd) $ MS.filter ((== note) . fst) rightPass
-    mandatoryLeft = MS.fromSet mleftRegs <> mleftPass
-    mandatoryRight = MS.fromSet mrightRegs <> mrightPass
+    -- mandatory edges left
+    leftRegParent = filter (\(_, r) -> r == Inner note) $ S.toList leftRegs
+    -- mandatory edges right
+    rightRegParent = filter (\(l, _) -> l == Inner note) $ S.toList rightRegs
+    -- passing edges left
+    leftPassParents = filter (\(_, r) -> r == note) $ MS.toList leftPass
+    -- passing edges right
+    rightPassParents = filter (\(l, _) -> l == note) $ MS.toList rightPass
 
-    -- the possible reductions of a (multiple) pitch are enumerated in three stages:
+  -- helper functions: find specific reductions of a note to certain parents
+  -- all of them return a list of reductions of the form (parent, (child, ornamentType))
+  -- wrapped in the appropriate Elaboration constructor
 
-    -- stage 1: consume all mandatory edges on the left
-    enumerateOptions ml mr n = do
-      (mr', n', acc) <- MS.foldM goL (mr, n, []) ml
-      (n'', acc') <- MS.foldM goR (n', acc) mr'
-      goFree freeOptions n'' acc'
-    goL (_, 0, _) _ = []
-    goL (mr, n, acc) l = do
-      (new, mr') <- pickLeft n l mr
-      pure (mr', n - 1, new : acc)
-    -- combine a mandatory left with a mandatory right or free right edge
-    pickLeft n l mr
-      | n > MS.size mr = mand <> opt <> single
-      | otherwise = mand
-     where
-      mand = do
-        r <- MS.distinctElems mr
-        red <- maybeToList $ tryReduction True True l note r
-        pure (red, MS.delete r mr)
-      -- TODO: remove mr options here?
-      tryOpt r = tryReduction True (r `S.member` mrightRegs) l note r
-      opt = (,mr) <$> mapMaybe tryOpt innerR
-      single = fmap (,mr) $ maybeToList $ tryLeftReduction note l
+  -- reduce with two regular parents
+  helperDouble lparent note rparent =
+    case findOrnament lparent note rparent of
+      Nothing -> []
+      Just (Reg (orn, reg)) -> [EReg (reg, (note, orn))]
+      Just (Pass (orn, pass)) -> [EPass (pass, (note, orn))]
 
-    -- stage 2: consume all remaining mandatory edges on the right
-    goR (0, _) _ = []
-    goR (n, acc) r = do
-      new <- pickRight r
-      pure (n - 1, new : acc)
-    -- combine mandatory right with free left edge
-    pickRight r = opt <> single
-     where
-      tryOpt l = tryReduction (l `S.member` mleftRegs) True l note r
-      opt = mapMaybe tryOpt innerL
-      single = maybeToList $ tryRightReduction note r
+  -- reduce with a passing edge on the right and a regular parent on the left
+  helperPassingRight lparent note rpassing = do
+    (_, rparent) <- rpassing
+    (pass, orn) <- maybeToList $ findPassing (Reg lparent) note (Pass rparent)
+    pure $ EPass (pass, (note, orn))
 
-    -- stage 3: explain all remaining notes through a combination of unknown edges
-    goFree _ 0 acc = pure acc
-    goFree [] _ _ = []
-    goFree [lastOpt] n acc = pure $ L.replicate n lastOpt <> acc
-    goFree (opt : opts) n acc = do
-      nopt <- [0 .. n]
-      goFree opts (n - nopt) (L.replicate nopt opt <> acc)
-    -- list all options for free reduction
-    freeOptions = pickFreeBoth <> pickFreeLeft <> pickFreeRight
-    -- combine two free edges
-    pickFreeBoth = do
-      l <- innerL
-      r <- innerR
-      maybeToList $
-        tryReduction (l `S.member` mleftRegs) (r `S.member` mrightRegs) l note r
-    -- reduce to left using free edge
-    pickFreeLeft = mapMaybe (tryLeftReduction note) innerL
-    -- reduce to right using free edge
-    pickFreeRight = mapMaybe (tryRightReduction note) innerR
+  -- reduce with a passing edge on the left and a regular parent on the right
+  helperPassingLeft lpassing note rparent = do
+    (lparent, _) <- lpassing
+    (pass, orn) <- maybeToList $ findPassing (Pass lparent) note (Reg rparent)
+    pure $ EPass (pass, (note, orn))
 
-  -- at all stages: try out potential reductions:
+  -- reduce with a single parent on the left
+  helperSingleLeft lparent note = case lparent of
+    Inner lp -> case findRightOrnament lp note of
+      Nothing -> []
+      Just orn -> [ER (lp, (note, orn))]
+    _ -> []
 
-  -- two terminal edges: any ornament
-  tryReduction lIsUsed rIsUsed (Reg notel) notem (Reg noter) = do
-    reduction <- findOrnament notel (Inner notem) noter lIsUsed rIsUsed
-    pure $ case reduction of
-      (Reg (orn, parent)) -> EReg (parent, (notem, orn))
-      (Pass (pass, parent)) -> EPass (parent, (notem, pass))
-  -- a non-terminal edge left and a terminal edge right: passing note
-  tryReduction _ _ notel@(Pass _) notem noter@(Reg _) = do
-    (parent, pass) <- findPassing notel notem noter
-    pure $ EPass (parent, (notem, pass))
-  -- a terminal edge left and a non-terminal edge right: passing note
-  tryReduction _ _ notel@(Reg _) notem noter@(Pass _) = do
-    (parent, pass) <- findPassing notel notem noter
-    pure $ EPass (parent, (notem, pass))
-  -- all other combinations are forbidden
-  tryReduction _ _ _ _ _ = Nothing
-
-  -- single reduction to a left parent
-  tryLeftReduction notem (Reg (Inner notel)) = do
-    orn <- findRightOrnament notel notem
-    pure $ ER (notel, (notem, orn))
-  tryLeftReduction _ _ = Nothing
-
-  -- single reduction to a right parent
-  tryRightReduction notem (Reg (Inner noter)) = do
-    orn <- findLeftOrnament notem noter
-    pure $ EL (noter, (notem, orn))
-  tryRightReduction _ _ = Nothing
-
-  -- compute all possible combinations of reduction options
-  !combinations =
-    if any L.null options -- check if any note has no options
-      then [] -- if yes, then no reduction is possible at all
-      else foldM pickOption ([], [], [], []) options -- otherwise, compute all combinations
-      -- picks all different options for a single note in the list monad
-  pickOption (accReg, accPass, accL, accR) opts = do
-    (regs, pass, ls, rs) <- opts
-    pure (regs <> accReg, pass <> accPass, ls <> accL, rs <> accR)
+  -- reduce with a single parent on the right
+  helperSingleRight note rparent = case rparent of
+    Inner rp -> case findLeftOrnament note rp of
+      Nothing -> []
+      Just orn -> [EL (rp, (note, orn))]
+    _ -> []
 
   -- convert a combination into a derivation operation:
   -- turn the accumulated information into the format expected from the evaluator
+  mkTop
+    :: ( [(Edge n, (Note n, DoubleOrnament))]
+       , [((Note n, Note n), (Note n, PassingOrnament))]
+       , [(Note n, (Note n, RightOrnament))]
+       , [(Note n, (Note n, LeftOrnament))]
+       )
+    -> (Edges n, Split n)
   mkTop (regs, pass, rs, ls) =
     if True -- validate
-      then (top, SplitOp tmap ntmap rmap lmap leftRegs rightRegs passL passR)
+      then (top, SplitOp regmap passmap rmap lmap leftRegs rightRegs passL passR)
       else
         error $
           "invalid unsplit:\n  notesl="
@@ -437,17 +570,180 @@ pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs right
 
     -- collect all operations
     mapify xs = M.fromListWith (<>) $ fmap (: []) <$> xs
-    tmap = mapify regs
-    ntmap = mapify pass
+    regmap = mapify regs
+    passmap = mapify pass
     lmap = mapify ls
     rmap = mapify rs
-    top = Edges (S.fromList (fst <$> regs)) (MS.fromList (fst <$> pass))
-    passL = foldr MS.delete leftPass $ mapMaybe leftPassingChild pass
-    passR = foldr MS.delete rightPass $ mapMaybe rightPassingChild pass
     leftPassingChild ((l, _r), (m, orn)) =
       if orn == PassingRight then Just (l, m) else Nothing
     rightPassingChild ((_l, r), (m, orn)) =
       if orn == PassingLeft then Just (m, r) else Nothing
+    passL = foldr MS.delete leftPass $ mapMaybe leftPassingChild pass
+    passR = foldr MS.delete rightPass $ mapMaybe rightPassingChild pass
+    top = Edges (S.fromList (fst <$> regs)) (MS.fromList (fst <$> pass))
+
+-- old pvUnsplit (no IDs, multisets)
+-- pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs rightPass) notesr =
+--   map mkTop combinations
+--  where
+--   -- preprocessing of the notes left and right of the unsplit
+--   !innerL = Reg <$> innerNotes notesl
+--   !innerR = Reg <$> innerNotes notesr
+
+--   -- find all reduction options for every pitch
+--   !options = noteOptions <$> MS.toOccurList notesm
+--   noteOptions (note, nocc)
+--     | nocc < MS.size mandatoryLeft || nocc < MS.size mandatoryRight =
+--         []
+--     | otherwise =
+--         partitionElaborations
+--           <$> enumerateOptions mandatoryLeft mandatoryRight nocc
+--    where
+--     -- compute the mandatory edges for the current pitch:
+--     mleftRegs = S.map (Reg . fst) $ S.filter ((== Inner note) . snd) leftRegs
+--     mleftPass = MS.map (Pass . fst) $ MS.filter ((== note) . snd) leftPass
+--     mrightRegs = S.map (Reg . snd) $ S.filter ((== Inner note) . fst) rightRegs
+--     mrightPass = MS.map (Pass . snd) $ MS.filter ((== note) . fst) rightPass
+--     mandatoryLeft = MS.fromSet mleftRegs <> mleftPass
+--     mandatoryRight = MS.fromSet mrightRegs <> mrightPass
+
+--     -- the possible reductions of a (multiple) pitch are enumerated in three stages:
+
+--     -- stage 1: consume all mandatory edges on the left
+--     enumerateOptions ml mr n = do
+--       (mr', n', acc) <- MS.foldM goL (mr, n, []) ml
+--       (n'', acc') <- MS.foldM goR (n', acc) mr'
+--       goFree freeOptions n'' acc'
+--     goL (_, 0, _) _ = []
+--     goL (mr, n, acc) l = do
+--       (new, mr') <- pickLeft n l mr
+--       pure (mr', n - 1, new : acc)
+--     -- combine a mandatory left with a mandatory right or free right edge
+--     pickLeft n l mr
+--       | n > MS.size mr = mand <> opt <> single
+--       | otherwise = mand
+--      where
+--       mand = do
+--         r <- MS.distinctElems mr
+--         red <- maybeToList $ tryReduction True True l note r
+--         pure (red, MS.delete r mr)
+--       -- TODO: remove mr options here?
+--       tryOpt r = tryReduction True (r `S.member` mrightRegs) l note r
+--       opt = (,mr) <$> mapMaybe tryOpt innerR
+--       single = fmap (,mr) $ maybeToList $ tryLeftReduction note l
+
+--     -- stage 2: consume all remaining mandatory edges on the right
+--     goR (0, _) _ = []
+--     goR (n, acc) r = do
+--       new <- pickRight r
+--       pure (n - 1, new : acc)
+--     -- combine mandatory right with free left edge
+--     pickRight r = opt <> single
+--      where
+--       tryOpt l = tryReduction (l `S.member` mleftRegs) True l note r
+--       opt = mapMaybe tryOpt innerL
+--       single = maybeToList $ tryRightReduction note r
+
+--     -- stage 3: explain all remaining notes through a combination of unknown edges
+--     goFree _ 0 acc = pure acc
+--     goFree [] _ _ = []
+--     goFree [lastOpt] n acc = pure $ L.replicate n lastOpt <> acc
+--     goFree (opt : opts) n acc = do
+--       nopt <- [0 .. n]
+--       goFree opts (n - nopt) (L.replicate nopt opt <> acc)
+--     -- list all options for free reduction
+--     freeOptions = pickFreeBoth <> pickFreeLeft <> pickFreeRight
+--     -- combine two free edges
+--     pickFreeBoth = do
+--       l <- innerL
+--       r <- innerR
+--       maybeToList $
+--         tryReduction (l `S.member` mleftRegs) (r `S.member` mrightRegs) l note r
+--     -- reduce to left using free edge
+--     pickFreeLeft = mapMaybe (tryLeftReduction note) innerL
+--     -- reduce to right using free edge
+--     pickFreeRight = mapMaybe (tryRightReduction note) innerR
+
+--   -- at all stages: try out potential reductions:
+
+--   -- two terminal edges: any ornament
+--   tryReduction lIsUsed rIsUsed (Reg notel) notem (Reg noter) = do
+--     reduction <- findOrnament notel (Inner notem) noter lIsUsed rIsUsed
+--     pure $ case reduction of
+--       (Reg (orn, parent)) -> EReg (parent, (notem, orn))
+--       (Pass (pass, parent)) -> EPass (parent, (notem, pass))
+--   -- a non-terminal edge left and a terminal edge right: passing note
+--   tryReduction _ _ notel@(Pass _) notem noter@(Reg _) = do
+--     (parent, pass) <- findPassing notel notem noter
+--     pure $ EPass (parent, (notem, pass))
+--   -- a terminal edge left and a non-terminal edge right: passing note
+--   tryReduction _ _ notel@(Reg _) notem noter@(Pass _) = do
+--     (parent, pass) <- findPassing notel notem noter
+--     pure $ EPass (parent, (notem, pass))
+--   -- all other combinations are forbidden
+--   tryReduction _ _ _ _ _ = Nothing
+
+--   -- single reduction to a left parent
+--   tryLeftReduction notem (Reg (Inner notel)) = do
+--     orn <- findRightOrnament notel notem
+--     pure $ ER (notel, (notem, orn))
+--   tryLeftReduction _ _ = Nothing
+
+--   -- single reduction to a right parent
+--   tryRightReduction notem (Reg (Inner noter)) = do
+--     orn <- findLeftOrnament notem noter
+--     pure $ EL (noter, (notem, orn))
+--   tryRightReduction _ _ = Nothing
+
+--   -- compute all possible combinations of reduction options
+--   !combinations =
+--     if any L.null options -- check if any note has no options
+--       then [] -- if yes, then no reduction is possible at all
+--       else foldM pickOption ([], [], [], []) options -- otherwise, compute all combinations
+--       -- picks all different options for a single note in the list monad
+--   pickOption (accReg, accPass, accL, accR) opts = do
+--     (regs, pass, ls, rs) <- opts
+--     pure (regs <> accReg, pass <> accPass, ls <> accL, rs <> accR)
+
+--   -- convert a combination into a derivation operation:
+--   -- turn the accumulated information into the format expected from the evaluator
+--   mkTop (regs, pass, rs, ls) =
+--     if True -- validate
+--       then (top, SplitOp tmap ntmap rmap lmap leftRegs rightRegs passL passR)
+--       else
+--         error $
+--           "invalid unsplit:\n  notesl="
+--             <> show notesl
+--             <> "\n  notesr="
+--             <> show notesr
+--             <> "\n  notesm="
+--             <> show (Notes notesm)
+--             <> "\n  left="
+--             <> show (Edges leftRegs leftPass)
+--             <> "\n  right="
+--             <> show (Edges rightRegs rightPass)
+--             <> "\n  top="
+--             <> show top
+--    where
+--     -- validate =
+--     --   all ((`L.elem` innerNotes notesl) . fst . fst) regs
+--     --     && all ((`L.elem` innerNotes notesr) . snd . fst)   regs
+--     --     && all ((`L.elem` innerNotes notesl) . Inner . fst) rs
+--     --     && all ((`L.elem` innerNotes notesr) . Inner . fst) ls
+
+--     -- collect all operations
+--     mapify xs = M.fromListWith (<>) $ fmap (: []) <$> xs
+--     tmap = mapify regs
+--     ntmap = mapify pass
+--     lmap = mapify ls
+--     rmap = mapify rs
+--     top = Edges (S.fromList (fst <$> regs)) (MS.fromList (fst <$> pass))
+--     passL = foldr MS.delete leftPass $ mapMaybe leftPassingChild pass
+--     passR = foldr MS.delete rightPass $ mapMaybe rightPassingChild pass
+--     leftPassingChild ((l, _r), (m, orn)) =
+--       if orn == PassingRight then Just (l, m) else Nothing
+--     rightPassingChild ((_l, r), (m, orn)) =
+--       if orn == PassingLeft then Just (m, r) else Nothing
 
 -- | Unfreezes a single transition, which may be 'Nothing'.
 pvThaw
@@ -456,8 +752,8 @@ pvThaw
   -> Edges n
 pvThaw e = Edges (S.fromList $ maybe [] toList e) MS.empty
 
-pvSlice :: (Foldable t, Eq n, Hashable n) => t n -> Notes n
-pvSlice = Notes . MS.fromList . toList
+pvSlice :: (Foldable t, Eq n, Hashable n) => t (Note n) -> Notes n
+pvSlice = Notes . S.fromList . toList
 
 -- evaluators in specific semirings
 -- ================================
@@ -466,8 +762,8 @@ pvSlice = Notes . MS.fromList . toList
  that prohibits split operations in which one of the parent slices is repeated entirely.
 -}
 protoVoiceEvaluatorNoRepSplit
-  :: (Foldable t, Foldable t2, Eq n, Ord n, IsNote n, Notation n, Hashable n)
-  => Eval (Edges n) (t (Edge n)) (Notes n) (t2 n) (PVLeftmost n)
+  :: (Foldable t, Foldable t2, Eq n, Ord n, IsPitch n, Notation n, Hashable n)
+  => Eval (Edges n) (t (Edge n)) (Notes n) (t2 (Note n)) (Spread n) (PVLeftmost n)
 protoVoiceEvaluatorNoRepSplit = Eval vm vl vr filterSplit t s
  where
   (Eval vm vl vr mg t s) = protoVoiceEvaluator
@@ -490,12 +786,13 @@ protoVoiceEvaluatorNoRepSplit = Eval vm vl vr filterSplit t s
 
 -- | An evaluator for protovoices that produces values in the 'Derivations' semiring.
 pvDerivUnrestricted
-  :: (Foldable t, Foldable t2, Eq n, Ord n, IsNote n, Notation n, Hashable n)
+  :: (Foldable t, Foldable t2, Eq n, Ord n, IsPitch n, Notation n, Hashable n)
   => Eval
       (Edges n)
       (t (Edge n))
       (Notes n)
-      (t2 n)
+      (t2 (Note n))
+      (Spread n)
       (Derivations (PVLeftmost n))
 pvDerivUnrestricted = mapEvalScore Do protoVoiceEvaluator
 
@@ -504,20 +801,21 @@ pvDerivUnrestricted = mapEvalScore Do protoVoiceEvaluator
  - Enforces right-branching spreads (see 'rightBranchSpread').
 -}
 pvDerivRightBranch
-  :: (Foldable t, Foldable t2, Eq n, Ord n, IsNote n, Notation n, Hashable n)
+  :: (Foldable t, Foldable t2, Eq n, Ord n, IsPitch n, Notation n, Hashable n)
   => Eval
       (Merged, (RightBranchSpread, Edges n))
       (t (Edge n))
       ((), ((), Notes n))
-      (t2 n)
+      (t2 (Note n))
+      ((), ((), (Spread n)))
       (Derivations (PVLeftmost n))
 pvDerivRightBranch =
   splitFirst $ rightBranchSpread $ mapEvalScore Do protoVoiceEvaluatorNoRepSplit
 
 -- | An evaluator for protovoices that produces values in the counting semiring.
 pvCountUnrestricted
-  :: (Foldable t, Foldable t2, Eq n, Ord n, IsNote n, Notation n, Hashable n)
-  => Eval (Edges n) (t (Edge n)) (Notes n) (t2 n) Int
+  :: (Foldable t, Foldable t2, Eq n, Ord n, IsPitch n, Notation n, Hashable n)
+  => Eval (Edges n) (t (Edge n)) (Notes n) (t2 (Note n)) (Spread n) Int
 pvCountUnrestricted = mapEvalScore (const 1) protoVoiceEvaluator
 
 {- | An evaluator for protovoices that produces values in the counting semiring.
@@ -525,8 +823,8 @@ pvCountUnrestricted = mapEvalScore (const 1) protoVoiceEvaluator
  - Prohibits split operations in which one of the parent slices is repeated entirely (see 'protoVoiceEvaluatorNoRepSplit').
 -}
 pvCountNoRepSplit
-  :: (Foldable t, Foldable t2, Eq n, Ord n, IsNote n, Notation n, Hashable n)
-  => Eval (Edges n) (t (Edge n)) (Notes n) (t2 n) Int
+  :: (Foldable t, Foldable t2, Eq n, Ord n, IsPitch n, Notation n, Hashable n)
+  => Eval (Edges n) (t (Edge n)) (Notes n) (t2 (Note n)) (Spread n) Int
 pvCountNoRepSplit = mapEvalScore (const 1) protoVoiceEvaluatorNoRepSplit
 
 {- | An evaluator for protovoices that produces values in the counting semiring.
@@ -535,8 +833,8 @@ pvCountNoRepSplit = mapEvalScore (const 1) protoVoiceEvaluatorNoRepSplit
  - Enforces right-branching spreads (see 'rightBranchSpread').
 -}
 pvCountNoRepSplitRightBranch
-  :: (Foldable t, Foldable t2, Eq n, Ord n, IsNote n, Notation n, Hashable n)
-  => Eval (RightBranchSpread, Edges n) (t (Edge n)) ((), Notes n) (t2 n) Int
+  :: (Foldable t, Foldable t2, Eq n, Ord n, IsPitch n, Notation n, Hashable n)
+  => Eval (RightBranchSpread, Edges n) (t (Edge n)) ((), Notes n) (t2 (Note n)) ((), Spread n) Int
 pvCountNoRepSplitRightBranch = rightBranchSpread pvCountNoRepSplit
 
 {- | An evaluator for protovoices that produces values in the counting semiring.
@@ -546,11 +844,12 @@ pvCountNoRepSplitRightBranch = rightBranchSpread pvCountNoRepSplit
  - Normalizes the order of adjacent split and spread operations to split-before-spread (see 'splitFirst').
 -}
 pvCountNoRepSplitRightBranchSplitFirst
-  :: (Foldable t, Foldable t2, Eq n, Ord n, IsNote n, Notation n, Hashable n)
+  :: (Foldable t, Foldable t2, Eq n, Ord n, IsPitch n, Notation n, Hashable n)
   => Eval
       (Merged, (RightBranchSpread, Edges n))
       (t (Edge n))
       ((), ((), Notes n))
-      (t2 n)
+      (t2 (Note n))
+      ((), ((), Spread n))
       Int
 pvCountNoRepSplitRightBranchSplitFirst = splitFirst pvCountNoRepSplitRightBranch

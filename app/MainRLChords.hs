@@ -12,13 +12,13 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict, withObject, (.:))
 import Data.Aeson qualified as JSON
-import Data.List (zipWith4)
+import Data.List (zipWith5)
 import Data.Ratio (Ratio (..), denominator, numerator, (%))
 import Data.TypeLits (KnownNat)
 import GHC.Generics (Generic)
 import GreedyParser (applyAction, getActions, initParseState, parseGreedy)
 import GreedyParser qualified as Greedy
-import Musicology.Core (Note (..), SInterval, SPitch, spelledp)
+import Musicology.Core (SInterval, SPitch, spelledp)
 import Musicology.Core qualified as Music
 import Musicology.Core.Slicing qualified as Music
 import PVGrammar
@@ -75,14 +75,14 @@ instance FromJSON DataRatio where
     d <- obj .: "d"
     pure $ DataRatio $ n % d
 
-convertNotes :: DataNotes -> [Note SInterval (Ratio Int)]
-convertNotes DataNotes{..} = zipWith4 mkNote total_onset total_offset tpc octave
+convertNotes :: DataNotes -> [Music.NoteId SInterval (Ratio Int) String]
+convertNotes DataNotes{..} = zipWith5 mkNote total_onset total_offset tpc octave [0 ..]
  where
-  mkNote on off f o = Note pitch (getRatio on) (getRatio off)
+  mkNote on off f o i = Music.NoteId pitch (getRatio on) (getRatio off) ("note" <> show i)
    where
     pitch = spelledp f (o - (f * 4 `div` 7))
 
-dataToSlices :: DataNotes -> Path [SPitch] [Edge SPitch]
+dataToSlices :: DataNotes -> Path [Note SPitch] [Edge SPitch]
 dataToSlices dataNotes =
   let
     notes = convertNotes dataNotes
@@ -91,14 +91,14 @@ dataToSlices dataNotes =
     slicesToPath $ mkSlice <$> filter (not . null) slices
  where
   mkSlice notes = mkNote <$> notes
-  mkNote (note, tie) = (Music.pitch note, Music.rightTie tie)
+  mkNote (Music.NoteId p _ _ i, tie) = (Note p i, Music.rightTie tie)
 
 -- running models
 -- --------------
 
 parseA2C
   :: RL.QModel
-  -> Path [SPitch] [Edge SPitch]
+  -> Path [Note SPitch] [Edge SPitch]
   -> IO (Either String (PVAnalysis SPitch))
 parseA2C !actor !input = ET.runExceptT $ go $ initParseState eval input
  where

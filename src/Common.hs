@@ -114,6 +114,8 @@ module Common
   , firstDerivation
 
     -- * Utilities #utils#
+  , cartProd
+  , traverseSet
   , traceLevel
   , traceIf
   , showTex
@@ -144,6 +146,7 @@ import Data.Bifunctor
   , bimap
   , second
   )
+import Data.HashSet qualified as HS
 import Data.Hashable (Hashable)
 import Data.Kind (Type)
 import Data.Semigroup (stimesMonoid)
@@ -248,7 +251,7 @@ pathTake :: Int -> (b -> b') -> b' -> Path a b -> [(a, b')]
 pathTake n f finalb path = reverse $ go [] n path
  where
   go acc 0 _ = acc
-  go acc n (PathEnd a) = (a, finalb) : acc
+  go acc _n (PathEnd a) = (a, finalb) : acc
   go acc n (Path a b rst) = go ((a, f b) : acc) (n - 1) rst
 
 -- StartStop
@@ -351,19 +354,19 @@ data SplitType
  Takes the two child slices and the middle transition.
  Returns the parent slice and the spread operation, if possible.
 -}
-type UnspreadMiddle tr slc v = (slc, tr, slc) -> Maybe (slc, v)
+type UnspreadMiddle tr slc h v = (slc, tr, slc) -> [(slc, h, v)]
 
 {- | An evaluator returning the possible left parent edges of an unspread.
  The first argument is a pair of left child transition and left child slice.
  The second argument is the parent slice.
 -}
-type UnspreadLeft tr slc = (tr, slc) -> slc -> [tr]
+type UnspreadLeft tr slc h = (tr, slc) -> slc -> h -> [tr]
 
 {- | An evaluator returning the possible right parent edges of an unspread.
  The first argument is a pair of right child slice and right child transition.
  The second argument is the parent slice.
 -}
-type UnspreadRight tr slc = (slc, tr) -> slc -> [tr]
+type UnspreadRight tr slc h = (slc, tr) -> slc -> h -> [tr]
 
 {- | An evaluator for unsplits.
  Returns possible unsplits of a given pair of transitions.
@@ -374,10 +377,10 @@ type Unsplit tr slc v =
 {- | A combined evaluator for unsplits, unspreads, and unfreezes.
  Additionally, contains a function for mapping terminal slices to derivation slices.
 -}
-data Eval tr tr' slc slc' v = Eval
-  { evalUnspreadMiddle :: !(UnspreadMiddle tr slc v)
-  , evalUnspreadLeft :: !(UnspreadLeft tr slc)
-  , evalUnspreadRight :: !(UnspreadRight tr slc)
+data Eval tr tr' slc slc' h v = Eval
+  { evalUnspreadMiddle :: !(UnspreadMiddle tr slc h v)
+  , evalUnspreadLeft :: !(UnspreadLeft tr slc h)
+  , evalUnspreadRight :: !(UnspreadRight tr slc h)
   , evalUnsplit :: !(Unsplit tr slc v)
   , evalUnfreeze
       :: !(StartStop slc -> Maybe tr' -> StartStop slc -> IsLast -> [(tr, v)])
@@ -385,7 +388,7 @@ data Eval tr tr' slc slc' v = Eval
   }
 
 -- | Maps a function over all scores produced by the evaluator.
-mapEvalScore :: (v -> w) -> Eval tr tr' slc slc' v -> Eval tr tr' slc slc' w
+mapEvalScore :: (v -> w) -> Eval tr tr' slc slc' h v -> Eval tr tr' slc slc' h w
 mapEvalScore f (Eval unspreadm unspreadl unspreadr unsplit uf s) =
   Eval
     unspreadm'
@@ -406,23 +409,23 @@ mapEvalScore f (Eval unspreadm unspreadl unspreadr unsplit uf s) =
  Each evaluation function returns the product of the two component evaluators' results.
 -}
 productEval
-  :: Eval tr1 tr' slc1 slc' v1
-  -> Eval tr2 tr' slc2 slc' v2
-  -> Eval (tr1, tr2) tr' (slc1, slc2) slc' (v1, v2)
+  :: Eval tr1 tr' slc1 slc' h1 v1
+  -> Eval tr2 tr' slc2 slc' h2 v2
+  -> Eval (tr1, tr2) tr' (slc1, slc2) slc' (h1, h2) (v1, v2)
 productEval (Eval unspreadm1 unspreadl1 unspreadr1 merge1 thaw1 slice1) (Eval unspreadm2 unspreadl2 unspreadr2 merge2 thaw2 slice2) =
   Eval unspreadm unspreadl unspreadr merge thaw slice
  where
   unspreadm ((l1, l2), (m1, m2), (r1, r2)) = do
-    (a, va) <- unspreadm1 (l1, m1, r1)
-    (b, vb) <- unspreadm2 (l2, m2, r2)
-    pure ((a, b), (va, vb))
-  unspreadl ((l1, l2), (c1, c2)) (t1, t2) = do
-    a <- unspreadl1 (l1, c1) t1
-    b <- unspreadl2 (l2, c2) t2
+    (a, ha, va) <- unspreadm1 (l1, m1, r1)
+    (b, hb, vb) <- unspreadm2 (l2, m2, r2)
+    pure ((a, b), (ha, hb), (va, vb))
+  unspreadl ((l1, l2), (c1, c2)) (p1, p2) (h1, h2) = do
+    a <- unspreadl1 (l1, c1) p1 h1
+    b <- unspreadl2 (l2, c2) p2 h2
     pure (a, b)
-  unspreadr ((c1, c2), (r1, r2)) (t1, t2) = do
-    a <- unspreadr1 (c1, r1) t1
-    b <- unspreadr2 (c2, r2) t2
+  unspreadr ((c1, c2), (r1, r2)) (p1, p2) (h1, h2) = do
+    a <- unspreadr1 (c1, r1) p1 h1
+    b <- unspreadr2 (c2, r2) p2 h2
     pure (a, b)
   merge sl (tl1, tl2) (sm1, sm2) (tr1, tr2) sr typ = do
     (a, va) <- merge1 sl1 tl1 sm1 tr1 sr1 typ
@@ -454,20 +457,20 @@ data RightBranchSpread
  Combine this with any evaluator as a product (using 'productEval' or 'rightBranchSpread')
  to make the evaluator right-branching.
 -}
-evalRightBranchSpread :: Eval RightBranchSpread tr' () slc' ()
+evalRightBranchSpread :: Eval RightBranchSpread tr' () slc' () ()
 evalRightBranchSpread = Eval unspreadm unspreadl unspreadr merge thaw slice
  where
-  unspreadm (_, RBBranches, _) = Nothing
-  unspreadm (_, RBClear, _) = Just ((), ())
-  unspreadl _ _ = [RBClear]
-  unspreadr _ _ = [RBBranches]
+  unspreadm (_, RBBranches, _) = []
+  unspreadm (_, RBClear, _) = [((), (), ())]
+  unspreadl _ _ _ = [RBClear]
+  unspreadr _ _ _ = [RBBranches]
   merge _ _ _ _ _ _ = [(RBClear, ())]
   thaw _ _ _ _ = [(RBClear, ())]
   slice _ = ()
 
 -- | Restrict any evaluator to right-branching spreads.
 rightBranchSpread
-  :: Eval tr tr' slc slc' w -> Eval (RightBranchSpread, tr) tr' ((), slc) slc' w
+  :: Eval tr tr' slc slc' h w -> Eval (RightBranchSpread, tr) tr' ((), slc) slc' ((), h) w
 rightBranchSpread = mapEvalScore snd . productEval evalRightBranchSpread
 
 -- restricting derivation order
@@ -487,20 +490,20 @@ data Merged
  Combine this with any evaluator as a product (using 'productEval' or 'splitFirst')
  to make the evaluator order-restricted.
 -}
-evalSplitBeforeSpread :: (Eval Merged tr' () slc' ())
+evalSplitBeforeSpread :: (Eval Merged tr' () slc' () ())
 evalSplitBeforeSpread = Eval unspreadm unspreadl unspreadr merge thaw slice
  where
-  unspreadm _ = Just ((), ())
-  unspreadl (Merged, _) _ = []
-  unspreadl (NotMerged, _) _ = [NotMerged]
-  unspreadr (_, Merged) _ = []
-  unspreadr (_, NotMerged) _ = [NotMerged]
+  unspreadm _ = [((), (), ())]
+  unspreadl (Merged, _) _ _ = []
+  unspreadl (NotMerged, _) _ _ = [NotMerged]
+  unspreadr (_, Merged) _ _ = []
+  unspreadr (_, NotMerged) _ _ = [NotMerged]
   merge _ _ _ _ _ _ = [(Merged, ())]
   thaw _ _ _ _ = [(NotMerged, ())]
   slice _ = ()
 
 -- | Restrict any evaluator to split-before-spread order.
-splitFirst :: Eval tr tr' slc slc' w -> Eval (Merged, tr) tr' ((), slc) slc' w
+splitFirst :: Eval tr tr' slc slc' h w -> Eval (Merged, tr) tr' ((), slc) slc' ((), h) w
 splitFirst = mapEvalScore snd . productEval evalSplitBeforeSpread
 
 -- left-most derivation outer operations
@@ -760,13 +763,14 @@ debugAnalysis doSplit doFreeze doSpread (Analysis deriv top) =
  by wrapping those into the appropriate 'Leftmost' constructors.
 -}
 mkLeftmostEval
-  :: UnspreadMiddle tr slc h
-  -> UnspreadLeft tr slc
-  -> UnspreadRight tr slc
+  :: forall tr tr' slc slc' s f h
+   . UnspreadMiddle tr slc h h
+  -> UnspreadLeft tr slc h
+  -> UnspreadRight tr slc h
   -> (StartStop slc -> tr -> slc -> tr -> StartStop slc -> [(tr, s)])
   -> (StartStop slc -> Maybe tr' -> StartStop slc -> [(tr, f)])
   -> (slc' -> slc)
-  -> Eval tr tr' slc slc' (Leftmost s f h)
+  -> Eval tr tr' slc slc' h (Leftmost s f h)
 mkLeftmostEval unspreadm unspreadl unspreadr unsplit uf =
   Eval
     unspreadm'
@@ -777,7 +781,8 @@ mkLeftmostEval unspreadm unspreadl unspreadr unsplit uf =
  where
   smap f = fmap (second f)
   -- vm' :: UnspreadMiddle e a (Leftmost s f h)
-  unspreadm' vert = smap LMSpread $ unspreadm vert
+  unspreadm' :: UnspreadMiddle tr slc h (Leftmost s f h)
+  unspreadm' vert = map (\(top, op, v) -> (top, op, LMSpread v)) $ unspreadm vert
   unsplit' sl tl sm tr sr typ = smap splitop res
    where
     res = unsplit sl tl sm tr sr
@@ -1017,6 +1022,22 @@ firstDerivation (Then a b) = do
 
 -- utilities
 -- =========
+
+-- | Compute the cartesian product for a list of lists
+cartProd :: [[a]] -> [[a]]
+cartProd [] = pure []
+cartProd (g : gs) = do
+  matching <- g
+  rest <- cartProd gs
+  pure $ matching : rest
+
+-- | 'traverse' on a 'HashSet'
+traverseSet
+  :: (Applicative f, Eq n', Hashable n')
+  => (n -> f n')
+  -> HS.HashSet n
+  -> f (HS.HashSet n')
+traverseSet f set = HS.fromList <$> traverse f (HS.toList set)
 
 -- | The global trace level. Only trace messages >= this level are shown.
 traceLevel :: Int

@@ -71,8 +71,12 @@ import Data.HashSet qualified as S
 import Data.Hashable (Hashable)
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
+import Data.Maybe (catMaybes)
 import Data.Monoid (Endo (..))
+import Data.Traversable (for)
 import Internal.MultiSet qualified as MS
+import Lens.Micro qualified as Lens
+import Lens.Micro.Extras qualified as Lens
 import Musicology.Core qualified as MC
   ( HasPitch (pitch)
   , Pitched (IntervalOf)
@@ -100,11 +104,11 @@ mkSplit = MW.execWriter
 -- | During a split, split an existing regular edge between two notes.
 splitRegular
   :: (Ord n, Hashable n)
-  => StartStop n
+  => StartStop (Note n)
   -- ^ left parent
-  -> StartStop n
+  -> StartStop (Note n)
   -- ^ right parent
-  -> n
+  -> Note n
   -- ^ the new child note
   -> DoubleOrnament
   -- ^ the ornament type of the child note
@@ -131,11 +135,11 @@ splitRegular l r c o kl kr =
 -- | During a split, split an existing passing edge, introducing a new passing note.
 splitPassing
   :: (Ord n, Hashable n)
-  => n
+  => Note n
   -- ^ left parent
-  -> n
+  -> Note n
   -- ^ right parent
-  -> n
+  -> Note n
   -- ^ the new child note
   -> PassingOrnament
   -- ^ the ornament type of the child note
@@ -164,9 +168,9 @@ splitPassing l r c o kl kr =
 -- | During a split, add a new single-sided ornament to a left parent note.
 addToLeft
   :: (Ord n, Hashable n)
-  => n
+  => Note n
   -- ^ parent (from the left slice)
-  -> n
+  -> Note n
   -- ^ the new child note
   -> RightOrnament
   -- ^ the new child note's ornament type
@@ -188,9 +192,9 @@ addToLeft parent child op keep =
 -- | During a split, add a new single-sided ornament to a right parent note.
 addToRight
   :: (Ord n, Hashable n)
-  => n
+  => Note n
   -- ^ parent (from the right slice)
-  -> n
+  -> Note n
   -- ^ the new child note
   -> LeftOrnament
   -- ^ the new child note's ornament type
@@ -212,9 +216,9 @@ addToRight parent child op keep =
 -- | During a split, add a new passing edge between the left parent slice and the child slice.
 addPassingLeft
   :: (Ord n, Hashable n)
-  => n
+  => Note n
   -- ^ note from the left parent slice
-  -> n
+  -> Note n
   -- ^ note from the child slice
   -> MW.Writer (Split n) ()
 addPassingLeft l m = MW.tell $ mempty{passLeft = MS.singleton (l, m)}
@@ -222,9 +226,9 @@ addPassingLeft l m = MW.tell $ mempty{passLeft = MS.singleton (l, m)}
 -- | During a split, add a new passing edge between the child slice and the right parent slice.
 addPassingRight
   :: (Ord n, Hashable n)
-  => n
+  => Note n
   -- ^ note from the child slice
-  -> n
+  -> Note n
   -- ^ note from the right parent slice
   -> MW.Writer (Split n) ()
 addPassingRight m r = MW.tell $ mempty{passRight = MS.singleton (m, r)}
@@ -244,9 +248,9 @@ mkSpread actions = appEndo (MW.execWriter actions) emptySpread
 -- | During a spread, distribute one of the parent notes to the child slices of a spread.
 spreadNote
   :: (Ord n, Hashable n)
-  => n
+  => Note n
   -- ^ the parent note
-  -> SpreadDirection
+  -> SpreadChildren n
   -- ^ the distribution of the note
   -> Bool
   -- ^ introduce a repetition edge (if possible)?
@@ -263,9 +267,9 @@ spreadNote pitch dir edge = MW.tell $ Endo h
 -- | During a spread, add a new passing edge between the child slices of a spread.
 addPassing
   :: (Ord n, Hashable n)
-  => n
+  => Note n
   -- ^ the left end of the edge
-  -> n
+  -> Note n
   -- ^ the right end of the edge
   -> MW.Writer (Endo (Spread n)) ()
 addPassing l r = MW.tell $ Endo h
@@ -279,9 +283,9 @@ addPassing l r = MW.tell $ Endo h
 -}
 addOctaveRepetition
   :: (Ord n, Hashable n)
-  => n
+  => Note n
   -- ^ the left end of the edge
-  -> n
+  -> Note n
   -- ^ the right end of the edge
   -> MW.Writer (Endo (Spread n)) ()
 addOctaveRepetition l r = MW.tell $ Endo h
@@ -309,7 +313,7 @@ applySplit inSplit@(SplitOp splitRegs splitPassings ls rs keepl keepr passl pass
     (notesPassing, leftPassings, rightPassings) <- applyPassings topPassings splitPassings
     let notesL = collectNotes ls
         notesR = collectNotes rs
-        notes = MS.unions [notesReg, notesPassing, notesL, notesR]
+        notes = S.unions [notesReg, notesPassing, notesL, notesR]
     pure
       ( Edges keepl (MS.union leftPassings passl)
       , Notes notes
@@ -321,11 +325,11 @@ applySplit inSplit@(SplitOp splitRegs splitPassings ls rs keepl keepr passl pass
     child <- children
     pure (parent, child)
 
-  showEdge (p1, p2) = showNotation p1 <> "-" <> showNotation p2
+  showEdge (p1, p2) = show p1 <> "-" <> show p2
   showEdges ts = "{" <> L.intercalate "," (showEdge <$> toList ts) <> "}"
 
   applyRegs top ops = do
-    (top', notes) <- foldM (applyReg top) (top, MS.empty) $ allOps ops
+    (top', notes) <- foldM (applyReg top) (top, S.empty) $ allOps ops
     if S.null top'
       then Right notes
       else Left $ "did not use all terminal edges, remaining: " <> showEdges top'
@@ -341,11 +345,11 @@ applySplit inSplit@(SplitOp splitRegs splitPassings ls rs keepl keepr passl pass
             <> show inSplit
    where
     top' = S.delete parent top
-    notes' = MS.insert note notes
+    notes' = S.insert note notes
 
   applyPassings top ops = do
     (top', notes, lPassings, rPassings) <-
-      foldM applyPassing (top, MS.empty, MS.empty, MS.empty) $ allOps ops
+      foldM applyPassing (top, S.empty, MS.empty, MS.empty) $ allOps ops
     if MS.null top'
       then Right (notes, lPassings, rPassings)
       else
@@ -365,7 +369,7 @@ applySplit inSplit@(SplitOp splitRegs splitPassings ls rs keepl keepr passl pass
             <> show inSplit
    where
     top' = MS.delete parent top
-    notes' = MS.insert note notes
+    notes' = S.insert note notes
     (newl, newr) = case pass of
       PassingMid -> (MS.empty, MS.empty)
       PassingLeft -> (MS.empty, MS.singleton (note, pr))
@@ -374,13 +378,13 @@ applySplit inSplit@(SplitOp splitRegs splitPassings ls rs keepl keepr passl pass
     rPassings' = MS.union newr rPassings
 
   singleChild (_, (note, _)) = note
-  collectNotes ops = MS.fromList $ singleChild <$> allOps ops
+  collectNotes ops = S.fromList $ singleChild <$> allOps ops
 
 -- | Indicates whether a transition can be frozen (i.e., doesn't contain non-"tie" edges).
 freezable :: (Eq (MC.IntervalOf n), MC.HasPitch n) => Edges n -> Bool
 freezable (Edges ts nts) = MS.null nts && all isRep ts
  where
-  isRep (a, b) = fmap MC.pitch a == fmap MC.pitch b
+  isRep (a, b) = fmap (MC.pitch . notePitch) a == fmap (MC.pitch . notePitch) b
 
 -- | Tries to apply a freeze operation to a transition.
 applyFreeze
@@ -396,7 +400,7 @@ applyFreeze FreezeOp e@(Edges ts nts)
   | not $ all isRep ts = Left "cannot freeze non-tie edges"
   | otherwise = Right e
  where
-  isRep (a, b) = fmap MC.pitch a == fmap MC.pitch b
+  isRep (a, b) = fmap (MC.pitch . notePitch) a == fmap (MC.pitch . notePitch) b
 
 -- | Tries to apply a spread operation to the parent transitions and slice.
 applySpread
@@ -414,44 +418,44 @@ applySpread
   -- ^ the child transitions and slices (or an error message)
 applySpread (SpreadOp dist childm) pl (Notes notesm) pr = do
   (notesl, notesr) <-
-    foldM applyDist (MS.empty, MS.empty) $
-      MS.toOccurList notesm
-  childl <- fixEdges snd pl notesl
-  childr <- fixEdges fst pr notesr
-  pure (childl, Notes notesl, childm, Notes notesr, childr)
+    foldM applyDist (HM.empty, HM.empty) $
+      S.toList notesm
+  childl <- fixEdges Lens._2 pl notesl
+  childr <- fixEdges Lens._1 pr notesr
+  pure (childl, Notes (S.fromList $ HM.elems notesl), childm, Notes (S.fromList $ HM.elems notesr), childr)
  where
-  applyDist (notesl, notesr) (note, n) = do
+  -- apply spread of one parent note, collect children in accumulators
+  applyDist (notesl, notesr) note = do
     d <-
-      maybe (Left $ showNotation note <> " is not distributed") Right $
+      maybe (Left $ show note <> " is not distributed") Right $
         HM.lookup note dist
     case d of
-      ToBoth -> pure (MS.insertMany note n notesl, MS.insertMany note n notesr)
-      ToLeft i ->
-        if i > n || i <= 0
-          then Left "moving more notes than allowed to the right"
-          else
-            pure
-              (MS.insertMany note n notesl, MS.insertMany note (n - i) notesr)
-      ToRight i ->
-        if i > n || i <= 0
-          then Left "moving more notes than allowed to the left"
-          else
-            pure
-              (MS.insertMany note (n - i) notesl, MS.insertMany note n notesr)
+      SpreadLeftChild n -> pure (HM.insert note n notesl, notesr)
+      SpreadRightChild n -> pure (notesl, HM.insert note n notesr)
+      SpreadBothChildren nl nr -> pure (HM.insert note nl notesl, HM.insert note nr notesr)
+
+  -- replace notes in child edges or drop if the note was moved to the other side
   fixEdges
-    :: (forall a. (a, a) -> a)
+    :: (forall a. (Lens.Lens (a, a) (a, a) a a))
     -> Edges n
-    -> MS.MultiSet n
+    -> HM.HashMap (Note n) (Note n)
     -> Either String (Edges n)
-  fixEdges accessor (Edges ts nts) notesms
-    | not $ MS.all ((`S.member` notes) . accessor) nts =
-        Left
-          "dropping non-terminal edge in spread"
-    | otherwise = pure $ Edges ts' nts
-   where
-    notes = MS.toSet notesms
-    notesi = S.map Inner notes
-    ts' = S.filter ((`S.member` notesi) . accessor) ts
+  fixEdges lens (Edges reg pass) notemap = do
+    -- passing edges: can't be dropped, throw error if moved:
+    pass' <- for (MS.toList pass) $ \edge ->
+      case HM.lookup (Lens.view lens edge) notemap of
+        Nothing -> Left "dropping passing edge"
+        Just n' -> Right $ Lens.set lens n' edge
+    -- regular edges: just drop if note was moved
+    reg' <- for (S.toList reg) $ \edge ->
+      case Lens.view lens edge of
+        Start -> Left "invalid edge containing ⋊ encountered during spread"
+        Stop -> Left "invalid edge containing ⋉ encountered during spread"
+        Inner n -> Right $
+          case HM.lookup n notemap of
+            Nothing -> Nothing
+            Just n' -> Just $ Lens.set lens (Inner n') edge
+    pure $ Edges (S.fromList $ catMaybes reg') (MS.fromList pass')
 
 {- | A variant of 'applySplit' that inserts all protovoice edges into the child transitions,
  even those that are not "kept" (used for further elaboration).
@@ -472,7 +476,7 @@ applySplitAllEdges inSplit@(SplitOp splitRegs splitPassings ls rs _ _ passl pass
         splitPassings
     let notesL = collectNotes ls
         notesR = collectNotes rs
-        notes = MS.unions [notesReg, notesPassing, notesL, notesR]
+        notes = S.unions [notesReg, notesPassing, notesL, notesR]
         leftSingleEdges = (\(p, (c, _)) -> (Inner p, Inner c)) <$> allOps ls
         rightSingleEdges = (\(p, (c, _)) -> (Inner c, Inner p)) <$> allOps rs
         edgesl = leftRegsReg <> leftRegsPass <> S.fromList leftSingleEdges
@@ -488,12 +492,12 @@ applySplitAllEdges inSplit@(SplitOp splitRegs splitPassings ls rs _ _ passl pass
     child <- children
     pure (parent, child)
 
-  showEdge (p1, p2) = showNotation p1 <> "-" <> showNotation p2
+  showEdge (p1, p2) = show p1 <> "-" <> show p2
   showEdges ts = "{" <> L.intercalate "," (showEdge <$> toList ts) <> "}"
 
   applyRegs top ops = do
     (notes, edgesl, edgesr) <-
-      foldM (applyReg top) (MS.empty, S.empty, S.empty) $
+      foldM (applyReg top) (S.empty, S.empty, S.empty) $
         allOps ops
     pure (notes, edgesl, edgesr)
 
@@ -507,13 +511,13 @@ applySplitAllEdges inSplit@(SplitOp splitRegs splitPassings ls rs _ _ passl pass
             <> "\n  split="
             <> show inSplit
    where
-    notes' = MS.insert note notes
+    notes' = S.insert note notes
     edgesl' = S.insert (fst parent, Inner note) edgesl
     edgesr' = S.insert (Inner note, snd parent) edgesr
 
   applyPassings top ops = do
     (top', notes, lPassings, rPassings, lRegs, rRegs) <-
-      foldM applyPassing (top, MS.empty, MS.empty, MS.empty, S.empty, S.empty) $
+      foldM applyPassing (top, S.empty, MS.empty, MS.empty, S.empty, S.empty) $
         allOps ops
     if MS.null top'
       then Right (notes, lPassings, rPassings, lRegs, rRegs)
@@ -534,7 +538,7 @@ applySplitAllEdges inSplit@(SplitOp splitRegs splitPassings ls rs _ _ passl pass
             <> show inSplit
    where
     top' = MS.delete parent top
-    notes' = MS.insert note notes
+    notes' = S.insert note notes
     (newlPassing, newrPassing, newlReg, newrReg) = case pass of
       PassingMid ->
         ( MS.empty
@@ -560,13 +564,13 @@ applySplitAllEdges inSplit@(SplitOp splitRegs splitPassings ls rs _ _ passl pass
     rRegs' = S.union newrReg rRegs
 
   singleChild (_, (note, _)) = note
-  collectNotes ops = MS.fromList $ singleChild <$> allOps ops
+  collectNotes ops = S.fromList $ singleChild <$> allOps ops
 
 {- | A variant of 'applyFreeze' that allows non-"tie" edges in the open transition.
  This is useful in conjunction with 'applySplitAllEdges'
  because the non-tie edges will not be dropped before freezing.
 -}
-applyFreezeAllEdges FreezeOp e@(Edges ts nts)
+applyFreezeAllEdges FreezeOp e@(Edges _ts nts)
   | not $ MS.null nts = Left "cannot freeze non-terminal edges"
   | otherwise = Right e
 
@@ -634,7 +638,7 @@ checkDerivation
      , Show n
      )
   => [Leftmost (Split n) Freeze (Spread n)]
-  -> Path [n] [Edge n]
+  -> Path [Note n] [Edge n]
   -> Bool
 checkDerivation deriv original =
   case replayDerivation derivationPlayerPV deriv of
@@ -647,7 +651,7 @@ checkDerivation deriv original =
             _ -> Nothing
           orig' =
             bimap
-              (Notes . MS.fromList)
+              (Notes . S.fromList)
               (\e -> Edges (S.fromList e) MS.empty)
               original
       case path' of

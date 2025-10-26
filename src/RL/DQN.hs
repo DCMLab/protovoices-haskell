@@ -163,7 +163,7 @@ runEpisode
      , encoding ~ QEncoding '[]
      , step ~ (state, action, encoding, Maybe (state, [encoding]), Maybe Bool)
      )
-  => Eval tr tr' slc slc' (Leftmost s f h)
+  => Eval tr tr' slc slc' h (Leftmost s f h)
   -> (state -> action -> encoding)
   -> ([encoding] -> IO Int)
   -> Path slc' tr'
@@ -234,7 +234,7 @@ trainLoop
   --   )
   (_)
   => gen
-  -> Eval tr tr' slc slc' (Leftmost s f h)
+  -> Eval tr tr' slc slc' h (Leftmost s f h)
   -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[])
   -> (Analysis s f h tr slc -> IO QType)
   -> (Action slc tr s f h -> Maybe Bool -> IO QType)
@@ -352,7 +352,7 @@ trainDQN
      , Show tr
      )
   => gen
-  -> Eval tr tr' slc slc' (Leftmost s f h)
+  -> Eval tr tr' slc slc' h (Leftmost s f h)
   -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[])
   -> (Analysis s f h tr slc -> IO QType)
   -> (Action slc tr s f h -> Maybe Bool -> IO QType)

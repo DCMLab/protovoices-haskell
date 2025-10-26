@@ -24,7 +24,7 @@ import GHC.Exts (Proxy#, proxy#)
 import GreedyParser
 import Internal.MultiSet qualified as MS
 import Musicology.Pitch
-import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), InnerEdge, Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
+import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), InnerEdge, Note (..), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
 import PVGrammar.Generate (derivationPlayerPV)
 import PVGrammar.Parse (protoVoiceEvaluator, pvThaw)
 import RL.Common
@@ -317,7 +317,7 @@ encodeSlice
   :: Notes SPitch
   -> SliceEncoding '[]
 -- encodeSlice = encodeSliceIndices
-encodeSlice (Notes notes) = encodePitches $ MS.toList notes
+encodeSlice (Notes notes) = encodePitches $ notePitch <$> HS.toList notes
 
 emptySlice
   :: SliceEncoding '[]
@@ -366,7 +366,7 @@ edgesMultiHot es = TT.UnsafeMkTensor out
     if HS.null es
       then zeros
       else T.indexPut True indexTensors values zeros
-  edge2index (p1, p2) =
+  edge2index (Note p1 _, Note p2 _) =
     pitch2index p1
       ++ pitch2index p2
   indices = edge2index <$> F.toList es
@@ -382,8 +382,8 @@ edgesOneHots
   -> QBoundedList QDType MaxEdges '[] (2 ': PShape)
 edgesOneHots es = QBoundedList mask $ TT.cat @1 (hots1 TT.:. hots2 TT.:. TT.HNil)
  where
-  SliceEncodingDense (QBoundedList mask hots1) = pitchesOneHots $ fst <$> es
-  SliceEncodingDense (QBoundedList _ hots2) = pitchesOneHots $ snd <$> es
+  SliceEncodingDense (QBoundedList mask hots1) = pitchesOneHots $ (notePitch . fst) <$> es
+  SliceEncodingDense (QBoundedList _ hots2) = pitchesOneHots $ (notePitch . snd) <$> es
 
 edgesTokens
   :: [InnerEdge SPitch]
@@ -391,7 +391,7 @@ edgesTokens
 edgesTokens es = qBoundedList (mkToken <$> es)
  where
   -- todo: batch oneHot
-  mkToken (p1, p2) =
+  mkToken (Note p1 _, Note p2 _) =
     TT.UnsafeMkTensor $!
       toOpts $
         T.cat
@@ -421,8 +421,8 @@ encodeTransition (Edges reg pass) =
     , -- , trencPassing = edgesOneHot $ MS.toSet pass
       trencInner = edgesOneHots $ getEdges getInner
     , -- , trencInner = edgesOneHot $ HS.fromList $ getEdges getInner
-      trencLeft = pitchesOneHots $ getEdges getLeft
-    , trencRight = pitchesOneHots $ getEdges getRight
+      trencLeft = pitchesOneHots $ notePitch <$> getEdges getLeft
+    , trencRight = pitchesOneHots $ notePitch <$> getEdges getRight
     , trencRoot = if HS.member (Start, Stop) reg then 1 else 0
     }
  where

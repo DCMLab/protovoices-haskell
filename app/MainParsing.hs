@@ -23,7 +23,7 @@ import PVGrammar.Prob.Simple
   )
 import RL qualified
 
-import Musicology.Core hiding ((<.>))
+import Musicology.Core hiding (Note (..), (<.>))
 import Musicology.Core.Slicing
 
 -- import Musicology.Internal.Helpers
@@ -440,8 +440,8 @@ logFull tc vc n = do
   mapM_ print $ vcGetByLength vc (n - 1)
 
 mainResult
-  :: (Parsable e a v)
-  => Eval e [Edge (Pitch SInterval)] a [Pitch SInterval] v
+  :: (Parsable e a h v)
+  => Eval e [Edge SPitch] a [Note SPitch] h v
   -> Int
   -> Int
   -> IO v

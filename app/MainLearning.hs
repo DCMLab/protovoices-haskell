@@ -45,6 +45,7 @@ import Musicology.Pitch (SPitch)
 import Numeric.Log qualified as Log
 import PVGrammar
   ( Edge
+  , Note
   , PVAnalysis
   , loadAnalysis
   , loadSurface
@@ -205,7 +206,7 @@ countRareIntDerivs = do
 -- ------------
 
 type Piece =
-  (String, PVAnalysis SPitch, Trace PVParams, Path [SPitch] [Edge SPitch])
+  (String, PVAnalysis SPitch, Trace PVParams, Path [Note SPitch] [Edge SPitch])
 
 loadItem :: FilePath -> FilePath -> IO (Maybe Piece)
 loadItem dir name = do

@@ -1,6 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {- | This module contains common datatypes and functions specific to the protovoice grammar.
@@ -13,8 +14,11 @@
 module PVGrammar
   ( -- * Inner Structure Types
 
+    -- ** Note: a pitch with an ID.
+    Note (..)
+
     -- ** Slices: Notes
-    Notes (..)
+  , Notes (..)
   , innerNotes
 
     -- ** Transitions: Sets of Obligatory Edges
@@ -41,7 +45,10 @@ module PVGrammar
 
     -- ** Spread
   , Spread (..)
-  , SpreadDirection (..)
+  -- , SpreadDirection (..)
+  , SpreadChildren (..)
+  , leftSpreadChild
+  , rightSpreadChild
 
     -- * Derivations
   , PVLeftmost
@@ -79,12 +86,13 @@ import Data.Aeson
   )
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
+import Data.Foldable (toList)
 import Data.HashMap.Strict qualified as HM
 import Data.HashSet qualified as S
 import Data.Hashable (Hashable)
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Text.Lazy.IO qualified as TL
 import Data.Traversable (for)
 import GHC.Generics (Generic)
@@ -95,45 +103,51 @@ import Musicology.MusicXML qualified as MusicXML
 
 -- * Inner Structure Types
 
+-- ** Note type: pitch + ID
+
+-- | A note with a pitch and an ID.
+data Note n = Note {notePitch :: n, noteId :: String}
+  deriving (Eq, Ord, Functor, Foldable, Traversable, Generic)
+  deriving anyclass (NFData, Hashable)
+
+instance (Notation n) => Show (Note n) where
+  show (Note p i) = showNotation p <> "." <> i
+
 -- ** Slice Type: Sets of Notes
 
--- Slices contain a multiset of notes.
+-- Slices contain a set of notes.
 
 {- | The content type of slices in the protovoice model.
- Contains a multiset of pitches, representing the notes in a slice.
+  Contains a set of notes (pitch x id), representing the notes in a slice.
 -}
-newtype Notes n = Notes (MS.MultiSet n)
+newtype Notes n = Notes (S.HashSet (Note n))
   deriving (Eq, Ord, Generic)
   deriving anyclass (NFData, Hashable)
 
 instance (Notation n) => Show (Notes n) where
   show (Notes ns) =
-    "{" <> L.intercalate "," (showNote <$> MS.toOccurList ns) <> "}"
-   where
-    showNote (p, n) = showNotation p <> mult
-     where
-      mult = if n /= 1 then "×" <> show n else ""
+    "{" <> L.intercalate "," ((showNotation . notePitch) <$> S.toList ns) <> "}"
 
 instance (Notation n, Eq n, Hashable n) => FromJSON (Notes n) where
   parseJSON = Aeson.withArray "List of Notes" $ \notes -> do
     pitches <- mapM parseJSONNote notes
-    pure $ Notes $ MS.fromList pitches
+    pure $ Notes $ S.fromList $ toList pitches
 
 {- | Return the notes or start/stop symbols inside a slice.
  This is useful to get all objects that an 'Edge' can connect to.
 -}
-innerNotes :: StartStop (Notes n) -> [StartStop n]
-innerNotes (Inner (Notes n)) = Inner <$> MS.distinctElems n
+innerNotes :: StartStop (Notes n) -> [StartStop (Note n)]
+innerNotes (Inner (Notes n)) = Inner <$> S.toList n
 innerNotes Start = [Start]
 innerNotes Stop = [Stop]
 
 -- TODO: could this be improved to forbid start/stop symbols on the wrong side?
 
 -- | A proto-voice edge between two nodes (i.e. notes or start/stop symbols).
-type Edge n = (StartStop n, StartStop n)
+type Edge n = (StartStop (Note n), StartStop (Note n))
 
 -- | A proto-voice edge between two notes (excluding start/stop symbols).
-type InnerEdge n = (n, n)
+type InnerEdge n = (Note n, Note n)
 
 {- | The content type of transitions in the protovoice model.
  Contains a multiset of regular edges and a multiset of passing edges.
@@ -160,9 +174,9 @@ instance (Notation n) => Show (Edges n) where
    where
     tReg = showReg <$> S.toList reg
     tPass = showPass <$> MS.toOccurList pass
-    showReg (p1, p2) = showNotation p1 <> "-" <> showNotation p2
+    showReg (p1, p2) = show p1 <> "-" <> show p2
     showPass ((p1, p2), n) =
-      showNotation p1 <> ">" <> showNotation p2 <> "×" <> show n
+      show p1 <> ">" <> show p2 <> "×" <> show n
 
 instance (Eq n, Hashable n, Notation n) => FromJSON (Edges n) where
   parseJSON = Aeson.withObject "Edges" $ \v -> do
@@ -247,17 +261,17 @@ isRepetitionOnRight _ = False
  For every produced edge, a decisions is made whether to keep it or not.
 -}
 data Split n = SplitOp
-  { splitReg :: !(M.Map (Edge n) [(n, DoubleOrnament)])
+  { splitReg :: !(M.Map (Edge n) [(Note n, DoubleOrnament)])
   -- ^ Maps every regular edge to a list of ornamentations.
-  , splitPass :: !(M.Map (InnerEdge n) [(n, PassingOrnament)])
+  , splitPass :: !(M.Map (InnerEdge n) [(Note n, PassingOrnament)])
   -- ^ Maps every passing edge to a passing tone.
   -- Since every passing edge is elaborated exactly once
   -- but there can be several instances of the same edge in a transition,
   -- the "same" edge can be elaborated with several passing notes,
   -- one for each instance of the edge.
-  , fromLeft :: !(M.Map n [(n, RightOrnament)])
+  , fromLeft :: !(M.Map (Note n) [(Note n, RightOrnament)])
   -- ^ Maps notes from the left parent slice to lists of ornamentations.
-  , fromRight :: !(M.Map n [(n, LeftOrnament)])
+  , fromRight :: !(M.Map (Note n) [(Note n, LeftOrnament)])
   -- ^ Maps notes from the right parent slice to lists of ornamentations.
   , keepLeft :: !(S.HashSet (Edge n))
   -- ^ The set of regular edges to keep in the left child transition.
@@ -292,13 +306,13 @@ instance (Notation n) => Show (Split n) where
       <> showOps passRs
    where
     showOps ops = "{" <> L.intercalate "," ops <> "}"
-    showEdge (n1, n2) = showNotation n1 <> "-" <> showNotation n2
-    showChild (p, o) = showNotation p <> ":" <> show o
+    showEdge (n1, n2) = show n1 <> "-" <> show n2
+    showChild (p, o) = show p <> ":" <> show o
     showChildren cs = "[" <> L.intercalate "," (showChild <$> cs) <> "]"
 
     showSplit (e, cs) = showEdge e <> "=>" <> showChildren cs
-    showL (p, lchilds) = showNotation p <> "=>" <> showChildren lchilds
-    showR (p, rchilds) = showChildren rchilds <> "<=" <> showNotation p
+    showL (p, lchilds) = show p <> "=>" <> showChildren lchilds
+    showR (p, rchilds) = showChildren rchilds <> "<=" <> show p
 
     opReg = showSplit <$> M.toList reg
     opPass = showSplit <$> M.toList pass
@@ -353,13 +367,13 @@ instance (Notation n, Ord n, Hashable n) => FromJSON (Split n) where
       :: (Notation n, FromJSON o)
       => (Aeson.Value -> Aeson.Parser p)
       -> Aeson.Value
-      -> Aeson.Parser (p, [(n, o)])
+      -> Aeson.Parser (p, [(Note n, o)])
     parseElaboration parseParent = Aeson.withObject "Elaboration" $ \reg -> do
       parent <- reg .: "parent" >>= parseParent
       children <- reg .: "children" >>= mapM parseChild
       pure (parent, children)
     parseChild
-      :: (Notation n, FromJSON o) => Aeson.Value -> Aeson.Parser (n, o)
+      :: (Notation n, FromJSON o) => Aeson.Value -> Aeson.Parser (Note n, o)
     parseChild = Aeson.withObject "Child" $ \cld -> do
       child <- cld .: "child" >>= parseJSONNote
       orn <- cld .: "orn"
@@ -379,54 +393,86 @@ instance Show Freeze where
 instance FromJSON Freeze where
   parseJSON _ = pure FreezeOp
 
-{- | Encodes the distribution of a pitch in a spread.
+-- {- | Encodes the distribution of a pitch in a spread.
 
- All instances of a pitch must be either moved completely to the left or the right (or both).
- In addition, some instances may be repeated on the other side.
- The difference is indicated by the field of the 'ToLeft' and 'ToRight' constructors.
- For example, @ToLeft 3@ indicates that out of @n@ instances,
- all @n@ are moved to the left and @n-3@ are replicated on the right.
+--  All instances of a pitch must be either moved completely to the left or the right (or both).
+--  In addition, some instances may be repeated on the other side.
+--  The difference is indicated by the field of the 'ToLeft' and 'ToRight' constructors.
+--  For example, @ToLeft 3@ indicates that out of @n@ instances,
+--  all @n@ are moved to the left and @n-3@ are replicated on the right.
+-- -}
+-- data SpreadDirection
+--   = -- | all to the left, n fewer to the right
+--     ToLeft !Int
+--   | -- | all to the right, n fewer to the left
+--     ToRight !Int
+--   | -- | all to both
+--     ToBoth
+--   deriving (Eq, Ord, Show, Generic, NFData)
+
+-- instance Semigroup SpreadDirection where
+--   ToLeft l1 <> ToLeft l2 = ToLeft (l1 + l2)
+--   ToRight l1 <> ToRight l2 = ToLeft (l1 + l2)
+--   ToLeft l <> ToRight r
+--     | l == r = ToBoth
+--     | l < r = ToRight (r - l)
+--     | otherwise = ToLeft (l - r)
+--   ToBoth <> other = other
+--   a <> b = b <> a
+
+-- instance Monoid SpreadDirection where
+--   mempty = ToBoth
+
+{- | Represents the children of a note that is spread out.
+
+A note can be distributed to either or both sub-slice.
 -}
-data SpreadDirection
-  = -- | all to the left, n fewer to the right
-    ToLeft !Int
-  | -- | all to the right, n fewer to the left
-    ToRight !Int
-  | -- | all to both
-    ToBoth
-  deriving (Eq, Ord, Show, Generic, NFData)
+data SpreadChildren n
+  = -- | a single child in the left slice
+    SpreadLeftChild !(Note n)
+  | -- | a single child in the right slice
+    SpreadRightChild !(Note n)
+  | -- | two children, on in each slice
+    SpreadBothChildren !(Note n) !(Note n)
+  deriving (Eq, Ord, Functor, Foldable, Traversable, Generic, NFData, Hashable)
 
-instance Semigroup SpreadDirection where
-  ToLeft l1 <> ToLeft l2 = ToLeft (l1 + l2)
-  ToRight l1 <> ToRight l2 = ToLeft (l1 + l2)
-  ToLeft l <> ToRight r
-    | l == r = ToBoth
-    | l < r = ToRight (r - l)
-    | otherwise = ToLeft (l - r)
-  ToBoth <> other = other
-  a <> b = b <> a
+instance (Notation n) => Show (SpreadChildren n) where
+  show (SpreadLeftChild n) = show n <> "┘"
+  show (SpreadRightChild n) = "└" <> show n
+  show (SpreadBothChildren nl nr) = show nl <> "┴" <> show nr
 
-instance Monoid SpreadDirection where
-  mempty = ToBoth
+-- | Returns the left child of a spread note, if it exists
+leftSpreadChild :: SpreadChildren n -> Maybe (Note n)
+leftSpreadChild = \case
+  (SpreadLeftChild n) -> Just n
+  (SpreadBothChildren n _) -> Just n
+  _ -> Nothing
+
+-- | Returns the right child of a spread note, if it exists
+rightSpreadChild :: SpreadChildren n -> Maybe (Note n)
+rightSpreadChild = \case
+  (SpreadRightChild n) -> Just n
+  (SpreadBothChildren _ n) -> Just n
+  _ -> Nothing
 
 {- | Represents a spread operation.
  Records for every pitch how it is distributed (see 'SpreadDirection').
  The resulting edges (repetitions and passing edges) are represented in a child transition.
 -}
-data Spread n = SpreadOp !(HM.HashMap n SpreadDirection) !(Edges n)
-  deriving (Eq, Ord, Generic, NFData)
+data Spread n = SpreadOp !(HM.HashMap (Note n) (SpreadChildren n)) !(Edges n)
+  deriving (Eq, Ord, Generic, NFData, Hashable)
 
 instance (Notation n) => Show (Spread n) where
   show (SpreadOp dist m) = "{" <> L.intercalate "," dists <> "} => " <> show m
    where
     dists = showDist <$> HM.toList dist
-    showDist (p, to) = showNotation p <> "=>" <> show to
+    showDist (n, to) = show n <> "=>" <> show to
 
 instance (Notation n, Eq n, Hashable n) => FromJSON (Spread n) where
   parseJSON = Aeson.withObject "Spread" $ \v -> do
     dists <- v .: "children" >>= mapM parseDist
     edges <- v .: "midEdges"
-    pure $ SpreadOp (HM.fromListWith (<>) dists) edges
+    pure $ SpreadOp (HM.fromListWith const dists) edges
    where
     parseDist = Aeson.withObject "SpreadDist" $ \dst -> do
       parent <- dst .: "parent" >>= parseJSONNote
@@ -435,10 +481,14 @@ instance (Notation n, Eq n, Hashable n) => FromJSON (Spread n) where
     parseChild = Aeson.withObject "SpreadChild" $ \cld -> do
       typ <- cld .: "type"
       case typ of
-        "leftChild" -> pure $ ToLeft 1
-        "rightChild" -> pure $ ToRight 1
-        "bothChildren" -> pure ToBoth
+        "leftChild" -> fmap SpreadLeftChild $ cld .: "value" >>= parseJSONNote -- pure $ ToLeft 1
+        "rightChild" -> fmap SpreadRightChild $ cld .: "value" >>= parseJSONNote -- pure $ ToRight 1
+        "bothChildren" -> cld .: "value" >>= parseBoth -- pure ToBoth
         _ -> Aeson.unexpected typ
+    parseBoth = Aeson.withObject "SpreadBothChildren" $ \bth -> do
+      left <- bth .: "left" >>= parseJSONNote
+      right <- bth .: "right" >>= parseJSONNote
+      pure $ SpreadBothChildren left right
 
 -- | 'Leftmost' specialized to the split, freeze, and spread operations of the grammar.
 type PVLeftmost n = Leftmost (Split n) Freeze (Spread n)
@@ -447,23 +497,24 @@ type PVLeftmost n = Leftmost (Split n) Freeze (Spread n)
 -- =======
 
 -- | Helper: parses a note's pitch from JSON.
-parseJSONNote :: Notation n => Aeson.Value -> Aeson.Parser n
+parseJSONNote :: (Notation n) => Aeson.Value -> Aeson.Parser (Note n)
 parseJSONNote = Aeson.withObject "Note" $ \v -> do
   pitch <- v .: "pitch"
+  i <- v .: "id"
   case readNotation pitch of
-    Just p -> pure p
+    Just p -> pure $ Note p i
     Nothing -> fail $ "Could not parse pitch " <> pitch
 
 -- | Helper: parses an edge from JSON.
 parseEdge
-  :: Notation n => Aeson.Value -> Aeson.Parser (StartStop n, StartStop n)
+  :: (Notation n) => Aeson.Value -> Aeson.Parser (StartStop (Note n), StartStop (Note n))
 parseEdge = Aeson.withObject "Edge" $ \v -> do
   l <- v .: "left" >>= mapM parseJSONNote -- TODO: this might be broken wrt. StartStop
   r <- v .: "right" >>= mapM parseJSONNote
   pure (l, r)
 
 -- | Helper: parses an inner edge from JSON
-parseInnerEdge :: Notation n => Aeson.Value -> Aeson.Parser (n, n)
+parseInnerEdge :: (Notation n) => Aeson.Value -> Aeson.Parser (Note n, Note n)
 parseInnerEdge = Aeson.withObject "InnerEdge" $ \v -> do
   l <- v .: "left"
   r <- v .: "right"
@@ -494,25 +545,25 @@ loadAnalysis' fn = fmap (analysisMapPitch (pc @SInterval)) <$> loadAnalysis fn
  Each note is expressed as a pitch and a flag that indicates
  whether the note continues in the next slice.
 -}
-slicesFromFile :: FilePath -> IO [[(SPitch, Music.RightTied)]]
+slicesFromFile :: FilePath -> IO [[(Note SPitch, Music.RightTied)]]
 slicesFromFile file = do
   txt <- TL.readFile file
-  case MusicXML.parseWithoutIds txt of
+  case MusicXML.parseWithIds True txt of
     Nothing -> pure []
     Just doc -> do
       let (xmlNotes, _) = MusicXML.parseScore doc
-          notes = MusicXML.asNoteHeard <$> xmlNotes
+          notes = MusicXML.asNoteWithIdHeard <$> xmlNotes
           slices = Music.slicePiece Music.tiedSlicer notes
       pure $ mkSlice <$> filter (not . null) slices
  where
   mkSlice notes = mkNote <$> notes
-  mkNote (note, tie) = (Music.pitch note, Music.rightTie tie)
+  mkNote (note, tie) = (Note (Music.pitch note) (fromMaybe "" $ Music.getId note), Music.rightTie tie)
 
 -- | Converts salami slices (as returned by 'slicesFromFile') to a path as expected by parsers.
 slicesToPath
   :: (Interval i, Ord i, Eq i)
-  => [[(Pitch i, Music.RightTied)]]
-  -> Path [Pitch i] [Edge (Pitch i)]
+  => [[(Note (Pitch i), Music.RightTied)]]
+  -> Path [Note (Pitch i)] [Edge (Pitch i)]
 slicesToPath = go
  where
   -- normalizeTies (s : next : rest) = (fixTie <$> s)
@@ -534,7 +585,7 @@ slicesToPath = go
 {- | Loads a MusicXML File and returns a surface path
  as input to parsers.
 -}
-loadSurface :: FilePath -> IO (Path [Pitch SInterval] [Edge (Pitch SInterval)])
+loadSurface :: FilePath -> IO (Path [Note SPitch] [Edge SPitch])
 loadSurface = fmap slicesToPath . slicesFromFile
 
 {- | Loads a MusicXML File
@@ -547,7 +598,7 @@ loadSurface'
   -- ^ the first slice to include (starting at 0)
   -> Int
   -- ^ the last slice to include
-  -> IO (Path [Pitch SInterval] [Edge (Pitch SInterval)])
+  -> IO (Path [Note SPitch] [Edge SPitch])
 loadSurface' fn from to =
   slicesToPath . drop from . take (to - from + 1) <$> slicesFromFile fn
 
@@ -579,19 +630,12 @@ pathTraversePitch f (Path e a rest) = do
   pure $ Path e' a' rest'
 pathTraversePitch f (PathEnd e) = PathEnd <$> edgesTraversePitch f e
 
-traverseEdge :: Applicative f => (n -> f n') -> (n, n) -> f (n', n')
+traverseEdge :: (Applicative f) => (n -> f n') -> (n, n) -> f (n', n')
 traverseEdge f (n1, n2) = (,) <$> f n1 <*> f n2
-
-traverseSet
-  :: (Applicative f, Eq n', Hashable n')
-  => (n -> f n')
-  -> S.HashSet n
-  -> f (S.HashSet n')
-traverseSet f set = S.fromList <$> traverse f (S.toList set)
 
 notesTraversePitch
   :: (Eq n, Hashable n, Applicative f) => (a -> f n) -> Notes a -> f (Notes n)
-notesTraversePitch f (Notes notes) = Notes <$> MS.traverse f notes
+notesTraversePitch f (Notes notes) = Notes <$> traverseSet (traverse f) notes
 
 edgesTraversePitch
   :: (Applicative f, Eq n', Hashable n')
@@ -599,8 +643,8 @@ edgesTraversePitch
   -> Edges n
   -> f (Edges n')
 edgesTraversePitch f (Edges reg pass) = do
-  reg' <- traverseSet (traverseEdge (traverse f)) reg
-  pass' <- MS.traverse (traverseEdge f) pass
+  reg' <- traverseSet (traverseEdge $ traverse $ traverse f) reg
+  pass' <- MS.traverse (traverseEdge $ traverse f) pass
   pure $ Edges reg' pass'
 
 leftmostTraversePitch
@@ -623,26 +667,26 @@ splitTraversePitch
   -> Split n
   -> f (Split n')
 splitTraversePitch f (SplitOp reg pass ls rs kl kr pl pr) = do
-  reg' <- traverseElabo (traverseEdge (traverse f)) reg
-  pass' <- traverseElabo (traverseEdge f) pass
-  ls' <- traverseElabo f ls
-  rs' <- traverseElabo f rs
-  kl' <- traverseSet (traverseEdge (traverse f)) kl
-  kr' <- traverseSet (traverseEdge (traverse f)) kr
-  pl' <- MS.traverse (traverseEdge f) pl
-  pr' <- MS.traverse (traverseEdge f) pr
+  reg' <- traverseElabo (traverseEdge $ traverse $ traverse f) reg
+  pass' <- traverseElabo (traverseEdge $ traverse f) pass
+  ls' <- traverseElabo (traverse f) ls
+  rs' <- traverseElabo (traverse f) rs
+  kl' <- traverseSet (traverseEdge $ traverse $ traverse f) kl
+  kr' <- traverseSet (traverseEdge $ traverse $ traverse f) kr
+  pl' <- MS.traverse (traverseEdge $ traverse f) pl
+  pr' <- MS.traverse (traverseEdge $ traverse f) pr
   pure $ SplitOp reg' pass' ls' rs' kl' kr' pl' pr'
  where
   traverseElabo
     :: forall p p' o
      . (Ord p')
     => (p -> f p')
-    -> M.Map p [(n, o)]
-    -> f (M.Map p' [(n', o)])
+    -> M.Map p [(Note n, o)]
+    -> f (M.Map p' [(Note n', o)])
   traverseElabo fparent mp = fmap M.fromList $ for (M.toList mp) $ \(e, cs) ->
     do
       e' <- fparent e
-      cs' <- traverse (\(n, o) -> (,o) <$> f n) cs
+      cs' <- traverse (\(n, o) -> (,o) <$> traverse f n) cs
       pure (e', cs')
 
 spreadTraversePitch
@@ -651,6 +695,11 @@ spreadTraversePitch
   -> Spread n
   -> f (Spread n')
 spreadTraversePitch f (SpreadOp dist edges) = do
-  dist' <- traverse (\(k, v) -> (,v) <$> f k) $ HM.toList dist
+  dist' <- traverse travDist $ HM.toList dist
   edges' <- edgesTraversePitch f edges
-  pure $ SpreadOp (HM.fromListWith (<>) dist') edges'
+  pure $ SpreadOp (HM.fromListWith const dist') edges'
+ where
+  travDist (k, v) = do
+    k' <- traverse f k
+    v' <- traverse f v
+    pure (k', v')
