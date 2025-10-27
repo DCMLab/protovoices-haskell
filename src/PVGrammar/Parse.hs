@@ -214,6 +214,18 @@ findLeftOrnament m r
   pm = pc $ pitch $ notePitch m
   pr = pc $ pitch $ notePitch r
 
+{- | Checks a transition to see if can can in principle be reduced.
+If a note is adjacent to several regular edges, it cannot be reduced by a split or spread.
+Consequently, if both sides of the transition contain notes adjacent to several edges,
+neither can be reduced and the transition is irreducible
+-}
+edgesAreReducible :: (Hashable n) => Edges n -> Bool
+edgesAreReducible (Edges reg _pass) = isFree left || isFree right
+ where
+  left = fst <$> S.toList reg
+  right = snd <$> S.toList reg
+  isFree notes = (MS.cardinality $ MS.fromList $ mapMaybe getInner notes) < 2
+
 -- evaluator interface
 -- ===================
 
@@ -422,7 +434,7 @@ pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs right
   -- pick one combination
   reduction <- cartProd reductions
   -- construct split from reduction
-  pure $ mkTop $ partitionElaborations reduction
+  mkTop $ partitionElaborations reduction
  where
   !innerL = innerNotes notesl
   !innerR = innerNotes notesr
@@ -543,31 +555,12 @@ pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs right
        , [(Note n, (Note n, RightOrnament))]
        , [(Note n, (Note n, LeftOrnament))]
        )
-    -> (Edges n, Split n)
+    -> [(Edges n, Split n)]
   mkTop (regs, pass, rs, ls) =
-    if True -- validate
-      then (top, SplitOp regmap passmap rmap lmap leftRegs rightRegs passL passR)
-      else
-        error $
-          "invalid unsplit:\n  notesl="
-            <> show notesl
-            <> "\n  notesr="
-            <> show notesr
-            <> "\n  notesm="
-            <> show (Notes notesm)
-            <> "\n  left="
-            <> show (Edges leftRegs leftPass)
-            <> "\n  right="
-            <> show (Edges rightRegs rightPass)
-            <> "\n  top="
-            <> show top
+    if edgesAreReducible top
+      then pure (top, SplitOp regmap passmap rmap lmap leftRegs rightRegs passL passR)
+      else DT.trace "invalid top!" $ []
    where
-    -- validate =
-    --   all ((`L.elem` innerNotes notesl) . fst . fst) regs
-    --     && all ((`L.elem` innerNotes notesr) . snd . fst)   regs
-    --     && all ((`L.elem` innerNotes notesl) . Inner . fst) rs
-    --     && all ((`L.elem` innerNotes notesr) . Inner . fst) ls
-
     -- collect all operations
     mapify xs = M.fromListWith (<>) $ fmap (: []) <$> xs
     regmap = mapify regs

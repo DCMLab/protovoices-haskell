@@ -13,7 +13,7 @@ import Data.Foldable
   ( all
   , foldl'
   )
-import qualified Data.HashMap.Strict as HM
+import Data.HashMap.Strict qualified as HM
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable)
 import GHC.Generics (Generic)
@@ -64,6 +64,9 @@ toSet (MS a) = HM.keysSet a
 size :: MultiSet a -> Int
 size (MS a) = foldl' (+) 0 a
 
+cardinality :: MultiSet a -> Int
+cardinality (MS a) = foldl' max 0 a
+
 map :: (Eq b, Hashable b) => (a -> b) -> MultiSet a -> MultiSet b
 map f (MS a) =
   MS $ HM.foldlWithKey' (\m k o -> HM.insertWith (+) (f k) o m) HM.empty a
@@ -97,7 +100,7 @@ delete x = MS . HM.update (deleteN 1) x . unMS
 empty :: MultiSet a
 empty = MS HM.empty
 
-foldM :: Monad m => (b -> a -> m b) -> b -> MultiSet a -> m b
+foldM :: (Monad m) => (b -> a -> m b) -> b -> MultiSet a -> m b
 foldM f b (MS as) = HM.foldlWithKey' doFold (pure b) as
  where
   doFold mb a i = do
@@ -112,7 +115,7 @@ insertMany a n (MS as)
 insert :: (Eq a, Hashable a) => a -> MultiSet a -> MultiSet a
 insert a = insertMany a 1
 
-singleton :: Hashable a => a -> MultiSet a
+singleton :: (Hashable a) => a -> MultiSet a
 singleton a = MS $ HM.singleton a 1
 
 member :: (Eq k, Hashable k) => k -> MultiSet k -> Bool

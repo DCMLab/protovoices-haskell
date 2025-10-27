@@ -31,7 +31,7 @@ data ReplayStep tr tr' slc s f h = ReplayStep
   , replayReward :: !QType
   }
 
-instance (Show slc, Show s, Show f, Show h, Show tr) => Show (ReplayStep tr tr' slc s f h) where
+instance (Show slc, Show s, Show f, Show h, Show tr, Show tr') => Show (ReplayStep tr tr' slc s f h) where
   show (ReplayStep s (RPAction a) _ s' _ r) =
     show s <> " -> " <> show s' <> " " <> show r <> "\n  " <> act
    where

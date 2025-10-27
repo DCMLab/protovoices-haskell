@@ -9,6 +9,7 @@ import Control.Monad (forM_)
 import Control.Monad.Primitive (RealWorld)
 import Control.Monad.State qualified as ST
 import Data.Colour.Palette.ColorSet
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe (listToMaybe)
 import Display
 import Graphics.Rendering.Chart.Backend.Cairo as Plt
@@ -144,7 +145,7 @@ type PVAction = Action (Notes SPitch) (Edges SPitch) (Split SPitch) Freeze (Spre
 
 type PVActionResult = Either (GreedyState (Edges SPitch) [Edge SPitch] (Notes SPitch) (PVLeftmost SPitch)) (Edges SPitch, [PVLeftmost SPitch])
 
-type PVRewardFn label = PVActionResult -> PVAction -> label -> IO QType
+type PVRewardFn label = PVActionResult -> Maybe (NE.NonEmpty PVAction) -> PVAction -> label -> IO QType
 
 inf :: QType
 inf = 1 / 0
@@ -155,8 +156,9 @@ pvRewardSample
   -> PVRewardFn label
 -- -> PVAnalysis SPitch
 -- -> IO QType
-pvRewardSample _ _ (Left _) _ _ = pure 0
-pvRewardSample gen hyper (Right (top, deriv)) _ _ = do
+pvRewardSample _ _ (Left _) (Just _) _ _ = pure 0
+pvRewardSample _ _ (Left _) Nothing _ _ = pure (-inf)
+pvRewardSample gen hyper (Right (top, deriv)) _ _ _ = do
   let trace = observeDerivation deriv (PathEnd top)
   probs <- MWC.sample (sampleProbs @PVParams hyper) gen
   case trace of
@@ -170,8 +172,9 @@ pvRewardSample gen hyper (Right (top, deriv)) _ _ = do
       Just (_, logprob) -> pure logprob
 
 pvRewardExp :: Hyper PVParams -> PVRewardFn label -- PVAnalysis SPitch -> IO QType
-pvRewardExp _ (Left _) _ _ = pure 0
-pvRewardExp hyper (Right (top, deriv)) _ _ =
+pvRewardExp _ (Left _) (Just _) _ _ = pure 0
+pvRewardExp _ (Left _) Nothing _ _ = pure (-inf)
+pvRewardExp hyper (Right (top, deriv)) _ _ _ =
   pvRewardExp' hyper (Analysis deriv (PathEnd top))
 
 pvRewardExp' :: Hyper PVParams -> PVAnalysis SPitch -> IO QType
@@ -198,10 +201,11 @@ pvRewardActionByLen
 -- -> Maybe Bool
 -- -> Int
 -- -> IO QType
-pvRewardActionByLen hyper state action len = do
+pvRewardActionByLen _ _ Nothing _ _ = pure (-10)
+pvRewardActionByLen hyper state (Just _) action len = do
   case result of
-    Left error -> do
-      putStrLn $ "error giving reward: " <> error
+    Left err -> do
+      putStrLn $ "error giving reward: " <> err
       pure (-inf)
     Right Nothing -> do
       putStrLn "Couldn't evaluate trace while giving reward"

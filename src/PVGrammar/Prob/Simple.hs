@@ -171,7 +171,7 @@ import Musicology.Pitch as MP hiding
   , f
   , g
   )
-import System.Random.MWC.Probability (categorical)
+import System.Random.MWC.Probability (categorical, uniform)
 
 -- orphan instances
 -- ================
@@ -287,8 +287,17 @@ savePVHyper = encodeFile
 loadPVHyper :: FilePath -> IO (Either String (Hyper PVParams))
 loadPVHyper = eitherDecodeFileStrict
 
--- helper distribution
--- ===================
+type PVProbs = PVParams ProbsRep
+type PVProbsInner = PVParamsInner ProbsRep
+
+type ContextSingle n = (StartStop (Notes n), Edges n, StartStop (Notes n))
+type ContextDouble n =
+  (StartStop (Notes n), Edges n, Notes n, Edges n, StartStop (Notes n))
+
+type PVObs a = StateT (Trace PVParams) (Either String) a
+
+-- helper distributions
+-- ====================
 
 data MagicalOctaves = MagicalOctaves
   deriving (Eq, Ord, Show)
@@ -299,20 +308,22 @@ instance Distribution MagicalOctaves where
   distSample _ _ = (`subtract` 2) <$> categorical [0.1, 0.2, 0.4, 0.2, 0.1]
   distLogP _ _ _ = 0
 
-type PVProbs = PVParams ProbsRep
-type PVProbsInner = PVParamsInner ProbsRep
+data MagicalID = MagicalID
+  deriving (Eq, Ord, Show)
 
-type ContextSingle n = (StartStop (Notes n), Edges n, StartStop (Notes n))
-type ContextDouble n =
-  (StartStop (Notes n), Edges n, Notes n, Edges n, StartStop (Notes n))
-
-type PVObs a = StateT (Trace PVParams) (Either String) a
+instance Distribution MagicalID where
+  type Params MagicalID = ()
+  type Support MagicalID = String
+  distSample _ _ = do
+    i <- uniform @_ @Int
+    pure $ "id" <> show i
+  distLogP _ _ _ = 0
 
 {- | A helper function that tests whether 'observeDerivation''
  followed by 'sampleDerivation'' restores the original derivation.
  Useful for testing the compatibility of the two functions.
 -}
-roundtrip :: FilePath -> IO (Either String [PVLeftmost SPitch])
+roundtrip :: FilePath -> IO (Either String ()) -- [PVLeftmost SPitch])
 roundtrip fn = do
   anaE <- loadAnalysis fn
   case anaE of
@@ -323,7 +334,7 @@ roundtrip fn = do
         Left err -> error err
         Right trace -> do
           print trace
-          pure $ traceTrace trace sampleDerivation'
+          pure $ const () <$> traceTrace trace sampleDerivation'
 
 {- | Helper function: Load a single derivation
  and infer the corresponding posterior for a uniform prior.
@@ -340,6 +351,9 @@ trainSinglePiece fn = do
         Right trace -> do
           let prior = uniformPrior @PVParams
           pure $ getPosterior prior trace (sampleDerivation $ anaTop ana)
+
+-- the generative process
+-- ======================
 
 -- | A shorthand for 'sampleDerivation' starting from ⋊——⋉.
 sampleDerivation' :: (_) => m (Either String [PVLeftmost SPitch])
@@ -792,8 +806,8 @@ observeNeighbor goesUp ref nb = do
       observeValue "nbAlt" Geometric0 (pInner . pNBAlt) altN
       observeConst "nbAltUp" Bernoulli 0.5 altUp
 
-mkChildId1 pid i o = "(" <> pid <> ")-" <> o <> show i
-mkChildId2 il ir i o = "(" <> il <> ")-" <> o <> show i <> "-(" <> ir <> ")"
+-- mkChildId1 pid i o = "(" <> pid <> ")-" <> o <> show i
+-- mkChildId2 il ir i o = "(" <> il <> ")-" <> o <> show i <> "-(" <> ir <> ")"
 
 sampleDoubleChild :: (_) => i -> Note SPitch -> Note SPitch -> m (Note SPitch, DoubleOrnament)
 sampleDoubleChild i (Note pl il) (Note pr ir)
@@ -803,11 +817,13 @@ sampleDoubleChild i (Note pl il) (Note pr ir)
       if rep
         then do
           os <- sampleOctaveShift "doubleChildOctave"
-          pure (Note (pl +^ os) (mkChildId2 il ir i "r"), FullRepeat)
+          cid <- sampleConst "doubleChildId" MagicalID ()
+          pure (Note (pl +^ os) cid, FullRepeat)
         else do
           stepUp <- sampleConst "stepUp" Bernoulli 0.5
           nb <- sampleNeighbor stepUp pl
-          pure (Note nb (mkChildId2 il ir i "n"), FullNeighbor)
+          cid <- sampleConst "doubleChildId" MagicalID ()
+          pure (Note nb cid, FullNeighbor)
   | otherwise = do
       repeatLeft <-
         sampleValue "repeatLeftOverRight" Bernoulli $
@@ -824,27 +840,30 @@ sampleDoubleChild i (Note pl il) (Note pr ir)
             pure $ (if alterUp then id else down) $ chromaticSemitone ^* semis
           else pure unison
       os <- sampleOctaveShift "doubleChildOctave"
+      cid <- sampleConst "doubleChildId" MagicalID ()
       if repeatLeft
-        then pure (Note (pl +^ os +^ alt) (mkChildId2 il ir i "rn"), RightRepeatOfLeft)
-        else pure (Note (pr +^ os +^ alt) (mkChildId2 il ir i "nr"), LeftRepeatOfRight)
+        then pure (Note (pl +^ os +^ alt) cid, RightRepeatOfLeft)
+        else pure (Note (pr +^ os +^ alt) cid, LeftRepeatOfRight)
 
 observeDoubleChild :: Note SPitch -> Note SPitch -> Note SPitch -> PVObs ()
-observeDoubleChild (Note pl _) (Note pr _) (Note child _)
+observeDoubleChild (Note pl _) (Note pr _) (Note child cid)
   | degree pl == degree pr = do
       let isRep = pc child == pc pl
       observeValue
-        "RepeatOverNeighbor"
+        "repeatOverNeighbor"
         Bernoulli
         (pInner . pRepeatOverNeighbor)
         isRep
       if isRep
         then do
           observeOctaveShift "doubleChildOctave" (pl `pto` child)
+          observeConst "doubleChildId" MagicalID () cid
         else do
           let dir = direction (pc pl `pto` pc child)
           let goesUp = dir == GT
           observeConst "stepUp" Bernoulli 0.5 goesUp
           observeNeighbor goesUp pl child
+          observeConst "doubleChildId" MagicalID () cid
   | otherwise = do
       let repeatLeft = degree pl == degree child
           ref = if repeatLeft then pl else pr
@@ -863,6 +882,7 @@ observeDoubleChild (Note pl _) (Note pr _) (Note child _)
           (pInner . pRepeatAlterSemis)
           (abs alt)
       observeOctaveShift "doubleChildOctave" $ ref `pto` child
+      observeConst "doubleChildId" MagicalID () cid
 
 sampleT :: (_) => Edge SPitch -> m (Edge SPitch, [(Note SPitch, DoubleOrnament)])
 sampleT (l, r) = do
@@ -976,7 +996,8 @@ sampleNT ((nl@(Note pl il), nr@(Note pr ir)), n) = do
         connect <- sampleValue "passingConnect" Bernoulli $ pInner . pConnect
         if connect then sampleMidPassing pl pr else sampleNonMidPassing pl pr
       _ -> sampleNonMidPassing pl pr
-    pure (Note child $ mkChildId2 il ir i "p", orn)
+    cid <- sampleConst "passingChildId" MagicalID ()
+    pure (Note child $ cid, orn)
   pure ((nl, nr), children)
 
 observeNT
@@ -987,16 +1008,18 @@ observeNT
 observeNT splitNTs ((nl@(Note pl _), nr@(Note pr _)), _n) = do
   -- DT.traceM $ "Elaborating edge (obs): " <> show ((pl, pr), n)
   let children = fromMaybe [] $ M.lookup (nl, nr) splitNTs
-  forM_ children $ \(Note child _, orn) -> case degree $ iabs $ pc pl `pto` pc pr of
-    1 -> observeChromPassing pl pr child
-    2 -> case orn of
-      PassingMid -> do
-        observeValue "passingConnect" Bernoulli (pInner . pConnect) True
-        observeMidPassing pl pr child
-      _ -> do
-        observeValue "passingConnect" Bernoulli (pInner . pConnect) False
-        observeNonMidPassing pl pr child orn
-    _ -> observeNonMidPassing pl pr child orn
+  forM_ children $ \(Note child cid, orn) -> do
+    case degree $ iabs $ pc pl `pto` pc pr of
+      1 -> observeChromPassing pl pr child
+      2 -> case orn of
+        PassingMid -> do
+          observeValue "passingConnect" Bernoulli (pInner . pConnect) True
+          observeMidPassing pl pr child
+        _ -> do
+          observeValue "passingConnect" Bernoulli (pInner . pConnect) False
+          observeNonMidPassing pl pr child orn
+      _ -> observeNonMidPassing pl pr child orn
+    observeConst "passingChildId" MagicalID () cid
   pure ((nl, nr), children)
 
 sampleSingleOrn
@@ -1016,11 +1039,13 @@ sampleSingleOrn parent@(Note ppitch pid) oRepeat oNeighbor pElaborate = do
     if rep
       then do
         os <- sampleOctaveShift "singleChildOctave"
-        pure (Note (ppitch +^ os) (mkChildId1 pid i "r"), oRepeat)
+        cid <- sampleConst "singleChildId" MagicalID ()
+        pure (Note (ppitch +^ os) cid, oRepeat)
       else do
         stepUp <- sampleConst "singleUp" Bernoulli 0.5
         child <- sampleNeighbor stepUp ppitch
-        pure (Note child (mkChildId1 pid i "n"), oNeighbor)
+        cid <- sampleConst "singleChildId" MagicalID ()
+        pure (Note child cid, oNeighbor)
   pure (parent, children)
 
 observeSingleOrn
@@ -1035,7 +1060,7 @@ observeSingleOrn table parent@(Note ppitch _) pElaborate = do
     Geometric0
     (pInner . pElaborate)
     (length children)
-  forM_ children $ \(Note child _, _) -> do
+  forM_ children $ \(Note child cid, _) -> do
     let rep = pc child == pc ppitch
     observeValue
       "repeatOverNeighborSingle"
@@ -1045,11 +1070,13 @@ observeSingleOrn table parent@(Note ppitch _) pElaborate = do
     if rep
       then do
         observeOctaveShift "singleChildOctave" (ppitch `pto` child)
+        observeConst "singleChildId" MagicalID () cid
       else do
         let dir = direction (pc ppitch `pto` pc child)
             up = dir == GT
         observeConst "singleUp" Bernoulli 0.5 up
         observeNeighbor up ppitch child
+        observeConst "singleChildId" MagicalID () cid
   pure (parent, children)
 
 sampleL :: (_) => Note SPitch -> m (Note SPitch, [(Note SPitch, RightOrnament)])
@@ -1289,7 +1316,9 @@ evalSingleStep
   -> Either String (Maybe ((), Double))
 evalSingleStep probs parents op decision = do
   trace <- observeSingleStepParsing parents decision op
-  -- DT.traceM $ snd $ showTrace trace $ sampleSingleStepParsing parents
+  -- DT.traceM "evalSingleStep"
+  -- DT.traceM $ show $ runTrace trace
+  -- let !_ = traceTrace trace $ sampleSingleStepParsing parents
   pure $ evalTraceLogP probs trace $ sampleSingleStepParsing parents
 
 {- | Sample a double step in a bottom-up context.
@@ -1389,6 +1418,7 @@ evalDoubleStep
   -> Either String (Maybe ((), Double))
 evalDoubleStep probs parents op decision = do
   trace <- observeDoubleStepParsing parents decision op
-  -- DT.traceM $ show trace
-  -- DT.traceM $ snd $ showTrace trace $ sampleDoubleStepParsing parents op
+  -- DT.traceM "evalDoubleStep"
+  -- DT.traceM $ show $ runTrace trace
+  -- let !_ = traceTrace trace $ sampleDoubleStepParsing parents op
   pure $ evalTraceLogP probs trace $ sampleDoubleStepParsing parents op

@@ -8,6 +8,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 
 module RL.Encoding where
 
@@ -16,8 +18,11 @@ import Data.Foldable qualified as F
 import Data.HashSet qualified as HS
 import Data.Hashable (Hashable)
 import Data.List qualified
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (catMaybes, mapMaybe)
-import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), intVal, intVal', type (*), type (+), type (-))
+import Data.Proxy (Proxy (..))
+import Data.Type.Equality ((:~:) (..))
+import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), intVal, intVal', type (*), type (+), type (-), type (>=))
 import Data.Vector.Sized qualified as VS
 import Debug.Trace qualified as DT
 import GHC.Exts (Proxy#, proxy#)
@@ -39,7 +44,7 @@ import Torch.Typed qualified as TT
 
 class Stackable a where
   type Stacked a (n :: Nat)
-  stack :: (KnownNat n) => VS.Vector n a -> Stacked a n
+  stack :: (KnownNat n, KnownNat (1 + n)) => VS.Vector (1 + n) a -> Stacked a (1 + n)
 
 class Batchable a where
   type Batched a
@@ -359,7 +364,7 @@ instance Batchable (TransitionEncoding shape) where
 
 edgesMultiHot
   :: HS.HashSet (InnerEdge SPitch)
-  -> QTensor (EShape')
+  -> QTensor EShape'
 edgesMultiHot es = TT.UnsafeMkTensor out
  where
   out =
@@ -593,13 +598,17 @@ encodeStep state action =
     (encodePVState state)
 
 withBatchedEncoding
-  :: (Foldable t)
+  :: forall t r
+   . (Foldable t)
   => PVState t
-  -> [PVAction]
+  -> NonEmpty PVAction
   -> (forall n. (KnownNat n) => QEncoding '[n] -> r)
   -> r
-withBatchedEncoding state actions f =
-  VS.withSizedList aEncs $ \aEncs' -> f $ QEncoding (stack aEncs') sEnc
+withBatchedEncoding state (a0 :| actions) f =
+  VS.withSizedList aEncs inner
  where
+  inner :: forall n. (KnownNat n) => VS.Vector n (ActionEncoding '[]) -> r
+  inner aEncs' = f $ QEncoding (stack (VS.cons a0Enc aEncs')) sEnc
+  a0Enc = encodePVAction a0
   aEncs = encodePVAction <$> actions
   sEnc = encodePVState state

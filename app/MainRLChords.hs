@@ -13,6 +13,7 @@ import Control.Monad.Trans.Except qualified as ET
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict, withObject, (.:))
 import Data.Aeson qualified as JSON
 import Data.List (zipWith5)
+import Data.List.NonEmpty qualified as NE
 import Data.Ratio (Ratio (..), denominator, numerator, (%))
 import Data.TypeLits (KnownNat)
 import GHC.Generics (Generic)
@@ -100,22 +101,30 @@ parseA2C
   :: RL.QModel
   -> Path [Note SPitch] [Edge SPitch]
   -> IO (Either String (PVAnalysis SPitch))
-parseA2C !actor !input = ET.runExceptT $ go $ initParseState eval input
+parseA2C !actor !input = case take 200 $ getActions eval s0 of
+  [] -> pure $ Left "cannot parse: no possible actions for first step!"
+  (a : as) -> ET.runExceptT $ go s0 (a NE.:| as)
  where
+  s0 = initParseState eval input
   eval = protoVoiceEvaluator
-  go !state = do
-    let actions = take 20 $ getActions eval state
-        encodings = RL.encodeStep state <$> actions
-        -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . RL.forwardPolicy actor <$> encodings
-        probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
-        best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
-        -- dummy = RL.withBatchedEncoding state actions (`seq` ())
-        -- best = 0
-        action = seq probs $ actions !! best
+  go !state !actions = do
+    let
+      -- encodings = RL.encodeStep state <$> actions
+      -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . RL.forwardPolicy actor <$> encodings
+      probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
+      best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
+      -- dummy = RL.withBatchedEncoding state actions (`seq` ())
+      -- best = 0
+      action = seq probs $ actions NE.!! best
     state' <- ET.except $ applyAction state action
-    case state' of
-      Left s' -> go s'
-      Right (top, deriv) -> do
+    let actions' = case state' of
+          Left nextState -> NE.nonEmpty $ take 200 $ getActions eval nextState
+          Right _ -> Nothing
+    case (state', actions') of
+      (Left _, Nothing) ->
+        ET.throwE "cannot parse: no possible actions in non-terminal state!"
+      (Left s', Just a') -> go s' a'
+      (Right (top, deriv), _) -> do
         let ana = Analysis deriv (PathEnd top)
         pure ana
 
@@ -162,4 +171,4 @@ mainPlot = do
         -- JSON.encodeFile fn ana
         RL.plotDeriv fn deriv
 
-main = mainPlot
+main = mainRL 20

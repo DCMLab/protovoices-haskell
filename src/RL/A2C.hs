@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE Strict #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
@@ -17,7 +18,9 @@ import Control.Monad.Trans.Except qualified as ET
 import Data.Either (partitionEithers)
 import Data.Foldable qualified as F
 import Data.List qualified as L
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe (mapMaybe)
+import Data.Text.Lazy qualified as Txt
 import Data.Vector qualified as V
 import Debug.Trace qualified as DT
 import GHC.Generics
@@ -34,7 +37,9 @@ import RL.Encoding
 import RL.Model
 import RL.ModelTypes
 import StrictList qualified as SL
+import System.IO (hFlush, stdout)
 import System.Mem (performGC)
+import System.ProgressBar qualified as PB
 import System.Random.MWC.Distributions (categorical)
 import System.Random.Stateful (StatefulGen)
 import System.Random.Stateful qualified as Rand
@@ -94,14 +99,22 @@ data A2CStepState = A2CStepState
               (Notes SPitch)
               (PVLeftmost SPitch)
           )
+  , a2cStepActions :: !(NE.NonEmpty PVAction)
   }
 
 initPieceState
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Path [Note SPitch] [Edge SPitch]
   -> TT.HList ModelTensors
-  -> A2CStepState
-initPieceState eval input z0 = A2CStepState z0 z0 1 0 $ initParseState eval input
+  -> Either A2CStepState QType
+initPieceState eval input z0 =
+  let
+    state = initParseState eval input
+    actions = take 200 $ getActions eval state
+   in
+    case actions of
+      [] -> Right (-inf)
+      (a : as) -> Left $ A2CStepState z0 z0 1 0 state (a NE.:| as)
 
 pieceStep
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
@@ -112,21 +125,24 @@ pieceStep
   -> A2CState
   -> A2CStepState
   -> ET.ExceptT String IO (A2CState, Either A2CStepState QType, QType)
-pieceStep eval gen i fReward len (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward state) = do
+pieceStep eval gen i fReward len (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward state actions) = do
   -- EitherT String IO
   -- preparation: list actions, compute policy
   -- TODO: smarter cap than taking 200 actions
-  let actions = take 200 $ getActions eval state
-      -- encodings = encodeStep state <$> actions
-      -- policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-      policy = withBatchedEncoding state actions (runBatchedPolicy actor)
+  let
+    -- encodings = encodeStep state <$> actions
+    -- policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
+    policy = withBatchedEncoding state actions (runBatchedPolicy actor)
   -- choose action according to policy
   actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
-  let action = actions !! actionIndex
+  let action = actions NE.!! actionIndex
   -- apply action
   state' <- ET.except $ applyAction state action
+  let actions' = case state' of
+        Left newState -> NE.nonEmpty $ take 200 $ getActions eval newState
+        Right _ -> Nothing
   -- compute A2C update
-  r <- lift $ fReward state' action len
+  r <- lift $ fReward state' actions' action len
   let vS = forwardValue critic $ encodePVState state
       vS' = case state' of
         Left s' -> forwardValue critic $ encodePVState s'
@@ -154,12 +170,12 @@ pieceStep eval gen i fReward len (A2CState actor critic opta optc) (A2CStepState
   (!critic', !optc') <- lift $ TT.runStep' critic optc (negate learningRate) $ mulModelTensors delta zV'
   let loss' = T.asValue $ TT.toDynamic delta
       reward' = reward + r
-  lift $ when ((i `mod` 100) == 0) $ do
-    print state'
-    putStr "r = " >> print r
-    putStr "vS = " >> print vS
-    putStr "vS' = " >> print vS'
-    putStr "delta = " >> print delta
+  -- lift $ when ((i `mod` 100) == 0) $ do
+  --   print state'
+  --   putStr "r = " >> print r
+  --   putStr "vS = " >> print vS
+  --   putStr "vS' = " >> print vS'
+  --   putStr "delta = " >> print delta
   --   putStr "gradV = " >> printTensors gradV
   --   putStr "zV' = " >> printTensors zV'
   --   putStr "log π = " >> print actionLogProb
@@ -170,9 +186,12 @@ pieceStep eval gen i fReward len (A2CState actor critic opta optc) (A2CStepState
   --   putStr "params' = " >> printParams params'
   --   putStr "I' = " >> print intensity'
   --   print $ qModelFinal2 model'
-  let pieceState' = case state' of
-        Left s' -> Left $ A2CStepState zV' zP' intensity' reward' s'
-        Right _ -> Right reward' -- TT.toDouble (TT.squeezeAll vS) - r
+  let pieceState' = case (state', actions') of
+        (Left s', Just a') -> Left $ A2CStepState zV' zP' intensity' reward' s' a'
+        (Left s', Nothing) ->
+          -- DT.trace ("incomplete parse:\n" <> show s') $
+          Right reward'
+        (Right _, _) -> Right reward' -- TT.toDouble (TT.squeezeAll vS) - r
   pure (A2CState actor' critic' opta' optc', pieceState', loss')
 
 -- | Run an episode on a single worker.
@@ -187,7 +206,9 @@ runEpisode
   -> Int
   -> IO (Either String (A2CState, QType, QType))
 runEpisode !eval !gen !fReward !input !label !modelState !i =
-  ET.runExceptT $ go modelState (initPieceState eval input z0) SL.Nil
+  case initPieceState eval input z0 of
+    Left s0 -> ET.runExceptT $ go modelState s0 SL.Nil
+    Right reward -> pure $ pure (modelState, reward, 0)
  where
   z0 :: TT.HList ModelTensors
   z0 = modelZeros $ a2cActor modelState
@@ -246,24 +267,32 @@ runAccuracy
   -> QModel
   -> (Path slc' [Edge SPitch], label)
   -> IO (Either String (QType, Analysis (Split SPitch) Freeze (Spread SPitch) (Edges SPitch) slc))
-runAccuracy !eval !fReward !actor (!input, !label) = ET.runExceptT $ go 0 0 $ initParseState eval input
+runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions eval s0 of
+  [] -> pure $ Left "cannot parse: no possible actions for first step!"
+  (a : as) -> ET.runExceptT $ go 0 0 s0 (a NE.:| as)
  where
-  go !cost !reward !state = do
-    let actions = take 200 $ getActions eval state
-        -- encodings = encodeStep state <$> actions
-        -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-        probs = withBatchedEncoding state actions (runBatchedPolicy actor)
-        best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
-        action = actions !! best
-        bestprob = probs T.! best
-        cost' = cost + T.log bestprob
+  s0 = initParseState eval input
+  go !cost !reward !state !actions = do
+    let
+      -- encodings = encodeStep state <$> actions
+      -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
+      probs = withBatchedEncoding state actions (runBatchedPolicy actor)
+      best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
+      action = actions NE.!! best
+      bestprob = probs T.! best
+      cost' = cost + T.log bestprob
     state' <- ET.except $ applyAction state action
-    actionReward <- lift $ fReward state' action label
+    let actions' = case state' of
+          Left newState -> NE.nonEmpty $ take 200 $ getActions eval newState
+          Right _ -> Nothing
+    actionReward <- lift $ fReward state' actions' action label
     let reward' = reward + actionReward
     -- lift $ print probs
-    case state' of
-      Left s' -> go cost' reward' s'
-      Right (top, deriv) -> do
+    case (state', actions') of
+      (Left _, Nothing) ->
+        ET.throwE "cannot parse: no possible actions in non-terminal state!"
+      (Left s', Just a') -> go cost' reward' s' a'
+      (Right (top, deriv), _) -> do
         lift $ putStrLn $ "accuracy cost: " <> show cost'
         let ana = Analysis deriv (PathEnd top)
         pure (reward', ana)
@@ -305,19 +334,29 @@ trainA2C eval gen fReward targets actor0 critic0 pieces n = do
     )
  where
   -- \| train a single episode on a single piece
-  trainPiece i (!state, !rewards, !losses) ((!piece, label), !j) = do
-    result <- runEpisode eval gen fReward piece label state i
+  trainPiece pb i (!state, !rewards, !losses) ((!piece, label), !j) = do
+    !result <- runEpisode eval gen fReward piece label state i
+    PB.incProgress pb 1
     case result of
       Left error -> do
         putStrLn $ "Episode error: " <> error
         pure (state, rewards, losses)
       Right (state', r, loss) -> do
-        putStr "."
         -- putStrLn $ "loss " <> show j <> ": " <> show loss
         pure (state', r `SL.Cons` rewards, loss `SL.Cons` losses)
   -- \| train one episode on each piece
   trainEpoch fullstate@(A2CLoopState !state !rewardsHist !lossHist !accuracies) !i = do
-    putStrLn $ "\nepoch " <> show i
+    -- putStrLn $ "\nepoch " <> show i
+    pb <-
+      PB.newProgressBar
+        ( PB.defStyle
+            { PB.stylePrefix = "Epoch " <> (PB.msg $ Txt.show i) <> ": " <> (PB.elapsedTime PB.renderDuration)
+            , PB.stylePostfix = PB.exact <> " (" <> PB.percentage <> ")"
+            , PB.styleWidth = PB.ConstantWidth 80
+            }
+        )
+        10
+        (PB.Progress 0 (length pieces) ())
     -- performGC
     -- thunkCheck <- noThunks ["trainA2C", "trainEpoch"] fullstate
     -- case thunkCheck of
@@ -325,7 +364,7 @@ trainA2C eval gen fReward targets actor0 critic0 pieces n = do
     --   Just thunkInfo -> error $ "Unexpected thunk at " <> show (thunkContext thunkInfo)
     -- run epoch
     (!state', !rewards, !losses) <-
-      foldM (trainPiece i) (state, SL.Nil, SL.Nil) (zip pieces [1 ..])
+      foldM (trainPiece pb i) (state, SL.Nil, SL.Nil) (zip pieces [1 ..])
     let rewardsHist' = zipWithStrict SL.Cons rewards rewardsHist
         lossHist' = zipWithStrict SL.Cons losses lossHist
     -- compute greedy reward ("accuracy")
