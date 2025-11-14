@@ -64,13 +64,13 @@ and modules that are specific to the protovoice grammar.
 
 #### Executables (`protovoices/app/`)
 
-- [MainISMIR](app/MainISMIR.hs)
+- [MainISMIR](protovoices/app/MainISMIR.hs)
   Code for the paper linked above.
-- [MainLearning](app/MainLearning.hs)
+- [MainLearning](protovoices/app/MainLearning.hs)
   Code for a Bayesian inference experiment (part of my dissertation).
-- [MainExamples](app/MainExamples.hs)
+- [MainExamples](protovoices/app/MainExamples.hs)
   Generates or demonstrates various examples.
-- [MainParsing](app/MainParsing.hs)
+- [MainParsing](protovoices/app/MainParsing.hs)
   Testbed for parsing.
 
 ### `protovoices-rl`
@@ -79,19 +79,23 @@ and modules that are specific to the protovoice grammar.
 
 - [RL](pv-rl/src/RL)
   A reinforcement-learning agent for parsing pieces (uses `GreedyParser`).
-  Examples of usage can be found in `MainParsing` (see below).
-  - [RL.Common](pv-rl/src/RL/Common.hs): common code like reward and plotting functions.
-  - [RL.ModelTypes](pv-rl/src/RL/ModelTypes.hs): type-level model parameters (e.g. tensor sizes).
-  - [RL.Encoding](pv-rl/src/RL/Encoding.hs): translating protovoice datastructures into HaskTorch tensors.
+  Examples of usage can be found in `MainRLChords` (see below).
+  - [RL.ModelTypes](pv-rl/src/RL/ModelTypes.hs):
+    type-level model parameters (e.g. tensor sizes and device).
+  - [RL.Encoding](pv-rl/src/RL/Encoding.hs):
+    translating protovoice datastructures into HaskTorch tensors.
   - [RL.Model](pv-rl/src/RL/Model.hs): the NN model used by the RL agents.
+  - [RL.Callbacks](pv-rl/src/RL/Callbacks.hs): reward and scheduling functions.
   - [RL.DQN](pv-rl/src/RL/Model.hs): implementation of a Deep Q-Learning agent.
-  - [RL.ReplayBuffers](pv-rl/src/RL/ReplayBuffers.hs): used by `RL.DQN`.
+    - [RL.ReplayBuffer](pv-rl/src/RL/ReplayBuffer.hs): used by `RL.DQN`.
   - [RL.A2C](pv-rl/src/RL/A2C.hs): implementation of an Advantage Actor Critic agent.
-  - [RL.A2CHelpers](pv-rl/src/RL/A2CHelpers.hs): HaskTorch helper functions used by `RL.A2C`.
-
+    - [RL.A2CHelpers](pv-rl/src/RL/A2CHelpers.hs):
+      HaskTorch helper functions used by `RL.A2C`.
+  - [RL.Plotting](pv-rl/src/RL/Plotting.hs): plotting histories.
+  
 #### Executables (`pv-rl/app/`)
 
-- [MainRLChords.hs](pv-rl/app/MainRLChords.hs): train the model on chords
+- [MainRLChords.hs](pv-rl/app/MainRLChords.hs): train the model on chords.
 
 ## Building and Running
 
