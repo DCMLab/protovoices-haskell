@@ -1,14 +1,22 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Internal.TorchHelpers where
 
 import Data.Kind (Type)
+import GHC.TypeLits
+import System.IO.Unsafe (unsafePerformIO)
 import Torch qualified as T
 import Torch qualified as TD
+import Torch.Internal.Cast qualified as ATen
+import Torch.Internal.Managed.Native qualified as ATen.Managed
+import Torch.Internal.Type qualified as ATen
 import Torch.Typed qualified as TT
+import Torch.Typed.Auxiliary qualified
 
 -- | Helper Type to map sumAll over a HList.
 data SumAll = SumAll
@@ -121,3 +129,69 @@ withBatchDim op input = TT.squeezeDim @0 $ op batchedIn
  where
   batchedIn :: TT.Tensor dev1 dtype1 (1 : shape1)
   batchedIn = TT.unsqueeze @0 input
+
+-- | conv2d with dropped batch size constraint
+conv2dRelaxed
+  :: forall
+    (stride :: (Nat, Nat))
+    (padding :: (Nat, Nat))
+    inputChannelSize
+    outputChannelSize
+    kernelSize0
+    kernelSize1
+    inputSize0
+    inputSize1
+    batchSize
+    outputSize0
+    outputSize1
+    dtype
+    device
+   . ( TT.All
+        KnownNat
+        '[ Torch.Typed.Auxiliary.Fst stride
+         , Torch.Typed.Auxiliary.Snd stride
+         , Torch.Typed.Auxiliary.Fst padding
+         , Torch.Typed.Auxiliary.Snd padding
+         -- , inputChannelSize
+         -- , outputChannelSize
+         -- , kernelSize0
+         -- , kernelSize1
+         -- , inputSize0
+         -- , inputSize1
+         -- , outputSize0
+         -- , outputSize1
+         ]
+     , TT.ConvSideCheck inputSize0 kernelSize0 (Torch.Typed.Auxiliary.Fst stride) (Torch.Typed.Auxiliary.Fst padding) outputSize0
+     , TT.ConvSideCheck inputSize1 kernelSize1 (Torch.Typed.Auxiliary.Snd stride) (Torch.Typed.Auxiliary.Snd padding) outputSize1
+     )
+  => TT.Tensor device dtype '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+  -- ^ weight
+  -> TT.Tensor device dtype '[outputChannelSize]
+  -- ^ bias
+  -> TT.Tensor device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+  -- ^ input
+  -> TT.Tensor device dtype '[batchSize, outputChannelSize, outputSize0, outputSize1]
+  -- ^ output
+conv2dRelaxed weight bias input =
+  unsafePerformIO $
+    ATen.cast7
+      ATen.Managed.conv2d_tttllll
+      input
+      weight
+      bias
+      ([TT.natValI @(Torch.Typed.Auxiliary.Fst stride), TT.natValI @(Torch.Typed.Auxiliary.Snd stride)] :: [Int])
+      ([TT.natValI @(Torch.Typed.Auxiliary.Fst padding), TT.natValI @(Torch.Typed.Auxiliary.Snd padding)] :: [Int])
+      ([1, 1] :: [Int])
+      (1 :: Int)
+
+conv2dForwardRelaxed
+  :: forall stride padding
+   . (_)
+  => TT.Conv2d _ _ _ _ _ _
+  -> TT.Tensor _ _ _
+  -> TT.Tensor _ _ _
+conv2dForwardRelaxed TT.Conv2d{..} input =
+  conv2dRelaxed @stride @padding
+    (TT.toDependent weight)
+    (TT.toDependent bias)
+    input

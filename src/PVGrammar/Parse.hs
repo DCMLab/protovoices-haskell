@@ -34,9 +34,11 @@ import Musicology.Pitch
   ( Diatonic
   , Interval (..)
   , Notation
+  , SPitch
   , pc
   , pto
   )
+import Musicology.Pitch.Spelled -- TODO: remove
 
 import Control.DeepSeq (NFData)
 import Control.Monad (foldM)
@@ -229,6 +231,17 @@ edgesAreReducible (Edges reg _pass) = isFree left || isFree right
 -- evaluator interface
 -- ===================
 
+{-# SPECIALIZE protoVoiceEvaluator ::
+  (Foldable t, Foldable t2)
+  => Eval
+      (Edges SPitch)
+      (t (Edge SPitch))
+      (Notes SPitch)
+      (t2 (Note SPitch))
+      (Spread SPitch)
+      (PVLeftmost SPitch)
+  #-}
+
 {- | The evaluator that represents the proto-voice grammar.
  As scores it returns a representation of each operation.
  These scores do not form a semiring,
@@ -243,7 +256,7 @@ protoVoiceEvaluator =
     pvUnspreadLeft
     pvUnspreadRight
     pvUnsplit
-    (\_ t _ -> [(pvThaw t, FreezeOp)])
+    (\_ t _ -> let edges = pvThaw t in [(edges, FreezeOp (edgesReg edges))])
     pvSlice
 
 {- | Computes the possible verticalizations (unspread) of a middle transition.
@@ -270,7 +283,7 @@ pvUnspreadMiddle (Notes notesl, edges@(Edges regular passing), Notes notesr)
       let pairs = foldl' (\m (l, r) -> insertPair l r m) repPairs matching
           -- find pitches that have not been matched
           matchedl = S.fromList $ fmap fst matching
-          matchedr = S.fromList $ fmap fst matching
+          matchedr = S.fromList $ fmap snd matching
           leftoverl = S.toList $ unpairedl `S.difference` matchedl
           leftoverr = S.toList $ unpairedr `S.difference` matchedr
           -- create single parents for the leftover notes
@@ -283,7 +296,7 @@ pvUnspreadMiddle (Notes notesl, edges@(Edges regular passing), Notes notesr)
       pure $ (top, op, op)
  where
   isRepetition (p1, p2) = fmap (pc . pitch . notePitch) p1 == fmap (pc . pitch . notePitch) p2
-  mkParent2 (Note p1 i1) (Note p2 i2) = Note p1 (i1 <> "+" <> i1)
+  mkParent2 (Note p1 i1) (Note p2 i2) = Note p1 (i1 <> "+" <> i2)
   mkParent1 (Note p i) = Note p (i <> "'")
   insertPair l r m = HM.insert (mkParent2 l r) (SpreadBothChildren l r) m
 
@@ -409,7 +422,7 @@ pvUnspreadRight (_, Edges reg pass) _ (SpreadOp mapping _) = maybeToList remappe
     reg' <- flip traverseSet reg $ \(l, r) -> do
       ln <- getInner l
       ln' <- HM.lookup ln rightMapping
-      pure (l, Inner ln')
+      pure (Inner ln', r)
     pass' <- flip MS.traverse pass $ \(ln, rn) -> do
       ln' <- HM.lookup ln rightMapping
       pure (ln', rn)
@@ -559,7 +572,7 @@ pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs right
   mkTop (regs, pass, rs, ls) =
     if edgesAreReducible top
       then pure (top, SplitOp regmap passmap rmap lmap leftRegs rightRegs passL passR)
-      else DT.trace "invalid top!" $ []
+      else []
    where
     -- collect all operations
     mapify xs = M.fromListWith (<>) $ fmap (: []) <$> xs

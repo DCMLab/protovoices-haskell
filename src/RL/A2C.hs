@@ -9,6 +9,16 @@
 module RL.A2C where
 
 import Common
+import GreedyParser
+import Internal.TorchHelpers
+import PVGrammar
+import PVGrammar.Prob.Simple (PVParams)
+import RL.A2CHelpers
+import RL.Encoding
+import RL.Model
+import RL.ModelTypes
+import RL.Plotting
+
 import Control.DeepSeq (NFData, force)
 import Control.Foldl qualified as Foldl
 import Control.Monad (foldM, forM, forM_, when)
@@ -24,18 +34,9 @@ import Data.Text.Lazy qualified as Txt
 import Data.Vector qualified as V
 import Debug.Trace qualified as DT
 import GHC.Generics
-import GreedyParser
 import Inference.Conjugate (Hyper)
-import Internal.TorchHelpers
 import Musicology.Pitch (SPitch)
 import NoThunks.Class (NoThunks (noThunks), ThunkInfo (thunkContext))
-import PVGrammar
-import PVGrammar.Prob.Simple (PVParams)
-import RL.A2CHelpers
-import RL.Common
-import RL.Encoding
-import RL.Model
-import RL.ModelTypes
 import StrictList qualified as SL
 import System.IO (hFlush, stdout)
 import System.Mem (performGC)
@@ -64,8 +65,8 @@ lambdaP :: QType
 lambdaP = 0.3
 
 -- learning rate
-learningRate :: TT.LearningRate QDevice QDType
-learningRate = 0.01
+-- learningRate :: TT.LearningRate QDevice QDType
+-- learningRate = 0.01
 
 nWorkers :: Int
 nWorkers = 2
@@ -119,20 +120,25 @@ initPieceState eval input z0 =
 pieceStep
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
-  -> Int
   -> PVRewardFn label
   -> label
+  -> QType
+  -- ^ learning rate
+  -> QType
+  -- ^ temperature
+  -> Int
+  -- ^ iteration
   -> A2CState
   -> A2CStepState
   -> ET.ExceptT String IO (A2CState, Either A2CStepState QType, QType)
-pieceStep eval gen i fReward len (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward state actions) = do
+pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward state actions) = do
   -- EitherT String IO
   -- preparation: list actions, compute policy
   -- TODO: smarter cap than taking 200 actions
   let
     -- encodings = encodeStep state <$> actions
     -- policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-    policy = withBatchedEncoding state actions (runBatchedPolicy actor)
+    policy = T.pow (1 / temp) $ withBatchedEncoding state actions (runBatchedPolicy actor)
   -- choose action according to policy
   actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
   let action = actions NE.!! actionIndex
@@ -154,38 +160,12 @@ pieceStep eval gen i fReward len (A2CState actor critic opta optc) (A2CStepState
       actionLogProb = TT.log $ TT.UnsafeMkTensor (T.squeezeAll (policy T.! actionIndex))
       gradP = TT.grad (actionLogProb + fakeLoss actor) (TT.flattenParameters actor)
       zP' = updateEligActor gamma lambdaP intensity zP gradP
-      --     gradTotal = TT.hzipWith Add zV' zP'
       intensity' = gamma * intensity
-  --     deltaTotal = TT.hmap' (Mul $ TT.toDouble $ learningRate * delta) gradTotal
-  --     params = TT.hmap' TT.ToDependent $ TT.flattenParameters model
-  -- params' <- lift $ TT.hmapM' TT.MakeIndependent $ TT.hzipWith Add params deltaTotal
-  -- let model' = TT.replaceParameters model params'
-  --     opt' = opt
-  (!actor', !opta') <- lift $ TT.runStep' actor opta (negate learningRate) $ mulModelTensors delta zP'
-  -- (!actor', !opta') <- lift $ do
-  --   advantage <- T.detach $ TT.toDynamic delta
-  --   let lossP :: QTensor '[]
-  --       lossP = negate actionLogProb `TT.mul` (TT.UnsafeMkTensor advantage :: QTensor '[])
-  --   TTC.runStep actor opta lossP
-  (!critic', !optc') <- lift $ TT.runStep' critic optc (negate learningRate) $ mulModelTensors delta zV'
+      learningRate = toQTensor (negate lr)
+  (!actor', !opta') <- lift $ TT.runStep' actor opta learningRate $ mulModelTensors delta zP'
+  (!critic', !optc') <- lift $ TT.runStep' critic optc learningRate $ mulModelTensors delta zV'
   let loss' = T.asValue $ TT.toDynamic delta
       reward' = reward + r
-  -- lift $ when ((i `mod` 100) == 0) $ do
-  --   print state'
-  --   putStr "r = " >> print r
-  --   putStr "vS = " >> print vS
-  --   putStr "vS' = " >> print vS'
-  --   putStr "delta = " >> print delta
-  --   putStr "gradV = " >> printTensors gradV
-  --   putStr "zV' = " >> printTensors zV'
-  --   putStr "log π = " >> print actionLogProb
-  --   putStr "gradP = " >> printTensors gradP
-  --   putStr "zP' = " >> printTensors zP'
-  --   putStr "gradTotal = " >> printTensors gradTotal
-  --   putStr "deltaTotal = " >> printTensors deltaTotal
-  --   putStr "params' = " >> printParams params'
-  --   putStr "I' = " >> print intensity'
-  --   print $ qModelFinal2 model'
   let pieceState' = case (state', actions') of
         (Left s', Just a') -> Left $ A2CStepState zV' zP' intensity' reward' s' a'
         (Left s', Nothing) ->
@@ -194,79 +174,42 @@ pieceStep eval gen i fReward len (A2CState actor critic opta optc) (A2CStepState
         (Right _, _) -> Right reward' -- TT.toDouble (TT.squeezeAll vS) - r
   pure (A2CState actor' critic' opta' optc', pieceState', loss')
 
--- | Run an episode on a single worker.
+-- | Run an episode
 runEpisode
   :: (_)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
+  -> (QType -> QType)
+  -> (QType -> QType)
   -> Path [Note SPitch] [Edge SPitch]
   -> label
   -> A2CState
   -> Int
   -> IO (Either String (A2CState, QType, QType))
-runEpisode !eval !gen !fReward !input !label !modelState !i =
+runEpisode !eval !gen !fReward !fLr !fTemp !input !label !modelState !i =
   case initPieceState eval input z0 of
     Left s0 -> ET.runExceptT $ go modelState s0 SL.Nil
     Right reward -> pure $ pure (modelState, reward, 0)
  where
   z0 :: TT.HList ModelTensors
   z0 = modelZeros $ a2cActor modelState
+  lr = fLr $ fromIntegral i
+  temp = fTemp $ fromIntegral i
   -- len = pathLen input
   go modelState pieceState losses = do
-    (modelState', pieceState', loss) <- pieceStep eval gen i fReward label modelState pieceState
+    (modelState', pieceState', loss) <- pieceStep eval gen fReward label lr temp i modelState pieceState
     let losses' = loss `SL.Cons` losses
     case pieceState' of
       Left ps' -> go modelState' ps' losses'
       Right reward -> pure (modelState', reward, mean losses')
-
--- -- | Run an episode on several workers.
--- runEpisodes
---   :: (_)
---   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [SPitch] (PVLeftmost SPitch)
---   -> Rand.IOGenM Rand.StdGen
---   -> PVRewardFn label
---   -> Path [SPitch] [Edge SPitch]
---   -> label
---   -> A2CState
---   -> Int
---   -> IO (Either String (A2CState, QType, QType))
--- runEpisodes !eval !gen !fReward !input !label !modelState !i =
---   ET.runExceptT $ go modelState states0 SL.Nil []
---  where
---   z0 :: TT.HList ModelTensors
---   z0 = modelZeros $ a2cActor modelState
---   -- len = pathLen input
---   -- initialize workers, each with a copy of the piece
---   states0 = replicate nWorkers $ initPieceState eval input z0
---   -- Worker folding function:
---   -- The accumulator takes the current model state, a list of live piece states,
---   -- list of losses and list of rewards.
---   -- The element is the state of the current piece.
---   -- Performs a single step forward on the piece, updating the model state and collecting loss.
---   -- If the new piece state after the step is a terminal state,
---   -- the reward is added to the reward list and the piece is dropped.
---   -- If the new state is not terminal, it is added to the list of live piece states.
---   iterWorker (ms, pss, ls, rs) ps = do
---     (ms', ps'_, loss) <- pieceStep eval gen i fReward label ms ps
---     let ls' = loss `SL.Cons` ls
---     pure $ case ps'_ of
---       Left ps' -> (ms', ps' : pss, ls', rs)
---       Right result -> (ms', pss, ls', result : rs)
---   -- run the episode step by step
---   go modelState pieceStates losses rewards = do
---     (modelState', pieceStates', losses', rewards') <-
---       foldM iterWorker (modelState, [], losses, rewards) pieceStates
---     case pieceStates of
---       [] -> pure (modelState', mean rewards', mean losses')
---       _ -> go modelState' pieceStates' losses' rewards'
 
 runAccuracy
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Spread SPitch) (PVLeftmost SPitch)
   -> PVRewardFn label
   -> QModel
   -> (Path slc' [Edge SPitch], label)
-  -> IO (Either String (QType, Analysis (Split SPitch) Freeze (Spread SPitch) (Edges SPitch) slc))
+  -> IO (Either String (QType, PVAnalysis SPitch))
 runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions eval s0 of
   [] -> pure $ Left "cannot parse: no possible actions for first step!"
   (a : as) -> ET.runExceptT $ go 0 0 s0 (a NE.:| as)
@@ -294,6 +237,8 @@ runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions 
       (Left s', Just a') -> go cost' reward' s' a'
       (Right (top, deriv), _) -> do
         lift $ putStrLn $ "accuracy cost: " <> show cost'
+        when (T.asValue cost == (0 :: Double)) $ do
+          lift $ putStrLn $ show bestprob
         let ana = Analysis deriv (PathEnd top)
         pure (reward', ana)
 
@@ -311,13 +256,17 @@ trainA2C
   :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
+  -> (QType -> QType)
+  -- ^ learning rate schedule
+  -> (QType -> QType)
+  -- ^ temperature schedule
   -> Maybe [QType]
   -> QModel
   -> QModel
   -> [(Path [Note SPitch] [Edge SPitch], label)]
   -> Int
   -> IO ([[QType]], [QType], QModel, QModel)
-trainA2C eval gen fReward targets actor0 critic0 pieces n = do
+trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
   -- print $ qModelFinal2 model0
   -- opta <- TT.initOptimizer (TT.AdamOptions 0.0001 (0.9, 0.999) 1e-8 0 False) actor0
   let
@@ -335,7 +284,7 @@ trainA2C eval gen fReward targets actor0 critic0 pieces n = do
  where
   -- \| train a single episode on a single piece
   trainPiece pb i (!state, !rewards, !losses) ((!piece, label), !j) = do
-    !result <- runEpisode eval gen fReward piece label state i
+    !result <- runEpisode eval gen fReward fLr fTemp piece label state i
     PB.incProgress pb 1
     case result of
       Left error -> do

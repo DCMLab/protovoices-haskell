@@ -79,11 +79,7 @@ import Musicology.Pitch
 
 import Control.DeepSeq (NFData)
 import Control.Monad.Identity (runIdentity)
-import Data.Aeson
-  ( FromJSON
-  , ToJSON
-  , (.:)
-  )
+import Data.Aeson (FromJSON (..), ToJSON (..), (.:), (.=))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.Foldable (toList)
@@ -113,6 +109,18 @@ data Note n = Note {notePitch :: n, noteId :: String}
 instance (Notation n) => Show (Note n) where
   show (Note p i) = showNotation p <> "." <> i
 
+instance (Notation n) => FromJSON (Note n) where
+  parseJSON = Aeson.withObject "Note" $ \v -> do
+    pitch <- v .: "pitch"
+    i <- v .: "id"
+    case readNotation pitch of
+      Just p -> pure $ Note p i
+      Nothing -> fail $ "Could not parse pitch " <> pitch
+
+instance (Notation n) => ToJSON (Note n) where
+  toJSON (Note p i) = Aeson.object ["pitch" .= showNotation p, "id" .= i]
+  toEncoding (Note p i) = Aeson.pairs ("pitch" .= showNotation p <> "id" .= i)
+
 -- ** Slice Type: Sets of Notes
 
 -- Slices contain a set of notes.
@@ -122,7 +130,7 @@ instance (Notation n) => Show (Note n) where
 -}
 newtype Notes n = Notes (S.HashSet (Note n))
   deriving (Eq, Ord, Generic)
-  deriving anyclass (NFData, Hashable)
+  deriving anyclass (NFData, Hashable, ToJSON)
 
 instance (Notation n) => Show (Notes n) where
   show (Notes ns) =
@@ -130,7 +138,7 @@ instance (Notation n) => Show (Notes n) where
 
 instance (Notation n, Eq n, Hashable n) => FromJSON (Notes n) where
   parseJSON = Aeson.withArray "List of Notes" $ \notes -> do
-    pitches <- mapM parseJSONNote notes
+    pitches <- mapM parseJSON notes
     pure $ Notes $ S.fromList $ toList pitches
 
 {- | Return the notes or start/stop symbols inside a slice.
@@ -186,6 +194,17 @@ instance (Eq n, Hashable n, Notation n) => FromJSON (Edges n) where
       Edges
         (S.fromList (regular :: [Edge n]))
         (MS.fromList (passing :: [InnerEdge n]))
+
+instance (Notation n) => ToJSON (Edges n) where
+  toJSON (Edges reg pass) =
+    Aeson.object
+      [ "regular" .= fmap edgeToJSON (S.toList reg)
+      , "passing" .= fmap edgeToJSON (MS.toList pass)
+      ]
+  toEncoding (Edges reg pass) =
+    Aeson.pairs $
+      "regular" .= fmap edgeToJSON (S.toList reg)
+        <> "passing" .= fmap edgeToJSON (MS.toList pass)
 
 -- | The starting transition of a derivation (@⋊——⋉@).
 topEdges :: (Hashable n) => Edges n
@@ -346,8 +365,8 @@ instance (Notation n, Ord n, Hashable n) => FromJSON (Split n) where
   parseJSON = Aeson.withObject "Split" $ \v -> do
     regular <- v .: "regular" >>= mapM (parseElaboration parseEdge)
     passing <- v .: "passing" >>= mapM (parseElaboration parseInnerEdge)
-    fromL <- v .: "fromLeft" >>= mapM (parseElaboration parseJSONNote)
-    fromR <- v .: "fromRight" >>= mapM (parseElaboration parseJSONNote)
+    fromL <- v .: "fromLeft" >>= mapM (parseElaboration parseJSON)
+    fromR <- v .: "fromRight" >>= mapM (parseElaboration parseJSON)
     keepL <- v .: "keepLeft" >>= mapM parseEdge
     keepR <- v .: "keepRight" >>= mapM parseEdge
     passL <- v .: "passLeft" >>= mapM parseInnerEdge
@@ -375,23 +394,50 @@ instance (Notation n, Ord n, Hashable n) => FromJSON (Split n) where
     parseChild
       :: (Notation n, FromJSON o) => Aeson.Value -> Aeson.Parser (Note n, o)
     parseChild = Aeson.withObject "Child" $ \cld -> do
-      child <- cld .: "child" >>= parseJSONNote
+      child <- cld .: "child" >>= parseJSON
       orn <- cld .: "orn"
       pure (child, orn)
+
+instance (Notation n) => ToJSON (Split n) where
+  toJSON (SplitOp reg pass fromL fromR keepL keepR passL passR) =
+    Aeson.object
+      [ "regular" .= fmap (elaboToJSON edgeToJSON) (M.toList reg)
+      , "passing" .= fmap (elaboToJSON edgeToJSON) (M.toList pass)
+      , "fromLeft" .= fmap (elaboToJSON toJSON) (M.toList fromL)
+      , "fromRight" .= fmap (elaboToJSON toJSON) (M.toList fromR)
+      , "keepLeft" .= fmap edgeToJSON (S.toList keepL)
+      , "keepRight" .= fmap edgeToJSON (S.toList keepR)
+      , "passLeft" .= fmap edgeToJSON (MS.toList passL)
+      , "passRight" .= fmap edgeToJSON (MS.toList passR)
+      ]
+   where
+    elaboToJSON :: (ToJSON o) => (p -> Aeson.Value) -> (p, [(Note n, o)]) -> Aeson.Value
+    elaboToJSON fParent (parent, children) =
+      Aeson.object
+        [ "parent" .= fParent parent
+        , "children" .= fmap childToJSON children
+        ]
+    childToJSON (n, o) = Aeson.object ["child" .= n, "orn" .= o]
 
 {- | Represents a freeze operation.
  Since this just ties all remaining edges
  (which must all be repetitions)
  no decisions have to be encoded.
 -}
-data Freeze = FreezeOp
-  deriving (Eq, Ord, Generic, NFData)
+newtype Freeze n = FreezeOp {freezeTies :: S.HashSet (Edge n)}
+  deriving (Eq, Ord, Generic)
+  deriving anyclass (NFData)
 
-instance Show Freeze where
-  show _ = "()"
+instance (Notation n) => Show (Freeze n) where
+  show (FreezeOp ties) = show ties
 
-instance FromJSON Freeze where
-  parseJSON _ = pure FreezeOp
+instance (Notation n, Hashable n) => FromJSON (Freeze n) where
+  parseJSON = Aeson.withObject "Freeze" $ \obj -> do
+    ties <- obj .: "ties" >>= mapM parseEdge
+    pure $ FreezeOp (S.fromList ties)
+
+instance (Notation n) => ToJSON (Freeze n) where
+  toJSON (FreezeOp ties) = Aeson.object ["ties" .= fmap edgeToJSON (S.toList ties)] -- TODO: add empty prevTime?
 
 -- {- | Encodes the distribution of a pitch in a spread.
 
@@ -441,6 +487,29 @@ instance (Notation n) => Show (SpreadChildren n) where
   show (SpreadRightChild n) = "└" <> show n
   show (SpreadBothChildren nl nr) = show nl <> "┴" <> show nr
 
+instance (Notation n) => FromJSON (SpreadChildren n) where
+  parseJSON = Aeson.withObject "SpreadChild" $ \cld -> do
+    typ <- cld .: "type"
+    case typ of
+      "leftChild" -> fmap SpreadLeftChild $ cld .: "value" >>= parseJSON -- pure $ ToLeft 1
+      "rightChild" -> fmap SpreadRightChild $ cld .: "value" >>= parseJSON -- pure $ ToRight 1
+      "bothChildren" -> cld .: "value" >>= parseBoth -- pure ToBoth
+      _ -> Aeson.unexpected typ
+   where
+    parseBoth = Aeson.withObject "SpreadBothChildren" $ \bth -> do
+      left <- bth .: "left" >>= parseJSON
+      right <- bth .: "right" >>= parseJSON
+      pure $ SpreadBothChildren left right
+
+instance (Notation n) => ToJSON (SpreadChildren n) where
+  toJSON (SpreadLeftChild n) = Aeson.object ["type" .= ("leftChild" :: String), "value" .= n]
+  toJSON (SpreadRightChild n) = Aeson.object ["type" .= ("rightChild" :: String), "value" .= n]
+  toJSON (SpreadBothChildren nl nr) =
+    Aeson.object
+      [ "type" .= ("bothChildren" :: String)
+      , "value" .= Aeson.object ["left" .= nl, "right" .= nr]
+      ]
+
 -- | Returns the left child of a spread note, if it exists
 leftSpreadChild :: SpreadChildren n -> Maybe (Note n)
 leftSpreadChild = \case
@@ -475,42 +544,35 @@ instance (Notation n, Eq n, Hashable n) => FromJSON (Spread n) where
     pure $ SpreadOp (HM.fromListWith const dists) edges
    where
     parseDist = Aeson.withObject "SpreadDist" $ \dst -> do
-      parent <- dst .: "parent" >>= parseJSONNote
-      child <- dst .: "child" >>= parseChild
+      parent <- dst .: "parent" >>= parseJSON
+      child <- dst .: "child" >>= parseJSON
       pure (parent, child)
-    parseChild = Aeson.withObject "SpreadChild" $ \cld -> do
-      typ <- cld .: "type"
-      case typ of
-        "leftChild" -> fmap SpreadLeftChild $ cld .: "value" >>= parseJSONNote -- pure $ ToLeft 1
-        "rightChild" -> fmap SpreadRightChild $ cld .: "value" >>= parseJSONNote -- pure $ ToRight 1
-        "bothChildren" -> cld .: "value" >>= parseBoth -- pure ToBoth
-        _ -> Aeson.unexpected typ
-    parseBoth = Aeson.withObject "SpreadBothChildren" $ \bth -> do
-      left <- bth .: "left" >>= parseJSONNote
-      right <- bth .: "right" >>= parseJSONNote
-      pure $ SpreadBothChildren left right
+
+instance (Notation n) => ToJSON (Spread n) where
+  toJSON (SpreadOp dists edges) =
+    Aeson.object
+      [ "children" .= fmap distToJSON (HM.toList dists)
+      , "midEdges" .= edges
+      ]
+   where
+    distToJSON (parent, child) = Aeson.object ["parent" .= parent, "child" .= child]
 
 -- | 'Leftmost' specialized to the split, freeze, and spread operations of the grammar.
-type PVLeftmost n = Leftmost (Split n) Freeze (Spread n)
+type PVLeftmost n = Leftmost (Split n) (Freeze n) (Spread n)
 
 -- helpers
 -- =======
 
--- | Helper: parses a note's pitch from JSON.
-parseJSONNote :: (Notation n) => Aeson.Value -> Aeson.Parser (Note n)
-parseJSONNote = Aeson.withObject "Note" $ \v -> do
-  pitch <- v .: "pitch"
-  i <- v .: "id"
-  case readNotation pitch of
-    Just p -> pure $ Note p i
-    Nothing -> fail $ "Could not parse pitch " <> pitch
+-- -- | Helper: parses a note's pitch from JSON.
+-- parseJSONNote :: (Notation n) => Aeson.Value -> Aeson.Parser (Note n)
+-- parseJSONNote = _
 
 -- | Helper: parses an edge from JSON.
 parseEdge
   :: (Notation n) => Aeson.Value -> Aeson.Parser (StartStop (Note n), StartStop (Note n))
 parseEdge = Aeson.withObject "Edge" $ \v -> do
-  l <- v .: "left" >>= mapM parseJSONNote -- TODO: this might be broken wrt. StartStop
-  r <- v .: "right" >>= mapM parseJSONNote
+  l <- v .: "left" >>= mapM parseJSON -- TODO: this might be broken wrt. StartStop
+  r <- v .: "right" >>= mapM parseJSON
   pure (l, r)
 
 -- | Helper: parses an inner edge from JSON
@@ -520,13 +582,19 @@ parseInnerEdge = Aeson.withObject "InnerEdge" $ \v -> do
   r <- v .: "right"
   case (l, r) of
     (Inner il, Inner ir) -> do
-      pl <- parseJSONNote il
-      pr <- parseJSONNote ir
+      pl <- parseJSON il
+      pr <- parseJSON ir
       pure (pl, pr)
     _ -> fail "Edge is not an inner edge"
 
+edgeToJSON :: (ToJSON a) => (a, a) -> Aeson.Value
+edgeToJSON (l, r) = Aeson.object ["left" .= l, "right" .= r]
+
+-- edgeToEncoding :: (ToJSON a) => (a, a) -> Aeson.Encoding
+-- edgeToEncoding (l, r) = Aeson.pairs $ ("left" .= l) <> ("right" .= r)
+
 -- | An 'Analysis' specialized to PV types.
-type PVAnalysis n = Analysis (Split n) Freeze (Spread n) (Edges n) (Notes n)
+type PVAnalysis n = Analysis (Split n) (Freeze n) (Spread n) (Edges n) (Notes n)
 
 {- | Loads an analysis from a JSON file
  (as exported by the annotation tool).
@@ -561,10 +629,11 @@ slicesFromFile file = do
 
 -- | Converts salami slices (as returned by 'slicesFromFile') to a path as expected by parsers.
 slicesToPath
-  :: (Interval i, Ord i, Eq i)
+  :: forall i
+   . (Interval i, Ord i, Eq i)
   => [[(Note (Pitch i), Music.RightTied)]]
   -> Path [Note (Pitch i)] [Edge (Pitch i)]
-slicesToPath = go
+slicesToPath = go 0
  where
   -- normalizeTies (s : next : rest) = (fixTie <$> s)
   --   : normalizeTies (next : rest)
@@ -573,14 +642,13 @@ slicesToPath = go
   --   fixTie (p, t) = if p `L.elem` nextNotes then (p, t) else (p, Ends)
   -- normalizeTies [s] = [map (fmap $ const Ends) s]
   -- normalizeTies []  = []
-  mkSlice = fmap fst
-  mkEdges = mapMaybe mkEdge
-   where
-    mkEdge (_, Music.Ends) = Nothing
-    mkEdge (p, Music.Holds) = Just (Inner p, Inner p)
-  go [] = error "cannot construct path from empty list"
-  go [notes] = PathEnd (mkSlice notes)
-  go (notes : rest) = Path (mkSlice notes) (mkEdges notes) $ go rest
+  mkNote i (Note p id) = Note p ("slice" <> show i <> "-" <> id)
+  mkEdge i (_, Music.Ends) = Nothing
+  mkEdge i (p, Music.Holds) = Just (Inner $ mkNote i p, Inner $ mkNote (i + 1) p)
+  go :: Int -> [[(Note (Pitch i), Music.RightTied)]] -> Path [Note (Pitch i)] [Edge (Pitch i)]
+  go _ [] = error "cannot construct path from empty list"
+  go i [notes] = PathEnd (mkNote i . fst <$> notes)
+  go i (notes : rest) = Path (mkNote i . fst <$> notes) (mapMaybe (mkEdge i) notes) $ go (i + 1) rest
 
 {- | Loads a MusicXML File and returns a surface path
  as input to parsers.
@@ -650,14 +718,14 @@ edgesTraversePitch f (Edges reg pass) = do
 leftmostTraversePitch
   :: (Applicative f, Eq n', Hashable n', Ord n')
   => (n -> f n')
-  -> Leftmost (Split n) Freeze (Spread n)
-  -> f (Leftmost (Split n') Freeze (Spread n'))
+  -> Leftmost (Split n) (Freeze n) (Spread n)
+  -> f (Leftmost (Split n') (Freeze n') (Spread n'))
 leftmostTraversePitch f lm = case lm of
   LMSplitLeft s -> LMSplitLeft <$> splitTraversePitch f s
   LMSplitRight s -> LMSplitRight <$> splitTraversePitch f s
   LMSplitOnly s -> LMSplitOnly <$> splitTraversePitch f s
-  LMFreezeLeft fr -> pure $ LMFreezeLeft fr
-  LMFreezeOnly fr -> pure $ LMFreezeOnly fr
+  LMFreezeLeft fr -> LMFreezeLeft <$> freezeTraversePitch f fr
+  LMFreezeOnly fr -> LMFreezeOnly <$> freezeTraversePitch f fr
   LMSpread h -> LMSpread <$> spreadTraversePitch f h
 
 splitTraversePitch
@@ -703,3 +771,6 @@ spreadTraversePitch f (SpreadOp dist edges) = do
     k' <- traverse f k
     v' <- traverse f v
     pure (k', v')
+
+freezeTraversePitch :: (Applicative f, Hashable n') => (n -> f n') -> Freeze n -> f (Freeze n')
+freezeTraversePitch f (FreezeOp ties) = FreezeOp <$> traverseSet (traverseEdge $ traverse $ traverse f) ties

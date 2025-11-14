@@ -466,7 +466,7 @@ observeDerivation deriv top =
           go sl (Path ctl csl $ Path ctm csr $ mkRest ctr) False rest
 
 sampleSingleStep
-  :: (_) => ContextSingle SPitch -> m (LeftmostSingle (Split SPitch) Freeze)
+  :: (_) => ContextSingle SPitch -> m (LeftmostSingle (Split SPitch) (Freeze SPitch))
 sampleSingleStep parents@(_, trans, _) =
   if freezable trans
     then do
@@ -478,7 +478,7 @@ sampleSingleStep parents@(_, trans, _) =
     else LMSingleSplit <$> sampleSplit parents
 
 observeSingleStep
-  :: ContextSingle SPitch -> LeftmostSingle (Split SPitch) Freeze -> PVObs ()
+  :: ContextSingle SPitch -> LeftmostSingle (Split SPitch) (Freeze SPitch) -> PVObs ()
 observeSingleStep parents@(_, trans, _) singleOp =
   if freezable trans
     then case singleOp of
@@ -504,7 +504,7 @@ sampleDoubleStep
   :: (_)
   => ContextDouble SPitch
   -> Bool
-  -> m (LeftmostDouble (Split SPitch) Freeze (Spread SPitch))
+  -> m (LeftmostDouble (Split SPitch) (Freeze SPitch) (Spread SPitch))
 sampleDoubleStep parents@(sliceL, transL, sliceM, transR, sliceR) afterRightSplit =
   if afterRightSplit
     then do
@@ -537,7 +537,7 @@ sampleDoubleStep parents@(sliceL, transL, sliceM, transR, sliceR) afterRightSpli
 observeDoubleStep
   :: ContextDouble SPitch
   -> Bool
-  -> LeftmostDouble (Split SPitch) Freeze (Spread SPitch)
+  -> LeftmostDouble (Split SPitch) (Freeze SPitch) (Spread SPitch)
   -> PVObs ()
 observeDoubleStep parents@(sliceL, transL, sliceM, transR, sliceR) afterRightSplit doubleOp =
   case doubleOp of
@@ -577,11 +577,11 @@ observeDoubleStep parents@(sliceL, transL, sliceM, transR, sliceR) afterRightSpl
         False
       observeSpread parents h
 
-sampleFreeze :: (RandomInterpreter m PVParams) => ContextSingle n -> m Freeze
-sampleFreeze _parents = pure FreezeOp
+sampleFreeze :: (RandomInterpreter m PVParams) => ContextSingle SPitch -> m (Freeze SPitch)
+sampleFreeze (_, Edges reg pass, _) = pure (FreezeOp reg)
 
-observeFreeze :: ContextSingle SPitch -> Freeze -> PVObs ()
-observeFreeze _parents FreezeOp = pure ()
+observeFreeze :: ContextSingle SPitch -> (Freeze SPitch) -> PVObs ()
+observeFreeze _parents (FreezeOp _) = pure ()
 
 -- helper for sampleSplit and observeSplit
 collectElabos
@@ -1297,7 +1297,7 @@ observeSingleStepParsing
   -- i.e., 'Just True' for split-left and freeze-left,
   -- and 'Just False' for spread and split-right.
   -- If the following step is a single op, this is 'Nothing' (as no decision is made).
-  -> LeftmostSingle (Split SPitch) Freeze
+  -> LeftmostSingle (Split SPitch) (Freeze SPitch)
   -- ^ the performed operation
   -> Either String (Trace PVParams)
 observeSingleStepParsing parent decision op = flip execStateT (Trace mempty) $ do
@@ -1311,7 +1311,7 @@ observeSingleStepParsing parent decision op = flip execStateT (Trace mempty) $ d
 evalSingleStep
   :: Probs PVParams
   -> ContextSingle SPitch
-  -> LeftmostSingle (Split SPitch) Freeze
+  -> LeftmostSingle (Split SPitch) (Freeze SPitch)
   -> Maybe Bool
   -> Either String (Maybe ((), Double))
 evalSingleStep probs parents op decision = do
@@ -1328,7 +1328,7 @@ therefore takes the "resulting" op and returns '()'.
 sampleDoubleStepParsing
   :: (_)
   => ContextDouble SPitch
-  -> LeftmostDouble (Split SPitch) Freeze (Spread SPitch)
+  -> LeftmostDouble (Split SPitch) (Freeze SPitch) (Spread SPitch)
   -> m ()
 sampleDoubleStepParsing parents@(sliceL, transL, sliceM, transR, sliceR) op = do
   if continueLeft
@@ -1381,7 +1381,7 @@ observeDoubleStepParsing
   -- i.e., 'Just True' for split-left
   -- and freeze-left and 'Just False' for spread and split-right.
   -- If the following step is a single op, this is 'Nothing', as not decision is made.
-  -> LeftmostDouble (Split SPitch) Freeze (Spread SPitch)
+  -> LeftmostDouble (Split SPitch) (Freeze SPitch) (Spread SPitch)
   -- ^ the performed operation
   -> Either String (Trace PVParams)
 observeDoubleStepParsing parents@(sliceL, transL, sliceM, transR, sliceR) decision op =
@@ -1413,7 +1413,7 @@ observeDoubleStepParsing parents@(sliceL, transL, sliceM, transR, sliceR) decisi
 evalDoubleStep
   :: Probs PVParams
   -> ContextDouble SPitch
-  -> LeftmostDouble (Split SPitch) Freeze (Spread SPitch)
+  -> LeftmostDouble (Split SPitch) (Freeze SPitch) (Spread SPitch)
   -> Maybe Bool
   -> Either String (Maybe ((), Double))
 evalDoubleStep probs parents op decision = do

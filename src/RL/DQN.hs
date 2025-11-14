@@ -10,6 +10,19 @@
 module RL.DQN where
 
 import Common
+import Display (replayDerivation, viewGraph)
+import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState, getActions, initParseState, parseGreedy, parseStep, pickRandom)
+import Internal.TorchHelpers qualified as TH
+import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
+import PVGrammar.Generate (derivationPlayerPV)
+import PVGrammar.Parse (protoVoiceEvaluator)
+import PVGrammar.Prob.Simple (PVParams, evalDoubleStep, evalSingleStep, observeDerivation, observeDerivation', observeDoubleStepParsing, observeSingleStepParsing, sampleDerivation', sampleDoubleStepParsing, sampleSingleStepParsing)
+import RL.Callbacks
+import RL.Encoding
+import RL.Model
+import RL.ModelTypes
+import RL.Plotting
+import RL.ReplayBuffer
 
 -- import Control.DeepSeq (force)
 import Control.Exception (Exception, catch, onException)
@@ -22,21 +35,9 @@ import Data.Foldable qualified as F
 import Data.List.Extra qualified as E
 import Data.Vector qualified as V
 import Debug.Trace qualified as DT
-import Display (replayDerivation, viewGraph)
 import GHC.Float (double2Float)
-import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState, getActions, initParseState, parseGreedy, parseStep, pickRandom)
 import Inference.Conjugate (Hyper, HyperRep, Prior (expectedProbs), evalTraceLogP, printTrace, sampleProbs)
-import Internal.TorchHelpers qualified as TH
 import Musicology.Pitch
-import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
-import PVGrammar.Generate (derivationPlayerPV)
-import PVGrammar.Parse (protoVoiceEvaluator)
-import PVGrammar.Prob.Simple (PVParams, evalDoubleStep, evalSingleStep, observeDerivation, observeDerivation', observeDoubleStepParsing, observeSingleStepParsing, sampleDerivation', sampleDoubleStepParsing, sampleSingleStepParsing)
-import RL.Common
-import RL.Encoding
-import RL.Model
-import RL.ModelTypes
-import RL.ReplayBuffer
 import System.Random.MWC.Distributions (categorical)
 import System.Random.MWC.Probability qualified as MWC
 import System.Random.Stateful as Rand (StatefulGen, UniformRange (uniformRM), split)
@@ -49,7 +50,7 @@ import Torch.Typed qualified as TT
 -- -----
 
 {-
-Variant of Q-learning:
+Idee: Variant of Q-learning:
 - instead of Q value (expected total reward) under optimal policy
   learn "P value": expected probability under random policy
 - does this lead to a policy where p(as) ∝ reward?
@@ -97,7 +98,7 @@ epsEnd = 0.2
 -- epsDecay = 2
 
 eps :: Int -> Int -> QType
-eps i n = epsStart * exp (log (epsEnd / epsStart) * fromIntegral i / fromIntegral n)
+eps i n = expSchedule epsStart epsEnd (fromIntegral n) (fromIntegral i)
 
 -- device = T.Device T.CPU 0
 
@@ -346,7 +347,7 @@ trainDQN
      , Show f
      , Show h
      , s ~ Split SPitch -- TODO: keep fully open or specialize
-     , f ~ Freeze
+     , f ~ Freeze SPitch
      , h ~ Spread SPitch
      , Show slc
      , Show tr

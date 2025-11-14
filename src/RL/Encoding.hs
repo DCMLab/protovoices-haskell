@@ -1,5 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MagicHash #-}
@@ -23,28 +25,85 @@ import Data.Maybe (catMaybes, mapMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Type.Equality ((:~:) (..))
 import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), intVal, intVal', type (*), type (+), type (-), type (>=))
+import Data.Vector qualified as V
+import Data.Vector.Generic.Sized.Internal qualified as VSU
 import Data.Vector.Sized qualified as VS
 import Debug.Trace qualified as DT
 import GHC.Exts (Proxy#, proxy#)
+import GHC.Generics
 import GreedyParser
 import Internal.MultiSet qualified as MS
 import Musicology.Pitch
 import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), InnerEdge, Note (..), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
 import PVGrammar.Generate (derivationPlayerPV)
 import PVGrammar.Parse (protoVoiceEvaluator, pvThaw)
-import RL.Common
 import RL.ModelTypes
 import Torch qualified as T
+import Torch.Lens qualified as T
 import Torch.Typed qualified as TT
 
 -- Utilities
 -- =========
 
--- Stackable class
+deriving instance Generic (TT.Tensor dev dtype shape)
+
+-- Tensorized: get all tensors out of a data structure
+-- ---------------------------------------------------
+
+class GTensorized f where
+  gFlattenTensors :: forall a. f a -> [T.Tensor]
+
+instance GTensorized U1 where
+  gFlattenTensors U1 = []
+
+instance (GTensorized f, GTensorized g) => GTensorized (f :+: g) where
+  gFlattenTensors (L1 x) = gFlattenTensors x
+  gFlattenTensors (R1 x) = gFlattenTensors x
+
+instance (GTensorized f, GTensorized g) => GTensorized (f :*: g) where
+  gFlattenTensors (x :*: y) = gFlattenTensors x ++ gFlattenTensors y
+
+instance (Tensorized c) => GTensorized (K1 i c) where
+  gFlattenTensors (K1 x) = flattenTensors x
+
+instance (GTensorized f) => GTensorized (M1 i t f) where
+  gFlattenTensors (M1 x) = gFlattenTensors x
+
+class Tensorized a where
+  flattenTensors :: a -> [T.Tensor]
+  default flattenTensors :: (Generic a, GTensorized (Rep a)) => a -> [T.Tensor]
+  flattenTensors f = gFlattenTensors (from f)
+
+instance Tensorized (TT.Tensor dev dtype shape) where
+  flattenTensors t = [TT.toDynamic t]
+
+instance Tensorized (TT.Parameter dev dtype shape) where
+  flattenTensors t = [TT.toDynamic $ TT.toDependent t]
+
+instance (Tensorized a) => Tensorized (StartStop a)
+
+instance (Tensorized a, Tensorized b) => Tensorized (a, b)
+
+instance (Tensorized a) => Tensorized [a]
+
+instance Tensorized Double where
+  flattenTensors _ = []
+
+instance Tensorized (TT.Conv2d a b c d dtype dev)
+
+instance Tensorized (TT.Linear i o dtype device)
+
+instance Tensorized (TT.LayerNorm shape dtype device)
+
+-- Stackable and Batchable class
+-- -----------------------------
 
 class Stackable a where
   type Stacked a (n :: Nat)
   stack :: (KnownNat n, KnownNat (1 + n)) => VS.Vector (1 + n) a -> Stacked a (1 + n)
+
+stackUnsafe :: (Stackable a) => [a] -> Stacked a FakeSize
+stackUnsafe things = stack $ VSU.Vector $ V.fromList things
 
 class Batchable a where
   type Batched a
@@ -61,7 +120,7 @@ data QMaybe (batchShape :: [Nat]) a = QMaybe
   { qmMask :: QTensor batchShape
   , qmContent :: a
   }
-  deriving (Show)
+  deriving (Show, Generic, Tensorized)
 
 qNothing
   :: ( TT.TensorOptions batchShape QDType QDevice
@@ -87,6 +146,8 @@ instance (Batchable a) => Batchable (QMaybe shape a) where
   type Batched (QMaybe shape a) = QMaybe (1 : shape) (Batched a)
   addBatchDim (QMaybe mask content) = QMaybe (TT.unsqueeze @0 mask) (addBatchDim content)
 
+-- instance (T.HasTypes a T.Tensor) => T.HasTypes (QMaybe shape a) T.Tensor
+
 -- Masked List
 -- -----------
 
@@ -95,7 +156,7 @@ data QBoundedList (dtype :: TT.DType) (maxLen :: Nat) (batchShape :: [Nat]) (inn
   { qlMask :: QTensor (batchShape TT.++ '[maxLen])
   , qlContent :: TT.Tensor QDevice dtype (batchShape TT.++ '[maxLen] TT.++ innerShape)
   }
-  deriving (Show)
+  deriving (Show, Generic, Tensorized)
 
 qBoundedList
   :: forall dtype maxLen innerShape
@@ -136,6 +197,8 @@ instance Batchable (QBoundedList dtype maxLen batchShape innerShape) where
   addBatchDim (QBoundedList mask content) =
     QBoundedList (TT.unsqueeze @0 mask) (TT.unsqueeze @0 content)
 
+-- instance T.HasTypes (QBoundedList dtype maxLen batchShape innerShape) T.Tensor
+
 -- Tagged StartStop
 -- ----------------
 
@@ -143,7 +206,7 @@ data QStartStop (batchShape :: [Nat]) a = QStartStop
   { qssTag :: TT.Tensor QDevice TT.Int64 batchShape
   , qssContent :: a
   }
-  deriving (Show)
+  deriving (Show, Generic, Tensorized)
 
 qInner :: (TT.TensorOptions batchShape TT.Int64 QDevice) => a -> QStartStop batchShape a
 qInner = QStartStop (TT.full (1 :: Int))
@@ -177,6 +240,8 @@ instance (Batchable a) => Batchable (QStartStop shape a) where
   addBatchDim (QStartStop tag content) =
     QStartStop (TT.unsqueeze @0 tag) (addBatchDim content)
 
+-- instance (T.HasTypes a T.Tensor) => T.HasTypes (QStartStop shape a) T.Tensor
+
 -- Slice Encoding
 -- ==============
 
@@ -185,7 +250,8 @@ instance (Batchable a) => Batchable (QStartStop shape a) where
 
 newtype SliceEncodingSparse batchShape = SliceEncodingSparse
   {getSliceEncodingSparse :: QBoundedList TT.Int64 MaxPitches batchShape '[2]}
-  deriving (Show)
+  deriving (Show, Generic)
+  deriving newtype (Tensorized)
 
 instance Stackable (SliceEncodingSparse batchShape) where
   type Stacked (SliceEncodingSparse batchShape) n = SliceEncodingSparse (n ': batchShape)
@@ -195,9 +261,12 @@ instance Batchable (SliceEncodingSparse shape) where
   type Batched (SliceEncodingSparse shape) = SliceEncodingSparse (1 ': shape)
   addBatchDim (SliceEncodingSparse slice) = SliceEncodingSparse $ addBatchDim slice
 
+-- instance T.HasTypes (SliceEncodingSparse shape) T.Tensor
+
 newtype SliceEncodingDense batchShape = SliceEncodingDense
   {getSliceEncodingDense :: QBoundedList QDType MaxPitches batchShape (1 : PShape)}
-  deriving (Show)
+  deriving (Show, Generic)
+  deriving newtype (Tensorized)
 
 instance Stackable (SliceEncodingDense batchShape) where
   type Stacked (SliceEncodingDense batchShape) n = SliceEncodingDense (n ': batchShape)
@@ -207,6 +276,8 @@ instance Batchable (SliceEncodingDense shape) where
   type Batched (SliceEncodingDense shape) = SliceEncodingDense (1 ': shape)
   addBatchDim (SliceEncodingDense slice) = SliceEncodingDense $ addBatchDim slice
 
+-- instance T.HasTypes (SliceEncodingDense shape) T.Tensor
+
 -- choose slice encoding type:
 -- ---------------------------
 
@@ -214,9 +285,7 @@ type SliceEncoding = SliceEncodingDense
 
 getSlice
   :: forall batchShape
-   . ( TT.KnownShape batchShape
-     )
-  => SliceEncoding batchShape
+   . SliceEncoding batchShape
   -> QBoundedList QDType MaxPitches batchShape (1 : PShape)
 getSlice = getSliceEncodingDense -- . sliceIndex2OneHot
 
@@ -338,7 +407,7 @@ data TransitionEncoding batchShape = TransitionEncoding
   , trencRight :: SliceEncoding batchShape
   , trencRoot :: QTensor batchShape
   }
-  deriving (Show)
+  deriving (Show, Generic, Tensorized)
 
 instance Stackable (TransitionEncoding batchShape) where
   type
@@ -455,7 +524,7 @@ data ActionTop batchShape = ActionTop
   , atopT2 :: !(QMaybe batchShape (TransitionEncoding batchShape))
   , atopSr :: !(QStartStop batchShape (SliceEncoding batchShape))
   }
-  deriving (Show)
+  deriving (Show, Generic, Tensorized)
 
 instance Stackable (ActionTop batchShape) where
   type Stacked (ActionTop batchShape) n = ActionTop (n ': batchShape)
@@ -481,7 +550,7 @@ data ActionEncoding batchShape = ActionEncoding
   { actionEncodingTop :: !(ActionTop batchShape) -- (Either (SingleTop batchShape) (DoubleTop batchShape))
   , actionEncodingOp :: !(TT.Tensor QDevice 'TT.Int64 batchShape) -- !(Leftmost () () ())
   }
-  deriving (Show)
+  deriving (Show, Generic, Tensorized)
 
 instance Stackable (ActionEncoding batchShape) where
   type Stacked (ActionEncoding batchShape) n = ActionEncoding (n ': batchShape)
@@ -494,6 +563,8 @@ instance Batchable (ActionEncoding shape) where
   type Batched (ActionEncoding shape) = ActionEncoding (1 : shape)
   addBatchDim (ActionEncoding top op) = ActionEncoding (addBatchDim top) (TT.unsqueeze @0 op)
 
+-- instance T.HasTypes (ActionEncoding shape) T.Tensor
+
 encodePVAction
   :: PVAction
   -> ActionEncoding '[]
@@ -502,13 +573,13 @@ encodePVAction (Left (ActionSingle top action)) = ActionEncoding encTop encActio
   (SingleParent sl t sr) = top
   encTop =
     ActionTop
-      (qStartStop (encodeSlice) (emptySlice) sl)
+      (qStartStop encodeSlice emptySlice sl)
       (encodeTransition t)
       (qNothing $ emptySlice)
       (qNothing $ emptyTransition)
       (qStartStop encodeSlice emptySlice sr)
   encAction = case action of
-    LMSingleFreeze FreezeOp -> TT.full (0 :: Int) --  LMFreezeOnly ()
+    LMSingleFreeze _freeze -> TT.full (0 :: Int) --  LMFreezeOnly ()
     LMSingleSplit _split -> TT.full (1 :: Int) -- LMSplitOnly ()
 encodePVAction (Right (ActionDouble top action)) = ActionEncoding encTop encAction
  where
@@ -522,57 +593,66 @@ encodePVAction (Right (ActionDouble top action)) = ActionEncoding encTop encActi
       (qStartStop encodeSlice emptySlice sr)
 
   encAction = case action of
-    LMDoubleFreezeLeft FreezeOp -> TT.full (2 :: Int) -- LMFreezeLeft ()
-    LMDoubleSpread spread -> TT.full (3 :: Int) -- LMSpread ()
-    LMDoubleSplitLeft split -> TT.full (4 :: Int) -- LMSplitLeft ()
-    LMDoubleSplitRight split -> TT.full (5 :: Int) -- LMSplitRight ()
+    LMDoubleFreezeLeft _freeze -> TT.full (2 :: Int) -- LMFreezeLeft ()
+    LMDoubleSpread _spread -> TT.full (3 :: Int) -- LMSpread ()
+    LMDoubleSplitLeft _split -> TT.full (4 :: Int) -- LMSplitLeft ()
+    LMDoubleSplitRight _split -> TT.full (5 :: Int) -- LMSplitRight ()
 
 -- State Encoding
 -- --------------
 
 data StateEncoding = StateEncoding
-  { stateEncodingMid :: !(StartStop (SliceEncoding '[]))
-  , stateEncodingFrozen :: ![(TransitionEncoding '[], StartStop (SliceEncoding '[]))]
-  , stateEncodingOpen :: ![(TransitionEncoding '[], StartStop (SliceEncoding '[]))]
+  { stateEncodingMid :: !(QStartStop '[] (SliceEncoding '[]))
+  , stateEncodingFrozen :: !(QMaybe '[] (TransitionEncoding '[FakeSize], QStartStop '[FakeSize] (SliceEncoding '[FakeSize])))
+  , stateEncodingOpen :: !(QMaybe '[] (TransitionEncoding '[FakeSize], QStartStop '[FakeSize] (SliceEncoding '[FakeSize])))
   }
-  deriving (Show)
+  deriving (Show, Generic, Tensorized)
 
-type PVState t =
-  GreedyState
-    (Edges SPitch)
-    (t (Edge SPitch))
-    (Notes SPitch)
-    (PVLeftmost SPitch)
+-- type PVState t =
+--   GreedyState
+--     (Edges SPitch)
+--     (t (Edge SPitch))
+--     (Notes SPitch)
+--     (PVLeftmost SPitch)
 
 getFrozen
   :: forall t
    . (Foldable t)
   => Path (Maybe (t (Edge SPitch))) (Notes SPitch)
-  -> [(TransitionEncoding '[], StartStop (SliceEncoding '[]))]
-getFrozen frozen = encodePair <$> pathTake 3 Inner Start frozen
+  -> (TransitionEncoding '[FakeSize], QStartStop '[FakeSize] (SliceEncoding '[FakeSize]))
+getFrozen frozen = (stackUnsafe trEncs, stackUnsafe slcEncs)
  where
-  encodePair (tr, slc) = (encodeTransition $ pvThaw tr, encodeSlice <$> slc)
-
--- case frozen of
--- PathEnd tr -> (encodeTransition $ pvThaw tr, Start)
--- Path tr slc _ ->
---   (encodeTransition $ pvThaw tr, Inner $ encodeSlice slc)
+  (trs, slcs) = unzip $ pathTake 3 Inner Start frozen
+  trEncs = encodeTransition . pvThaw <$> trs
+  slcEncs = qStartStop encodeSlice emptySlice <$> slcs
 
 getOpen
   :: Path (Edges SPitch) (Notes SPitch)
-  -> [(TransitionEncoding '[], StartStop (SliceEncoding '[]))]
-getOpen open = encodePair <$> pathTake 3 Inner Stop open
+  -> (TransitionEncoding '[FakeSize], QStartStop '[FakeSize] (SliceEncoding '[FakeSize]))
+getOpen open = (stackUnsafe trEncs, stackUnsafe slcEncs)
  where
-  encodePair (tr, slc) = (encodeTransition tr, encodeSlice <$> slc)
+  (trs, slcs) = unzip $ pathTake 3 Inner Stop open
+  trEncs = encodeTransition <$> trs
+  slcEncs = qStartStop encodeSlice emptySlice <$> slcs
 
 encodePVState
-  :: (Foldable t)
-  => PVState t
+  :: PVState
   -> StateEncoding
-encodePVState (GSFrozen frozen) = StateEncoding Stop (getFrozen frozen) []
-encodePVState (GSOpen open _) = StateEncoding Start [] (getOpen open)
+encodePVState (GSFrozen frozen) =
+  StateEncoding
+    (qStop emptySlice)
+    (qJust $ getFrozen frozen)
+    (qNothing (stackUnsafe [emptyTransition], stackUnsafe [qStop emptySlice]))
+encodePVState (GSOpen open _) =
+  StateEncoding
+    (qStart emptySlice)
+    (qNothing (stackUnsafe [emptyTransition], stackUnsafe [qStart emptySlice]))
+    (qJust $ getOpen open)
 encodePVState (GSSemiOpen frozen mid open _) =
-  StateEncoding (Inner $ encodeSlice mid) (getFrozen frozen) (getOpen open)
+  StateEncoding
+    (qInner $ encodeSlice mid)
+    (qJust $ getFrozen frozen)
+    (qJust $ getOpen open)
 
 -- Step Encoding
 -- -------------
@@ -581,15 +661,14 @@ data QEncoding batchShape = QEncoding
   { qActionEncoding :: !(ActionEncoding batchShape)
   , qStateEncoding :: !(StateEncoding)
   }
-  deriving (Show)
+  deriving (Show, Generic, Tensorized)
 
 instance Batchable (QEncoding shape) where
   type Batched (QEncoding shape) = QEncoding (1 : shape)
   addBatchDim (QEncoding ac st) = QEncoding (addBatchDim ac) st
 
 encodeStep
-  :: (Foldable t)
-  => PVState t
+  :: PVState
   -> PVAction
   -> QEncoding '[]
 encodeStep state action =
@@ -598,9 +677,8 @@ encodeStep state action =
     (encodePVState state)
 
 withBatchedEncoding
-  :: forall t r
-   . (Foldable t)
-  => PVState t
+  :: forall r
+   . PVState
   -> NonEmpty PVAction
   -> (forall n. (KnownNat n) => QEncoding '[n] -> r)
   -> r

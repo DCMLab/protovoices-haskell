@@ -116,9 +116,9 @@ data GreedyState tr tr' slc op
 
 instance (Show tr, Show tr', Show slc, Show o) => Show (GreedyState tr tr' slc o) where
   show (GSFrozen frozen) = showFrozen frozen <> "\n⋉"
-  show (GSOpen open ops) = "⋊" <> showOpen open <> "\nops: " <> show ops
-  show (GSSemiOpen frozen mid open ops) =
-    showFrozen frozen <> "\n" <> show mid <> showOpen open <> show ops
+  show (GSOpen open _ops) = "⋊" <> showOpen open -- <> showOps ops
+  show (GSSemiOpen frozen mid open _ops) =
+    showFrozen frozen <> "\n" <> show mid <> showOpen open -- <> showOps ops
 
 -- | Helper function for showing the frozen part of a piece.
 showFrozen :: (Show slc, Show tr') => Path tr' slc -> String
@@ -135,7 +135,7 @@ showOpen path = go path <> "\n⋉"
   go (Path tr slc rst) = "\n| " <> show tr <> "\n" <> show slc <> go rst
 
 showOps :: (Show o) => [o] -> String
-showOps ops = concatMap (\o -> "\n- " <> show o) ops
+showOps ops = "\nops: " <> concatMap (\o -> "\n- " <> show o) ops
 
 gsOps :: GreedyState tr tr' slc op -> [op]
 gsOps (GSFrozen _) = []

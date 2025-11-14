@@ -116,6 +116,8 @@ module Common
     -- * Utilities #utils#
   , cartProd
   , traverseSet
+  , variantDefaults
+  , firstToLower
   , traceLevel
   , traceIf
   , showTex
@@ -664,12 +666,16 @@ instance forall s f h tr slc. (ToJSON s, ToJSON f, ToJSON h, ToJSON tr, ToJSON s
   toJSON (Analysis deriv top) =
     Aeson.object
       [ "derivation" .= deriv
-      , "start" .= (Start :: StartStop slc)
+      , "start" .= Aeson.object ["notes" .= (Start :: StartStop slc)]
       , "topSegments" .= segments
       , "styles" .= Aeson.Null
       ]
    where
-    toSegment tr slc = Aeson.object ["trans" .= tr, "rslice" .= slc]
+    toSegment tr slc =
+      Aeson.object
+        [ "trans" .= Aeson.object ["edges" .= tr]
+        , "rslice" .= Aeson.object ["notes" .= slc]
+        ]
     trs = pathArounds top
     slcs = (Inner <$> pathBetweens top) <> [Stop]
     segments = zipWith toSegment trs slcs
@@ -677,12 +683,16 @@ instance forall s f h tr slc. (ToJSON s, ToJSON f, ToJSON h, ToJSON tr, ToJSON s
   toEncoding (Analysis deriv top) =
     Aeson.pairs
       ( "derivation" .= deriv
-          <> "start" .= (Start :: StartStop slc)
+          <> "start" .= Aeson.object ["notes" .= (Start :: StartStop slc)]
           <> "topSegments" .= segments
           <> "styles" .= Aeson.Null
       )
    where
-    toSegment tr slc = Aeson.object ["trans" .= tr, "rslice" .= slc]
+    toSegment tr slc =
+      Aeson.object
+        [ "trans" .= Aeson.object ["edges" .= tr]
+        , "rslice" .= Aeson.object ["notes" .= slc]
+        ]
     trs = pathArounds top
     slcs = (Inner <$> pathBetweens top) <> [Stop]
     segments = zipWith toSegment trs slcs

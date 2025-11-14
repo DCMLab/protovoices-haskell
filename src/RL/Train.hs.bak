@@ -1,0 +1,153 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+
+module RL.Train where
+
+import Common
+import GreedyParser
+import PVGrammar
+
+import RL.A2CHelpers
+import RL.Encoding
+import RL.Model
+import RL.ModelTypes
+
+import Control.Monad.Except qualified as ET
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except qualified as ET
+import Data.List.NonEmpty qualified as NE
+import Data.Vector qualified as V
+import GHC.Generics
+import Musicology.Pitch (SPitch)
+import System.Random.Stateful (StatefulGen)
+import System.Random.Stateful qualified as Rand
+import Torch qualified as T
+import Torch.Typed qualified as TT
+
+class Learner state where
+  type LearnerStep state
+  learnerPolicy :: state -> (GreedyState (Edges SPitch) [Edge SPitch] (Notes SPitch) (PVLeftmost SPitch)) -> T.Tensor
+
+data StepState = StepState
+  { stepReward :: !QType
+  , stepState
+      :: !( GreedyState
+              (Edges SPitch)
+              [Edge SPitch]
+              (Notes SPitch)
+              (PVLeftmost SPitch)
+          )
+  , stepActions :: !(NE.NonEmpty PVAction)
+  }
+
+data A2CState = A2CState
+  { a2cActor :: !QModel
+  , a2cCritic :: !QModel
+  , a2cOptActor :: !TT.GD -- !(TT.CppOptimizerState TT.AdamOptions ModelParams) -- !(TT.Adam ModelTensors) --
+  , a2cOptCritic :: !TT.GD -- !(TT.Adam ModelTensors)
+  }
+  deriving (Generic)
+
+data A2CStepState = A2CStepState
+  { a2cStepZV :: !(TT.HList ModelTensors)
+  , a2cStepZP :: !(TT.HList ModelTensors)
+  , a2cStepIntensity :: !QType
+  }
+
+instance Learner A2CState where
+  type LearnerStep A2CState = A2CStepState
+
+a2cStep (A2CState actor critic opta optc) (A2CStepState zV zP intensity) (StepState reward state actions) i j = do
+  let
+    policy = T.pow (1 / temp) $ withBatchedEncoding state actions (runBatchedPolicy actor)
+  -- choose action according to policy
+  actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
+  let action = actions NE.!! actionIndex
+  -- apply action
+  state' <- ET.except $ applyAction state action
+  let actions' = case state' of
+        Left newState -> NE.nonEmpty $ take 200 $ getActions eval newState
+        Right _ -> Nothing
+  -- compute A2C update
+  r <- lift $ fReward state' actions' action len
+  let vS = forwardValue critic $ encodePVState state
+      vS' = case state' of
+        Left s' -> forwardValue critic $ encodePVState s'
+        Right _ -> 0
+      delta = TT.addScalar r $ TT.squeezeAll $ TT.mulScalar gamma vS' - vS
+      gradV = TT.grad (TT.squeezeAll vS + fakeLoss critic) (TT.flattenParameters critic)
+      zV' = updateEligCritic gamma lambdaV zV gradV
+      actionLogProb :: QTensor '[]
+      actionLogProb = TT.log $ TT.UnsafeMkTensor (T.squeezeAll (policy T.! actionIndex))
+      gradP = TT.grad (actionLogProb + fakeLoss actor) (TT.flattenParameters actor)
+      zP' = updateEligActor gamma lambdaP intensity zP gradP
+      --     gradTotal = TT.hzipWith Add zV' zP'
+      intensity' = gamma * intensity
+      learningRate = toQTensor (negate lr)
+  (!actor', !opta') <- lift $ TT.runStep' actor opta learningRate $ mulModelTensors delta zP'
+  (!critic', !optc') <- lift $ TT.runStep' critic optc learningRate $ mulModelTensors delta zV'
+  let loss' = T.asValue $ TT.toDynamic delta
+      reward' = reward + r
+  let pieceState' = case (state', actions') of
+        (Left s', Just a') -> Left $ A2CStepState zV' zP' intensity' reward' s' a'
+        (Left s', Nothing) ->
+          -- DT.trace ("incomplete parse:\n" <> show s') $
+          Right reward'
+        (Right _, _) -> Right reward' -- TT.toDouble (TT.squeezeAll vS) - r
+  pure (A2CState actor' critic' opta' optc', pieceState', loss')
+
+
+pieceStep
+  :: (Learner state)
+  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
+  -> Rand.IOGenM Rand.StdGen
+  -> PVRewardFn label
+  -> label
+  -> QType
+  -- ^ learning rate
+  -> QType
+  -- ^ temperature
+  -> Int
+  -- ^ iteration
+  -> state
+  -> LearnerStep state
+  -> StepState
+  -> ET.ExceptT String IO (state, Either (LearnerStep state, StepState) QType, QType)
+pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CStepState zV zP intensity) (StepState reward state actions) = do
+  let
+    policy = T.pow (1 / temp) $ withBatchedEncoding state actions (runBatchedPolicy actor)
+  -- choose action according to policy
+  actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
+  let action = actions NE.!! actionIndex
+  -- apply action
+  state' <- ET.except $ applyAction state action
+  let actions' = case state' of
+        Left newState -> NE.nonEmpty $ take 200 $ getActions eval newState
+        Right _ -> Nothing
+  -- compute A2C update
+  r <- lift $ fReward state' actions' action len
+  let vS = forwardValue critic $ encodePVState state
+      vS' = case state' of
+        Left s' -> forwardValue critic $ encodePVState s'
+        Right _ -> 0
+      delta = TT.addScalar r $ TT.squeezeAll $ TT.mulScalar gamma vS' - vS
+      gradV = TT.grad (TT.squeezeAll vS + fakeLoss critic) (TT.flattenParameters critic)
+      zV' = updateEligCritic gamma lambdaV zV gradV
+      actionLogProb :: QTensor '[]
+      actionLogProb = TT.log $ TT.UnsafeMkTensor (T.squeezeAll (policy T.! actionIndex))
+      gradP = TT.grad (actionLogProb + fakeLoss actor) (TT.flattenParameters actor)
+      zP' = updateEligActor gamma lambdaP intensity zP gradP
+      --     gradTotal = TT.hzipWith Add zV' zP'
+      intensity' = gamma * intensity
+      learningRate = toQTensor (negate lr)
+  (!actor', !opta') <- lift $ TT.runStep' actor opta learningRate $ mulModelTensors delta zP'
+  (!critic', !optc') <- lift $ TT.runStep' critic optc learningRate $ mulModelTensors delta zV'
+  let loss' = T.asValue $ TT.toDynamic delta
+      reward' = reward + r
+  let pieceState' = case (state', actions') of
+        (Left s', Just a') -> Left $ A2CStepState zV' zP' intensity' reward' s' a'
+        (Left s', Nothing) ->
+          -- DT.trace ("incomplete parse:\n" <> show s') $
+          Right reward'
+        (Right _, _) -> Right reward' -- TT.toDouble (TT.squeezeAll vS) - r
+  pure (A2CState actor' critic' opta' optc', pieceState', loss')

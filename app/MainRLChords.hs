@@ -6,16 +6,20 @@
 module Main where
 
 import Common
+import Control.Concurrent.STM.TVar (readTVarIO)
+import Control.DeepSeq qualified as DS
 import Control.Monad (forM_)
 import Control.Monad.Except qualified as ET
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict, withObject, (.:))
 import Data.Aeson qualified as JSON
+import Data.Fixed (mod')
 import Data.List (zipWith5)
 import Data.List.NonEmpty qualified as NE
 import Data.Ratio (Ratio (..), denominator, numerator, (%))
 import Data.TypeLits (KnownNat)
+import Debug.Trace qualified as DT
 import GHC.Generics (Generic)
 import GreedyParser (applyAction, getActions, initParseState, parseGreedy)
 import GreedyParser qualified as Greedy
@@ -26,11 +30,13 @@ import PVGrammar
 import PVGrammar.Parse (protoVoiceEvaluator)
 import PVGrammar.Prob.Simple (loadPVHyper)
 import RL (plotDeriv)
-import RL qualified
+import RL qualified as RL
+import RL.Jit qualified as RL
+import System.ProgressBar qualified as PB
 import System.Random.MWC qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
 import Torch qualified as T
-import Torch.Typed qualified as TT
+import Torch.Jit qualified as Jit
 
 -- loading training data
 -- ---------------------
@@ -111,7 +117,9 @@ parseA2C !actor !input = case take 200 $ getActions eval s0 of
     let
       -- encodings = RL.encodeStep state <$> actions
       -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . RL.forwardPolicy actor <$> encodings
-      probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
+      showTensor t = "- " <> show (T.device $ DS.force t) <> "\n"
+      checkEncoding enc = DT.trace (concatMap showTensor $ RL.flattenTensors enc) 0
+      !probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
       best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
       -- dummy = RL.withBatchedEncoding state actions (`seq` ())
       -- best = 0
@@ -139,36 +147,60 @@ mainLoading = do
 mainRL n = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
-      pieces = (\chord -> (dataToSlices chord, length $ total_onset chord)) . notes <$> chords
+      mkPiece chord = (slices, (len, exptd))
+       where
+        slices = dataToSlices $ notes chord
+        len = length $ total_onset $ notes chord
+        exptd = expected chord
+      pieces = mkPiece <$> chords
   -- pieces = (\piece -> (piece, pathLen piece)) <$> inputs
   gen <- initStdGen
   mgen <- newIOGenM gen
   genMWC <- MWC.create -- uses a fixed seed
   (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
-  let fReward = RL.pvRewardActionByLen posterior
+  let fReward = RL.pvRewardChordAndActionByLen 10 posterior
+      fRl = (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
+      fTemp = const 1 -- \t -> (RL.cosSchedule 10 (mod' t 10)) * 10 + 1
   actor0 <- RL.mkQModel
   critic0 <- RL.mkQModel
   -- actor0 <- RL.loadModel "actor.ht"
   -- critic0 <- RL.loadModel "critic.ht"
   (rewards, losses, actor, critic) <-
-    RL.trainA2C protoVoiceEvaluator mgen fReward Nothing actor0 critic0 pieces n
+    RL.trainA2C protoVoiceEvaluator mgen fReward fRl fTemp Nothing actor0 critic0 pieces n
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
   pure ()
 
 mainPlot = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
-  let chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
-      pieces = dataToSlices . notes <$> take 10 chords
-  actor <- RL.loadModel "actor_checkpoint.ht"
-  forM_ (zip pieces [1 ..]) $ \(piece, i) -> do
+  let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
+      !pieces = dataToSlices . notes <$> take 10 chords
+  !actor <- RL.loadModel "testmodel.ht"
+  putStrLn "Model loaded"
+  pb <-
+    PB.newProgressBar
+      ( PB.defStyle
+          { PB.stylePrefix = "Parsing " <> (PB.elapsedTime PB.renderDuration)
+          , PB.stylePostfix = PB.exact <> " (" <> PB.percentage <> ")"
+          , PB.styleWidth = PB.ConstantWidth 80
+          }
+      )
+      10
+      (PB.Progress 0 (length pieces) ())
+  scriptCache <- Jit.newScriptCache
+  forM_ (zip pieces [1 :: Int ..]) $ \(piece, i) -> do
     result <- parseA2C actor piece
     case result of
       Left err -> putStrLn $ "chord " <> show i <> ": " <> err
       Right ana@(Analysis deriv top) -> do
-        print $ length deriv
-        let fn = "/tmp/rl/deriv" <> show i <> ".tex"
-        -- JSON.encodeFile fn ana
-        RL.plotDeriv fn deriv
+        let fn = "/tmp/rl/deriv" <> show i
+        pure ()
+    -- JSON.encodeFile (fn <> ".analysis.json") ana
+    -- RL.plotDeriv (fn <> ".tex") deriv
+    PB.incProgress pb 1
+  cache <- readTVarIO $ Jit.unScriptCache scriptCache
+  case cache of
+    Just _ -> putStrLn "cache full"
+    Nothing -> putStrLn "cache empty"
 
-main = mainRL 20
+main = mainRL 40

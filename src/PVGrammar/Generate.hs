@@ -88,8 +88,8 @@ import Musicology.Core qualified as MC
 {- | Create a freeze operation (alias for 'FreezeOp').
  Can be used together with the 'Common.freeze' action within a monadic derivation.
 -}
-mkFreeze :: Freeze
-mkFreeze = FreezeOp
+mkFreeze :: (Hashable n) => [InnerEdge n] -> Freeze n
+mkFreeze ties = FreezeOp $ S.fromList $ fmap (\(l, r) -> (Inner l, Inner r)) ties
 
 {- | Create a split operation monadically
 
@@ -389,13 +389,13 @@ freezable (Edges ts nts) = MS.null nts && all isRep ts
 -- | Tries to apply a freeze operation to a transition.
 applyFreeze
   :: (Eq (MC.IntervalOf n), MC.HasPitch n)
-  => Freeze
+  => Freeze n
   -- ^ the freeze operation
   -> Edges n
   -- ^ the unfrozen edge
   -> Either String (Edges n)
   -- ^ the frozen transition
-applyFreeze FreezeOp e@(Edges ts nts)
+applyFreeze (FreezeOp _ties) e@(Edges ts nts)
   | not $ MS.null nts = Left "cannot freeze non-terminal edges"
   | not $ all isRep ts = Left "cannot freeze non-tie edges"
   | otherwise = Right e
@@ -570,7 +570,7 @@ applySplitAllEdges inSplit@(SplitOp splitRegs splitPassings ls rs _ _ passl pass
  This is useful in conjunction with 'applySplitAllEdges'
  because the non-tie edges will not be dropped before freezing.
 -}
-applyFreezeAllEdges FreezeOp e@(Edges _ts nts)
+applyFreezeAllEdges (FreezeOp _) e@(Edges _ts nts)
   | not $ MS.null nts = Left "cannot freeze non-terminal edges"
   | otherwise = Right e
 
@@ -598,7 +598,7 @@ debugPVAnalysis = debugAnalysis applySplit applyFreeze applySpread
 -}
 derivationPlayerPV
   :: (Eq n, Ord n, Notation n, Hashable n, Eq (MC.IntervalOf n), MC.HasPitch n)
-  => DerivationPlayer (Split n) Freeze (Spread n) (Notes n) (Edges n)
+  => DerivationPlayer (Split n) (Freeze n) (Spread n) (Notes n) (Edges n)
 derivationPlayerPV =
   DerivationPlayer
     topTrans
@@ -614,7 +614,7 @@ derivationPlayerPV =
 -}
 derivationPlayerPVAllEdges
   :: (Eq n, Ord n, Notation n, Hashable n, Eq (MC.IntervalOf n), MC.HasPitch n)
-  => DerivationPlayer (Split n) Freeze (Spread n) (Notes n) (Edges n)
+  => DerivationPlayer (Split n) (Freeze n) (Spread n) (Notes n) (Edges n)
 derivationPlayerPVAllEdges =
   DerivationPlayer
     topTrans
@@ -637,7 +637,7 @@ checkDerivation
      , MC.HasPitch n
      , Show n
      )
-  => [Leftmost (Split n) Freeze (Spread n)]
+  => [Leftmost (Split n) (Freeze n) (Spread n)]
   -> Path [Note n] [Edge n]
   -> Bool
 checkDerivation deriv original =
