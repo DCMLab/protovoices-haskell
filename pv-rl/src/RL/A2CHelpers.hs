@@ -4,9 +4,9 @@
 module RL.A2CHelpers where
 
 import Control.DeepSeq (force)
-import Internal.TorchHelpers
 import RL.Model
 import RL.ModelTypes
+import RL.TorchHelpers
 import Torch.Typed qualified as TT
 
 -- helpers for operating on HLists

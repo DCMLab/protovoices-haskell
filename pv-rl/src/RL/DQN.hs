@@ -12,7 +12,6 @@ module RL.DQN where
 import Common
 import Display (replayDerivation, viewGraph)
 import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState, getActions, initParseState, parseGreedy, parseStep, pickRandom)
-import Internal.TorchHelpers qualified as TH
 import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
 import PVGrammar.Generate (derivationPlayerPV)
 import PVGrammar.Parse (protoVoiceEvaluator)
@@ -23,6 +22,7 @@ import RL.Model
 import RL.ModelTypes
 import RL.Plotting
 import RL.ReplayBuffer
+import RL.TorchHelpers qualified as TH
 
 -- import Control.DeepSeq (force)
 import Control.Exception (Exception, catch, onException)

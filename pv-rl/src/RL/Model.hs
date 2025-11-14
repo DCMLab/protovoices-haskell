@@ -31,11 +31,11 @@ import GHC.ForeignPtr qualified as Ptr
 import GHC.Generics (Generic)
 import GHC.TypeLits (OrderingI (..), cmpNat, sameNat)
 import GreedyParser (DoubleParent (DoubleParent), SingleParent (SingleParent))
-import Internal.TorchHelpers (withBatchDim)
-import Internal.TorchHelpers qualified as TH
 import NoThunks.Class (NoThunks (..), OnlyCheckWhnf (..), allNoThunks)
 import RL.Encoding
 import RL.ModelTypes
+import RL.TorchHelpers (withBatchDim)
+import RL.TorchHelpers qualified as TH
 import Torch qualified as T
 import Torch.Jit qualified as TJit
 import Torch.Lens qualified as TL
@@ -63,11 +63,8 @@ traceDyn t = DT.traceShow (T.shape $ TT.toDynamic t) t
 unsafeReshape :: [Int] -> TT.Tensor dev dtype shape -> TT.Tensor dev dtype shape'
 unsafeReshape shape t = TT.UnsafeMkTensor $ T.reshape shape $ TT.toDynamic t
 
--- Q net
--- =====
-
--- orphan instances for NFData
--- ---------------------------
+-- orphan instances
+-- ================
 
 -- deriving newtype instance NFData T.IndependentTensor
 
@@ -127,20 +124,8 @@ deriving instance Generic TT.GD
 deriving instance NoThunks TT.GD
 deriving instance NFData TT.GD
 
--- General Model Constraints
--- -------------------------
-
-type GSpecConstraints spec =
-  ( TT.ConvSideCheck FifthSize FifthSize 1 FifthPadding FifthSize
-  , TT.ConvSideCheck OctaveSize OctaveSize 1 OctavePadding OctaveSize
-  , FifthSize <= FifthSize + 2 * FifthPadding -- TODO: remove
-  , OctaveSize <= OctaveSize + 2 * OctavePadding -- TODO: remove
-  , KnownNat FifthSize
-  , KnownNat OctaveSize
-  , KnownNat FifthPadding
-  , KnownNat OctavePadding
-  , KnownNat PSize -- TODO: remove
-  )
+-- Q net
+-- =====
 
 -- Learned Constant Embeddings
 -- ---------------------------

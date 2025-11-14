@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Internal.TorchHelpers where
+module RL.TorchHelpers where
 
 import Data.Kind (Type)
 import GHC.TypeLits

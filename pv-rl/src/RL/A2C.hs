@@ -10,7 +10,6 @@ module RL.A2C where
 
 import Common
 import GreedyParser
-import Internal.TorchHelpers
 import PVGrammar
 import PVGrammar.Prob.Simple (PVParams)
 import RL.A2CHelpers
@@ -18,6 +17,7 @@ import RL.Encoding
 import RL.Model
 import RL.ModelTypes
 import RL.Plotting
+import RL.TorchHelpers
 
 import Control.DeepSeq (NFData, force)
 import Control.Foldl qualified as Foldl
