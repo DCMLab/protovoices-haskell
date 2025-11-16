@@ -37,6 +37,7 @@ import System.Random.MWC qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
 import Torch qualified as T
 import Torch.Jit qualified as Jit
+import Torch.Lens qualified as TL
 
 -- loading training data
 -- ---------------------
@@ -117,13 +118,41 @@ parseA2C !actor !input = case take 200 $ getActions eval s0 of
     let
       -- encodings = RL.encodeStep state <$> actions
       -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . RL.forwardPolicy actor <$> encodings
-      showTensor t = "- " <> show (T.device $ DS.force t) <> "\n"
-      checkEncoding enc = DT.trace (concatMap showTensor $ RL.flattenTensors enc) 0
+      -- showTensor t = "- " <> show (T.device $ DS.force t) <> "\n"
+      -- checkEncoding enc = DT.trace (concatMap showTensor $ RL.flattenTensors enc) 0
       !probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
-      best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
-      -- dummy = RL.withBatchedEncoding state actions (`seq` ())
-      -- best = 0
-      action = seq probs $ actions NE.!! best
+      !best' = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
+      -- !dummy = RL.withBatchedEncoding state actions DS.rnf
+      best = 0
+      action = actions NE.!! best
+    state' <- ET.except $ applyAction state action
+    let actions' = case state' of
+          Left nextState -> NE.nonEmpty $ take 200 $ getActions eval nextState
+          Right _ -> Nothing
+    case (state', actions') of
+      (Left _, Nothing) ->
+        ET.throwE "cannot parse: no possible actions in non-terminal state!"
+      (Left s', Just a') -> go s' a'
+      (Right (top, deriv), _) -> do
+        let ana = Analysis deriv (PathEnd top)
+        pure ana
+
+benchA2C
+  :: RL.QModel
+  -> Path [Note SPitch] [Edge SPitch]
+  -> IO (Either String (PVAnalysis SPitch))
+benchA2C !actor !input = case take 200 $ getActions eval s0 of
+  [] -> pure $ Left "cannot parse: no possible actions for first step!"
+  (a : as) -> ET.runExceptT $ go s0 (a NE.:| as)
+ where
+  s0 = initParseState eval input
+  eval = protoVoiceEvaluator
+  go !state !actions = do
+    let
+      !probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
+      !best' = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
+      best = 0
+      action = actions NE.!! best
     state' <- ET.except $ applyAction state action
     let actions' = case state' of
           Left nextState -> NE.nonEmpty $ take 200 $ getActions eval nextState
@@ -174,8 +203,8 @@ mainRL n = do
 mainPlot = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
-      !pieces = dataToSlices . notes <$> take 10 chords
-  !actor <- RL.loadModel "testmodel.ht"
+      !pieces = dataToSlices . notes <$> chords
+  !actor <- RL.mkQModel -- RL.loadModel "testmodel.ht"
   putStrLn "Model loaded"
   pb <-
     PB.newProgressBar
@@ -203,4 +232,30 @@ mainPlot = do
     Just _ -> putStrLn "cache full"
     Nothing -> putStrLn "cache empty"
 
-main = mainRL 40
+mainBenchInference nPieces = do
+  Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
+  let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
+      !pieces =
+        dataToSlices . notes <$> case nPieces of
+          Just n -> take n chords
+          Nothing -> chords
+  !actor <- RL.mkQModel
+  putStrLn "Model loaded"
+  pb <-
+    PB.newProgressBar
+      ( PB.defStyle
+          { PB.stylePrefix = "Parsing " <> (PB.elapsedTime PB.renderDuration)
+          , PB.stylePostfix = PB.exact <> " (" <> PB.percentage <> ")"
+          , PB.styleWidth = PB.ConstantWidth 80
+          }
+      )
+      10
+      (PB.Progress 0 (length pieces) ())
+  forM_ (zip pieces [1 :: Int ..]) $ \(piece, i) -> do
+    result <- parseA2C actor piece
+    case result of
+      Left err -> putStrLn $ "chord " <> show i <> ": " <> err
+      Right ana@(Analysis deriv top) -> pure ()
+    PB.incProgress pb 1
+
+main = mainBenchInference Nothing -- mainPlot -- mainRL 40
