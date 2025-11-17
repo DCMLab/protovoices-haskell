@@ -16,6 +16,14 @@
 module RL.Encoding where
 
 import Common
+import GreedyParser
+import Internal.MultiSet qualified as MS
+import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), InnerEdge, Note (..), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
+import PVGrammar.Generate (derivationPlayerPV)
+import PVGrammar.Parse (protoVoiceEvaluator, pvThaw)
+import RL.ModelTypes
+
+import Control.DeepSeq
 import Data.Foldable qualified as F
 import Data.HashSet qualified as HS
 import Data.Hashable (Hashable)
@@ -31,69 +39,62 @@ import Data.Vector.Sized qualified as VS
 import Debug.Trace qualified as DT
 import GHC.Exts (Proxy#, proxy#)
 import GHC.Generics
-import GreedyParser
-import Internal.MultiSet qualified as MS
 import Musicology.Pitch
-import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), InnerEdge, Note (..), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
-import PVGrammar.Generate (derivationPlayerPV)
-import PVGrammar.Parse (protoVoiceEvaluator, pvThaw)
-import RL.ModelTypes
 import Torch qualified as T
 import Torch.Lens qualified as T
 import Torch.Typed qualified as TT
+import Unsafe.Coerce (unsafeCoerce)
 
 -- Utilities
 -- =========
 
-deriving instance Generic (TT.Tensor dev dtype shape)
+-- -- Tensorized: get all tensors out of a data structure
+-- -- ---------------------------------------------------
 
--- Tensorized: get all tensors out of a data structure
--- ---------------------------------------------------
+-- class GTensorized f where
+--   gFlattenTensors :: forall a. f a -> [T.Tensor]
 
-class GTensorized f where
-  gFlattenTensors :: forall a. f a -> [T.Tensor]
+-- instance GTensorized U1 where
+--   gFlattenTensors U1 = []
 
-instance GTensorized U1 where
-  gFlattenTensors U1 = []
+-- instance (GTensorized f, GTensorized g) => GTensorized (f :+: g) where
+--   gFlattenTensors (L1 x) = gFlattenTensors x
+--   gFlattenTensors (R1 x) = gFlattenTensors x
 
-instance (GTensorized f, GTensorized g) => GTensorized (f :+: g) where
-  gFlattenTensors (L1 x) = gFlattenTensors x
-  gFlattenTensors (R1 x) = gFlattenTensors x
+-- instance (GTensorized f, GTensorized g) => GTensorized (f :*: g) where
+--   gFlattenTensors (x :*: y) = gFlattenTensors x ++ gFlattenTensors y
 
-instance (GTensorized f, GTensorized g) => GTensorized (f :*: g) where
-  gFlattenTensors (x :*: y) = gFlattenTensors x ++ gFlattenTensors y
+-- instance (Tensorized c) => GTensorized (K1 i c) where
+--   gFlattenTensors (K1 x) = flattenTensors x
 
-instance (Tensorized c) => GTensorized (K1 i c) where
-  gFlattenTensors (K1 x) = flattenTensors x
+-- instance (GTensorized f) => GTensorized (M1 i t f) where
+--   gFlattenTensors (M1 x) = gFlattenTensors x
 
-instance (GTensorized f) => GTensorized (M1 i t f) where
-  gFlattenTensors (M1 x) = gFlattenTensors x
+-- class Tensorized a where
+--   flattenTensors :: a -> [T.Tensor]
+--   default flattenTensors :: (Generic a, GTensorized (Rep a)) => a -> [T.Tensor]
+--   flattenTensors f = gFlattenTensors (from f)
 
-class Tensorized a where
-  flattenTensors :: a -> [T.Tensor]
-  default flattenTensors :: (Generic a, GTensorized (Rep a)) => a -> [T.Tensor]
-  flattenTensors f = gFlattenTensors (from f)
+-- instance Tensorized (TT.Tensor dev dtype shape) where
+--   flattenTensors t = [TT.toDynamic t]
 
-instance Tensorized (TT.Tensor dev dtype shape) where
-  flattenTensors t = [TT.toDynamic t]
+-- instance Tensorized (TT.Parameter dev dtype shape) where
+--   flattenTensors t = [TT.toDynamic $ TT.toDependent t]
 
-instance Tensorized (TT.Parameter dev dtype shape) where
-  flattenTensors t = [TT.toDynamic $ TT.toDependent t]
+-- instance (Tensorized a) => Tensorized (StartStop a)
 
-instance (Tensorized a) => Tensorized (StartStop a)
+-- instance (Tensorized a, Tensorized b) => Tensorized (a, b)
 
-instance (Tensorized a, Tensorized b) => Tensorized (a, b)
+-- instance (Tensorized a) => Tensorized [a]
 
-instance (Tensorized a) => Tensorized [a]
+-- instance Tensorized Double where
+--   flattenTensors _ = []
 
-instance Tensorized Double where
-  flattenTensors _ = []
+-- instance Tensorized (TT.Conv2d a b c d dtype dev)
 
-instance Tensorized (TT.Conv2d a b c d dtype dev)
+-- instance Tensorized (TT.Linear i o dtype device)
 
-instance Tensorized (TT.Linear i o dtype device)
-
-instance Tensorized (TT.LayerNorm shape dtype device)
+-- instance Tensorized (TT.LayerNorm shape dtype device)
 
 -- Stackable and Batchable class
 -- -----------------------------
@@ -116,34 +117,34 @@ instance Batchable (TT.Tensor dev dtype shape) where
 -- Masked Maybe
 -- ------------
 
-data QMaybe (batchShape :: [Nat]) a = QMaybe
-  { qmMask :: QTensor batchShape
+data QMaybe dev (batchShape :: [Nat]) a = QMaybe
+  { qmMask :: QTensor dev batchShape
   , qmContent :: a
   }
-  deriving (Show, Generic, Tensorized)
+  deriving (Show, Generic, NFData)
 
 qNothing
-  :: ( TT.TensorOptions batchShape QDType QDevice
+  :: ( TT.TensorOptions batchShape QDType dev
      )
   => a
-  -> QMaybe batchShape a
+  -> QMaybe dev batchShape a
 qNothing = QMaybe TT.zeros
 
 qJust
-  :: (TT.TensorOptions batchShape QDType QDevice)
+  :: (TT.TensorOptions batchShape QDType dev)
   => a
-  -> QMaybe batchShape a
+  -> QMaybe dev batchShape a
 qJust = QMaybe TT.ones
 
-instance (Stackable a) => Stackable (QMaybe batchShape a) where
-  type Stacked (QMaybe batchShape a) n = QMaybe (n ': batchShape) (Stacked a n)
+instance (Stackable a) => Stackable (QMaybe dev batchShape a) where
+  type Stacked (QMaybe dev batchShape a) n = QMaybe dev (n ': batchShape) (Stacked a n)
   stack ms = QMaybe masks contents
    where
     masks = TT.vecStack @0 $ qmMask <$> ms
     contents = stack $ qmContent <$> ms
 
-instance (Batchable a) => Batchable (QMaybe shape a) where
-  type Batched (QMaybe shape a) = QMaybe (1 : shape) (Batched a)
+instance (Batchable a) => Batchable (QMaybe dev shape a) where
+  type Batched (QMaybe dev shape a) = QMaybe dev (1 : shape) (Batched a)
   addBatchDim (QMaybe mask content) = QMaybe (TT.unsqueeze @0 mask) (addBatchDim content)
 
 -- instance (T.HasTypes a T.Tensor) => T.HasTypes (QMaybe shape a) T.Tensor
@@ -151,22 +152,23 @@ instance (Batchable a) => Batchable (QMaybe shape a) where
 -- Masked List
 -- -----------
 
-data QBoundedList (dtype :: TT.DType) (maxLen :: Nat) (batchShape :: [Nat]) (innerShape :: [Nat])
+data QBoundedList dev (dtype :: TT.DType) (maxLen :: Nat) (batchShape :: [Nat]) (innerShape :: [Nat])
   = QBoundedList
-  { qlMask :: QTensor (batchShape TT.++ '[maxLen])
-  , qlContent :: TT.Tensor QDevice dtype (batchShape TT.++ '[maxLen] TT.++ innerShape)
+  { qlMask :: QTensor dev (batchShape TT.++ '[maxLen])
+  , qlContent :: TT.Tensor dev dtype (batchShape TT.++ '[maxLen] TT.++ innerShape)
   }
-  deriving (Show, Generic, Tensorized)
+  deriving (Show, Generic, NFData)
 
 qBoundedList
-  :: forall dtype maxLen innerShape
+  :: forall dev dtype maxLen innerShape
    . ( KnownNat maxLen
+     , TT.KnownDevice dev
      , TT.KnownShape innerShape
-     , TT.TensorOptions innerShape QDType QDevice
-     , TT.TensorOptions innerShape dtype QDevice
+     , TT.TensorOptions innerShape QDType dev
+     , TT.TensorOptions innerShape dtype dev
      )
-  => [TT.Tensor QDevice dtype innerShape]
-  -> QBoundedList dtype maxLen '[] innerShape
+  => [TT.Tensor dev dtype innerShape]
+  -> QBoundedList dev dtype maxLen '[] innerShape
 qBoundedList [] = QBoundedList TT.zeros TT.zeros
 qBoundedList lst = QBoundedList (TT.UnsafeMkTensor mask) (TT.UnsafeMkTensor paddedContent)
  where
@@ -179,21 +181,21 @@ qBoundedList lst = QBoundedList (TT.UnsafeMkTensor mask) (TT.UnsafeMkTensor padd
   -- here: list dim (only post) + inner dims (no padding)
   padSpec = replicate (2 * length innerShape) 0 ++ [0, padLen]
   paddedContent = T.constantPadNd1d padSpec 0 content
-  mask = T.cat (T.Dim 0) [T.ones [len] opts, T.zeros [padLen] opts]
+  mask = T.cat (T.Dim 0) [T.ones [len] $ opts @dev, T.zeros [padLen] $ opts @dev]
 
-instance Stackable (QBoundedList dtype maxLen batchShape innerShape) where
+instance Stackable (QBoundedList dev dtype maxLen batchShape innerShape) where
   type
-    Stacked (QBoundedList dtype maxLen batchShape innerShape) n =
-      QBoundedList dtype maxLen (n ': batchShape) innerShape
+    Stacked (QBoundedList dev dtype maxLen batchShape innerShape) n =
+      QBoundedList dev dtype maxLen (n ': batchShape) innerShape
   stack xs = QBoundedList masks contents
    where
     masks = TT.vecStack @0 $ qlMask <$> xs
     contents = TT.vecStack @0 $ qlContent <$> xs
 
-instance Batchable (QBoundedList dtype maxLen batchShape innerShape) where
+instance Batchable (QBoundedList dev dtype maxLen batchShape innerShape) where
   type
-    Batched (QBoundedList dtype maxLen batchShape innerShape) =
-      QBoundedList dtype maxLen (1 : batchShape) innerShape
+    Batched (QBoundedList dev dtype maxLen batchShape innerShape) =
+      QBoundedList dev dtype maxLen (1 : batchShape) innerShape
   addBatchDim (QBoundedList mask content) =
     QBoundedList (TT.unsqueeze @0 mask) (TT.unsqueeze @0 content)
 
@@ -202,41 +204,41 @@ instance Batchable (QBoundedList dtype maxLen batchShape innerShape) where
 -- Tagged StartStop
 -- ----------------
 
-data QStartStop (batchShape :: [Nat]) a = QStartStop
-  { qssTag :: TT.Tensor QDevice TT.Int64 batchShape
+data QStartStop dev (batchShape :: [Nat]) a = QStartStop
+  { qssTag :: TT.Tensor dev TT.Int64 batchShape
   , qssContent :: a
   }
-  deriving (Show, Generic, Tensorized)
+  deriving (Show, Generic, NFData)
 
-qInner :: (TT.TensorOptions batchShape TT.Int64 QDevice) => a -> QStartStop batchShape a
+qInner :: (TT.TensorOptions batchShape TT.Int64 dev) => a -> QStartStop dev batchShape a
 qInner = QStartStop (TT.full (1 :: Int))
 
-qStart :: (TT.TensorOptions batchShape TT.Int64 QDevice) => a -> QStartStop batchShape a
+qStart :: (TT.TensorOptions batchShape TT.Int64 dev) => a -> QStartStop dev batchShape a
 qStart = QStartStop (TT.full (0 :: Int))
 
-qStop :: (TT.TensorOptions batchShape TT.Int64 QDevice) => a -> QStartStop batchShape a
+qStop :: (TT.TensorOptions batchShape TT.Int64 dev) => a -> QStartStop dev batchShape a
 qStop = QStartStop (TT.full (2 :: Int))
 
 qStartStop
-  :: (TT.TensorOptions batchShape TT.Int64 QDevice)
+  :: (TT.TensorOptions batchShape TT.Int64 dev)
   => (a -> b)
   -> b
   -> StartStop a
-  -> QStartStop batchShape b
+  -> QStartStop dev batchShape b
 qStartStop f def val = case val of
   Start -> qStart def
   Stop -> qStop def
   Inner x -> qInner $ f x
 
-instance (Stackable a) => Stackable (QStartStop batchShape a) where
-  type Stacked (QStartStop batchShape a) n = QStartStop (n ': batchShape) (Stacked a n)
+instance (Stackable a) => Stackable (QStartStop dev batchShape a) where
+  type Stacked (QStartStop dev batchShape a) n = QStartStop dev (n ': batchShape) (Stacked a n)
   stack xs = QStartStop tags contents
    where
     tags = TT.vecStack @0 $ qssTag <$> xs
     contents = stack $ qssContent <$> xs
 
-instance (Batchable a) => Batchable (QStartStop shape a) where
-  type Batched (QStartStop shape a) = QStartStop (1 : shape) (Batched a)
+instance (Batchable a) => Batchable (QStartStop dev shape a) where
+  type Batched (QStartStop dev shape a) = QStartStop dev (1 : shape) (Batched a)
   addBatchDim (QStartStop tag content) =
     QStartStop (TT.unsqueeze @0 tag) (addBatchDim content)
 
@@ -248,32 +250,32 @@ instance (Batchable a) => Batchable (QStartStop shape a) where
 -- types of slice encodings
 -- ------------------------
 
-newtype SliceEncodingSparse batchShape = SliceEncodingSparse
-  {getSliceEncodingSparse :: QBoundedList TT.Int64 MaxPitches batchShape '[2]}
+newtype SliceEncodingSparse dev batchShape = SliceEncodingSparse
+  {getSliceEncodingSparse :: QBoundedList dev TT.Int64 MaxPitches batchShape '[2]}
   deriving (Show, Generic)
-  deriving newtype (Tensorized)
+  deriving newtype (NFData)
 
-instance Stackable (SliceEncodingSparse batchShape) where
-  type Stacked (SliceEncodingSparse batchShape) n = SliceEncodingSparse (n ': batchShape)
+instance Stackable (SliceEncodingSparse dev batchShape) where
+  type Stacked (SliceEncodingSparse dev batchShape) n = SliceEncodingSparse dev (n ': batchShape)
   stack slices = SliceEncodingSparse $ stack $ getSliceEncodingSparse <$> slices
 
-instance Batchable (SliceEncodingSparse shape) where
-  type Batched (SliceEncodingSparse shape) = SliceEncodingSparse (1 ': shape)
+instance Batchable (SliceEncodingSparse dev shape) where
+  type Batched (SliceEncodingSparse dev shape) = SliceEncodingSparse dev (1 ': shape)
   addBatchDim (SliceEncodingSparse slice) = SliceEncodingSparse $ addBatchDim slice
 
 -- instance T.HasTypes (SliceEncodingSparse shape) T.Tensor
 
-newtype SliceEncodingDense batchShape = SliceEncodingDense
-  {getSliceEncodingDense :: QBoundedList QDType MaxPitches batchShape (1 : PShape)}
+newtype SliceEncodingDense dev batchShape = SliceEncodingDense
+  {getSliceEncodingDense :: QBoundedList dev QDType MaxPitches batchShape (1 : PShape)}
   deriving (Show, Generic)
-  deriving newtype (Tensorized)
+  deriving newtype (NFData)
 
-instance Stackable (SliceEncodingDense batchShape) where
-  type Stacked (SliceEncodingDense batchShape) n = SliceEncodingDense (n ': batchShape)
+instance Stackable (SliceEncodingDense dev batchShape) where
+  type Stacked (SliceEncodingDense dev batchShape) n = SliceEncodingDense dev (n ': batchShape)
   stack slices = SliceEncodingDense $ stack $ getSliceEncodingDense <$> slices
 
-instance Batchable (SliceEncodingDense shape) where
-  type Batched (SliceEncodingDense shape) = SliceEncodingDense (1 ': shape)
+instance Batchable (SliceEncodingDense dev shape) where
+  type Batched (SliceEncodingDense dev shape) = SliceEncodingDense dev (1 ': shape)
   addBatchDim (SliceEncodingDense slice) = SliceEncodingDense $ addBatchDim slice
 
 -- instance T.HasTypes (SliceEncodingDense shape) T.Tensor
@@ -284,22 +286,23 @@ instance Batchable (SliceEncodingDense shape) where
 type SliceEncoding = SliceEncodingDense
 
 getSlice
-  :: forall batchShape
-   . SliceEncoding batchShape
-  -> QBoundedList QDType MaxPitches batchShape (1 : PShape)
+  :: forall dev batchShape
+   . SliceEncoding dev batchShape
+  -> QBoundedList dev QDType MaxPitches batchShape (1 : PShape)
 getSlice = getSliceEncodingDense -- . sliceIndex2OneHot
 
 encodePitches
-  :: [SPitch]
-  -> SliceEncoding '[]
+  :: (TT.KnownDevice dev)
+  => [SPitch]
+  -> SliceEncoding dev '[]
 encodePitches = pitchesOneHots
 
 sliceIndex2OneHot
-  :: forall batchShape
+  :: forall dev batchShape
    . ( TT.KnownShape batchShape
      )
-  => SliceEncodingSparse batchShape
-  -> SliceEncodingDense batchShape
+  => SliceEncodingSparse dev batchShape
+  -> SliceEncodingDense dev batchShape
 sliceIndex2OneHot (SliceEncodingSparse (QBoundedList mask values)) =
   SliceEncodingDense $ QBoundedList mask values'
  where
@@ -329,8 +332,10 @@ pitch2index p =
   octaveSize = TT.natValI @OctaveSize
 
 pitchesMultiHot
-  :: HS.HashSet SPitch
-  -> QTensor PShape
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => HS.HashSet SPitch
+  -> QTensor dev PShape
 pitchesMultiHot ps = TT.UnsafeMkTensor out
  where
   out =
@@ -338,15 +343,17 @@ pitchesMultiHot ps = TT.UnsafeMkTensor out
       then zeros
       else T.indexPut True indices values zeros
   ~indices = T.asTensor <$> Data.List.transpose (pitch2index <$> F.toList ps)
-  values = T.ones [F.length ps] opts
-  zeros = T.zeros dims opts
+  values = T.ones [F.length ps] $ opts @dev
+  zeros = T.zeros dims $ opts @dev
   fifthSize = TT.natValI @FifthSize
   octaveSize = TT.natValI @OctaveSize
   dims = [fifthSize, octaveSize]
 
 pitchesOneHots
-  :: [SPitch]
-  -> SliceEncodingDense '[]
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => [SPitch]
+  -> SliceEncodingDense dev '[]
 pitchesOneHots [] = SliceEncodingDense $ QBoundedList TT.zeros TT.zeros
 pitchesOneHots ps = SliceEncodingDense $ QBoundedList mask (TT.reshape out)
  where
@@ -355,64 +362,70 @@ pitchesOneHots ps = SliceEncodingDense $ QBoundedList mask (TT.reshape out)
   maxPitches = TT.natValI @MaxPitches
   mkIndex i pitch = i : pitch2index pitch
   indices = T.asTensor <$> Data.List.transpose (zipWith mkIndex [0 ..] pitches)
-  values = T.ones [n] opts
-  zeros :: QTensor (MaxPitches ': PShape)
+  values = T.ones [n] $ opts @dev
+  zeros :: QTensor dev (MaxPitches ': PShape)
   zeros = TT.zeros
-  out :: QTensor (MaxPitches : PShape)
+  out :: QTensor dev (MaxPitches : PShape)
   out = TT.UnsafeMkTensor $ T.indexPut True indices values $ TT.toDynamic zeros
-  mask :: QTensor '[MaxPitches]
-  mask = TT.UnsafeMkTensor $ T.cat (T.Dim 0) [values, T.zeros [maxPitches - n] opts]
+  mask :: QTensor dev '[MaxPitches]
+  mask = TT.UnsafeMkTensor $ T.cat (T.Dim 0) [values, T.zeros [maxPitches - n] $ opts @dev]
 
 pitchesTokens
-  :: [SPitch]
-  -> QBoundedList QDType MaxPitches '[] '[PSize] -- SliceEncoding '[]
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => [SPitch]
+  -> QBoundedList dev QDType MaxPitches '[] '[PSize] -- SliceEncoding '[]
 pitchesTokens ps = qBoundedList (mkToken <$> ps)
  where
   -- todo: batch oneHot
+  opts' = T.withDType
   mkToken p =
-    TT.UnsafeMkTensor $ toOpts $ T.cat (T.Dim 0) [T.oneHot fifthSize f, T.oneHot octaveSize o]
+    TT.UnsafeMkTensor $ T.toDType qDType $ T.cat (T.Dim 0) [T.oneHot fifthSize f, T.oneHot octaveSize o]
    where
-    f = T.asTensor' (fifths p - fifthLow) $ T.withDType T.Int64 opts
-    o = T.asTensor' (octaves p - octaveLow) $ T.withDType T.Int64 opts
+    f = T.asTensor' (fifths p - fifthLow) $ T.withDType T.Int64 $ opts @dev
+    o = T.asTensor' (octaves p - octaveLow) $ T.withDType T.Int64 $ opts @dev
   fifthLow = fromIntegral $ intVal' @FifthLow proxy#
   octaveLow = fromIntegral $ intVal' @OctaveLow proxy#
   fifthSize = TT.natValI @FifthSize
   octaveSize = TT.natValI @OctaveSize
 
 pitchesIndices
-  :: [SPitch]
-  -> SliceEncodingSparse '[]
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => [SPitch]
+  -> SliceEncodingSparse dev '[]
 pitchesIndices ps = SliceEncodingSparse $ qBoundedList (mkToken <$> ps)
  where
   mkIndex = pitch2index
-  mkToken p = TT.UnsafeMkTensor $ T.asTensor' (mkIndex p) $ T.withDType T.Int64 opts
+  mkToken p = TT.UnsafeMkTensor $ T.asTensor' (mkIndex p) $ T.withDType T.Int64 $ opts @dev
 
 encodeSlice
-  :: Notes SPitch
-  -> SliceEncoding '[]
+  :: (TT.KnownDevice dev)
+  => Notes SPitch
+  -> SliceEncoding dev '[]
 -- encodeSlice = encodeSliceIndices
 encodeSlice (Notes notes) = encodePitches $ notePitch <$> HS.toList notes
 
 emptySlice
-  :: SliceEncoding '[]
+  :: (TT.KnownDevice dev) => SliceEncoding dev '[]
 emptySlice = encodePitches []
 
 -- Transition Encoding
 -- ===================
 
-data TransitionEncoding batchShape = TransitionEncoding
-  { trencPassing :: QBoundedList QDType MaxEdges batchShape (2 ': PShape)
-  , trencInner :: QBoundedList QDType MaxEdges batchShape (2 ': PShape)
-  , trencLeft :: SliceEncoding batchShape
-  , trencRight :: SliceEncoding batchShape
-  , trencRoot :: QTensor batchShape
+data TransitionEncoding dev batchShape = TransitionEncoding
+  { trencPassing :: QBoundedList dev QDType MaxEdges batchShape (2 ': PShape)
+  , trencInner :: QBoundedList dev QDType MaxEdges batchShape (2 ': PShape)
+  , trencLeft :: SliceEncoding dev batchShape
+  , trencRight :: SliceEncoding dev batchShape
+  , trencRoot :: QTensor dev batchShape
   }
-  deriving (Show, Generic, Tensorized)
+  deriving (Show, Generic, NFData)
 
-instance Stackable (TransitionEncoding batchShape) where
+instance Stackable (TransitionEncoding dev batchShape) where
   type
-    Stacked (TransitionEncoding batchShape) n =
-      TransitionEncoding (n ': batchShape)
+    Stacked (TransitionEncoding dev batchShape) n =
+      TransitionEncoding dev (n ': batchShape)
   stack xs = TransitionEncoding passing inner left right root
    where
     passing = stack $ trencPassing <$> xs
@@ -421,8 +434,8 @@ instance Stackable (TransitionEncoding batchShape) where
     right = stack $ trencRight <$> xs
     root = TT.vecStack @0 $ trencRoot <$> xs
 
-instance Batchable (TransitionEncoding shape) where
-  type Batched (TransitionEncoding shape) = TransitionEncoding (1 : shape)
+instance Batchable (TransitionEncoding dev shape) where
+  type Batched (TransitionEncoding dev shape) = TransitionEncoding dev (1 : shape)
   addBatchDim (TransitionEncoding p i l r rt) =
     TransitionEncoding
       (addBatchDim p)
@@ -432,8 +445,10 @@ instance Batchable (TransitionEncoding shape) where
       (TT.unsqueeze @0 rt)
 
 edgesMultiHot
-  :: HS.HashSet (InnerEdge SPitch)
-  -> QTensor EShape'
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => HS.HashSet (InnerEdge SPitch)
+  -> QTensor dev EShape'
 edgesMultiHot es = TT.UnsafeMkTensor out
  where
   out =
@@ -445,29 +460,33 @@ edgesMultiHot es = TT.UnsafeMkTensor out
       ++ pitch2index p2
   indices = edge2index <$> F.toList es
   ~indexTensors = T.asTensor <$> Data.List.transpose indices
-  values = T.ones [F.length es] opts
-  zeros = T.zeros dims opts
+  values = T.ones [F.length es] $ opts @dev
+  zeros = T.zeros dims $ opts @dev
   fifthSize = TT.natValI @FifthSize
   octaveSize = TT.natValI @OctaveSize
   dims = [fifthSize, octaveSize, fifthSize, octaveSize]
 
 edgesOneHots
-  :: [InnerEdge SPitch]
-  -> QBoundedList QDType MaxEdges '[] (2 ': PShape)
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => [InnerEdge SPitch]
+  -> QBoundedList dev QDType MaxEdges '[] (2 ': PShape)
 edgesOneHots es = QBoundedList mask $ TT.cat @1 (hots1 TT.:. hots2 TT.:. TT.HNil)
  where
-  SliceEncodingDense (QBoundedList mask hots1) = pitchesOneHots $ (notePitch . fst) <$> es
-  SliceEncodingDense (QBoundedList _ hots2) = pitchesOneHots $ (notePitch . snd) <$> es
+  SliceEncodingDense (QBoundedList mask hots1) = pitchesOneHots @dev $ (notePitch . fst) <$> es
+  SliceEncodingDense (QBoundedList _ hots2) = pitchesOneHots @dev $ (notePitch . snd) <$> es
 
 edgesTokens
-  :: [InnerEdge SPitch]
-  -> QBoundedList QDType MaxEdges '[] '[ESize] -- Maybe (QTensor EShape)
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => [InnerEdge SPitch]
+  -> QBoundedList dev QDType MaxEdges '[] '[ESize] -- Maybe (QTensor EShape)
 edgesTokens es = qBoundedList (mkToken <$> es)
  where
   -- todo: batch oneHot
   mkToken (Note p1 _, Note p2 _) =
     TT.UnsafeMkTensor $!
-      toOpts $
+      toOpts @dev $
         T.cat
           (T.Dim 0)
           [ T.oneHot fifthSize f1
@@ -476,7 +495,7 @@ edgesTokens es = qBoundedList (mkToken <$> es)
           , T.oneHot octaveSize o2
           ]
    where
-    toIndex i = T.asTensor' i $ T.withDType T.Int64 opts
+    toIndex i = T.asTensor' i $ T.withDType T.Int64 $ opts @dev
     f1 = toIndex $ fifths p1 - fifthLow
     o1 = toIndex $ octaves p1 - octaveLow
     f2 = toIndex $ fifths p2 - fifthLow
@@ -487,8 +506,9 @@ edgesTokens es = qBoundedList (mkToken <$> es)
   octaveSize = TT.natValI @OctaveSize
 
 encodeTransition
-  :: Edges SPitch
-  -> TransitionEncoding '[]
+  :: (TT.KnownDevice dev)
+  => Edges SPitch
+  -> TransitionEncoding dev '[]
 encodeTransition (Edges reg pass) =
   TransitionEncoding
     { trencPassing = edgesOneHots $ MS.toList pass
@@ -511,23 +531,23 @@ encodeTransition (Edges reg pass) =
   getRight _ = Nothing
 
 emptyTransition
-  :: TransitionEncoding '[]
+  :: (TT.KnownDevice dev) => TransitionEncoding dev '[]
 emptyTransition = encodeTransition $ Edges HS.empty MS.empty
 
 -- Action Encoding
 -- ---------------
 
-data ActionTop batchShape = ActionTop
-  { atopSl :: !(QStartStop batchShape (SliceEncoding batchShape))
-  , atopT1 :: !(TransitionEncoding batchShape)
-  , atopSm :: !(QMaybe batchShape (SliceEncoding batchShape))
-  , atopT2 :: !(QMaybe batchShape (TransitionEncoding batchShape))
-  , atopSr :: !(QStartStop batchShape (SliceEncoding batchShape))
+data ActionTop dev batchShape = ActionTop
+  { atopSl :: !(QStartStop dev batchShape (SliceEncoding dev batchShape))
+  , atopT1 :: !(TransitionEncoding dev batchShape)
+  , atopSm :: !(QMaybe dev batchShape (SliceEncoding dev batchShape))
+  , atopT2 :: !(QMaybe dev batchShape (TransitionEncoding dev batchShape))
+  , atopSr :: !(QStartStop dev batchShape (SliceEncoding dev batchShape))
   }
-  deriving (Show, Generic, Tensorized)
+  deriving (Show, Generic, NFData)
 
-instance Stackable (ActionTop batchShape) where
-  type Stacked (ActionTop batchShape) n = ActionTop (n ': batchShape)
+instance Stackable (ActionTop dev batchShape) where
+  type Stacked (ActionTop dev batchShape) n = ActionTop dev (n ': batchShape)
   stack xs = ActionTop sl t1 sm t2 sr
    where
     sl = stack $ atopSl <$> xs
@@ -536,8 +556,8 @@ instance Stackable (ActionTop batchShape) where
     t2 = stack $ atopT2 <$> xs
     sr = stack $ atopSr <$> xs
 
-instance Batchable (ActionTop shape) where
-  type Batched (ActionTop shape) = ActionTop (1 : shape)
+instance Batchable (ActionTop dev shape) where
+  type Batched (ActionTop dev shape) = ActionTop dev (1 : shape)
   addBatchDim (ActionTop sl t1 sm t2 sr) =
     ActionTop
       (addBatchDim sl)
@@ -546,28 +566,29 @@ instance Batchable (ActionTop shape) where
       (addBatchDim t2)
       (addBatchDim sr)
 
-data ActionEncoding batchShape = ActionEncoding
-  { actionEncodingTop :: !(ActionTop batchShape) -- (Either (SingleTop batchShape) (DoubleTop batchShape))
-  , actionEncodingOp :: !(TT.Tensor QDevice 'TT.Int64 batchShape) -- !(Leftmost () () ())
+data ActionEncoding dev batchShape = ActionEncoding
+  { actionEncodingTop :: !(ActionTop dev batchShape) -- (Either (SingleTop batchShape) (DoubleTop batchShape))
+  , actionEncodingOp :: !(TT.Tensor dev 'TT.Int64 batchShape) -- !(Leftmost () () ())
   }
-  deriving (Show, Generic, Tensorized)
+  deriving (Show, Generic, NFData)
 
-instance Stackable (ActionEncoding batchShape) where
-  type Stacked (ActionEncoding batchShape) n = ActionEncoding (n ': batchShape)
+instance Stackable (ActionEncoding dev batchShape) where
+  type Stacked (ActionEncoding dev batchShape) n = ActionEncoding dev (n ': batchShape)
   stack xs = ActionEncoding tops ops
    where
     tops = stack $ actionEncodingTop <$> xs
     ops = TT.vecStack @0 $ actionEncodingOp <$> xs
 
-instance Batchable (ActionEncoding shape) where
-  type Batched (ActionEncoding shape) = ActionEncoding (1 : shape)
+instance Batchable (ActionEncoding dev shape) where
+  type Batched (ActionEncoding dev shape) = ActionEncoding dev (1 : shape)
   addBatchDim (ActionEncoding top op) = ActionEncoding (addBatchDim top) (TT.unsqueeze @0 op)
 
 -- instance T.HasTypes (ActionEncoding shape) T.Tensor
 
 encodePVAction
-  :: PVAction
-  -> ActionEncoding '[]
+  :: (TT.KnownDevice dev)
+  => PVAction
+  -> ActionEncoding dev '[]
 encodePVAction (Left (ActionSingle top action)) = ActionEncoding encTop encAction
  where
   (SingleParent sl t sr) = top
@@ -601,12 +622,12 @@ encodePVAction (Right (ActionDouble top action)) = ActionEncoding encTop encActi
 -- State Encoding
 -- --------------
 
-data StateEncoding = StateEncoding
-  { stateEncodingMid :: !(QStartStop '[] (SliceEncoding '[]))
-  , stateEncodingFrozen :: !(QMaybe '[] (TransitionEncoding '[FakeSize], QStartStop '[FakeSize] (SliceEncoding '[FakeSize])))
-  , stateEncodingOpen :: !(QMaybe '[] (TransitionEncoding '[FakeSize], QStartStop '[FakeSize] (SliceEncoding '[FakeSize])))
+data StateEncoding dev = StateEncoding
+  { stateEncodingMid :: !(QStartStop dev '[] (SliceEncoding dev '[]))
+  , stateEncodingFrozen :: !(QMaybe dev '[] (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize])))
+  , stateEncodingOpen :: !(QMaybe dev '[] (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize])))
   }
-  deriving (Show, Generic, Tensorized)
+  deriving (Show, Generic, NFData)
 
 -- type PVState t =
 --   GreedyState
@@ -616,10 +637,10 @@ data StateEncoding = StateEncoding
 --     (PVLeftmost SPitch)
 
 getFrozen
-  :: forall t
-   . (Foldable t)
+  :: forall dev t
+   . (Foldable t, TT.KnownDevice dev)
   => Path (Maybe (t (Edge SPitch))) (Notes SPitch)
-  -> (TransitionEncoding '[FakeSize], QStartStop '[FakeSize] (SliceEncoding '[FakeSize]))
+  -> (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize]))
 getFrozen frozen = (stackUnsafe trEncs, stackUnsafe slcEncs)
  where
   (trs, slcs) = unzip $ pathTake 3 Inner Start frozen
@@ -627,8 +648,9 @@ getFrozen frozen = (stackUnsafe trEncs, stackUnsafe slcEncs)
   slcEncs = qStartStop encodeSlice emptySlice <$> slcs
 
 getOpen
-  :: Path (Edges SPitch) (Notes SPitch)
-  -> (TransitionEncoding '[FakeSize], QStartStop '[FakeSize] (SliceEncoding '[FakeSize]))
+  :: (TT.KnownDevice dev)
+  => Path (Edges SPitch) (Notes SPitch)
+  -> (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize]))
 getOpen open = (stackUnsafe trEncs, stackUnsafe slcEncs)
  where
   (trs, slcs) = unzip $ pathTake 3 Inner Stop open
@@ -636,8 +658,9 @@ getOpen open = (stackUnsafe trEncs, stackUnsafe slcEncs)
   slcEncs = qStartStop encodeSlice emptySlice <$> slcs
 
 encodePVState
-  :: PVState
-  -> StateEncoding
+  :: (TT.KnownDevice dev)
+  => PVState
+  -> StateEncoding dev
 encodePVState (GSFrozen frozen) =
   StateEncoding
     (qStop emptySlice)
@@ -657,35 +680,37 @@ encodePVState (GSSemiOpen frozen mid open _) =
 -- Step Encoding
 -- -------------
 
-data QEncoding batchShape = QEncoding
-  { qActionEncoding :: !(ActionEncoding batchShape)
-  , qStateEncoding :: !(StateEncoding)
+data QEncoding dev batchShape = QEncoding
+  { qActionEncoding :: !(ActionEncoding dev batchShape)
+  , qStateEncoding :: !(StateEncoding dev)
   }
-  deriving (Show, Generic, Tensorized)
+  deriving (Show, Generic, NFData)
 
-instance Batchable (QEncoding shape) where
-  type Batched (QEncoding shape) = QEncoding (1 : shape)
+instance Batchable (QEncoding dev shape) where
+  type Batched (QEncoding dev shape) = QEncoding dev (1 : shape)
   addBatchDim (QEncoding ac st) = QEncoding (addBatchDim ac) st
 
 encodeStep
-  :: PVState
+  :: (TT.KnownDevice dev)
+  => PVState
   -> PVAction
-  -> QEncoding '[]
+  -> QEncoding dev '[]
 encodeStep state action =
   QEncoding
     (encodePVAction action)
     (encodePVState state)
 
 withBatchedEncoding
-  :: forall r
-   . PVState
+  :: forall dev r
+   . (TT.KnownDevice dev)
+  => PVState
   -> NonEmpty PVAction
-  -> (forall n. (KnownNat n) => QEncoding '[n] -> r)
+  -> (forall n. (KnownNat n) => QEncoding dev '[n] -> r)
   -> r
 withBatchedEncoding state (a0 :| actions) f =
   VS.withSizedList aEncs inner
  where
-  inner :: forall n. (KnownNat n) => VS.Vector n (ActionEncoding '[]) -> r
+  inner :: forall n. (KnownNat n) => VS.Vector n (ActionEncoding dev '[]) -> r
   inner aEncs' = f $ QEncoding (stack (VS.cons a0Enc aEncs')) sEnc
   a0Enc = encodePVAction a0
   aEncs = encodePVAction <$> actions

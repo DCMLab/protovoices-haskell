@@ -66,7 +66,7 @@ Idee: Variant of Q-learning:
 -- ---------------
 
 -- discount factor
-gamma :: QTensor '[]
+gamma :: (TT.KnownDevice dev) => QTensor dev '[]
 -- gamma = toOpts $ T.asTensor @Double 0.99
 gamma = 0.99
 
@@ -75,7 +75,7 @@ tau :: QType -- T.Tensor -- QTensor '[]
 -- tau = toOpts $ T.asTensor @Double 0.05
 tau = 0.1
 
-learningRate :: Double -> TT.LearningRate QDevice QDType
+learningRate :: (IsValidDevice dev) => Double -> TT.LearningRate dev QDType
 -- learningRate _ = 0.1
 -- learningRate progress = 0.01 + TT.mulScalar progress (-0.009)
 learningRate progress = 0.1 * TT.exp (TT.mulScalar progress (TT.log 0.1))
@@ -105,11 +105,11 @@ eps i n = expSchedule epsStart epsEnd (fromIntegral n) (fromIntegral i)
 -- Deep Q-Learning
 -- ---------------
 
-data DQNState opt tr tr' slc s f h r = DQNState
-  { pnet :: !QModel
-  , tnet :: !QModel
+data DQNState dev opt tr tr' slc s f h r = DQNState
+  { pnet :: !(QModel dev)
+  , tnet :: !(QModel dev)
   , opt :: !opt
-  , buffer :: !(ReplayBuffer tr tr' slc s f h)
+  , buffer :: !(ReplayBuffer dev tr tr' slc s f h)
   }
 
 -- epsilonGreedyPolicy
@@ -128,7 +128,7 @@ data DQNState opt tr tr' slc s f h r = DQNState
 
 greedyPolicy
   :: (Applicative m)
-  => (embedding -> QTensor '[1])
+  => (embedding -> QTensor dev '[1])
   -> [embedding]
   -> m Int
 greedyPolicy q actions = do
@@ -150,7 +150,7 @@ epsilonic gen epsilon policy actions = do
 softmaxPolicy
   :: (StatefulGen gen m)
   => gen
-  -> (embedding -> QTensor '[1])
+  -> (embedding -> QTensor dev '[1])
   -> [embedding]
   -> m Int
 softmaxPolicy gen q actions = do
@@ -158,10 +158,10 @@ softmaxPolicy gen q actions = do
   categorical (V.fromList $ T.asValue $ T.toDType T.Double probs) gen
 
 runEpisode
-  :: forall tr tr' slc slc' s f h gen state action encoding step
+  :: forall dev tr tr' slc slc' s f h gen state action encoding step
    . ( state ~ GreedyState tr tr' slc (Leftmost s f h)
      , action ~ Action slc tr s f h
-     , encoding ~ QEncoding '[]
+     , encoding ~ QEncoding dev '[]
      , step ~ (state, action, encoding, Maybe (state, [encoding]), Maybe Bool)
      )
   => Eval tr tr' slc slc' h (Leftmost s f h)
@@ -222,7 +222,7 @@ runEpisode !eval !encode !policyF !input =
       pure action
 
 trainLoop
-  :: forall tr tr' slc slc' s f h gen opt -- params (grads :: [Type])
+  :: forall dev tr tr' slc slc' s f h gen opt -- params (grads :: [Type])
    . -- . ( StatefulGen gen IO
   --   , params ~ TT.Parameters QModel
   --   , TT.HasGrad (TT.HList params) (TT.HList grads)
@@ -236,14 +236,14 @@ trainLoop
   (_)
   => gen
   -> Eval tr tr' slc slc' h (Leftmost s f h)
-  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[])
+  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding dev '[])
   -> (Analysis s f h tr slc -> IO QType)
   -> (Action slc tr s f h -> Maybe Bool -> IO QType)
   -> Path slc' tr'
-  -> DQNState opt tr tr' slc s f h QType
+  -> DQNState dev opt tr tr' slc s f h QType
   -> Int
   -> Int
-  -> IO (DQNState opt tr tr' slc s f h QType, QType, QType)
+  -> IO (DQNState dev opt tr tr' slc s f h QType, QType, QType)
 trainLoop !gen !eval !encode !reward !rewardStep !piece oldstate@(DQNState !pnet !tnet !opt !buffer) i n = do
   -- 1. run episode, collect results
   -- let policy q = epsilonic gen (eps i n) (greedyPolicy q)
@@ -320,7 +320,7 @@ trainLoop !gen !eval !encode !reward !rewardStep !piece oldstate@(DQNState !pnet
     pure (pnet', tnet', opt', T.asValue loss)
 
   -- The loss function of a single replay step
-  dqnValues :: _ -> (T.Tensor, T.Tensor) -- (QTensor '[1], QTensor '[1])
+  dqnValues :: ReplayStep dev tr tr' slc s f h -> (T.Tensor, T.Tensor) -- (QTensor '[1], QTensor '[1])
   dqnValues (ReplayStep _ _ step0Enc s' step1Encs r) = (qnow, qexpected)
    where
     qzero = TT.zeros
@@ -328,10 +328,10 @@ trainLoop !gen !eval !encode !reward !rewardStep !piece oldstate@(DQNState !pnet
       Nothing -> qzero
       Just (RPState state') ->
         let
-          nextQs :: [QTensor '[1]]
+          nextQs :: [QTensor dev '[1]]
           nextQs = TT.forward tnet <$> step1Encs
           -- nextQs = runQ' encode tnet state' <$> getActions eval state'
-          toVal :: QTensor '[1] -> QType
+          toVal :: QTensor dev '[1] -> QType
           toVal = T.asValue @QType . TT.toDynamic
          in
           E.maximumOn toVal nextQs
@@ -341,8 +341,9 @@ trainLoop !gen !eval !encode !reward !rewardStep !piece oldstate@(DQNState !pnet
 -- delta = qnow - qexpected
 
 trainDQN
-  :: forall gen tr tr' slc slc' s f h
-   . ( StatefulGen gen IO
+  :: forall dev gen tr tr' slc slc' s f h
+   . ( IsValidDevice dev
+     , StatefulGen gen IO
      , Show s
      , Show f
      , Show h
@@ -354,12 +355,12 @@ trainDQN
      )
   => gen
   -> Eval tr tr' slc slc' h (Leftmost s f h)
-  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding '[])
+  -> (GreedyState tr tr' slc (Leftmost s f h) -> Action slc tr s f h -> QEncoding dev '[])
   -> (Analysis s f h tr slc -> IO QType)
   -> (Action slc tr s f h -> Maybe Bool -> IO QType)
   -> [Path slc' tr']
   -> Int
-  -> IO ([QType], [QType], QModel)
+  -> IO ([QType], [QType], QModel dev)
 trainDQN gen eval encode reward rewardStep pieces n = do
   model0 <- mkQModel
   let opt = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model0) -- T.GD

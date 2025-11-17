@@ -6,11 +6,12 @@ import RL.Encoding
 import RL.Model
 
 import Data.TypeNums (KnownNat)
+import RL.ModelTypes (IsValidDevice)
 import Torch qualified as T
 import Torch.Jit qualified as TJit
 import Torch.Lens qualified as TL
 
-compileBatchedPolicy :: forall bs1. (KnownNat bs1) => TJit.ScriptCache -> QModel -> QEncoding '[bs1] -> T.Tensor
+compileBatchedPolicy :: forall dev bs. (IsValidDevice dev, KnownNat bs) => TJit.ScriptCache -> QModel dev -> QEncoding dev '[bs] -> T.Tensor
 compileBatchedPolicy scriptCache model encoding =
   head $ TJit.jit scriptCache policy $ TL.flattenValues TL.types (model, encoding)
  where

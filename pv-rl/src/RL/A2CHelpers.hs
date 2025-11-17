@@ -12,36 +12,36 @@ import Torch.Typed qualified as TT
 -- helpers for operating on HLists
 -- ===============================
 
-type ModelParams = TT.Parameters QModel
-type ModelTensors = ToModelTensors ModelParams
+type ModelParams dev = TT.Parameters (QModel dev)
+type ModelTensors dev = ToModelTensors (ModelParams dev)
 
 newtype UpdateEligCritic = UpdateEligCritic QType
 
-instance TT.Apply' UpdateEligCritic (QTensor shape, QTensor shape) (QTensor shape) where
+instance (TT.KnownDevice dev) => TT.Apply' UpdateEligCritic (QTensor dev shape, QTensor dev shape) (QTensor dev shape) where
   apply' (UpdateEligCritic factor) (zV, grad) = TT.mulScalar factor zV + grad
 
-updateEligCritic :: QType -> QType -> TT.HList ModelTensors -> TT.HList ModelTensors -> TT.HList ModelTensors
+updateEligCritic :: (TT.KnownDevice dev) => QType -> QType -> TT.HList (ModelTensors dev) -> TT.HList (ModelTensors dev) -> TT.HList (ModelTensors dev)
 updateEligCritic gamma lambdaV = force $ TT.hzipWith (UpdateEligCritic $ gamma * lambdaV)
 {-# NOINLINE updateEligCritic #-}
 
 data UpdateEligActor = UpdateEligActor QType QType
 
-instance TT.Apply' UpdateEligActor (QTensor shape, QTensor shape) (QTensor shape) where
+instance (TT.KnownDevice dev) => TT.Apply' UpdateEligActor (QTensor dev shape, QTensor dev shape) (QTensor dev shape) where
   apply' (UpdateEligActor intensity factor) (zP, grad) =
     TT.mulScalar factor zP + TT.mulScalar intensity grad
 
-updateEligActor :: QType -> QType -> QType -> TT.HList ModelTensors -> TT.HList ModelTensors -> TT.HList ModelTensors
+updateEligActor :: (TT.KnownDevice dev) => QType -> QType -> QType -> TT.HList (ModelTensors dev) -> TT.HList (ModelTensors dev) -> TT.HList (ModelTensors dev)
 updateEligActor gamma lambdaP intensity =
   force $ TT.hzipWith (UpdateEligActor intensity $ gamma * lambdaP)
 {-# NOINLINE updateEligActor #-}
 
-mulModelTensors :: QTensor '[] -> TT.HList ModelTensors -> TT.HList ModelTensors
+mulModelTensors :: (IsValidDevice dev) => QTensor dev '[] -> TT.HList (ModelTensors dev) -> TT.HList (ModelTensors dev)
 mulModelTensors factor = force $ TT.hmap' (Mul' factor)
 {-# NOINLINE mulModelTensors #-}
 
-modelZeros :: QModel -> TT.HList ModelTensors
+modelZeros :: (IsValidDevice dev) => QModel dev -> TT.HList (ModelTensors dev)
 modelZeros model = force $ TT.hmap' TT.ZerosLike $ TT.flattenParameters model
 {-# NOINLINE modelZeros #-}
 
-sumTensorList :: TT.HList ModelTensors -> QTensor '[]
-sumTensorList ts = TT.hfoldr Add (TT.zeros :: QTensor '[]) $ TT.hmap' SumAll ts
+sumTensorList :: forall dev. (IsValidDevice dev) => TT.HList (ModelTensors dev) -> QTensor dev '[]
+sumTensorList ts = TT.hfoldr Add (TT.zeros :: QTensor dev '[]) $ TT.hmap' SumAll ts

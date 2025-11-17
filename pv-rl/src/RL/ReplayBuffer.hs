@@ -22,16 +22,16 @@ newtype RPAction slc tr s f h = RPAction (Action slc tr s f h)
 -- Replay Buffer
 -- -------------
 
-data ReplayStep tr tr' slc s f h = ReplayStep
+data ReplayStep dev tr tr' slc s f h = ReplayStep
   { replayState :: !(RPState tr tr' slc s f h)
   , replayAction :: !(RPAction slc tr s f h)
-  , replayStep :: !(QEncoding '[])
+  , replayStep :: !(QEncoding dev '[])
   , replayNextState :: !(Maybe (RPState tr tr' slc s f h))
-  , replayNextSteps :: ![QEncoding '[]]
+  , replayNextSteps :: ![QEncoding dev '[]]
   , replayReward :: !QType
   }
 
-instance (Show slc, Show s, Show f, Show h, Show tr, Show tr') => Show (ReplayStep tr tr' slc s f h) where
+instance (Show slc, Show s, Show f, Show h, Show tr, Show tr') => Show (ReplayStep dev tr tr' slc s f h) where
   show (ReplayStep s (RPAction a) _ s' _ r) =
     show s <> " -> " <> show s' <> " " <> show r <> "\n  " <> act
    where
@@ -39,26 +39,26 @@ instance (Show slc, Show s, Show f, Show h, Show tr, Show tr') => Show (ReplaySt
       Left (ActionSingle _ op) -> show op
       Right (ActionDouble _ op) -> show op
 
-data ReplayBuffer tr tr' slc s f h
-  = ReplayBuffer !Int ![ReplayStep tr tr' slc s f h]
+data ReplayBuffer dev tr tr' slc s f h
+  = ReplayBuffer !Int ![ReplayStep dev tr tr' slc s f h]
   deriving (Show)
 
-mkReplayBuffer :: Int -> ReplayBuffer tr tr' slc s f h
+mkReplayBuffer :: Int -> ReplayBuffer dev tr tr' slc s f h
 mkReplayBuffer n = ReplayBuffer n []
 
-seedReplayBuffer :: Int -> [ReplayStep tr tr' slc s f h] -> ReplayBuffer tr tr' slc s f h
+seedReplayBuffer :: Int -> [ReplayStep dev tr tr' slc s f h] -> ReplayBuffer dev tr tr' slc s f h
 seedReplayBuffer n steps = ReplayBuffer n $ take n steps
 
 pushStep
-  :: ReplayBuffer tr tr' slc s f h
-  -> ReplayStep tr tr' slc s f h
-  -> ReplayBuffer tr tr' slc s f h
+  :: ReplayBuffer dev tr tr' slc s f h
+  -> ReplayStep dev tr tr' slc s f h
+  -> ReplayBuffer dev tr tr' slc s f h
 pushStep (ReplayBuffer n queue) trans = ReplayBuffer n $ take n $ trans : queue
 
 sampleSteps
-  :: ReplayBuffer tr tr' slc s f h
+  :: ReplayBuffer dev tr tr' slc s f h
   -> Int
-  -> IO [ReplayStep tr tr' slc s f h]
+  -> IO [ReplayStep dev tr tr' slc s f h]
 sampleSteps (ReplayBuffer _ queue) n = do
   -- not great, but shuffle' doesn't integrated with StatefulGen
   gen <- getStdRandom Rand.split

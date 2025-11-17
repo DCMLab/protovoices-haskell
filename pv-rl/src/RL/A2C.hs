@@ -74,23 +74,23 @@ nWorkers = 2
 -- A2C
 -- ===
 
-printTensors :: TT.HList ModelTensors -> IO ()
+printTensors :: TT.HList (ModelTensors dev) -> IO ()
 printTensors (_ TT.:. t TT.:. _) = print t
 
-printParams :: TT.HList ModelParams -> IO ()
+printParams :: TT.HList (ModelParams dev) -> IO ()
 printParams (_ TT.:. t TT.:. _) = print t
 
-data A2CState = A2CState
-  { a2cActor :: !QModel
-  , a2cCritic :: !QModel
+data A2CState dev = A2CState
+  { a2cActor :: !(QModel dev)
+  , a2cCritic :: !(QModel dev)
   , a2cOptActor :: !TT.GD -- !(TT.CppOptimizerState TT.AdamOptions ModelParams) -- !(TT.Adam ModelTensors) --
   , a2cOptCritic :: !TT.GD -- !(TT.Adam ModelTensors)
   }
   deriving (Generic)
 
-data A2CStepState = A2CStepState
-  { a2cStepZV :: !(TT.HList ModelTensors)
-  , a2cStepZP :: !(TT.HList ModelTensors)
+data A2CStepState dev = A2CStepState
+  { a2cStepZV :: !(TT.HList (ModelTensors dev))
+  , a2cStepZP :: !(TT.HList (ModelTensors dev))
   , a2cStepIntensity :: !QType
   , a2cStepReward :: !QType
   , a2cStepState
@@ -104,10 +104,11 @@ data A2CStepState = A2CStepState
   }
 
 initPieceState
-  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
+  :: (TT.KnownDevice dev)
+  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Path [Note SPitch] [Edge SPitch]
-  -> TT.HList ModelTensors
-  -> Either A2CStepState QType
+  -> TT.HList (ModelTensors dev)
+  -> Either (A2CStepState dev) QType
 initPieceState eval input z0 =
   let
     state = initParseState eval input
@@ -118,7 +119,9 @@ initPieceState eval input z0 =
       (a : as) -> Left $ A2CStepState z0 z0 1 0 state (a NE.:| as)
 
 pieceStep
-  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
+  :: forall dev label
+   . (IsValidDevice dev)
+  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
   -> label
@@ -128,9 +131,9 @@ pieceStep
   -- ^ temperature
   -> Int
   -- ^ iteration
-  -> A2CState
-  -> A2CStepState
-  -> ET.ExceptT String IO (A2CState, Either A2CStepState QType, QType)
+  -> A2CState dev
+  -> A2CStepState dev
+  -> ET.ExceptT String IO (A2CState dev, Either (A2CStepState dev) QType, QType)
 pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward state actions) = do
   -- EitherT String IO
   -- preparation: list actions, compute policy
@@ -156,7 +159,7 @@ pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CS
       delta = TT.addScalar r $ TT.squeezeAll $ TT.mulScalar gamma vS' - vS
       gradV = TT.grad (TT.squeezeAll vS + fakeLoss critic) (TT.flattenParameters critic)
       zV' = updateEligCritic gamma lambdaV zV gradV
-      actionLogProb :: QTensor '[]
+      actionLogProb :: QTensor dev '[]
       actionLogProb = TT.log $ TT.UnsafeMkTensor (T.squeezeAll (policy T.! actionIndex))
       gradP = TT.grad (actionLogProb + fakeLoss actor) (TT.flattenParameters actor)
       zP' = updateEligActor gamma lambdaP intensity zP gradP
@@ -176,7 +179,8 @@ pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CS
 
 -- | Run an episode
 runEpisode
-  :: (_)
+  :: forall dev label
+   . (_)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
@@ -184,15 +188,15 @@ runEpisode
   -> (QType -> QType)
   -> Path [Note SPitch] [Edge SPitch]
   -> label
-  -> A2CState
+  -> A2CState dev
   -> Int
-  -> IO (Either String (A2CState, QType, QType))
+  -> IO (Either String (A2CState dev, QType, QType))
 runEpisode !eval !gen !fReward !fLr !fTemp !input !label !modelState !i =
   case initPieceState eval input z0 of
     Left s0 -> ET.runExceptT $ go modelState s0 SL.Nil
     Right reward -> pure $ pure (modelState, reward, 0)
  where
-  z0 :: TT.HList ModelTensors
+  z0 :: TT.HList (ModelTensors dev)
   z0 = modelZeros $ a2cActor modelState
   lr = fLr $ fromIntegral i
   temp = fTemp $ fromIntegral i
@@ -205,9 +209,10 @@ runEpisode !eval !gen !fReward !fLr !fTemp !input !label !modelState !i =
       Right reward -> pure (modelState', reward, mean losses')
 
 runAccuracy
-  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Spread SPitch) (PVLeftmost SPitch)
+  :: (IsValidDevice dev)
+  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Spread SPitch) (PVLeftmost SPitch)
   -> PVRewardFn label
-  -> QModel
+  -> QModel dev
   -> (Path slc' [Edge SPitch], label)
   -> IO (Either String (QType, PVAnalysis SPitch))
 runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions eval s0 of
@@ -244,8 +249,8 @@ runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions 
 
 deriving instance (NoThunks a) => NoThunks (SL.List a)
 
-data A2CLoopState = A2CLoopState
-  { a2clState :: A2CState
+data A2CLoopState dev = A2CLoopState
+  { a2clState :: A2CState dev
   , a2clRewards :: SL.List (SL.List QType)
   , a2clLosses :: SL.List (SL.List QType)
   , a2clAccs :: SL.List (SL.List QType)
@@ -253,7 +258,9 @@ data A2CLoopState = A2CLoopState
   deriving (Generic)
 
 trainA2C
-  :: Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
+  :: forall dev label
+   . (IsValidDevice dev)
+  => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
   -> (QType -> QType)
@@ -261,11 +268,11 @@ trainA2C
   -> (QType -> QType)
   -- ^ temperature schedule
   -> Maybe [QType]
-  -> QModel
-  -> QModel
+  -> QModel dev
+  -> QModel dev
   -> [(Path [Note SPitch] [Edge SPitch], label)]
   -> Int
-  -> IO ([[QType]], [QType], QModel, QModel)
+  -> IO ([[QType]], [QType], QModel dev, QModel dev)
 trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
   -- print $ qModelFinal2 model0
   -- opta <- TT.initOptimizer (TT.AdamOptions 0.0001 (0.9, 0.999) 1e-8 0 False) actor0

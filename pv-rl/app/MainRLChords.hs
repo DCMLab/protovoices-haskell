@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -38,6 +39,7 @@ import System.Random.Stateful (initStdGen, newIOGenM)
 import Torch qualified as T
 import Torch.Jit qualified as Jit
 import Torch.Lens qualified as TL
+import Torch.Typed qualified as TT
 
 -- loading training data
 -- ---------------------
@@ -105,7 +107,9 @@ dataToSlices dataNotes =
 -- --------------
 
 parseA2C
-  :: RL.QModel
+  :: forall dev
+   . (RL.IsValidDevice dev)
+  => RL.QModel dev
   -> Path [Note SPitch] [Edge SPitch]
   -> IO (Either String (PVAnalysis SPitch))
 parseA2C !actor !input = case take 200 $ getActions eval s0 of
@@ -138,7 +142,9 @@ parseA2C !actor !input = case take 200 $ getActions eval s0 of
         pure ana
 
 benchA2C
-  :: RL.QModel
+  :: forall dev
+   . (RL.IsValidDevice dev)
+  => RL.QModel dev
   -> Path [Note SPitch] [Edge SPitch]
   -> IO (Either String (PVAnalysis SPitch))
 benchA2C !actor !input = case take 200 $ getActions eval s0 of
@@ -173,6 +179,7 @@ mainLoading = do
   putStrLn $ chordLocation $ chords !! 1
   print $ dataToSlices $ notes $ chords !! 1
 
+mainRL :: forall dev. (RL.IsValidDevice dev) => Int -> IO ()
 mainRL n = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
@@ -190,21 +197,22 @@ mainRL n = do
   let fReward = RL.pvRewardChordAndActionByLen 10 posterior
       fRl = (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
       fTemp = const 1 -- \t -> (RL.cosSchedule 10 (mod' t 10)) * 10 + 1
-  actor0 <- RL.mkQModel
-  critic0 <- RL.mkQModel
-  -- actor0 <- RL.loadModel "actor.ht"
-  -- critic0 <- RL.loadModel "critic.ht"
+  actor0 <- RL.mkQModel @dev
+  critic0 <- RL.mkQModel @dev
+  -- actor0 <- RL.loadModel @dev "actor.ht"
+  -- critic0 <- RL.loadModel @dev "critic.ht"
   (rewards, losses, actor, critic) <-
     RL.trainA2C protoVoiceEvaluator mgen fReward fRl fTemp Nothing actor0 critic0 pieces n
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
   pure ()
 
+mainPlot :: forall dev. (RL.IsValidDevice dev) => IO ()
 mainPlot = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
       !pieces = dataToSlices . notes <$> chords
-  !actor <- RL.mkQModel -- RL.loadModel "testmodel.ht"
+  !actor <- RL.mkQModel @dev -- RL.loadModel @dev "testmodel.ht"
   putStrLn "Model loaded"
   pb <-
     PB.newProgressBar
@@ -232,6 +240,7 @@ mainPlot = do
     Just _ -> putStrLn "cache full"
     Nothing -> putStrLn "cache empty"
 
+mainBenchInference :: forall dev. (RL.IsValidDevice dev) => Maybe Int -> IO ()
 mainBenchInference nPieces = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
@@ -239,7 +248,7 @@ mainBenchInference nPieces = do
         dataToSlices . notes <$> case nPieces of
           Just n -> take n chords
           Nothing -> chords
-  !actor <- RL.mkQModel
+  !actor <- RL.mkQModel @dev
   putStrLn "Model loaded"
   pb <-
     PB.newProgressBar
@@ -258,4 +267,8 @@ mainBenchInference nPieces = do
       Right ana@(Analysis deriv top) -> pure ()
     PB.incProgress pb 1
 
-main = mainBenchInference Nothing -- mainPlot -- mainRL 40
+-- type QDevice = '(TT.CUDA, 0)
+
+type QDevice = '(TT.CPU, 0)
+
+main = mainBenchInference @QDevice (Just 10) -- mainPlot -- mainRL 40
