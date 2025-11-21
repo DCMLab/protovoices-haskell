@@ -213,11 +213,12 @@ initialGraph topPath =
     []
     top
  where
+  topStart = DerivSlice 0 0 Start
   -- collect initial slices (+ Start / Stop)
-  topContents = Start : (Inner <$> pathBetweens topPath) <> [Stop]
+  topContents = (Inner <$> pathBetweens topPath) <> [Stop]
   -- assign depth=0 and running IDs to initial slices
-  topSlices = zipWith (DerivSlice 0) [0 ..] topContents
-  top = zip3 topSlices (pathArounds topPath) (tail topSlices)
+  topSlices = zipWith (DerivSlice 0) [1 ..] topContents
+  top = zip3 (topStart : topSlices) (pathArounds topPath) topSlices
 
 -- | Replay a derivation from @n@ top-level transitions.
 replayDerivation'
@@ -387,7 +388,9 @@ tikzDerivationGraph showS showT (DGraph _ slices trans horis openTrans frozenTra
     M.fromListWith (++) $ bimap dslId ((: []) . dslId) <$> S.toList horis
   surface = reverse frozenTrans <> openTrans
   trans' = (\t -> (t, t `L.elem` frozenTrans)) <$> S.toList trans
-  surfaceNodes = fmap dslId $ leftNode (head surface) : fmap rightNode surface
+  surfaceNodes = case surface of
+    [] -> []
+    (t0 : _) -> fmap dslId $ leftNode (t0) : fmap rightNode surface
   allNodes = dslId <$> L.sortOn dslDepth (S.toList slices)
   -- compute x locations
   xloc = foldl' findX xlocInit allNodes

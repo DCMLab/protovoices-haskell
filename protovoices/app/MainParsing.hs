@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# OPTIONS_GHC -Wno-all #-}
@@ -21,7 +22,6 @@ import PVGrammar.Prob.Simple
   , sampleDerivation'
   , savePVHyper
   )
-import RL qualified
 
 import Musicology.Core hiding (Note (..), (<.>))
 import Musicology.Core.Slicing
@@ -61,6 +61,7 @@ import Control.DeepSeq
 import Control.Exception (SomeException, catch)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap))
+import Data.Foldable qualified as F
 import Data.String (fromString)
 import GHC.Stack (currentCallStack)
 import Inference.Conjugate
@@ -80,16 +81,7 @@ import System.FilePattern qualified as FP
 import System.FilePattern.Directory qualified as FP
 
 -- better do syntax
-
-import Data.Foldable qualified as F
-import GreedyParser qualified as RL
 import Language.Haskell.DoNotation qualified as Do
-import RL.A2C (runAccuracy)
-import System.Random.MWC.Probability qualified as MWC
-import System.Random.Stateful (initStdGen, newIOGenM)
-import Torch qualified as T
-import Torch.Typed qualified as TT
-import Torch.Typed.Tensor ()
 
 -- import           Prelude                 hiding ( Monad(..)
 --                                                 , pure
@@ -183,7 +175,7 @@ checkDeriv deriv original = do
             _ -> Nothing
           orig' =
             bimap
-              (Notes . MS.fromList)
+              (Notes . HS.fromList)
               (\e -> Edges (HS.fromList e) MS.empty)
               original
       case path' of
@@ -208,96 +200,46 @@ checkDeriv deriv original = do
 derivBrahms :: [PVLeftmost (Pitch MT.SIC)]
 derivBrahms = buildDerivation $ Do.do
   split $ mkSplit $ do
-    splitRegular Start Stop (c' shp) RootNote False False
-    splitRegular Start Stop (a' nat) RootNote False False
+    splitRegular Start Stop "C#.rootC" RootNote False False
+    splitRegular Start Stop "A.rootA" RootNote False False
   spread $ mkSpread $ do
-    spreadNote (a' nat) ToBoth True
-    spreadNote (c' shp) (ToLeft 1) False
-    addPassing (c' shp) (a' nat)
+    spreadNote "A.rootA" (ToBoth "spreadAl" "spreadAr") True
+    spreadNote "C#.rootC" (ToLeft "spreadCl") False
+    addPassing "C#.spreadCl" "A.spreadAr"
   splitRight $ mkSplit $ do
-    splitPassing (c' shp) (a' nat) (b' nat) PassingMid False False
-    splitRegular (Inner $ a' nat) (Inner $ a' nat) (g' shp) FullNeighbor False False
+    splitPassing "C#.spreadCl" "A.spreadAr" "B.pass" PassingMid False False
+    splitRegular "A.spreadAl" "A.spreadAl" "G#.nb" FullNeighbor False False
   spread $ mkSpread $ do
-    spreadNote (a' nat) (ToRight 1) False
-    spreadNote (c' shp) (ToLeft 1) False
-    addPassing (c' shp) (a' nat)
-  freeze FreezeOp
+    spreadNote "A.spreadAl" (ToRight "A2") False
+    spreadNote "C#.spreadCl" (ToLeft "C0") False
+    addPassing "C#.C0" "A.A2"
+  freeze $ mkFreeze []
   split $ mkSplit $ do
-    splitPassing (c' shp) (a' nat) (b' nat) PassingMid False False
-  freeze FreezeOp
-  freeze FreezeOp
+    splitPassing "C#.C0" "A.A2" "B.B1" PassingMid False False
+  freeze $ mkFreeze []
+  freeze $ mkFreeze []
   spread $ mkSpread $ do
-    spreadNote (b' nat) (ToRight 1) False
-    spreadNote (g' shp) (ToLeft 1) False
+    spreadNote "B.pass" (ToRight "B.B6") False
+    spreadNote "G#.nb" (ToLeft "G#.G#4") False
   split $ mkSplit $ do
-    addToRight (g' shp) (a' nat) LeftNeighbor False
-  freeze FreezeOp
-  freeze FreezeOp
+    addFromRight "G#.G#4" "A.A3" LeftNeighbor False
+  freeze $ mkFreeze []
+  freeze $ mkFreeze []
   split $ mkSplit $ do
-    addToRight (b' nat) (c' shp) LeftNeighbor False
-  freeze FreezeOp
-  freeze FreezeOp
-  freeze FreezeOp
-  freeze FreezeOp
+    addFromRight "B.B6" "A.A5" LeftNeighbor False
+  freeze $ mkFreeze []
+  freeze $ mkFreeze []
+  freeze $ mkFreeze []
+  freeze $ mkFreeze []
  where
   (>>) :: (Do.BindSyntax x y z) => x a -> y b -> z b
   (>>) = (Do.>>)
 
--- debugging RL
-
-startParsing :: FilePath -> IO (RL.PVState [])
-startParsing file = do
-  surface <- loadSurface file
-  pure $ Greedy.initParseState protoVoiceEvaluator surface
-
-rateState :: RL.QModel -> RL.PVState [] -> RL.QTensor '[1]
-rateState model state = RL.forwardValue model $ RL.encodePVState state
-
-listActions :: RL.QModel -> RL.PVState [] -> IO ()
-listActions model state = do
-  putStrLn $ "state value: " <> show (rateState model state)
-  zipWithM_ showAction (getActions state) [1 ..]
- where
-  showAction action i = putStrLn $ show i <> ". " <> act <> "\n => " <> state' <> "\n q = " <> show q
-   where
-    state' = case RL.applyAction state action of
-      Left error -> error
-      Right state' -> show state'
-    q = RL.runQ RL.encodeStep model state action
-    act = case action of
-      Left (RL.ActionSingle _ singleAct) -> show singleAct
-      Right (RL.ActionDouble _ doubleAct) -> show doubleAct
-
-getActions :: RL.PVState [] -> [RL.PVAction]
-getActions = Greedy.getActions (protoVoiceEvaluator @[] @[])
-
-rateActions
-  :: (Foldable t)
-  => RL.QModel
-  -> RL.PVState t
-  -> [RL.PVAction]
-  -> [RL.QType]
-rateActions model state actions = RL.runQ RL.encodeStep model state <$> actions
-
-pickAction :: RL.PVState [] -> Int -> RL.PVState []
-pickAction state i = applyAction state $ getActions state !! (i - 1)
-
-pickAction' :: RL.PVState [] -> Int -> Either String (Either (RL.PVState []) _)
-pickAction' state i = applyAction' state $ getActions state !! (i - 1)
-
-applyAction :: RL.PVState t -> RL.PVAction -> RL.PVState t
-applyAction state action = state'
- where
-  (Right (Left state')) = RL.applyAction state action
-
-applyAction' :: RL.PVState t -> RL.PVAction -> Either String (Either (RL.PVState t) _)
-applyAction' = Greedy.applyAction
-
--- mains
--- =====
+-- -- mains
+-- -- =====
 
 type Piece =
-  (String, PVAnalysis SPitch, Trace PVParams, Path [SPitch] [Edge SPitch])
+  (String, PVAnalysis SPitch, Trace PVParams, Path [Note SPitch] [Edge SPitch])
 
 loadItem :: FilePath -> FilePath -> IO (Maybe Piece)
 loadItem dir name = do
@@ -359,7 +301,7 @@ learnParams = do
   putStrLn "list of pieces:"
   forM_ dataset $ \(name, _ana, _trace, _surface) -> do
     putStrLn $ "  " <> name
-  let pitchSets = (\(_, _, _, surface) -> HS.fromList $ F.concat $ pathArounds surface) <$> dataset
+  let pitchSets = (\(_, _, _, surface) -> HS.fromList $ fmap notePitch $ F.concat $ pathArounds surface) <$> dataset
       allPitches = HS.unions pitchSets
   putStr "fifths: "
   print $ HS.map fifths allPitches
@@ -482,63 +424,8 @@ mainRare = do
     Right g -> return $ Just g
   viewGraphs "rare.tex" $ catMaybes pics
 
--- mainAdam = do
---   (model :: TT.Linear 2 2 RL.QDType RL.QDevice) <- TT.sample TT.LinearSpec
---   let opt = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model)
---   let inputs = replicate 100_000 (1 :: RL.QType)
---   (!model', !opt') <- foldM step (model, opt) inputs
---   print model'
---   pure ()
---  where
---   step :: (TT.Linear 2 2 RL.QDType RL.QDevice, _) -> RL.QType -> IO (TT.Linear 2 2 RL.QDType RL.QDevice, TT.Adam '[TT.Tensor RL.QDevice RL.QDType '[2, 2], TT.Tensor RL.QDevice RL.QDType '[2]])
---   step (!m, !o) !i = TT.runStep m o loss 0.1
---    where
---     loss :: RL.QTensor '[]
---     loss = TT.sumAll $ TT.forward m $ TT.UnsafeMkTensor @RL.QDevice @RL.QDType $ T.asTensor (i, i)
-
--- main = mainAdam
-
 mainPosterior = do
   posterior <- learnParams
   savePVHyper "posterior.json" posterior
 
-mainRL n = do
-  -- Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "10c_rare_int" -- "05b_cello_prelude_1-4" -- "05extra_cello_prelude_1-4_full"
-  -- Just (_, pieceAna2, _, piece2) <- loadItem "data/theory-article" "20a_sus"
-  items <- catMaybes <$> mapM (loadItem "data/theory-article") ["10c_rare_int", "20a_sus", "04a_bwv784_top", "19b_quiescenza", "20b_cadence"]
-  -- Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
-  gen <- initStdGen
-  mgen <- newIOGenM gen
-  genMWC <- MWC.create -- uses a fixed seed
-  (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
-  -- bestReward <- RL.pvRewardExp posterior pieceAna
-  -- bestReward2 <- RL.pvRewardExp posterior pieceAna2
-  -- putStrLn $ "optimal reward: " <> show bestReward
-  -- putStrLn $ "optimal reward 2: " <> show bestReward2
-  bestRewards <- forM items $ \(_, ana, _, _) -> RL.pvRewardExp' posterior ana
-  let pieces = (\(_, _, _, piece) -> (piece, pathLen piece)) <$> items
-  let fReward = RL.pvRewardActionByLen posterior
-  -- (rewards, losses, model) <- RL.trainDQN mgen protoVoiceEvaluator RL.encodeStep (RL.pvRewardExp posterior) (RL.pvRewardAction posterior) [piece] n
-  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
-  actor0 <- RL.mkQModel
-  critic0 <- RL.mkQModel
-  -- actor0 <- RL.loadModel "actor.ht"
-  -- critic0 <- RL.loadModel "critic.ht"
-  (rewards, losses, actor, critic) <-
-    RL.trainA2C protoVoiceEvaluator mgen fReward (Just bestRewards) actor0 critic0 pieces n
-  -- testBestReward <- RL.pvRewardExp posterior testAna
-  -- testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
-  -- case testAcc of
-  --   Left error -> putStrLn $ "Error: " <> error
-  --   Right (testReward, testDeriv) -> do
-  --     plotDeriv "rl/test-deriv.tex" $ anaDerivation testDeriv
-  --     putStrLn "test accuracy:"
-  --     putStrLn $ "  optimal: " <> show testBestReward
-  --     putStrLn $ "  actual: " <> show testReward
-  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
-  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
-  pure ()
-
-catchAll prog = catch prog (\(e :: SomeException) -> currentCallStack >>= print >> print e)
-
-main = catchAll $ mainRL 5000
+main = mainPosterior

@@ -87,8 +87,10 @@ import Data.HashMap.Strict qualified as HM
 import Data.HashSet qualified as S
 import Data.Hashable (Hashable)
 import Data.List qualified as L
+import Data.List.Extra qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe (fromMaybe, mapMaybe)
+import Data.String (IsString (..))
 import Data.Text.Lazy.IO qualified as TL
 import Data.Traversable (for)
 import GHC.Generics (Generic)
@@ -120,6 +122,15 @@ instance (Notation n) => FromJSON (Note n) where
 instance (Notation n) => ToJSON (Note n) where
   toJSON (Note p i) = Aeson.object ["pitch" .= showNotation p, "id" .= i]
   toEncoding (Note p i) = Aeson.pairs ("pitch" .= showNotation p <> "id" .= i)
+
+{- | Lets you write a Note as a string literal with OverloadedStrings.
+Pitch and ID are separate by a @.@ (the ID may contain more @.@s).
+-}
+instance (Notation n) => IsString (Note n) where
+  fromString str = fromMaybe (error $ "cannot parse note literal " <> str) $ do
+    (pstr, idParts) <- L.uncons $ L.splitOn "." str
+    pitch <- readNotation pstr
+    pure $ Note pitch (L.intercalate "." idParts)
 
 -- ** Slice Type: Sets of Notes
 

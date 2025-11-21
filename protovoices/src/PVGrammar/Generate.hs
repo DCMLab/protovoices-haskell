@@ -24,13 +24,14 @@ module PVGrammar.Generate
   , mkSplit
   , splitRegular
   , splitPassing
-  , addToLeft
-  , addToRight
+  , addFromLeft
+  , addFromRight
   , addPassingLeft
   , addPassingRight
 
     -- ** Spread
   , mkSpread
+  , SpreadDir (..)
   , spreadNote
   , addPassing
   , addOctaveRepetition
@@ -85,7 +86,7 @@ import Musicology.Core qualified as MC
 -- building operations
 -- ===================
 
-{- | Create a freeze operation (alias for 'FreezeOp').
+{- | Create a freeze operation.
  Can be used together with the 'Common.freeze' action within a monadic derivation.
 -}
 mkFreeze :: (Hashable n) => [InnerEdge n] -> Freeze n
@@ -166,7 +167,7 @@ splitPassing l r c o kl kr =
     if o /= PassingLeft && kr then S.singleton (Inner c, Inner r) else S.empty
 
 -- | During a split, add a new single-sided ornament to a left parent note.
-addToLeft
+addFromLeft
   :: (Ord n, Hashable n)
   => Note n
   -- ^ parent (from the left slice)
@@ -177,7 +178,7 @@ addToLeft
   -> Bool
   -- ^ keep the new edge?
   -> MW.Writer (Split n) ()
-addToLeft parent child op keep =
+addFromLeft parent child op keep =
   MW.tell $
     SplitOp
       M.empty
@@ -190,7 +191,7 @@ addToLeft parent child op keep =
       MS.empty
 
 -- | During a split, add a new single-sided ornament to a right parent note.
-addToRight
+addFromRight
   :: (Ord n, Hashable n)
   => Note n
   -- ^ parent (from the right slice)
@@ -201,7 +202,7 @@ addToRight
   -> Bool
   -- ^ keep the new edge?
   -> MW.Writer (Split n) ()
-addToRight parent child op keep =
+addFromRight parent child op keep =
   MW.tell $
     SplitOp
       M.empty
@@ -245,24 +246,32 @@ mkSpread actions = appEndo (MW.execWriter actions) emptySpread
  where
   emptySpread = SpreadOp HM.empty $ Edges S.empty MS.empty
 
+-- | A helper type to express the direction in which a note is spread + the child(ren)'s new IDs.
+data SpreadDir = ToLeft String | ToRight String | ToBoth String String
+
 -- | During a spread, distribute one of the parent notes to the child slices of a spread.
 spreadNote
   :: (Ord n, Hashable n)
   => Note n
   -- ^ the parent note
-  -> SpreadChildren n
+  -> SpreadDir
   -- ^ the distribution of the note
   -> Bool
   -- ^ introduce a repetition edge (if possible)?
   -> MW.Writer (Endo (Spread n)) ()
-spreadNote pitch dir edge = MW.tell $ Endo h
+spreadNote note dir edge = MW.tell $ Endo h
  where
   h (SpreadOp dist (Edges mRegs mPassings)) = SpreadOp dist' (Edges mRegs' mPassings)
    where
-    dist' = HM.insert pitch dir dist
+    pitch = notePitch note
+    dir' = case dir of
+      ToLeft idl -> SpreadLeftChild (Note pitch idl)
+      ToRight idr -> SpreadRightChild (Note pitch idr)
+      ToBoth idl idr -> SpreadBothChildren (Note pitch idl) (Note pitch idr)
+    dist' = HM.insert note dir' dist
     mRegs' =
       S.union mRegs $
-        if edge then S.singleton (Inner pitch, Inner pitch) else S.empty
+        if edge then S.singleton (Inner note, Inner note) else S.empty
 
 -- | During a spread, add a new passing edge between the child slices of a spread.
 addPassing

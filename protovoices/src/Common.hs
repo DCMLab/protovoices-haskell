@@ -154,6 +154,7 @@ import Data.Kind (Type)
 import Data.Semigroup (stimesMonoid)
 import Data.Semiring qualified as R
 import Data.Set qualified as S
+import Data.String (IsString (..))
 import Data.Text qualified as T
 import Data.Typeable (Proxy (Proxy))
 import Debug.Trace (trace)
@@ -281,6 +282,9 @@ instance (Notation a) => Notation (StartStop a) where
   showNotation Stop = "⋉"
   showNotation (Inner a) = showNotation a
   parseNotation = ReadP.pfail
+
+instance (IsString a) => IsString (StartStop a) where
+  fromString = Inner . fromString
 
 instance (FromJSON a) => FromJSON (StartStop a) where
   parseJSON (Aeson.String "start") = pure Start
