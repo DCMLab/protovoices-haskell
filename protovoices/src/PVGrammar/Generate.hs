@@ -270,8 +270,9 @@ spreadNote note dir edge = MW.tell $ Endo h
       ToBoth idl idr -> SpreadBothChildren (Note pitch idl) (Note pitch idr)
     dist' = HM.insert note dir' dist
     mRegs' =
-      S.union mRegs $
-        if edge then S.singleton (Inner note, Inner note) else S.empty
+      S.union mRegs $ case (edge, dir) of
+        (True, ToBoth idl idr) -> S.singleton (Inner (Note pitch idl), Inner (Note pitch idr))
+        _ -> S.empty
 
 -- | During a spread, add a new passing edge between the child slices of a spread.
 addPassing

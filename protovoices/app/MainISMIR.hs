@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QualifiedDo #-}
 
 module Main where
@@ -5,14 +6,11 @@ module Main where
 import ChartParser
 import Common
 import Display
-import PVGrammar hiding
-  ( slicesFromFile
-  , slicesToPath
-  )
+import PVGrammar
 import PVGrammar.Generate
 import PVGrammar.Parse
 
-import Musicology.Core
+import Musicology.Core hiding (Note)
 import Musicology.Core.Slicing
 import Musicology.MusicXML
 import Musicology.Pitch.Spelled as MT
@@ -28,44 +26,33 @@ import Language.Haskell.DoNotation qualified as Do
 deriv321sus :: [PVLeftmost (Pitch MT.SIC)]
 deriv321sus = buildDerivation $ Do.do
   split $ mkSplit $ do
-    splitRegular Start Stop (c' nat) RootNote False False
-    splitRegular Start Stop (e' nat) RootNote False False
+    splitRegular Start Stop "C.rootC" RootNote False False
+    splitRegular Start Stop "E.rootE" RootNote False False
   spread $ mkSpread $ do
-    spreadNote (c' nat) ToBoth True
-    spreadNote (e' nat) (ToLeft 1) False
-    addPassing (e' nat) (c' nat)
-  freeze FreezeOp
+    spreadNote "C.rootC" (ToBoth "Cl" "Cr") True
+    spreadNote "E.rootE" (ToLeft "El") False
+    addPassing "E.El" "C.Cr"
+  freeze $ mkFreeze []
   split $ mkSplit $ do
-    splitRegular (Inner $ c' nat) (Inner $ c' nat) (b' nat) FullNeighbor True False
-    splitPassing (e' nat) (c' nat) (d' nat) PassingMid True False
+    splitRegular "C.Cl" "C.Cr" "B.Bnb" FullNeighbor True False
+    splitPassing "E.El" "C.Cr" "D.Dpass" PassingMid True False
   split $ mkSplit $ do
-    splitRegular
-      (Inner $ e' nat)
-      (Inner $ d' nat)
-      (d' nat)
-      LeftRepeatOfRight
-      False
-      True
-    splitRegular
-      (Inner $ c' nat)
-      (Inner $ b' nat)
-      (c' nat)
-      RightRepeatOfLeft
-      True
-      False
-  freeze FreezeOp
-  freeze FreezeOp
-  freeze FreezeOp
-  freeze FreezeOp
+    splitRegular "E.El" "D.Dpass" "D.Dsus" LeftRepeatOfRight False True
+    splitRegular "C.Cl" "B.Bnb" "C.Csus" RightRepeatOfLeft True False
+  freeze $ mkFreeze [("C.Cl", "C.Csus")]
+  freeze $ mkFreeze [("D.Dsus", "D.Dpass")]
+  freeze $ mkFreeze []
+  freeze $ mkFreeze []
 
 {- | The musical surface from Figure 4 as a sequence of slices and transitions.
  Can be used as an input for parsing.
 -}
+path321sus :: Path [Note SPC] [Edge SPC]
 path321sus =
-  Path [e' nat, c' nat] [(Inner $ c' nat, Inner $ c' nat)] $
-    Path [d' nat, c' nat] [(Inner $ d' nat, Inner $ d' nat)] $
-      Path [d' nat, b' nat] [] $
-        PathEnd [c' nat]
+  Path ["E.e0", "C.c0"] [("C.c0", "C.c1")] $
+    Path ["D.d1", "C.c1"] [("D.d1", "D.d2")] $
+      Path ["D.d2", "B.b2"] [] $
+        PathEnd ["C.c3"]
 
 {- | The main function that produces the results used in the paper and demonstrates the parser:
  * a diagram of the (manually specified) derivation of the suspension example
@@ -109,32 +96,3 @@ plotDeriv fn deriv = do
   case replayDerivation derivationPlayerPV deriv of
     (Left err) -> putStrLn err
     (Right g) -> viewGraph fn g
-
-slicesFromFile :: FilePath -> IO [[(SPitch, RightTied)]]
-slicesFromFile file = do
-  txt <- TL.readFile file
-  case parseWithoutIds txt of
-    Nothing -> pure []
-    Just doc -> do
-      let (xmlNotes, _) = parseScore doc
-          notes = asNoteHeard <$> xmlNotes
-          slices = slicePiece tiedSlicer notes
-      pure $ mkSlice <$> filter (not . null) slices
- where
-  mkSlice notes = mkNote <$> notes
-  mkNote (note, tie) = (pitch note, rightTie tie)
-
-slicesToPath
-  :: (Interval i, Ord (ICOf i), Eq i)
-  => [[(Pitch i, RightTied)]]
-  -> Path [Pitch (ICOf i)] [Edge (Pitch (ICOf i))]
-slicesToPath = go
- where
-  mkSlice = fmap (pc . fst)
-  mkEdges = mapMaybe mkEdge
-   where
-    mkEdge (p, Ends) = Nothing
-    mkEdge (p, Holds) = let p' = pc p in Just (Inner p', Inner p')
-  go [] = error "cannot construct path from empty list"
-  go [notes] = PathEnd (mkSlice notes)
-  go (notes : rest) = Path (mkSlice notes) (mkEdges notes) $ go rest
