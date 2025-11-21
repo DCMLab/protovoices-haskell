@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE QualifiedDo #-}
 {-# OPTIONS_GHC -Wno-all #-}
 
 module Main where
@@ -79,9 +77,6 @@ import System.FilePath
   )
 import System.FilePattern qualified as FP
 import System.FilePattern.Directory qualified as FP
-
--- better do syntax
-import Language.Haskell.DoNotation qualified as Do
 
 -- import           Prelude                 hiding ( Monad(..)
 --                                                 , pure
@@ -193,47 +188,6 @@ checkDeriv deriv original = do
   foldPath (pacc, tacc) (_, tnew, snew) = do
     s <- getInner $ dslContent snew
     pure (Path s tacc pacc, tnew)
-
--- example derivations
--- ===================
-
-derivBrahms :: [PVLeftmost (Pitch MT.SIC)]
-derivBrahms = buildDerivation $ Do.do
-  split $ mkSplit $ do
-    splitRegular Start Stop "C#.rootC" RootNote False False
-    splitRegular Start Stop "A.rootA" RootNote False False
-  spread $ mkSpread $ do
-    spreadNote "A.rootA" (ToBoth "spreadAl" "spreadAr") True
-    spreadNote "C#.rootC" (ToLeft "spreadCl") False
-    addPassing "C#.spreadCl" "A.spreadAr"
-  splitRight $ mkSplit $ do
-    splitPassing "C#.spreadCl" "A.spreadAr" "B.pass" PassingMid False False
-    splitRegular "A.spreadAl" "A.spreadAl" "G#.nb" FullNeighbor False False
-  spread $ mkSpread $ do
-    spreadNote "A.spreadAl" (ToRight "A2") False
-    spreadNote "C#.spreadCl" (ToLeft "C0") False
-    addPassing "C#.C0" "A.A2"
-  freeze $ mkFreeze []
-  split $ mkSplit $ do
-    splitPassing "C#.C0" "A.A2" "B.B1" PassingMid False False
-  freeze $ mkFreeze []
-  freeze $ mkFreeze []
-  spread $ mkSpread $ do
-    spreadNote "B.pass" (ToRight "B.B6") False
-    spreadNote "G#.nb" (ToLeft "G#.G#4") False
-  split $ mkSplit $ do
-    addFromRight "G#.G#4" "A.A3" LeftNeighbor False
-  freeze $ mkFreeze []
-  freeze $ mkFreeze []
-  split $ mkSplit $ do
-    addFromRight "B.B6" "A.A5" LeftNeighbor False
-  freeze $ mkFreeze []
-  freeze $ mkFreeze []
-  freeze $ mkFreeze []
-  freeze $ mkFreeze []
- where
-  (>>) :: (Do.BindSyntax x y z) => x a -> y b -> z b
-  (>>) = (Do.>>)
 
 -- -- mains
 -- -- =====
