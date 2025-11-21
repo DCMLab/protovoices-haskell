@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 
 module Main where
@@ -19,12 +20,16 @@ benchForward what model state action =
   bgroup
     ("forward " <> what)
     [ benchN 1
-    , benchN 10
-    , benchN 100
+    , benchN 4
+    , benchN 16
+    , benchN 64
+    , benchN 256
+    -- , benchN 1024
+    -- , benchN 4096
     ]
  where
   benchN n = RL.withBatchedEncoding state (action NE.:| replicate (n - 1) action) $ \enc ->
-    bench (show n <> " actions") $ nf (RL.runBatchedPolicy model) enc
+    enc `seq` bench (show n <> " actions") $ nf (RL.runBatchedPolicy model) enc
 
 main :: IO ()
 main = do

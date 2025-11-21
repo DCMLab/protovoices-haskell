@@ -75,8 +75,8 @@ toQTensor = TT.UnsafeMkTensor . toQTensor' @dev
 
 type FakeSize = 1337 :: Nat
 
-type MaxPitches = 10 :: Nat
-type MaxEdges = 10 :: Nat
+type MaxPitches = 8 :: Nat
+type MaxEdges = 8 :: Nat
 
 -- States and Actions
 -- ------------------

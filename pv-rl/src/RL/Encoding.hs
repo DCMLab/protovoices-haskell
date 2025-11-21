@@ -266,16 +266,16 @@ instance Batchable (SliceEncodingSparse dev shape) where
 -- instance T.HasTypes (SliceEncodingSparse shape) T.Tensor
 
 newtype SliceEncodingDense dev batchShape = SliceEncodingDense
-  {getSliceEncodingDense :: QBoundedList dev QDType MaxPitches batchShape (1 : PShape)}
+  {getSliceEncodingDense :: QTensor dev (batchShape TT.++ PShape)}
   deriving (Show, Generic)
   deriving newtype (NFData)
 
 instance Stackable (SliceEncodingDense dev batchShape) where
   type Stacked (SliceEncodingDense dev batchShape) n = SliceEncodingDense dev (n ': batchShape)
-  stack slices = SliceEncodingDense $ stack $ getSliceEncodingDense <$> slices
+  stack slices = SliceEncodingDense $ TT.vecStack @0 $ getSliceEncodingDense <$> slices
 
-instance Batchable (SliceEncodingDense dev shape) where
-  type Batched (SliceEncodingDense dev shape) = SliceEncodingDense dev (1 ': shape)
+instance Batchable (SliceEncodingDense dev batchShape) where
+  type Batched (SliceEncodingDense dev batchShape) = SliceEncodingDense dev (1 ': batchShape)
   addBatchDim (SliceEncodingDense slice) = SliceEncodingDense $ addBatchDim slice
 
 -- instance T.HasTypes (SliceEncodingDense shape) T.Tensor
@@ -288,31 +288,31 @@ type SliceEncoding = SliceEncodingDense
 getSlice
   :: forall dev batchShape
    . SliceEncoding dev batchShape
-  -> QBoundedList dev QDType MaxPitches batchShape (1 : PShape)
+  -> QTensor dev (batchShape TT.++ PShape)
 getSlice = getSliceEncodingDense -- . sliceIndex2OneHot
 
 encodePitches
   :: (TT.KnownDevice dev)
   => [SPitch]
   -> SliceEncoding dev '[]
-encodePitches = pitchesOneHots
+encodePitches = pitchesOneHotSum
 
-sliceIndex2OneHot
-  :: forall dev batchShape
-   . ( TT.KnownShape batchShape
-     )
-  => SliceEncodingSparse dev batchShape
-  -> SliceEncodingDense dev batchShape
-sliceIndex2OneHot (SliceEncodingSparse (QBoundedList mask values)) =
-  SliceEncodingDense $ QBoundedList mask values'
- where
-  fifthSize = TT.natValI @FifthSize
-  octaveSize = TT.natValI @OctaveSize
-  shape = TT.shapeVal @batchShape
-  hotF = T.toType qDType $ T.oneHot fifthSize $ T.select (-1) 0 $ TT.toDynamic values
-  hotO = T.toType qDType $ T.oneHot octaveSize $ T.select (-1) 1 $ TT.toDynamic values
-  outer = T.einsum "...i,...j->...ij" [hotF, hotO] [1, 0]
-  values' = TT.UnsafeMkTensor $ T.unsqueeze (T.Dim (-3)) outer
+-- sliceIndex2OneHot
+--   :: forall dev batchShape
+--    . ( TT.KnownShape batchShape
+--      )
+--   => SliceEncodingSparse dev batchShape
+--   -> SliceEncodingDense dev batchShape
+-- sliceIndex2OneHot (SliceEncodingSparse (QBoundedList mask values)) =
+--   SliceEncodingDense $ QBoundedList mask values'
+--  where
+--   fifthSize = TT.natValI @FifthSize
+--   octaveSize = TT.natValI @OctaveSize
+--   shape = TT.shapeVal @batchShape
+--   hotF = T.toType qDType $ T.oneHot fifthSize $ T.select (-1) 0 $ TT.toDynamic values
+--   hotO = T.toType qDType $ T.oneHot octaveSize $ T.select (-1) 1 $ TT.toDynamic values
+--   outer = T.einsum "...i,...j->...ij" [hotF, hotO] [1, 0]
+--   values' = TT.UnsafeMkTensor $ T.unsqueeze (T.Dim (-3)) outer
 
 -- slice variants
 -- --------------
@@ -339,36 +339,56 @@ pitchesMultiHot
 pitchesMultiHot ps = TT.UnsafeMkTensor out
  where
   out =
-    if HS.null ps
-      then zeros
-      else T.indexPut True indices values zeros
+    T.toDevice (TT.deviceVal @dev) $
+      if HS.null ps
+        then zeros
+        else T.indexPut True indices values zeros
   ~indices = T.asTensor <$> Data.List.transpose (pitch2index <$> F.toList ps)
-  values = T.ones [F.length ps] $ opts @dev
-  zeros = T.zeros dims $ opts @dev
+  values = T.ones [F.length ps] $ opts @'(TT.CPU, 0)
+  zeros = T.zeros dims $ opts @'(TT.CPU, 0)
   fifthSize = TT.natValI @FifthSize
   octaveSize = TT.natValI @OctaveSize
   dims = [fifthSize, octaveSize]
+
+pitchesOneHotSum
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => [SPitch]
+  -> SliceEncodingDense dev '[]
+pitchesOneHotSum [] = SliceEncodingDense TT.zeros
+pitchesOneHotSum ps = SliceEncodingDense out
+ where
+  pitches = ps
+  n = length pitches
+  -- maxPitches = TT.natValI @MaxPitches
+  mkIndex i pitch = i : pitch2index pitch
+  indices = T.asTensor <$> Data.List.transpose (zipWith mkIndex [0 ..] pitches)
+  values = T.ones [n] $ opts @'(TT.CPU, 0)
+  -- zeros :: QTensor dev (MaxPitches ': PShape)
+  zeros = T.zeros (n : TT.shapeVal @PShape) $ opts @'(TT.CPU, 0)
+  out :: QTensor dev PShape
+  out = TT.UnsafeMkTensor $ T.toDevice (TT.deviceVal @dev) $ T.sumDim (T.Dim 0) T.RemoveDim qDType $ T.indexPut True indices values $ zeros
 
 pitchesOneHots
   :: forall dev
    . (TT.KnownDevice dev)
   => [SPitch]
-  -> SliceEncodingDense dev '[]
-pitchesOneHots [] = SliceEncodingDense $ QBoundedList TT.zeros TT.zeros
-pitchesOneHots ps = SliceEncodingDense $ QBoundedList mask (TT.reshape out)
+  -> QBoundedList dev QDType MaxPitches '[] (1 : PShape)
+pitchesOneHots [] = QBoundedList TT.zeros TT.zeros
+pitchesOneHots ps = QBoundedList mask (TT.reshape out)
  where
   pitches = take maxPitches ps
   n = length pitches
   maxPitches = TT.natValI @MaxPitches
   mkIndex i pitch = i : pitch2index pitch
   indices = T.asTensor <$> Data.List.transpose (zipWith mkIndex [0 ..] pitches)
-  values = T.ones [n] $ opts @dev
-  zeros :: QTensor dev (MaxPitches ': PShape)
+  values = T.ones [n] $ opts @'(TT.CPU, 0)
+  zeros :: QTensor '(TT.CPU, 0) (MaxPitches ': PShape)
   zeros = TT.zeros
   out :: QTensor dev (MaxPitches : PShape)
-  out = TT.UnsafeMkTensor $ T.indexPut True indices values $ TT.toDynamic zeros
+  out = TT.UnsafeMkTensor $ T.toDevice (TT.deviceVal @dev) $ T.indexPut True indices values $ TT.toDynamic zeros
   mask :: QTensor dev '[MaxPitches]
-  mask = TT.UnsafeMkTensor $ T.cat (T.Dim 0) [values, T.zeros [maxPitches - n] $ opts @dev]
+  mask = TT.UnsafeMkTensor $ T.cat (T.Dim 0) [T.ones [n] $ opts @dev, T.zeros [maxPitches - n] $ opts @dev]
 
 pitchesTokens
   :: forall dev
@@ -416,8 +436,8 @@ emptySlice = encodePitches []
 data TransitionEncoding dev batchShape = TransitionEncoding
   { trencPassing :: QBoundedList dev QDType MaxEdges batchShape (2 ': PShape)
   , trencInner :: QBoundedList dev QDType MaxEdges batchShape (2 ': PShape)
-  , trencLeft :: SliceEncoding dev batchShape
-  , trencRight :: SliceEncoding dev batchShape
+  , trencLeft :: SliceEncoding dev batchShape -- QBoundedList dev QDType MaxEdges batchShape (1 ': PShape)
+  , trencRight :: SliceEncoding dev batchShape -- QBoundedList dev QDType MaxEdges batchShape (1 ': PShape)
   , trencRoot :: QTensor dev batchShape
   }
   deriving (Show, Generic, NFData)
@@ -452,16 +472,17 @@ edgesMultiHot
 edgesMultiHot es = TT.UnsafeMkTensor out
  where
   out =
-    if HS.null es
-      then zeros
-      else T.indexPut True indexTensors values zeros
+    T.toDevice (TT.deviceVal @dev) $
+      if HS.null es
+        then zeros
+        else T.indexPut True indexTensors values zeros
   edge2index (Note p1 _, Note p2 _) =
     pitch2index p1
       ++ pitch2index p2
   indices = edge2index <$> F.toList es
   ~indexTensors = T.asTensor <$> Data.List.transpose indices
-  values = T.ones [F.length es] $ opts @dev
-  zeros = T.zeros dims $ opts @dev
+  values = T.ones [F.length es] $ opts @'(TT.CPU, 0)
+  zeros = T.zeros dims $ opts @'(TT.CPU, 0)
   fifthSize = TT.natValI @FifthSize
   octaveSize = TT.natValI @OctaveSize
   dims = [fifthSize, octaveSize, fifthSize, octaveSize]
@@ -473,8 +494,8 @@ edgesOneHots
   -> QBoundedList dev QDType MaxEdges '[] (2 ': PShape)
 edgesOneHots es = QBoundedList mask $ TT.cat @1 (hots1 TT.:. hots2 TT.:. TT.HNil)
  where
-  SliceEncodingDense (QBoundedList mask hots1) = pitchesOneHots @dev $ (notePitch . fst) <$> es
-  SliceEncodingDense (QBoundedList _ hots2) = pitchesOneHots @dev $ (notePitch . snd) <$> es
+  (QBoundedList mask hots1) = pitchesOneHots @dev $ (notePitch . fst) <$> es
+  (QBoundedList _ hots2) = pitchesOneHots @dev $ (notePitch . snd) <$> es
 
 edgesTokens
   :: forall dev
@@ -515,9 +536,9 @@ encodeTransition (Edges reg pass) =
     , -- , trencPassing = edgesOneHot $ MS.toSet pass
       trencInner = edgesOneHots $ getEdges getInner
     , -- , trencInner = edgesOneHot $ HS.fromList $ getEdges getInner
-      trencLeft = pitchesOneHots $ notePitch <$> getEdges getLeft
-    , trencRight = pitchesOneHots $ notePitch <$> getEdges getRight
-    , trencRoot = if HS.member (Start, Stop) reg then 1 else 0
+      trencLeft = pitchesOneHotSum $ notePitch <$> getEdges getLeft
+    , trencRight = pitchesOneHotSum $ notePitch <$> getEdges getRight
+    , trencRoot = if HS.member (Start, Stop) reg then isRoot else isNoRoot
     }
  where
   regulars = HS.toList reg
@@ -529,6 +550,8 @@ encodeTransition (Edges reg pass) =
   getLeft _ = Nothing
   getRight (Inner a, Stop) = Just a
   getRight _ = Nothing
+  isRoot = TT.ones
+  isNoRoot = TT.zeros
 
 emptyTransition
   :: (TT.KnownDevice dev) => TransitionEncoding dev '[]
@@ -629,13 +652,6 @@ data StateEncoding dev = StateEncoding
   }
   deriving (Show, Generic, NFData)
 
--- type PVState t =
---   GreedyState
---     (Edges SPitch)
---     (t (Edge SPitch))
---     (Notes SPitch)
---     (PVLeftmost SPitch)
-
 getFrozen
   :: forall dev t
    . (Foldable t, TT.KnownDevice dev)
@@ -643,7 +659,7 @@ getFrozen
   -> (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize]))
 getFrozen frozen = (stackUnsafe trEncs, stackUnsafe slcEncs)
  where
-  (trs, slcs) = unzip $ pathTake 3 Inner Start frozen
+  (trs, slcs) = unzip $ pathTake 8 Inner Start frozen
   trEncs = encodeTransition . pvThaw <$> trs
   slcEncs = qStartStop encodeSlice emptySlice <$> slcs
 
@@ -653,7 +669,7 @@ getOpen
   -> (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize]))
 getOpen open = (stackUnsafe trEncs, stackUnsafe slcEncs)
  where
-  (trs, slcs) = unzip $ pathTake 3 Inner Stop open
+  (trs, slcs) = unzip $ pathTake 8 Inner Stop open
   trEncs = encodeTransition <$> trs
   slcEncs = qStartStop encodeSlice emptySlice <$> slcs
 

@@ -37,6 +37,7 @@ import System.ProgressBar qualified as PB
 import System.Random.MWC qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
 import Torch qualified as T
+import Torch.Internal.Unmanaged.Type.Context (hasCUDA)
 import Torch.Jit qualified as Jit
 import Torch.Lens qualified as TL
 import Torch.Typed qualified as TT
@@ -181,6 +182,7 @@ mainLoading = do
 
 mainRL :: forall dev. (RL.IsValidDevice dev) => Int -> IO ()
 mainRL n = do
+  _ <- hasCUDA -- delay on first call
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
       mkPiece chord = (slices, (len, exptd))
@@ -242,6 +244,7 @@ mainPlot = do
 
 mainBenchInference :: forall dev. (RL.IsValidDevice dev) => Maybe Int -> IO ()
 mainBenchInference nPieces = do
+  hascuda <- hasCUDA
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
       !pieces =
@@ -271,4 +274,4 @@ mainBenchInference nPieces = do
 
 type QDevice = '(TT.CPU, 0)
 
-main = mainBenchInference @QDevice (Just 10) -- mainPlot -- mainRL 40
+main = mainRL @QDevice 40

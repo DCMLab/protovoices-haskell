@@ -95,7 +95,7 @@ instance T.HasForward (ConstEmb dev size) () (QTensor dev size) where
 data SliceSpec dev = SliceSpec
 
 data SliceEncoder dev = SliceEncoder
-  { _slcL1 :: !(TT.Conv2d 1 QSliceHidden FifthSize OctaveSize QDType dev) -- !(TT.Linear (PSize spec) hidden QDType QDevice)
+  { _slcL1 :: !(TT.Conv2d 1 QSliceHidden 1 1 QDType dev) -- !(TT.Linear (PSize spec) hidden QDType QDevice)
   , _slcL2 :: !(TT.Conv2d QSliceHidden EmbSize FifthSize OctaveSize QDType dev) -- !(TT.Linear hidden (EmbSize spec) QDType QDevice)
   , _slcStart :: !(ConstEmb dev EmbShape)
   , _slcStop :: !(ConstEmb dev EmbShape)
@@ -112,20 +112,35 @@ instance (IsValidDevice dev) => T.Randomizable (SliceSpec dev) (SliceEncoder dev
       <*> T.sample (ConstEmbSpec @dev)
       <*> T.sample (ConstEmbSpec @dev)
 
--- {- | HasForward for slice wrapped in StartStop.
--- Could be removed if StateEncoding is changed to QStartStop.
--- -}
--- instance
---   ( embshape ~ EmbShape
---   )
---   => TT.HasForward SliceEncoder (StartStop (SliceEncoding '[])) (QTensor embshape)
---   where
---   forward model@(SliceEncoder _ _ start stop) input =
---     case input of
---       Inner slc -> T.forward model slc
---       Start -> T.forward start ()
---       Stop -> T.forward stop ()
---   forwardStoch model input = pure $ T.forward model input
+-- | HasFoward for slice (unbatched)
+instance
+  (embshape ~ EmbShape, IsValidDevice dev)
+  => T.HasForward (SliceEncoder dev) (SliceEncoding dev '[]) (QTensor dev embshape)
+  where
+  forward (SliceEncoder l1 l2 _ _) slice = TT.squeezeDim @0 out2
+   where
+    input = TT.unsqueeze @0 $ TT.unsqueeze @0 $ getSlice slice
+    out1 :: QTensor dev (1 : QSliceHidden : PShape)
+    out1 = TT.conv2dForward @'(1, 1) @'(0, 0) l1 input
+    out2 :: QTensor dev (1 : EmbShape)
+    out2 = activation $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) l2 out1
+  forwardStoch model = pure . T.forward model
+
+-- | HasFoward for slice (batched)
+instance
+  ( IsValidDevice dev
+  , embshape ~ '[batchSize, EmbSize, FifthSize, OctaveSize]
+  )
+  => T.HasForward (SliceEncoder dev) (SliceEncoding dev '[batchSize]) (QTensor dev embshape)
+  where
+  forward (SliceEncoder l1 l2 _ _) slice = out2
+   where
+    input = TT.unsqueeze @1 $ getSlice slice
+    out1 :: QTensor dev '[batchSize, QSliceHidden, FifthSize, OctaveSize]
+    out1 = activation $ TH.conv2dForwardRelaxed @'(1, 1) @'(0, 0) l1 input
+    out2 :: QTensor dev '[batchSize, EmbSize, FifthSize, OctaveSize]
+    out2 = activation $ TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) l2 out1
+  forwardStoch model = pure . T.forward model
 
 -- | HasForward for slice wrappend in QStartStop (unbatched).
 instance
@@ -185,51 +200,6 @@ instance
     out = TT.gatherDim @0 tag' combined
   forwardStoch model input = pure $ T.forward model input
 
--- | HasFoward for slice (unbatched)
-instance
-  (embshape ~ EmbShape, IsValidDevice dev)
-  => T.HasForward (SliceEncoder dev) (SliceEncoding dev '[]) (QTensor dev embshape)
-  where
-  forward (SliceEncoder l1 l2 _ _) slice = out
-   where
-    (QBoundedList mask input) = getSlice slice
-    out1 :: QTensor dev (MaxPitches : QSliceHidden : PShape)
-    out1 = activation $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) l1 input
-    out2 :: QTensor dev (MaxPitches : EmbSize : PShape)
-    out2 = activation $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) l2 out1
-    mask' :: QTensor dev '[MaxPitches, 1, 1, 1]
-    mask' = TT.reshape mask
-    outMasked :: QTensor dev '[MaxPitches, EmbSize, FifthSize, OctaveSize]
-    outMasked = TT.mul mask' out2
-    out = TT.sumDim @0 outMasked
-  forwardStoch model = pure . T.forward model
-
--- | HasFoward for slice (batched)
-instance
-  ( IsValidDevice dev
-  , embshape ~ '[batchSize, EmbSize, FifthSize, OctaveSize]
-  )
-  => T.HasForward (SliceEncoder dev) (SliceEncoding dev '[batchSize]) (QTensor dev embshape)
-  where
-  forward (SliceEncoder l1 l2 _ _) slice = out
-   where
-    (QBoundedList mask input) = getSlice slice
-    inputShaped :: QTensor dev '[batchSize * MaxPitches, 1, FifthSize, OctaveSize]
-    inputShaped = TT.UnsafeMkTensor $ T.flatten (T.Dim 0) (T.Dim 1) $ TT.toDynamic input -- TT.reshape input
-    out1 :: QTensor dev '[batchSize * MaxPitches, QSliceHidden, FifthSize, OctaveSize]
-    out1 = activation $ TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) l1 inputShaped
-    out2 :: QTensor dev '[batchSize * MaxPitches, EmbSize, FifthSize, OctaveSize]
-    out2 = activation $ TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) l2 out1
-    outReshaped :: QTensor dev '[batchSize, MaxPitches, EmbSize, FifthSize, OctaveSize]
-    outReshaped = unsafeReshape (-1 : TT.shapeVal @(MaxPitches : EmbSize : PShape)) out2
-    mask' :: QTensor dev '[batchSize, MaxPitches, 1, 1, 1]
-    mask' = TT.UnsafeMkTensor $ T.reshape [-1, TT.natValI @MaxPitches, 1, 1, 1] $ TT.toDynamic mask
-    outMasked :: QTensor dev '[batchSize, MaxPitches, EmbSize, FifthSize, OctaveSize]
-    outMasked = TT.mul mask' outReshaped
-    out :: QTensor dev (batchSize : EmbSize : PShape)
-    out = TT.sumDim @1 outMasked
-  forwardStoch model = pure . T.forward model
-
 -- Transition Encoder
 -- ------------------
 
@@ -238,8 +208,8 @@ data TransitionSpec dev = TransitionSpec
 data TransitionEncoder dev = TransitionEncoder
   { trL1Passing :: !(TT.Conv2d 2 QTransHidden FifthSize OctaveSize QDType dev) -- !(TT.Linear (ESize spec) hidden QDType QDevice)
   , trL1Inner :: !(TT.Conv2d 2 QTransHidden FifthSize OctaveSize QDType dev) -- !(TT.Linear (ESize spec) hidden QDType QDevice)
-  , trL1Left :: !(TT.Conv2d 1 QTransHidden FifthSize OctaveSize QDType dev) -- !(TT.Linear (PSize spec) hidden QDType QDevice)
-  , trL1Right :: !(TT.Conv2d 1 QTransHidden FifthSize OctaveSize QDType dev) -- !(TT.Linear (PSize spec) hidden QDType QDevice)
+  , trL1Left :: !(TT.Conv2d 1 QTransHidden 1 1 QDType dev) -- !(TT.Linear (PSize spec) hidden QDType QDevice)
+  , trL1Right :: !(TT.Conv2d 1 QTransHidden 1 1 QDType dev) -- !(TT.Linear (PSize spec) hidden QDType QDevice)
   , trL1Root :: !(ConstEmb dev '[QTransHidden])
   , trL2 :: !(TT.Conv2d QTransHidden (EmbSize) FifthSize OctaveSize QDType dev) -- !(TT.Linear hidden (EmbSize) QDType QDevice)
   }
@@ -281,14 +251,17 @@ instance
       out = activation $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) conv edges
       mask' :: QTensor dev '[MaxEdges, 1, 1, 1]
       mask' = TT.reshape mask
+    runSlice conv slice = TT.squeezeDim @0 $ TT.conv2dForward @'(1, 1) @'(0, 0) conv input
+     where
+      input = TT.unsqueeze @0 $ TT.unsqueeze @0 slice
     pass :: QTensor dev (QTransHidden : PShape)
     pass = runConv trL1Passing trencPassing
     inner :: QTensor dev (QTransHidden : PShape)
     inner = runConv trL1Inner trencInner
     left :: QTensor dev (QTransHidden : PShape)
-    left = runConv trL1Left $ getSlice trencLeft
+    left = runSlice trL1Left $ getSlice trencLeft
     right :: QTensor dev (QTransHidden : PShape)
-    right = runConv trL1Right $ getSlice trencRight
+    right = runSlice trL1Right $ getSlice trencRight
     root :: QTensor dev '[QTransHidden, 1, 1]
     root = TT.reshape $ TT.mul trencRoot (activation (T.forward trL1Root ()))
     all :: QTensor dev (QTransHidden : PShape)
@@ -325,14 +298,17 @@ instance
       outReshaped = unsafeReshape (-1 : shape') out
       mask' :: QTensor dev '[batchSize, MaxEdges, 1, 1, 1]
       mask' = unsafeReshape [-1, TT.natValI @MaxEdges, 1, 1, 1] mask
+    runSlice conv slice = TH.conv2dForwardRelaxed @'(1, 1) @'(0, 0) conv input
+     where
+      input = TT.unsqueeze @1 slice
     pass :: QTensor dev (batchSize : QTransHidden : PShape)
     pass = runConv trL1Passing trencPassing
     inner :: QTensor dev (batchSize : QTransHidden : PShape)
     inner = runConv trL1Inner trencInner
     left :: QTensor dev (batchSize : QTransHidden : PShape)
-    left = runConv trL1Left $ getSlice trencLeft
+    left = runSlice trL1Left $ getSlice trencLeft
     right :: QTensor dev (batchSize : QTransHidden : PShape)
-    right = runConv trL1Right $ getSlice trencRight
+    right = runSlice trL1Right $ getSlice trencRight
     root :: QTensor dev '[batchSize, QTransHidden, 1, 1]
     root = unsafeReshape [-1, TT.natValI @QTransHidden, 1, 1] $ TT.mul (TT.unsqueeze @1 trencRoot) $ activation $ T.forward trL1Root ()
     all :: QTensor dev (batchSize : QTransHidden : PShape)
@@ -448,11 +424,7 @@ data StateEncoder dev = StateEncoder
   , stL1frozenSlc :: TT.Conv2d (EmbSize) QStateHidden FifthSize OctaveSize QDType dev
   , stL1frozenTr :: TT.Conv2d (EmbSize) QStateHidden FifthSize OctaveSize QDType dev
   , stL1openSlc :: TT.Conv2d (EmbSize) QStateHidden FifthSize OctaveSize QDType dev
-  , stL1openSlc2 :: TT.Conv2d (EmbSize) QStateHidden FifthSize OctaveSize QDType dev -- TODO: remove
-  , stL1openSlc3 :: TT.Conv2d (EmbSize) QStateHidden FifthSize OctaveSize QDType dev -- TODO: remove
   , stL1openTr :: TT.Conv2d (EmbSize) QStateHidden FifthSize OctaveSize QDType dev
-  , stL1openTr2 :: TT.Conv2d (EmbSize) QStateHidden FifthSize OctaveSize QDType dev -- TODO: remove
-  , stL1openTr3 :: TT.Conv2d (EmbSize) QStateHidden FifthSize OctaveSize QDType dev -- TODO: remove
   , stL2 :: TT.Conv2d QStateHidden QStateHidden FifthSize OctaveSize QDType dev
   , stL3 :: TT.Conv2d QStateHidden (EmbSize) FifthSize OctaveSize QDType dev
   }
@@ -464,11 +436,7 @@ instance (IsValidDevice dev) => T.Randomizable (StateSpec dev) (StateEncoder dev
     stL1frozenSlc <- TT.sample TT.Conv2dSpec
     stL1frozenTr <- TT.sample TT.Conv2dSpec
     stL1openSlc <- TT.sample TT.Conv2dSpec
-    stL1openSlc2 <- TT.sample TT.Conv2dSpec
-    stL1openSlc3 <- TT.sample TT.Conv2dSpec
     stL1openTr <- TT.sample TT.Conv2dSpec
-    stL1openTr2 <- TT.sample TT.Conv2dSpec
-    stL1openTr3 <- TT.sample TT.Conv2dSpec
     stL2 <- TT.sample TT.Conv2dSpec
     stL3 <- TT.sample TT.Conv2dSpec
     pure StateEncoder{..}

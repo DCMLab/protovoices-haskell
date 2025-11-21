@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module RL.TorchHelpers where
 
@@ -152,14 +153,6 @@ conv2dRelaxed
          , Torch.Typed.Auxiliary.Snd stride
          , Torch.Typed.Auxiliary.Fst padding
          , Torch.Typed.Auxiliary.Snd padding
-         -- , inputChannelSize
-         -- , outputChannelSize
-         -- , kernelSize0
-         -- , kernelSize1
-         -- , inputSize0
-         -- , inputSize1
-         -- , outputSize0
-         -- , outputSize1
          ]
      , TT.ConvSideCheck inputSize0 kernelSize0 (Torch.Typed.Auxiliary.Fst stride) (Torch.Typed.Auxiliary.Fst padding) outputSize0
      , TT.ConvSideCheck inputSize1 kernelSize1 (Torch.Typed.Auxiliary.Snd stride) (Torch.Typed.Auxiliary.Snd padding) outputSize1
@@ -185,11 +178,33 @@ conv2dRelaxed weight bias input =
       (1 :: Int)
 
 conv2dForwardRelaxed
-  :: forall stride padding
-   . (_)
-  => TT.Conv2d _ _ _ _ _ _
-  -> TT.Tensor _ _ _
-  -> TT.Tensor _ _ _
+  :: forall
+    (stride :: (Nat, Nat))
+    (padding :: (Nat, Nat))
+    inputChannelSize
+    outputChannelSize
+    kernelSize0
+    kernelSize1
+    inputSize0
+    inputSize1
+    batchSize
+    outputSize0
+    outputSize1
+    dtype
+    device
+   . ( TT.All
+        KnownNat
+        '[ Torch.Typed.Auxiliary.Fst stride
+         , Torch.Typed.Auxiliary.Snd stride
+         , Torch.Typed.Auxiliary.Fst padding
+         , Torch.Typed.Auxiliary.Snd padding
+         ]
+     , TT.ConvSideCheck inputSize0 kernelSize0 (Torch.Typed.Auxiliary.Fst stride) (Torch.Typed.Auxiliary.Fst padding) outputSize0
+     , TT.ConvSideCheck inputSize1 kernelSize1 (Torch.Typed.Auxiliary.Snd stride) (Torch.Typed.Auxiliary.Snd padding) outputSize1
+     )
+  => TT.Conv2d inputChannelSize outputChannelSize kernelSize0 kernelSize1 dtype device
+  -> TT.Tensor device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+  -> TT.Tensor device dtype '[batchSize, outputChannelSize, outputSize0, outputSize1]
 conv2dForwardRelaxed TT.Conv2d{..} input =
   conv2dRelaxed @stride @padding
     (TT.toDependent weight)
