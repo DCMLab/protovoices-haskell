@@ -14,10 +14,10 @@ jobs:
 
     steps:
       # Checks-out your repository
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       
       # sets up a cache for the ~/.stack directory to avoid rebuilding dependencies
-      - uses: actions/cache@v2.1.3
+      - uses: actions/cache@v4.3.0
         name: Cache ~/.stack
         with:
           path: |
@@ -29,10 +29,13 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get install libasound2-dev
+          pushd deps; sh get-deps.sh cpu; popd;
 
       # Build the dependencies
       - name: Build Dependencies
-        run: stack build --test --no-run-tests --bench --no-run-benchmarks --only-dependencies --haddock
+        run: |
+          source ./deps/setenv
+          stack build --only-dependencies --haddock
 
       # Build the package
       - name: Build Packages
@@ -46,7 +49,7 @@ jobs:
 
       # Copy docs
       - name: Deploy docs
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs
