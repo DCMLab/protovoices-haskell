@@ -1,0 +1,688 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget ProgressBar</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Axel Simon</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 23 May 2001</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 1999-2005 Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- A widget which indicates progress visually</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html"><span class="hs-identifier">Graphics.UI.Gtk.Display.ProgressBar</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | The 'ProgressBar' is typically used to display the progress of a long</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- running operation. It provides a visual clue that processing is underway.</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- The 'ProgressBar' can be used in two different modes: percentage mode and</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- activity mode.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- When an application can determine how much work needs to take place (e.g.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- read a fixed number of bytes from a file) and can monitor its progress, it</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- can use the 'ProgressBar' in percentage mode and the user sees a growing bar</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- indicating the percentage of the work that has been completed. In this mode,</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- the application is required to call 'progressBarSetFraction' periodically to</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- update the progress bar.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- When an application has no accurate way of knowing the amount of work to</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- do, it can use the 'ProgressBar' in activity mode, which shows activity by a</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- block moving back and forth within the progress area. In this mode, the</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- application is required to call 'progressBarPulse' periodically to update the</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- progress bar.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- There is quite a bit of flexibility provided to control the appearance of</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- the 'ProgressBar'. Functions are provided to control the orientation of the</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- bar, optional text can be displayed along with the bar, and the step size</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- used in activity mode can be set.</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | +----'Object'</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | +----'Widget'</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | +----ProgressBar</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier">ProgressBar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier">ProgressBarClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToProgressBar"><span class="hs-identifier">castToProgressBar</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeProgressBar"><span class="hs-identifier">gTypeProgressBar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toProgressBar"><span class="hs-identifier">toProgressBar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarNew"><span class="hs-identifier">progressBarNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarPulse"><span class="hs-identifier">progressBarPulse</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetText"><span class="hs-identifier">progressBarSetText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetFraction"><span class="hs-identifier">progressBarSetFraction</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetPulseStep"><span class="hs-identifier">progressBarSetPulseStep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetFraction"><span class="hs-identifier">progressBarGetFraction</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetPulseStep"><span class="hs-identifier">progressBarGetPulseStep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetText"><span class="hs-identifier">progressBarGetText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.General.Enums.html#ProgressBarOrientation"><span class="hs-identifier">ProgressBarOrientation</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetOrientation"><span class="hs-identifier">progressBarSetOrientation</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetOrientation"><span class="hs-identifier">progressBarGetOrientation</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetEllipsize"><span class="hs-identifier">progressBarSetEllipsize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetEllipsize"><span class="hs-identifier">progressBarGetEllipsize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="annot"><span class="hs-comment">-- * Attributes</span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarOrientation"><span class="hs-identifier">progressBarOrientation</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarDiscreteBlocks"><span class="hs-identifier">progressBarDiscreteBlocks</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarFraction"><span class="hs-identifier">progressBarFraction</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarPulseStep"><span class="hs-identifier">progressBarPulseStep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarText"><span class="hs-identifier">progressBarText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarEllipsize"><span class="hs-identifier">progressBarEllipsize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.UTFString</span></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Attributes</span></span><span>
+</span><span id="line-108"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Properties</span></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html"><span class="hs-identifier">Graphics.UI.Gtk.Abstract.Object</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier">makeNewObject</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-111"></span><span class="hs-pragma">{-# LINE 111 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Enums.html"><span class="hs-identifier">Graphics.UI.Gtk.General.Enums</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.General.Enums.html#ProgressBarOrientation"><span class="hs-identifier">ProgressBarOrientation</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Pango.Enums</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">EllipsizeMode</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-pragma">{-# LINE 119 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | Creates a new 'ProgressBar'.</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarNew"><span class="hs-identifier hs-type">progressBarNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span>
+</span><span id="line-126"></span><span id="progressBarNew"><span class="annot"><span class="annottext">progressBarNew :: IO ProgressBar
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarNew"><span class="hs-identifier hs-var hs-var">progressBarNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr ProgressBar -&gt; ProgressBar, FinalizerPtr ProgressBar)
+-&gt; IO (Ptr ProgressBar) -&gt; IO ProgressBar
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr ProgressBar -&gt; ProgressBar, FinalizerPtr ProgressBar)
+forall {a}. (ForeignPtr ProgressBar -&gt; ProgressBar, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkProgressBar"><span class="hs-identifier hs-var">mkProgressBar</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr ProgressBar) -&gt; IO ProgressBar)
+-&gt; IO (Ptr ProgressBar) -&gt; IO ProgressBar
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr ProgressBar)
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr ProgressBar)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr ProgressBar
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr ProgressBar))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr ProgressBar)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_new"><span class="hs-identifier hs-var">gtk_progress_bar_new</span></a></span><span>
+</span><span id="line-130"></span><span class="hs-pragma">{-# LINE 130 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- | Indicates that some progress is made, but you don't know how much. Causes</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- the progress bar to enter \&quot;activity mode\&quot;, where a block bounces back and</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- forth. Each call to 'progressBarPulse' causes the block to move by a little</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- bit (the amount of movement per pulse is determined by</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- 'progressBarSetPulseStep').</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--</span><span>
+</span><span id="line-140"></span><span id="local-6989586621679687964"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarPulse"><span class="hs-identifier hs-type">progressBarPulse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679687964"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679687964"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-141"></span><span id="progressBarPulse"><span class="annot"><span class="annottext">progressBarPulse :: forall self. ProgressBarClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarPulse"><span class="hs-identifier hs-var hs-var">progressBarPulse</span></a></span></span><span> </span><span id="local-6989586621679688075"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688075"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688076"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688076"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar -&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688076"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688078"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688078"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_pulse"><span class="hs-identifier hs-var">gtk_progress_bar_pulse</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688078"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span class="hs-pragma">{-# LINE 143 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- | Causes the given @text@ to appear superimposed on the progress bar.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span id="local-6989586621679687970"><span id="local-6989586621679687971"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetText"><span class="hs-identifier hs-type">progressBarSetText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679687970"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679687971"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679687970"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679687971"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-148"></span><span id="progressBarSetText"><span class="annot"><span class="annottext">progressBarSetText :: forall self string.
+(ProgressBarClass self, GlibString string) =&gt;
+self -&gt; string -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetText"><span class="hs-identifier hs-var hs-var">progressBarSetText</span></a></span></span><span> </span><span id="local-6989586621679688084"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688084"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679688085"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679688085"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679688085"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688087"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679688087"><span class="hs-identifier hs-var">textPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688088"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688088"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679688089"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679688089"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar -&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688088"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688090"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688090"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; CString -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_text"><span class="hs-identifier hs-var">gtk_progress_bar_set_text</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688090"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679688089"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span class="hs-pragma">{-# LINE 151 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679688087"><span class="hs-identifier hs-var">textPtr</span></a></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- | Causes the progress bar to \&quot;fill in\&quot; the given fraction of the bar. The</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- fraction should be between 0.0 and 1.0, inclusive.</span><span>
+</span><span id="line-156"></span><span class="hs-comment">--</span><span>
+</span><span id="line-157"></span><span id="local-6989586621679687978"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetFraction"><span class="hs-identifier hs-type">progressBarSetFraction</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679687978"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679687978"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-158"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @fraction@ - fraction of the task that's been completed</span></span><span>
+</span><span id="line-159"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-160"></span><span id="progressBarSetFraction"><span class="annot"><span class="annottext">progressBarSetFraction :: forall self. ProgressBarClass self =&gt; self -&gt; Double -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetFraction"><span class="hs-identifier hs-var hs-var">progressBarSetFraction</span></a></span></span><span> </span><span id="local-6989586621679688098"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688098"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679688099"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679688099"><span class="hs-identifier hs-var">fraction</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688100"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688100"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679688101"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621679688101"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar -&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688100"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688102"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688102"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; CDouble -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_fraction"><span class="hs-identifier hs-var">gtk_progress_bar_set_fraction</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688102"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621679688101"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span class="hs-pragma">{-# LINE 162 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; CDouble
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679688099"><span class="hs-identifier hs-var">fraction</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- | Sets the fraction of total progress bar length to move the bouncing block</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- for each call to 'progressBarPulse'.</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--</span><span>
+</span><span id="line-168"></span><span id="local-6989586621679688104"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetPulseStep"><span class="hs-identifier hs-type">progressBarSetPulseStep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688104"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679688104"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-169"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @fraction@ - fraction between 0.0 and 1.0</span></span><span>
+</span><span id="line-170"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-171"></span><span id="progressBarSetPulseStep"><span class="annot"><span class="annottext">progressBarSetPulseStep :: forall self. ProgressBarClass self =&gt; self -&gt; Double -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetPulseStep"><span class="hs-identifier hs-var hs-var">progressBarSetPulseStep</span></a></span></span><span> </span><span id="local-6989586621679688109"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688109"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679688110"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679688110"><span class="hs-identifier hs-var">fraction</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688111"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688111"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679688112"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621679688112"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar -&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688111"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688113"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688113"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; CDouble -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_pulse_step"><span class="hs-identifier hs-var">gtk_progress_bar_set_pulse_step</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688113"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621679688112"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span class="hs-pragma">{-# LINE 173 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-173"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; CDouble
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679688110"><span class="hs-identifier hs-var">fraction</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- | Returns the current fraction of the task that's been completed.</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--</span><span>
+</span><span id="line-178"></span><span id="local-6989586621679687984"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetFraction"><span class="hs-identifier hs-type">progressBarGetFraction</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679687984"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679687984"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-179"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns a fraction from 0.0 to 1.0</span></span><span>
+</span><span id="line-180"></span><span id="progressBarGetFraction"><span class="annot"><span class="annottext">progressBarGetFraction :: forall self. ProgressBarClass self =&gt; self -&gt; IO Double
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetFraction"><span class="hs-identifier hs-var hs-var">progressBarGetFraction</span></a></span></span><span> </span><span id="local-6989586621679688122"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688122"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="annottext">(CDouble -&gt; Double) -&gt; IO CDouble -&gt; IO Double
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CDouble -&gt; Double
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">(IO CDouble -&gt; IO Double) -&gt; IO CDouble -&gt; IO Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688123"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688123"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+-&gt; (Ptr ProgressBar -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688123"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO CDouble) -&gt; IO CDouble)
+-&gt; (Ptr ProgressBar -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688124"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688124"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; IO CDouble
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_fraction"><span class="hs-identifier hs-var">gtk_progress_bar_get_fraction</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688124"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span class="hs-pragma">{-# LINE 183 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-183"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- | Retrieves the pulse step set with 'progressBarSetPulseStep'</span><span>
+</span><span id="line-186"></span><span class="hs-comment">--</span><span>
+</span><span id="line-187"></span><span id="local-6989586621679688126"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetPulseStep"><span class="hs-identifier hs-type">progressBarGetPulseStep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688126"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679688126"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-188"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns a fraction from 0.0 to 1.0</span></span><span>
+</span><span id="line-189"></span><span id="progressBarGetPulseStep"><span class="annot"><span class="annottext">progressBarGetPulseStep :: forall self. ProgressBarClass self =&gt; self -&gt; IO Double
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetPulseStep"><span class="hs-identifier hs-var hs-var">progressBarGetPulseStep</span></a></span></span><span> </span><span id="local-6989586621679688132"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688132"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-190"></span><span>  </span><span class="annot"><span class="annottext">(CDouble -&gt; Double) -&gt; IO CDouble -&gt; IO Double
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CDouble -&gt; Double
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">(IO CDouble -&gt; IO Double) -&gt; IO CDouble -&gt; IO Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688133"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688133"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+-&gt; (Ptr ProgressBar -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688133"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO CDouble) -&gt; IO CDouble)
+-&gt; (Ptr ProgressBar -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688134"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688134"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; IO CDouble
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_pulse_step"><span class="hs-identifier hs-var">gtk_progress_bar_get_pulse_step</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688134"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span class="hs-pragma">{-# LINE 192 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-192"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- | Retrieves the text displayed superimposed on the progress bar, if any,</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- otherwise @Nothing@.</span><span>
+</span><span id="line-196"></span><span class="hs-comment">--</span><span>
+</span><span id="line-197"></span><span id="local-6989586621679687987"><span id="local-6989586621679687988"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetText"><span class="hs-identifier hs-type">progressBarGetText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679687987"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679687988"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679687987"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-198"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679687988"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns text, or @Nothing@</span></span><span>
+</span><span id="line-199"></span><span id="progressBarGetText"><span class="annot"><span class="annottext">progressBarGetText :: forall self string.
+(ProgressBarClass self, GlibString string) =&gt;
+self -&gt; IO (Maybe string)
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetText"><span class="hs-identifier hs-var hs-var">progressBarGetText</span></a></span></span><span> </span><span id="local-6989586621679688141"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688141"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688142"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688142"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+-&gt; (Ptr ProgressBar -&gt; IO CString) -&gt; IO CString
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688142"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO CString) -&gt; IO CString)
+-&gt; (Ptr ProgressBar -&gt; IO CString) -&gt; IO CString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688143"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688143"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; IO CString
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_text"><span class="hs-identifier hs-var">gtk_progress_bar_get_text</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688143"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span class="hs-pragma">{-# LINE 201 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-201"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span>  </span><span class="annot"><span class="annottext">IO CString -&gt; (CString -&gt; IO (Maybe string)) -&gt; IO (Maybe string)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">(CString -&gt; IO string) -&gt; CString -&gt; IO (Maybe string)
+forall a b. (Ptr a -&gt; IO b) -&gt; Ptr a -&gt; IO (Maybe b)
+</span><span class="hs-identifier hs-var">maybePeek</span></span><span> </span><span class="annot"><span class="annottext">CString -&gt; IO string
+forall s. GlibString s =&gt; CString -&gt; IO s
+</span><span class="hs-identifier hs-var">peekUTFString</span></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- | Causes the progress bar to switch to a different orientation</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- (left-to-right, right-to-left, top-to-bottom, or bottom-to-top).</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--</span><span>
+</span><span id="line-208"></span><span id="local-6989586621679687996"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetOrientation"><span class="hs-identifier hs-type">progressBarSetOrientation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679687996"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679687996"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Enums.html#ProgressBarOrientation"><span class="hs-identifier hs-type">ProgressBarOrientation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-209"></span><span id="progressBarSetOrientation"><span class="annot"><span class="annottext">progressBarSetOrientation :: forall self.
+ProgressBarClass self =&gt;
+self -&gt; ProgressBarOrientation -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetOrientation"><span class="hs-identifier hs-var hs-var">progressBarSetOrientation</span></a></span></span><span> </span><span id="local-6989586621679688155"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688155"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679688156"><span class="annot"><span class="annottext">ProgressBarOrientation
+</span><a href="#local-6989586621679688156"><span class="hs-identifier hs-var">orientation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688157"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688157"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679688158"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679688158"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar -&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688157"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688159"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688159"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_orientation"><span class="hs-identifier hs-var">gtk_progress_bar_set_orientation</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688159"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679688158"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span class="hs-pragma">{-# LINE 211 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-211"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; CInt)
+-&gt; (ProgressBarOrientation -&gt; Int)
+-&gt; ProgressBarOrientation
+-&gt; CInt
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ProgressBarOrientation -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ProgressBarOrientation
+</span><a href="#local-6989586621679688156"><span class="hs-identifier hs-var">orientation</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- | Retrieves the current progress bar orientation.</span><span>
+</span><span id="line-215"></span><span class="hs-comment">--</span><span>
+</span><span id="line-216"></span><span id="local-6989586621679688006"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetOrientation"><span class="hs-identifier hs-type">progressBarGetOrientation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688006"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679688006"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Enums.html#ProgressBarOrientation"><span class="hs-identifier hs-type">ProgressBarOrientation</span></a></span></span><span>
+</span><span id="line-217"></span><span id="progressBarGetOrientation"><span class="annot"><span class="annottext">progressBarGetOrientation :: forall self.
+ProgressBarClass self =&gt;
+self -&gt; IO ProgressBarOrientation
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetOrientation"><span class="hs-identifier hs-var hs-var">progressBarGetOrientation</span></a></span></span><span> </span><span id="local-6989586621679688171"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688171"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-218"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; ProgressBarOrientation)
+-&gt; IO CInt -&gt; IO ProgressBarOrientation
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ProgressBarOrientation
+forall a. Enum a =&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">toEnum</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; ProgressBarOrientation)
+-&gt; (CInt -&gt; Int) -&gt; CInt -&gt; ProgressBarOrientation
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO ProgressBarOrientation)
+-&gt; IO CInt -&gt; IO ProgressBarOrientation
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-219"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688173"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688173"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar -&gt; (Ptr ProgressBar -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688173"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr ProgressBar -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688174"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688174"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_orientation"><span class="hs-identifier hs-var">gtk_progress_bar_get_orientation</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688174"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span class="hs-pragma">{-# LINE 220 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-220"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- | Sets the mode used to ellipsize (add an ellipsis: \&quot;...\&quot;) the text if</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- there is not enough space to render the entire string.</span><span>
+</span><span id="line-226"></span><span class="hs-comment">--</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- * Available since Gtk+ version 2.6</span><span>
+</span><span id="line-228"></span><span class="hs-comment">--</span><span>
+</span><span id="line-229"></span><span id="local-6989586621679688008"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetEllipsize"><span class="hs-identifier hs-type">progressBarSetEllipsize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688008"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679688008"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">EllipsizeMode</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-230"></span><span id="progressBarSetEllipsize"><span class="annot"><span class="annottext">progressBarSetEllipsize :: forall self.
+ProgressBarClass self =&gt;
+self -&gt; EllipsizeMode -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetEllipsize"><span class="hs-identifier hs-var hs-var">progressBarSetEllipsize</span></a></span></span><span> </span><span id="local-6989586621679688182"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688182"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679688183"><span class="annot"><span class="annottext">EllipsizeMode
+</span><a href="#local-6989586621679688183"><span class="hs-identifier hs-var">mode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-231"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688184"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688184"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679688185"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679688185"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar -&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688184"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr ProgressBar -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688186"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688186"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_ellipsize"><span class="hs-identifier hs-var">gtk_progress_bar_set_ellipsize</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688186"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679688185"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span class="hs-pragma">{-# LINE 232 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-232"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; CInt) -&gt; (EllipsizeMode -&gt; Int) -&gt; EllipsizeMode -&gt; CInt
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">EllipsizeMode -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">EllipsizeMode
+</span><a href="#local-6989586621679688183"><span class="hs-identifier hs-var">mode</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- | Returns the ellipsizing position of the progressbar. See</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- 'progressBarSetEllipsize'.</span><span>
+</span><span id="line-237"></span><span class="hs-comment">--</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- * Available since Gtk+ version 2.6</span><span>
+</span><span id="line-239"></span><span class="hs-comment">--</span><span>
+</span><span id="line-240"></span><span id="local-6989586621679688011"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetEllipsize"><span class="hs-identifier hs-type">progressBarGetEllipsize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688011"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679688011"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">EllipsizeMode</span></span></span><span>
+</span><span id="line-241"></span><span id="progressBarGetEllipsize"><span class="annot"><span class="annottext">progressBarGetEllipsize :: forall self. ProgressBarClass self =&gt; self -&gt; IO EllipsizeMode
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetEllipsize"><span class="hs-identifier hs-var hs-var">progressBarGetEllipsize</span></a></span></span><span> </span><span id="local-6989586621679688194"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679688194"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-242"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; EllipsizeMode) -&gt; IO CInt -&gt; IO EllipsizeMode
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; EllipsizeMode
+forall a. Enum a =&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">toEnum</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; EllipsizeMode) -&gt; (CInt -&gt; Int) -&gt; CInt -&gt; EllipsizeMode
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO EllipsizeMode) -&gt; IO CInt -&gt; IO EllipsizeMode
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-243"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span> </span><span id="local-6989586621679688195"><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688195"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar -&gt; (Ptr ProgressBar -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr ProgressBar
+</span><a href="#local-6989586621679688195"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr ProgressBar -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr ProgressBar -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679688196"><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688196"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr ProgressBar -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_ellipsize"><span class="hs-identifier hs-var">gtk_progress_bar_get_ellipsize</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ProgressBar
+</span><a href="#local-6989586621679688196"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-244"></span><span class="hs-pragma">{-# LINE 244 &quot;./Graphics/UI/Gtk/Display/ProgressBar.chs&quot; #-}</span><span>
+</span><span id="line-244"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toProgressBar</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- Attributes</span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- | Orientation and growth direction of the progress bar.</span><span>
+</span><span id="line-251"></span><span class="hs-comment">--</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- Default value: 'ProgressLeftToRight'</span><span>
+</span><span id="line-253"></span><span class="hs-comment">--</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- Removed in Gtk3.</span><span>
+</span><span id="line-255"></span><span id="local-6989586621679688013"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarOrientation"><span class="hs-identifier hs-type">progressBarOrientation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688013"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679688013"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Enums.html#ProgressBarOrientation"><span class="hs-identifier hs-type">ProgressBarOrientation</span></a></span></span><span>
+</span><span id="line-256"></span><span id="progressBarOrientation"><span class="annot"><span class="annottext">progressBarOrientation :: forall self.
+ProgressBarClass self =&gt;
+Attr self ProgressBarOrientation
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarOrientation"><span class="hs-identifier hs-var hs-var">progressBarOrientation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO ProgressBarOrientation)
+-&gt; (self -&gt; ProgressBarOrientation -&gt; IO ())
+-&gt; ReadWriteAttr self ProgressBarOrientation ProgressBarOrientation
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-257"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO ProgressBarOrientation
+forall self.
+ProgressBarClass self =&gt;
+self -&gt; IO ProgressBarOrientation
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetOrientation"><span class="hs-identifier hs-var">progressBarGetOrientation</span></a></span><span>
+</span><span id="line-258"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; ProgressBarOrientation -&gt; IO ()
+forall self.
+ProgressBarClass self =&gt;
+self -&gt; ProgressBarOrientation -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetOrientation"><span class="hs-identifier hs-var">progressBarSetOrientation</span></a></span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- | The number of discrete blocks in a progress bar (when shown in the</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- discrete style).</span><span>
+</span><span id="line-263"></span><span class="hs-comment">--</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- Allowed values: &gt;= 2</span><span>
+</span><span id="line-265"></span><span class="hs-comment">--</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- Default value: 10</span><span>
+</span><span id="line-267"></span><span class="hs-comment">--</span><span>
+</span><span id="line-268"></span><span id="local-6989586621679688020"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarDiscreteBlocks"><span class="hs-identifier hs-type">progressBarDiscreteBlocks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688020"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679688020"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-269"></span><span id="progressBarDiscreteBlocks"><span class="annot"><span class="annottext">progressBarDiscreteBlocks :: forall self. ProgressBarClass self =&gt; Attr self Int
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarDiscreteBlocks"><span class="hs-identifier hs-var hs-var">progressBarDiscreteBlocks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr self Int
+forall gobj. GObjectClass gobj =&gt; String -&gt; Attr gobj Int
+</span><span class="hs-identifier hs-var">newAttrFromUIntProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;discrete-blocks&quot;</span></span><span>
+</span><span id="line-270"></span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- | The fraction of total work that has been completed.</span><span>
+</span><span id="line-272"></span><span class="hs-comment">--</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- Allowed values: [0,1]</span><span>
+</span><span id="line-274"></span><span class="hs-comment">--</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- Default value: 0</span><span>
+</span><span id="line-276"></span><span class="hs-comment">--</span><span>
+</span><span id="line-277"></span><span id="local-6989586621679688028"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarFraction"><span class="hs-identifier hs-type">progressBarFraction</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688028"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679688028"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span>
+</span><span id="line-278"></span><span id="progressBarFraction"><span class="annot"><span class="annottext">progressBarFraction :: forall self. ProgressBarClass self =&gt; Attr self Double
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarFraction"><span class="hs-identifier hs-var hs-var">progressBarFraction</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO Double)
+-&gt; (self -&gt; Double -&gt; IO ()) -&gt; ReadWriteAttr self Double Double
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-279"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO Double
+forall self. ProgressBarClass self =&gt; self -&gt; IO Double
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetFraction"><span class="hs-identifier hs-var">progressBarGetFraction</span></a></span><span>
+</span><span id="line-280"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; Double -&gt; IO ()
+forall self. ProgressBarClass self =&gt; self -&gt; Double -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetFraction"><span class="hs-identifier hs-var">progressBarSetFraction</span></a></span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- | The fraction of total progress to move the bouncing block when pulsed.</span><span>
+</span><span id="line-283"></span><span class="hs-comment">--</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- Allowed values: [0,1]</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- Default value: 0.1</span><span>
+</span><span id="line-287"></span><span class="hs-comment">--</span><span>
+</span><span id="line-288"></span><span id="local-6989586621679688215"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarPulseStep"><span class="hs-identifier hs-type">progressBarPulseStep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688215"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679688215"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span>
+</span><span id="line-289"></span><span id="progressBarPulseStep"><span class="annot"><span class="annottext">progressBarPulseStep :: forall self. ProgressBarClass self =&gt; Attr self Double
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarPulseStep"><span class="hs-identifier hs-var hs-var">progressBarPulseStep</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO Double)
+-&gt; (self -&gt; Double -&gt; IO ()) -&gt; ReadWriteAttr self Double Double
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-290"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO Double
+forall self. ProgressBarClass self =&gt; self -&gt; IO Double
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetPulseStep"><span class="hs-identifier hs-var">progressBarGetPulseStep</span></a></span><span>
+</span><span id="line-291"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; Double -&gt; IO ()
+forall self. ProgressBarClass self =&gt; self -&gt; Double -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetPulseStep"><span class="hs-identifier hs-var">progressBarSetPulseStep</span></a></span><span>
+</span><span id="line-292"></span><span>
+</span><span id="line-293"></span><span class="hs-comment">-- | Text to be displayed in the progress bar.</span><span>
+</span><span id="line-294"></span><span class="hs-comment">--</span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- Default value: \&quot;%P %%\&quot;</span><span>
+</span><span id="line-296"></span><span class="hs-comment">--</span><span>
+</span><span id="line-297"></span><span id="local-6989586621679688031"><span id="local-6989586621679688032"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarText"><span class="hs-identifier hs-type">progressBarText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688031"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679688032"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadWriteAttr</span></span><span> </span><span class="annot"><a href="#local-6989586621679688031"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679688032"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679688032"><span class="hs-identifier hs-type">string</span></a></span></span></span><span>
+</span><span id="line-298"></span><span id="progressBarText"><span class="annot"><span class="annottext">progressBarText :: forall self string.
+(ProgressBarClass self, GlibString string) =&gt;
+ReadWriteAttr self (Maybe string) string
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarText"><span class="hs-identifier hs-var hs-var">progressBarText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO (Maybe string))
+-&gt; (self -&gt; string -&gt; IO ())
+-&gt; ReadWriteAttr self (Maybe string) string
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-299"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO (Maybe string)
+forall self string.
+(ProgressBarClass self, GlibString string) =&gt;
+self -&gt; IO (Maybe string)
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetText"><span class="hs-identifier hs-var">progressBarGetText</span></a></span><span>
+</span><span id="line-300"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; string -&gt; IO ()
+forall self string.
+(ProgressBarClass self, GlibString string) =&gt;
+self -&gt; string -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetText"><span class="hs-identifier hs-var">progressBarSetText</span></a></span><span>
+</span><span id="line-301"></span><span>
+</span><span id="line-302"></span><span>
+</span><span id="line-303"></span><span class="hs-comment">-- | The preferred place to ellipsize the string, if the progressbar does not</span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- have enough room to display the entire string, specified as a</span><span>
+</span><span id="line-305"></span><span class="hs-comment">-- 'EllipsizeMode'.</span><span>
+</span><span id="line-306"></span><span class="hs-comment">--</span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- Note that setting this property to a value other than 'EllipsizeNone' has</span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- the side-effect that the progressbar requests only enough space to display</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- the ellipsis \&quot;...\&quot;. Another means to set a progressbar's width is</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- 'Graphics.UI.Gtk.Abstract.Widget.widgetSetSizeRequest'.</span><span>
+</span><span id="line-311"></span><span class="hs-comment">--</span><span>
+</span><span id="line-312"></span><span class="hs-comment">-- Default value: 'EllipsizeNone'</span><span>
+</span><span id="line-313"></span><span class="hs-comment">--</span><span>
+</span><span id="line-314"></span><span id="local-6989586621679688035"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarEllipsize"><span class="hs-identifier hs-type">progressBarEllipsize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBarClass"><span class="hs-identifier hs-type">ProgressBarClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679688035"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679688035"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">EllipsizeMode</span></span></span><span>
+</span><span id="line-315"></span><span id="progressBarEllipsize"><span class="annot"><span class="annottext">progressBarEllipsize :: forall self. ProgressBarClass self =&gt; Attr self EllipsizeMode
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarEllipsize"><span class="hs-identifier hs-var hs-var">progressBarEllipsize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO EllipsizeMode)
+-&gt; (self -&gt; EllipsizeMode -&gt; IO ())
+-&gt; ReadWriteAttr self EllipsizeMode EllipsizeMode
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-316"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO EllipsizeMode
+forall self. ProgressBarClass self =&gt; self -&gt; IO EllipsizeMode
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarGetEllipsize"><span class="hs-identifier hs-var">progressBarGetEllipsize</span></a></span><span>
+</span><span id="line-317"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; EllipsizeMode -&gt; IO ()
+forall self.
+ProgressBarClass self =&gt;
+self -&gt; EllipsizeMode -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.ProgressBar.html#progressBarSetEllipsize"><span class="hs-identifier hs-var">progressBarSetEllipsize</span></a></span><span>
+</span><span id="line-318"></span><span>
+</span><span id="line-319"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_new&quot;</span></span><span>
+</span><span id="line-320"></span><span>  </span><span id="gtk_progress_bar_new"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_new"><span class="hs-identifier hs-var">gtk_progress_bar_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-321"></span><span>
+</span><span id="line-322"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_pulse&quot;</span></span><span>
+</span><span id="line-323"></span><span>  </span><span id="gtk_progress_bar_pulse"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_pulse"><span class="hs-identifier hs-var">gtk_progress_bar_pulse</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-324"></span><span>
+</span><span id="line-325"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_set_text&quot;</span></span><span>
+</span><span id="line-326"></span><span>  </span><span id="gtk_progress_bar_set_text"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_text"><span class="hs-identifier hs-var">gtk_progress_bar_set_text</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-327"></span><span>
+</span><span id="line-328"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_set_fraction&quot;</span></span><span>
+</span><span id="line-329"></span><span>  </span><span id="gtk_progress_bar_set_fraction"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_fraction"><span class="hs-identifier hs-var">gtk_progress_bar_set_fraction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-330"></span><span>
+</span><span id="line-331"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_set_pulse_step&quot;</span></span><span>
+</span><span id="line-332"></span><span>  </span><span id="gtk_progress_bar_set_pulse_step"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_pulse_step"><span class="hs-identifier hs-var">gtk_progress_bar_set_pulse_step</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-333"></span><span>
+</span><span id="line-334"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_get_fraction&quot;</span></span><span>
+</span><span id="line-335"></span><span>  </span><span id="gtk_progress_bar_get_fraction"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_fraction"><span class="hs-identifier hs-var">gtk_progress_bar_get_fraction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-336"></span><span>
+</span><span id="line-337"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_get_pulse_step&quot;</span></span><span>
+</span><span id="line-338"></span><span>  </span><span id="gtk_progress_bar_get_pulse_step"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_pulse_step"><span class="hs-identifier hs-var">gtk_progress_bar_get_pulse_step</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_get_text&quot;</span></span><span>
+</span><span id="line-341"></span><span>  </span><span id="gtk_progress_bar_get_text"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_text"><span class="hs-identifier hs-var">gtk_progress_bar_get_text</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-342"></span><span>
+</span><span id="line-343"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_set_orientation&quot;</span></span><span>
+</span><span id="line-344"></span><span>  </span><span id="gtk_progress_bar_set_orientation"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_orientation"><span class="hs-identifier hs-var">gtk_progress_bar_set_orientation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-345"></span><span>
+</span><span id="line-346"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_get_orientation&quot;</span></span><span>
+</span><span id="line-347"></span><span>  </span><span id="gtk_progress_bar_get_orientation"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_orientation"><span class="hs-identifier hs-var">gtk_progress_bar_get_orientation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-348"></span><span>
+</span><span id="line-349"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_set_ellipsize&quot;</span></span><span>
+</span><span id="line-350"></span><span>  </span><span id="gtk_progress_bar_set_ellipsize"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_set_ellipsize"><span class="hs-identifier hs-var">gtk_progress_bar_set_ellipsize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-351"></span><span>
+</span><span id="line-352"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_progress_bar_get_ellipsize&quot;</span></span><span>
+</span><span id="line-353"></span><span>  </span><span id="gtk_progress_bar_get_ellipsize"><span class="annot"><a href="Graphics.UI.Gtk.Display.ProgressBar.html#gtk_progress_bar_get_ellipsize"><span class="hs-identifier hs-var">gtk_progress_bar_get_ellipsize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ProgressBar"><span class="hs-identifier hs-type">ProgressBar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-354"></span></pre></body></html>

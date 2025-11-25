@@ -1,0 +1,281 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP, TypeOperators #-}</span><span>
+</span><span id="line-2"></span><span class="annot"><span class="hs-comment">-- | A 'Frame' is a finite 'Int'-indexed collection of rows.</span></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Frames.Frame.html"><span class="hs-identifier">Frames.Frame</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 804
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Semigroup</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vinyl.TypeLevel</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Frames.Rec.html"><span class="hs-identifier">Frames.Rec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier">Record</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Frames.RecF.html"><span class="hs-identifier">Frames.RecF</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">rappend</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="annot"><span class="hs-comment">-- | A 'Frame' is a finite collection of rows indexed by 'Int'.</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">data</span><span> </span><span id="Frame"><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span></span><span> </span><span id="local-6989586621679158214"><span class="annot"><a href="#local-6989586621679158214"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Frame"><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="frameLength"><span class="annot"><span class="annottext">forall r. Frame r -&gt; Int
+</span><a href="Frames.Frame.html#frameLength"><span class="hs-identifier hs-var hs-var">frameLength</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-15"></span><span>                     </span><span class="hs-special">,</span><span> </span><span id="frameRow"><span class="annot"><span class="annottext">forall r. Frame r -&gt; Int -&gt; r
+</span><a href="Frames.Frame.html#frameRow"><span class="hs-identifier hs-var hs-var">frameRow</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158214"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><span class="hs-comment">-- | A 'Frame' whose rows are 'Record' values.</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">type</span><span> </span><span id="FrameRec"><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-var">FrameRec</span></a></span></span><span> </span><span id="local-6989586621679158333"><span class="annot"><a href="#local-6989586621679158333"><span class="hs-identifier hs-type">rs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158333"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158336"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>  </span><span id="local-6989586621679158340"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Frame a -&gt; Frame b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679158341"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679158341"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158342"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158342"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span id="local-6989586621679158343"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158343"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; b) -&gt; Frame b
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158342"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679158341"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (Int -&gt; a) -&gt; Int -&gt; b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158343"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- | Build a 'Frame' from any 'Foldable'. This simply uses a boxed</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- 'V.Vector' to hold each row. If you have a collection of 'Record's,</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- consider using 'Frames.InCore.toFrame'.</span><span>
+</span><span id="line-26"></span><span id="local-6989586621679158228"><span id="local-6989586621679158229"><span class="annot"><a href="Frames.Frame.html#boxedFrame"><span class="hs-identifier hs-type">boxedFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679158228"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158228"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158229"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158229"><span class="hs-identifier hs-type">r</span></a></span></span></span><span>
+</span><span id="line-27"></span><span id="boxedFrame"><span class="annot"><span class="annottext">boxedFrame :: forall (f :: * -&gt; *) r. Foldable f =&gt; f r -&gt; Frame r
+</span><a href="Frames.Frame.html#boxedFrame"><span class="hs-identifier hs-var hs-var">boxedFrame</span></a></span></span><span> </span><span id="local-6989586621679158347"><span class="annot"><span class="annottext">f r
+</span><a href="#local-6989586621679158347"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; r) -&gt; Frame r
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector r -&gt; Int
+forall a. Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">Vector r
+</span><a href="#local-6989586621679158349"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector r
+</span><a href="#local-6989586621679158349"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Vector r -&gt; Int -&gt; r
+forall a. Vector a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">V.!</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679158349"><span class="annot"><span class="annottext">v :: Vector r
+</span><a href="#local-6989586621679158349"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[r] -&gt; Vector r
+forall a. [a] -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f r -&gt; [r]
+forall a. f a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">f r
+</span><a href="#local-6989586621679158347"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158240"><span id="local-6989586621679158357"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679158240"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158240"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158372"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158372"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span id="local-6989586621679158373"><span class="annot"><span class="annottext">Int -&gt; r
+</span><a href="#local-6989586621679158373"><span class="hs-identifier hs-var">r1</span></a></span></span><span> </span><span id="local-6989586621679158374"><span class="annot"><span class="annottext">== :: Frame r -&gt; Frame r -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158375"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158375"><span class="hs-identifier hs-var">l2</span></a></span></span><span> </span><span id="local-6989586621679158376"><span class="annot"><span class="annottext">Int -&gt; r
+</span><a href="#local-6989586621679158376"><span class="hs-identifier hs-var">r2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158372"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158375"><span class="hs-identifier hs-var">l2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Bool) -&gt; [Int] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679158379"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158379"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; r
+</span><a href="#local-6989586621679158373"><span class="hs-identifier hs-var">r1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158379"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">r -&gt; r -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; r
+</span><a href="#local-6989586621679158376"><span class="hs-identifier hs-var">r2</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158379"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158372"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | The 'Monoid' instance for 'Frame' provides a mechanism for</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- vertical concatenation of 'Frame's. That is, @f1 &lt;&gt; f2@ will return</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- a new 'Frame' with the rows of @f1@ followed by the rows of @f2@.</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158247"><span id="local-6989586621679158385"><span id="local-6989586621679158389"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158247"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621679158394"><span class="annot"><span class="annottext">mempty :: Frame r
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; r) -&gt; Frame r
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; Int -&gt; r
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">(r -&gt; Int -&gt; r) -&gt; r -&gt; Int -&gt; r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; r
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;index out of bounds (empty frame)&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158397"><span id="local-6989586621679158400"><span id="local-6989586621679158403"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158397"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158412"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158412"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span id="local-6989586621679158413"><span class="annot"><span class="annottext">Int -&gt; r
+</span><a href="#local-6989586621679158413"><span class="hs-identifier hs-var">f1</span></a></span></span><span> </span><span id="local-6989586621679158414"><span class="annot"><span class="annottext">&lt;&gt; :: Frame r -&gt; Frame r -&gt; Frame r
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158415"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158415"><span class="hs-identifier hs-var">l2</span></a></span></span><span> </span><span id="local-6989586621679158416"><span class="annot"><span class="annottext">Int -&gt; r
+</span><a href="#local-6989586621679158416"><span class="hs-identifier hs-var">f2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; r) -&gt; Frame r
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158412"><span class="hs-identifier hs-var">l1</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158415"><span class="hs-identifier hs-var">l2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Int -&gt; r) -&gt; Frame r) -&gt; (Int -&gt; r) -&gt; Frame r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679158418"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158418"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158418"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158412"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int -&gt; r
+</span><a href="#local-6989586621679158413"><span class="hs-identifier hs-var">f1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158418"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; r
+</span><a href="#local-6989586621679158416"><span class="hs-identifier hs-var">f2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158418"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158412"><span class="hs-identifier hs-var">l1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158421"><span id="local-6989586621679158428"><span id="local-6989586621679158433"><span id="local-6989586621679158436"><span id="local-6989586621679158439"><span id="local-6989586621679158443"><span id="local-6989586621679158446"><span id="local-6989586621679158449"><span id="local-6989586621679158452"><span id="local-6989586621679158455"><span id="local-6989586621679158458"><span id="local-6989586621679158463"><span id="local-6989586621679158468"><span id="local-6989586621679158473"><span id="local-6989586621679158478"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679158490"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Frame a -&gt; m
+</span><a href="#local-6989586621679158490"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679158492"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679158492"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158493"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158493"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679158494"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158494"><span class="hs-identifier hs-var">row</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; m) -&gt; [Int] -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679158492"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; (Int -&gt; a) -&gt; Int -&gt; m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158494"><span class="hs-identifier hs-var">row</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158493"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldMap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679158500"><span class="annot"><span class="annottext">foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Frame a -&gt; b
+</span><a href="#local-6989586621679158500"><span class="hs-identifier hs-var hs-var hs-var">foldl'</span></a></span></span><span> </span><span id="local-6989586621679158502"><span class="annot"><span class="annottext">b -&gt; a -&gt; b
+</span><a href="#local-6989586621679158502"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679158503"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679158503"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158504"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158504"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679158505"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158505"><span class="hs-identifier hs-var">row</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; Int -&gt; b) -&gt; b -&gt; [Int] -&gt; b
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (Int -&gt; a) -&gt; Int -&gt; b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158505"><span class="hs-identifier hs-var">row</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; Int -&gt; b) -&gt; (b -&gt; a -&gt; b) -&gt; b -&gt; Int -&gt; b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; a -&gt; b
+</span><a href="#local-6989586621679158502"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679158503"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158504"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldl'</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158511"><span id="local-6989586621679158515"><span id="local-6989586621679158518"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-comment">-- | A frame of 'maxBound' rows, each of which is the given value.</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679158523"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Frame a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679158524"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158524"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; a) -&gt; Frame a
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158524"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-comment">-- | Zips two 'Frame's together, applying the rows of the first to</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-comment">-- those of the second. The result has as many rows as the smaller</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-comment">-- of the two argument 'Frame's.</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158531"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158531"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span id="local-6989586621679158532"><span class="annot"><span class="annottext">Int -&gt; a -&gt; b
+</span><a href="#local-6989586621679158532"><span class="hs-identifier hs-var">f1</span></a></span></span><span> </span><span id="local-6989586621679158533"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Frame (a -&gt; b) -&gt; Frame a -&gt; Frame b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158534"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158534"><span class="hs-identifier hs-var">l2</span></a></span></span><span> </span><span id="local-6989586621679158535"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158535"><span class="hs-identifier hs-var">f2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; b) -&gt; Frame b
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158531"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158534"><span class="hs-identifier hs-var">l2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Int -&gt; b) -&gt; Frame b) -&gt; (Int -&gt; b) -&gt; Frame b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; a -&gt; b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">($)</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; a -&gt; b) -&gt; (Int -&gt; a -&gt; b) -&gt; Int -&gt; a -&gt; b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; b
+</span><a href="#local-6989586621679158532"><span class="hs-identifier hs-var">f1</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; b) -&gt; (Int -&gt; a) -&gt; Int -&gt; b
+forall a b. (Int -&gt; a -&gt; b) -&gt; (Int -&gt; a) -&gt; Int -&gt; b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158535"><span class="hs-identifier hs-var">f2</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158542"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-comment">-- | A frame of 'maxBound' rows, each of which is the given value.</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679158548"><span class="annot"><span class="annottext">return :: forall a. a -&gt; Frame a
+</span><span class="hs-identifier hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Frame a
+forall a. a -&gt; Frame a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-comment">-- | Like 'concatMap' for lists.</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158555"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158555"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679158556"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158556"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679158557"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. Frame a -&gt; (a -&gt; Frame b) -&gt; Frame b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679158558"><span class="annot"><span class="annottext">a -&gt; Frame b
+</span><a href="#local-6989586621679158558"><span class="hs-identifier hs-var">fb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Frame b) -&gt; [Int] -&gt; Frame b
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Frame b
+</span><a href="#local-6989586621679158558"><span class="hs-identifier hs-var">fb</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Frame b) -&gt; (Int -&gt; a) -&gt; Int -&gt; Frame b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679158556"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158555"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | Horizontal 'Frame' concatenation. That is, @zipFrames f1 f2@ will</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- return a 'Frame' with as many rows as the smaller of @f1@ and @f2@</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- whose rows are the result of appending the columns of @f2@ to those</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- of @f1@.</span><span>
+</span><span id="line-68"></span><span id="local-6989586621679158317"><span id="local-6989586621679158319"><span class="annot"><a href="Frames.Frame.html#zipFrames"><span class="hs-identifier hs-type">zipFrames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158317"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158319"><span class="hs-identifier hs-type">rs'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158317"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><a href="#local-6989586621679158319"><span class="hs-identifier hs-type">rs'</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-69"></span><span id="zipFrames"><span class="annot"><span class="annottext">zipFrames :: forall (rs :: [(Symbol, *)]) (rs' :: [(Symbol, *)]).
+FrameRec rs -&gt; FrameRec rs' -&gt; FrameRec (rs ++ rs')
+</span><a href="Frames.Frame.html#zipFrames"><span class="hs-identifier hs-var hs-var">zipFrames</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158563"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158563"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span id="local-6989586621679158564"><span class="annot"><span class="annottext">Int -&gt; Record rs
+</span><a href="#local-6989586621679158564"><span class="hs-identifier hs-var">f1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span id="local-6989586621679158565"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158565"><span class="hs-identifier hs-var">l2</span></a></span></span><span> </span><span id="local-6989586621679158566"><span class="annot"><span class="annottext">Int -&gt; Record rs'
+</span><a href="#local-6989586621679158566"><span class="hs-identifier hs-var">f2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; Record (rs ++ rs')) -&gt; Frame (Record (rs ++ rs'))
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158563"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679158565"><span class="hs-identifier hs-var">l2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Int -&gt; Record (rs ++ rs')) -&gt; Frame (Record (rs ++ rs')))
+-&gt; (Int -&gt; Record (rs ++ rs')) -&gt; Frame (Record (rs ++ rs'))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Record rs -&gt; Record rs' -&gt; Record (rs ++ rs')
+forall {k} (f :: k -&gt; *) (as :: [k]) (bs :: [k]).
+Rec f as -&gt; Rec f bs -&gt; Rec f (as ++ bs)
+</span><span class="hs-identifier hs-var">rappend</span></span><span> </span><span class="annot"><span class="annottext">(Record rs -&gt; Record rs' -&gt; Record (rs ++ rs'))
+-&gt; (Int -&gt; Record rs) -&gt; Int -&gt; Record rs' -&gt; Record (rs ++ rs')
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Record rs
+</span><a href="#local-6989586621679158564"><span class="hs-identifier hs-var">f1</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Record rs' -&gt; Record (rs ++ rs'))
+-&gt; (Int -&gt; Record rs') -&gt; Int -&gt; Record (rs ++ rs')
+forall a b. (Int -&gt; a -&gt; b) -&gt; (Int -&gt; a) -&gt; Int -&gt; b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Record rs'
+</span><a href="#local-6989586621679158566"><span class="hs-identifier hs-var">f2</span></a></span><span>
+</span><span id="line-71"></span></pre></body></html>

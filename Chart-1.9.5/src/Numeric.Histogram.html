@@ -1,0 +1,254 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PatternGuards #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Numeric.Histogram.html"><span class="hs-identifier">Numeric.Histogram</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier">Range</span></a></span><span>
+</span><span id="line-4"></span><span>                         </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Histogram.html#binBounds"><span class="hs-identifier">binBounds</span></a></span><span>
+</span><span id="line-5"></span><span>                         </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Histogram.html#histValues"><span class="hs-identifier">histValues</span></a></span><span>
+</span><span id="line-6"></span><span>                         </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Histogram.html#histWeightedValues"><span class="hs-identifier">histWeightedValues</span></a></span><span>
+</span><span id="line-7"></span><span>                         </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Histogram.html#histWithBins"><span class="hs-identifier">histWithBins</span></a></span><span>
+</span><span id="line-8"></span><span>                         </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Mutable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MV</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.ST</span></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">type</span><span> </span><span id="Range"><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier hs-var">Range</span></a></span></span><span> </span><span id="local-6989586621679434142"><span class="annot"><a href="#local-6989586621679434142"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679434142"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679434142"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- | 'binBounds a b n' generates bounds for 'n' bins spaced linearly between</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- 'a' and 'b'</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Examples:</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- &gt;&gt;&gt; binBounds 0 3 4</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- [(0.0,0.75),(0.75,1.5),(1.5,2.25),(2.25,3.0)]</span><span>
+</span><span id="line-23"></span><span id="local-6989586621679434061"><span class="annot"><a href="Numeric.Histogram.html#binBounds"><span class="hs-identifier hs-type">binBounds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RealFrac</span></span><span> </span><span class="annot"><a href="#local-6989586621679434061"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679434061"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679434061"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434061"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-24"></span><span id="binBounds"><span class="annot"><span class="annottext">binBounds :: forall a. RealFrac a =&gt; a -&gt; a -&gt; Int -&gt; [Range a]
+</span><a href="Numeric.Histogram.html#binBounds"><span class="hs-identifier hs-var hs-var">binBounds</span></a></span></span><span> </span><span id="local-6989586621679434161"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434161"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679434162"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434162"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679434163"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434163"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Range a) -&gt; [Int] -&gt; [Range a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679434164"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434164"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-glyph">-&gt;</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; a
+forall {a}. Real a =&gt; a -&gt; a
+</span><a href="#local-6989586621679434165"><span class="hs-identifier hs-var">lbound</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434164"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+forall {a}. Real a =&gt; a -&gt; a
+</span><a href="#local-6989586621679434165"><span class="hs-identifier hs-var">lbound</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434164"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434163"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-25"></span><span>        </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679434165"><span class="annot"><span class="annottext">lbound :: a -&gt; a
+</span><a href="#local-6989586621679434165"><span class="hs-identifier hs-var hs-var">lbound</span></a></span></span><span> </span><span id="local-6989586621679434185"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434185"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434161"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434162"><span class="hs-identifier hs-var">b</span></a></span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434161"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434185"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434163"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | 'histValues a b n vs' returns the bins for the histogram of</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- 'vs' on the range from 'a' to 'b' with 'n' bins</span><span>
+</span><span id="line-29"></span><span id="local-6989586621679434075"><span class="annot"><a href="Numeric.Histogram.html#histValues"><span class="hs-identifier hs-type">histValues</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RealFrac</span></span><span> </span><span class="annot"><a href="#local-6989586621679434075"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679434075"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679434075"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679434075"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434075"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span></span><span>
+</span><span id="line-30"></span><span id="histValues"><span class="annot"><span class="annottext">histValues :: forall a.
+RealFrac a =&gt;
+a -&gt; a -&gt; Int -&gt; [a] -&gt; Vector (Range a, Int)
+</span><a href="Numeric.Histogram.html#histValues"><span class="hs-identifier hs-var hs-var">histValues</span></a></span></span><span> </span><span id="local-6989586621679434193"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434193"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679434194"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434194"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679434195"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434195"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector (Range a) -&gt; [(Int, a)] -&gt; Vector (Range a, Int)
+forall w a.
+(Num w, RealFrac a) =&gt;
+Vector (Range a) -&gt; [(w, a)] -&gt; Vector (Range a, w)
+</span><a href="Numeric.Histogram.html#histWithBins"><span class="hs-identifier hs-var">histWithBins</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Range a] -&gt; Vector (Range a)
+forall a. [a] -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.fromList</span></span><span> </span><span class="annot"><span class="annottext">([Range a] -&gt; Vector (Range a)) -&gt; [Range a] -&gt; Vector (Range a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Int -&gt; [Range a]
+forall a. RealFrac a =&gt; a -&gt; a -&gt; Int -&gt; [Range a]
+</span><a href="Numeric.Histogram.html#binBounds"><span class="hs-identifier hs-var">binBounds</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434193"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434194"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434195"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([(Int, a)] -&gt; Vector (Range a, Int))
+-&gt; ([a] -&gt; [(Int, a)]) -&gt; [a] -&gt; Vector (Range a, Int)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [a] -&gt; [(Int, a)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; [Int]
+forall a. a -&gt; [a]
+</span><span class="hs-identifier hs-var">repeat</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- | 'histValues a b n vs' returns the bins for the weighted histogram of</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- 'vs' on the range from 'a' to 'b' with 'n' bins</span><span>
+</span><span id="line-34"></span><span id="local-6989586621679434091"><span class="annot"><a href="Numeric.Histogram.html#histWeightedValues"><span class="hs-identifier hs-type">histWeightedValues</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RealFrac</span></span><span> </span><span class="annot"><a href="#local-6989586621679434091"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679434091"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679434091"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679434091"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434091"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span></span><span>
+</span><span id="line-35"></span><span id="histWeightedValues"><span class="annot"><span class="annottext">histWeightedValues :: forall a.
+RealFrac a =&gt;
+a -&gt; a -&gt; Int -&gt; [(Double, a)] -&gt; Vector (Range a, Double)
+</span><a href="Numeric.Histogram.html#histWeightedValues"><span class="hs-identifier hs-var hs-var">histWeightedValues</span></a></span></span><span> </span><span id="local-6989586621679434204"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434204"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679434205"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434205"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679434206"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434206"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector (Range a) -&gt; [(Double, a)] -&gt; Vector (Range a, Double)
+forall w a.
+(Num w, RealFrac a) =&gt;
+Vector (Range a) -&gt; [(w, a)] -&gt; Vector (Range a, w)
+</span><a href="Numeric.Histogram.html#histWithBins"><span class="hs-identifier hs-var">histWithBins</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Range a] -&gt; Vector (Range a)
+forall a. [a] -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.fromList</span></span><span> </span><span class="annot"><span class="annottext">([Range a] -&gt; Vector (Range a)) -&gt; [Range a] -&gt; Vector (Range a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Int -&gt; [Range a]
+forall a. RealFrac a =&gt; a -&gt; a -&gt; Int -&gt; [Range a]
+</span><a href="Numeric.Histogram.html#binBounds"><span class="hs-identifier hs-var">binBounds</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434204"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434205"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434206"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | 'histWithBins bins xs' is the histogram of weighted values 'xs' with 'bins'</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Examples:</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- &gt;&gt;&gt; :{</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- histWithBins</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--     (V.fromList [(0.0, 0.75), (0.75, 1.5), (1.5, 2.25), (2.25, 3.0)])</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--     [(1, 0), (1, 0), (1, 1), (1, 2), (1, 2), (1, 2), (1, 3)]</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- :}</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- [((0.0,0.75),2),((0.75,1.5),1),((1.5,2.25),3),((2.25,3.0),1)]</span><span>
+</span><span id="line-47"></span><span id="local-6989586621679434078"><span id="local-6989586621679434079"><span class="annot"><a href="Numeric.Histogram.html#histWithBins"><span class="hs-identifier hs-type">histWithBins</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679434078"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RealFrac</span></span><span> </span><span class="annot"><a href="#local-6989586621679434079"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434079"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679434078"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679434079"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434079"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679434078"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-48"></span><span id="histWithBins"><span class="annot"><span class="annottext">histWithBins :: forall w a.
+(Num w, RealFrac a) =&gt;
+Vector (Range a) -&gt; [(w, a)] -&gt; Vector (Range a, w)
+</span><a href="Numeric.Histogram.html#histWithBins"><span class="hs-identifier hs-var hs-var">histWithBins</span></a></span></span><span> </span><span id="local-6989586621679434214"><span class="annot"><span class="annottext">Vector (Range a)
+</span><a href="#local-6989586621679434214"><span class="hs-identifier hs-var">bins</span></a></span></span><span> </span><span id="local-6989586621679434215"><span class="annot"><span class="annottext">[(w, a)]
+</span><a href="#local-6989586621679434215"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679434216"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679434216"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector (Range a) -&gt; Int
+forall a. Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">Vector (Range a)
+</span><a href="#local-6989586621679434214"><span class="hs-identifier hs-var">bins</span></a></span><span>
+</span><span id="line-50"></span><span>        </span><span id="local-6989586621679434096"><span class="annot"><a href="#local-6989586621679434218"><span class="hs-identifier hs-type">testBin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RealFrac</span></span><span> </span><span class="annot"><a href="#local-6989586621679434096"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679434096"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434096"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-51"></span><span>        </span><span id="local-6989586621679434218"><span class="annot"><span class="annottext">testBin :: forall a. RealFrac a =&gt; a -&gt; (Int, Range a) -&gt; Bool
+</span><a href="#local-6989586621679434218"><span class="hs-identifier hs-var hs-var">testBin</span></a></span></span><span> </span><span id="local-6989586621679434230"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434230"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679434231"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434231"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679434232"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434232"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679434233"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434233"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434231"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434216"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-53"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434230"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434232"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434230"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434233"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-54"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434230"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434232"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434230"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434233"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>        </span><span id="local-6989586621679434099"><span id="local-6989586621679434100"><span id="local-6989586621679434101"><span class="annot"><a href="#local-6989586621679434237"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RealFrac</span></span><span> </span><span class="annot"><a href="#local-6989586621679434099"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679434100"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Histogram.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434099"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MV.STVector</span></span><span> </span><span class="annot"><a href="#local-6989586621679434101"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434100"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679434100"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679434099"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ST</span></span><span> </span><span class="annot"><a href="#local-6989586621679434101"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-59"></span><span>        </span><span id="local-6989586621679434237"><span class="annot"><span class="annottext">f :: forall a w s.
+(RealFrac a, Num w) =&gt;
+Vector (Range a) -&gt; STVector s w -&gt; (w, a) -&gt; ST s ()
+</span><a href="#local-6989586621679434237"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679434248"><span class="annot"><span class="annottext">Vector (Range a)
+</span><a href="#local-6989586621679434248"><span class="hs-identifier hs-var">bins1</span></a></span></span><span> </span><span id="local-6989586621679434249"><span class="annot"><span class="annottext">STVector s w
+</span><a href="#local-6989586621679434249"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679434250"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679434250"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679434251"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434251"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-60"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">((Int, Range a) -&gt; Bool)
+-&gt; Vector (Int, Range a) -&gt; Vector (Int, Range a)
+forall a. (a -&gt; Bool) -&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.dropWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool)
+-&gt; ((Int, Range a) -&gt; Bool) -&gt; (Int, Range a) -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; (Int, Range a) -&gt; Bool
+forall a. RealFrac a =&gt; a -&gt; (Int, Range a) -&gt; Bool
+</span><a href="#local-6989586621679434218"><span class="hs-identifier hs-var">testBin</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679434251"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Vector (Int, Range a) -&gt; Vector (Int, Range a))
+-&gt; Vector (Int, Range a) -&gt; Vector (Int, Range a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector (Range a) -&gt; Vector (Int, Range a)
+forall a. Vector a -&gt; Vector (Int, a)
+</span><span class="hs-identifier hs-var">V.indexed</span></span><span> </span><span class="annot"><span class="annottext">Vector (Range a)
+</span><a href="#local-6989586621679434248"><span class="hs-identifier hs-var">bins1</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-61"></span><span>                </span><span id="local-6989586621679434255"><span class="annot"><span class="annottext">Vector (Int, Range a)
+</span><a href="#local-6989586621679434255"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Vector (Int, Range a) -&gt; Bool
+forall a. Vector a -&gt; Bool
+</span><span class="hs-identifier hs-var">V.null</span></span><span> </span><span class="annot"><span class="annottext">Vector (Int, Range a)
+</span><a href="#local-6989586621679434255"><span class="hs-identifier hs-var">v</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; ST s ()
+forall a. a -&gt; ST s a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>                </span><span id="local-6989586621679434257"><span class="annot"><span class="annottext">Vector (Int, Range a)
+</span><a href="#local-6989586621679434257"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679434258"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434258"><span class="hs-identifier hs-var">idx</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Range a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Vector (Int, Range a) -&gt; (Int, Range a)
+forall a. Vector a -&gt; a
+</span><span class="hs-identifier hs-var">V.head</span></span><span> </span><span class="annot"><span class="annottext">Vector (Int, Range a)
+</span><a href="#local-6989586621679434257"><span class="hs-identifier hs-var">v</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-63"></span><span>                    </span><span id="local-6989586621679434260"><span class="annot"><a href="#local-6989586621679434260"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVector (PrimState (ST s)) w -&gt; Int -&gt; ST s w
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+MVector (PrimState m) a -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">MV.read</span></span><span> </span><span class="annot"><span class="annottext">STVector s w
+MVector (PrimState (ST s)) w
+</span><a href="#local-6989586621679434249"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434258"><span class="hs-identifier hs-var">idx</span></a></span><span>
+</span><span id="line-64"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">MV.write</span></span><span> </span><span class="annot"><a href="#local-6989586621679434249"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434258"><span class="hs-identifier hs-type">idx</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="annot"><a href="#local-6989586621679434260"><span class="hs-identifier hs-type">m</span></a></span><span class="annot"><span class="hs-operator hs-type">+</span></span><span class="annot"><a href="#local-6989586621679434250"><span class="hs-identifier hs-type">w</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>        </span><span id="local-6989586621679434264"><span class="annot"><span class="annottext">counts :: Vector w
+</span><a href="#local-6989586621679434264"><span class="hs-identifier hs-var hs-var">counts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (Vector w)) -&gt; Vector w
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (Vector w)) -&gt; Vector w)
+-&gt; (forall s. ST s (Vector w)) -&gt; Vector w
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679434282"><span class="annot"><a href="#local-6989586621679434282"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; w -&gt; ST s (MVector (PrimState (ST s)) w)
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+Int -&gt; a -&gt; m (MVector (PrimState m) a)
+</span><span class="hs-identifier hs-var">MV.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679434216"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-67"></span><span>                            </span><span class="annot"><span class="hs-identifier hs-type">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679434237"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434214"><span class="hs-identifier hs-type">bins</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679434282"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679434215"><span class="hs-identifier hs-type">xs</span></a></span><span>
+</span><span id="line-68"></span><span>                            </span><span class="annot"><span class="hs-identifier hs-type">V.freeze</span></span><span> </span><span class="annot"><a href="#local-6989586621679434282"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Vector (Range a) -&gt; Vector w -&gt; Vector (Range a, w)
+forall a b. Vector a -&gt; Vector b -&gt; Vector (a, b)
+</span><span class="hs-identifier hs-var">V.zip</span></span><span> </span><span class="annot"><span class="annottext">Vector (Range a)
+</span><a href="#local-6989586621679434214"><span class="hs-identifier hs-var">bins</span></a></span><span> </span><span class="annot"><span class="annottext">Vector w
+</span><a href="#local-6989586621679434264"><span class="hs-identifier hs-var">counts</span></a></span><span>
+</span><span id="line-70"></span></pre></body></html>

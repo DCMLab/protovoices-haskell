@@ -1,0 +1,240 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds                 #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ExistentialQuantification #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances         #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE MagicHash                 #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds                 #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables       #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy               #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications          #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies              #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators             #-}</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="annot"><span class="hs-comment">{-|
+Module: Data.TypeNums.Ints
+Copyright: (c) 2018-2021 Iris Ward
+License: BSD3
+Maintainer: aditu.venyhandottir@gmail.com
+Stability: experimental
+
+Type level integers can be used in the same way as type level naturals
+from &quot;GHC.TypeLits&quot;, for example @3@.  However, a minus sign is not
+recognised in this context, so a negative type-level integer is instead
+written as @'Neg' n@.
+-}</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html"><span class="hs-identifier">Data.TypeNums.Ints</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Construction</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="Data.TypeNums.Ints.html#TInt"><span class="hs-identifier">TInt</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Linking type and value level</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#KnownInt"><span class="hs-identifier">KnownInt</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#intVal"><span class="hs-identifier">intVal</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#intVal%27"><span class="hs-identifier">intVal'</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier">SomeInt</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#someIntVal"><span class="hs-identifier">someIntVal</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">first</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">proxy#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">KnownNat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Nat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">natVal'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unsafe.Coerce</span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeCoerce</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">newtype</span><span> </span><span id="SInt"><span class="annot"><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-var">SInt</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679042706"><span id="local-6989586621679042707"><span class="annot"><a href="#local-6989586621679042707"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679042706"><span class="hs-identifier hs-type">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>  </span><span id="SInt"><span class="annot"><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-var">SInt</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><span class="hs-comment">-- | (Kind) An integer that may be negative.</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">data</span><span> </span><span id="TInt"><span class="annot"><a href="Data.TypeNums.Ints.html#TInt"><span class="hs-identifier hs-var">TInt</span></a></span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Pos"><span class="annot"><a href="Data.TypeNums.Ints.html#Pos"><span class="hs-identifier hs-var">Pos</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Neg"><span class="annot"><a href="Data.TypeNums.Ints.html#Neg"><span class="hs-identifier hs-var">Neg</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | This class gives the (value-level) integer associated with a type-level</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--   integer.  There are instances of this class for every concrete natural:</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--   0, 1, 2, etc.  There are also instances of this class for every negated</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--   natural, such as @'Neg' 1@.</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">class</span><span> </span><span id="KnownInt"><span class="annot"><a href="Data.TypeNums.Ints.html#KnownInt"><span class="hs-identifier hs-var">KnownInt</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679042703"><span id="local-6989586621679042704"><span class="annot"><a href="#local-6989586621679042704"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679042703"><span class="hs-identifier hs-type">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>  </span><span id="intSing"><span class="annot"><a href="Data.TypeNums.Ints.html#intSing"><span class="hs-identifier hs-type">intSing</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-type">SInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042704"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679042705"><span class="annot"><a href="#local-6989586621679042705"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679042705"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#KnownInt"><span class="hs-identifier hs-type">KnownInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042705"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679042783"><span class="annot"><span class="annottext">intSing :: SInt n
+</span><a href="Data.TypeNums.Ints.html#intSing"><span class="hs-identifier hs-var hs-var hs-var">intSing</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; SInt n
+forall k (n :: k). Integer -&gt; SInt n
+</span><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-var">SInt</span></a></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; SInt n) -&gt; Integer -&gt; SInt n
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Proxy# n -&gt; Integer
+forall (n :: Nat). KnownNat n =&gt; Proxy# n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy# n
+forall {k} (a :: k). Proxy# a
+</span><span class="hs-identifier hs-var">proxy#</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy#</span></span><span> </span><span class="annot"><a href="#local-6989586621679042705"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679042717"><span class="annot"><a href="#local-6989586621679042717"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679042717"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#KnownInt"><span class="hs-identifier hs-type">KnownInt</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><a href="Data.TypeNums.Ints.html#Pos"><span class="hs-identifier hs-type">Pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042717"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679042789"><span class="annot"><span class="annottext">intSing :: SInt ('Pos n)
+</span><a href="Data.TypeNums.Ints.html#intSing"><span class="hs-identifier hs-var hs-var hs-var">intSing</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; SInt ('Pos n)
+forall k (n :: k). Integer -&gt; SInt n
+</span><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-var">SInt</span></a></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; SInt ('Pos n)) -&gt; Integer -&gt; SInt ('Pos n)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Proxy# n -&gt; Integer
+forall (n :: Nat). KnownNat n =&gt; Proxy# n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy# n
+forall {k} (a :: k). Proxy# a
+</span><span class="hs-identifier hs-var">proxy#</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy#</span></span><span> </span><span class="annot"><a href="#local-6989586621679042717"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679042720"><span class="annot"><a href="#local-6989586621679042720"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679042720"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#KnownInt"><span class="hs-identifier hs-type">KnownInt</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><a href="Data.TypeNums.Ints.html#Neg"><span class="hs-identifier hs-type">Neg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042720"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679042796"><span class="annot"><span class="annottext">intSing :: SInt ('Neg n)
+</span><a href="Data.TypeNums.Ints.html#intSing"><span class="hs-identifier hs-var hs-var hs-var">intSing</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; SInt ('Neg n)
+forall k (n :: k). Integer -&gt; SInt n
+</span><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-var">SInt</span></a></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; SInt ('Neg n)) -&gt; Integer -&gt; SInt ('Neg n)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy# n -&gt; Integer
+forall (n :: Nat). KnownNat n =&gt; Proxy# n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy# n
+forall {k} (a :: k). Proxy# a
+</span><span class="hs-identifier hs-var">proxy#</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy#</span></span><span> </span><span class="annot"><a href="#local-6989586621679042720"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><span class="hs-comment">-- | Get the value associated with a type-level integer</span></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Data.TypeNums.Ints.html#intVal"><span class="hs-identifier hs-type">intVal</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-68"></span><span>     </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679042723"><span class="annot"><a href="#local-6989586621679042723"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679042724"><span class="annot"><a href="#local-6989586621679042724"><span class="hs-identifier hs-type">proxy</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#KnownInt"><span class="hs-identifier hs-type">KnownInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042723"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679042724"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042723"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-71"></span><span id="intVal"><span class="annot"><span class="annottext">intVal :: forall {k} (n :: k) (proxy :: k -&gt; *).
+KnownInt n =&gt;
+proxy n -&gt; Integer
+</span><a href="Data.TypeNums.Ints.html#intVal"><span class="hs-identifier hs-var hs-var">intVal</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy n
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SInt n
+forall k (n :: k). KnownInt n =&gt; SInt n
+</span><a href="Data.TypeNums.Ints.html#intSing"><span class="hs-identifier hs-var">intSing</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-type">SInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042723"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-type">SInt</span></a></span><span> </span><span id="local-6989586621679042799"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679042799"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679042799"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- | Get the value associated with a type-level integer.  The difference</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--   between this function and 'intVal' is that it takes a 'Proxy#' parameter,</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--   which has zero runtime representation and so is entirely free.</span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Data.TypeNums.Ints.html#intVal%27"><span class="hs-identifier hs-type">intVal'</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-79"></span><span>     </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679042729"><span class="annot"><a href="#local-6989586621679042729"><span class="hs-identifier hs-type">n</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#KnownInt"><span class="hs-identifier hs-type">KnownInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042729"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy#</span></span><span> </span><span class="annot"><a href="#local-6989586621679042729"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-82"></span><span id="intVal%27"><span class="annot"><span class="annottext">intVal' :: forall {k} (n :: k). KnownInt n =&gt; Proxy# n -&gt; Integer
+</span><a href="Data.TypeNums.Ints.html#intVal%27"><span class="hs-identifier hs-var hs-var">intVal'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy# n
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SInt n
+forall k (n :: k). KnownInt n =&gt; SInt n
+</span><a href="Data.TypeNums.Ints.html#intSing"><span class="hs-identifier hs-var">intSing</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-type">SInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042729"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-type">SInt</span></a></span><span> </span><span id="local-6989586621679042802"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679042802"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679042802"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- | This type represents unknown type-level integers.</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- @since 0.1.1</span><span>
+</span><span id="line-89"></span><span class="hs-keyword">data</span><span> </span><span id="SomeInt"><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-var">SomeInt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679042803"><span class="annot"><a href="#local-6989586621679042803"><span class="hs-identifier hs-type">n</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#KnownInt"><span class="hs-identifier hs-type">KnownInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042803"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-91"></span><span>            </span><span id="SomeInt"><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-var">SomeInt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679042803"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679042807"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span><span> </span><span id="local-6989586621679042812"><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042812"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679042813"><span class="annot"><span class="annottext">== :: SomeInt -&gt; SomeInt -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span><span> </span><span id="local-6989586621679042819"><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042819"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy n -&gt; Integer
+forall {k} (n :: k) (proxy :: k -&gt; *).
+KnownInt n =&gt;
+proxy n -&gt; Integer
+</span><a href="Data.TypeNums.Ints.html#intVal"><span class="hs-identifier hs-var">intVal</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042812"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Proxy n -&gt; Integer
+forall {k} (n :: k) (proxy :: k -&gt; *).
+KnownInt n =&gt;
+proxy n -&gt; Integer
+</span><a href="Data.TypeNums.Ints.html#intVal"><span class="hs-identifier hs-var">intVal</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042819"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679042824"><span id="local-6989586621679042828"><span id="local-6989586621679042831"><span id="local-6989586621679042834"><span id="local-6989586621679042837"><span id="local-6989586621679042840"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-97"></span><span>  </span><span id="local-6989586621679042843"><span class="annot"><span class="annottext">compare :: SomeInt -&gt; SomeInt -&gt; Ordering
+</span><a href="#local-6989586621679042843"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span><span> </span><span id="local-6989586621679042846"><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042846"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span><span> </span><span id="local-6989586621679042852"><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042852"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy n -&gt; Integer
+forall {k} (n :: k) (proxy :: k -&gt; *).
+KnownInt n =&gt;
+proxy n -&gt; Integer
+</span><a href="Data.TypeNums.Ints.html#intVal"><span class="hs-identifier hs-var">intVal</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042846"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy n -&gt; Integer
+forall {k} (n :: k) (proxy :: k -&gt; *).
+KnownInt n =&gt;
+proxy n -&gt; Integer
+</span><a href="Data.TypeNums.Ints.html#intVal"><span class="hs-identifier hs-var">intVal</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042852"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679042855"><span id="local-6989586621679042859"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679042862"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; SomeInt -&gt; ShowS
+</span><a href="#local-6989586621679042862"><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span id="local-6989586621679042864"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679042864"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span><span> </span><span id="local-6989586621679042869"><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042869"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679042864"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy n -&gt; Integer
+forall {k} (n :: k) (proxy :: k -&gt; *).
+KnownInt n =&gt;
+proxy n -&gt; Integer
+</span><a href="Data.TypeNums.Ints.html#intVal"><span class="hs-identifier hs-var">intVal</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy n
+</span><a href="#local-6989586621679042869"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679042872"><span id="local-6989586621679042876"><span id="local-6989586621679042879"><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679042888"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS SomeInt
+</span><a href="#local-6989586621679042888"><span class="hs-identifier hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span id="local-6989586621679042890"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679042890"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679042891"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679042891"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; SomeInt) -&gt; (Integer, String) -&gt; (SomeInt, String)
+forall a b c. (a -&gt; b) -&gt; (a, c) -&gt; (b, c)
+forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; SomeInt
+</span><a href="Data.TypeNums.Ints.html#someIntVal"><span class="hs-identifier hs-var">someIntVal</span></a></span><span> </span><span class="annot"><span class="annottext">((Integer, String) -&gt; (SomeInt, String))
+-&gt; [(Integer, String)] -&gt; [(SomeInt, String)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS Integer
+forall a. Read a =&gt; Int -&gt; ReadS a
+</span><span class="hs-identifier hs-var">readsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679042890"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679042891"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- $impl</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- Implementation notes:</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--   * A typeclass on a data constructor is represented internally as an extra</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--     field on the data constructor containing the typeclass dictionary. This</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--     field occurs before the other fields.</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--   * A dictionary for the KnownInt typeclass is represented as just an SInt</span><span>
+</span><span id="line-111"></span><span class="hs-comment">--     value on its own, as there is only one member of the typeclass, and that</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--     member is not a function.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">--</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- someIntVal therefore constructs a datatype with the same representation as</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- the existentially qualified constructor SomeInt, then uses unsafeCoerce to</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- produce the SomeInt value.</span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-keyword">data</span><span> </span><span id="SomeIntWithDict"><span class="annot"><a href="Data.TypeNums.Ints.html#SomeIntWithDict"><span class="hs-identifier hs-var">SomeIntWithDict</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679042893"><span class="annot"><a href="#local-6989586621679042893"><span class="hs-identifier hs-type">n</span></a></span></span><span class="hs-operator">.</span><span> </span><span id="SomeIntWithDict"><span class="annot"><a href="Data.TypeNums.Ints.html#SomeIntWithDict"><span class="hs-identifier hs-var">SomeIntWithDict</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-type">SInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679042893"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>                            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679042893"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- | Convert an integer into an unknown type-level integer.</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- @since 0.1.1</span><span>
+</span><span id="line-125"></span><span class="annot"><a href="Data.TypeNums.Ints.html#someIntVal"><span class="hs-identifier hs-type">someIntVal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.TypeNums.Ints.html#SomeInt"><span class="hs-identifier hs-type">SomeInt</span></a></span><span>
+</span><span id="line-126"></span><span id="someIntVal"><span class="annot"><span class="annottext">someIntVal :: Integer -&gt; SomeInt
+</span><a href="Data.TypeNums.Ints.html#someIntVal"><span class="hs-identifier hs-var hs-var">someIntVal</span></a></span></span><span> </span><span id="local-6989586621679042895"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679042895"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SomeIntWithDict -&gt; SomeInt
+forall a b. a -&gt; b
+</span><span class="hs-identifier hs-var">unsafeCoerce</span></span><span> </span><span class="annot"><span class="annottext">(SomeIntWithDict -&gt; SomeInt) -&gt; SomeIntWithDict -&gt; SomeInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SInt (ZonkAny 1) -&gt; Proxy (ZonkAny 1) -&gt; SomeIntWithDict
+forall {k} (n :: k). SInt n -&gt; Proxy n -&gt; SomeIntWithDict
+</span><a href="Data.TypeNums.Ints.html#SomeIntWithDict"><span class="hs-identifier hs-var">SomeIntWithDict</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; SInt (ZonkAny 1)
+forall k (n :: k). Integer -&gt; SInt n
+</span><a href="Data.TypeNums.Ints.html#SInt"><span class="hs-identifier hs-var">SInt</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679042895"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Proxy (ZonkAny 1)
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span>
+</span><span id="line-127"></span></pre></body></html>

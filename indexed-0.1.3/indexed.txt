@@ -11,72 +11,72 @@
 
 -- | monads
 module Control.Monad.Indexed.Trans
-class IxMonadTrans t
-ilift :: (IxMonadTrans t, Monad m) => m a -> t m i i a
+class IxMonadTrans (t :: Type -> Type -> k -> k -> Type -> Type)
+ilift :: forall m a (i :: k). (IxMonadTrans t, Monad m) => m a -> t m i i a
 
 
 module Data.Functor.Indexed
-class IxFunctor f
-imap :: IxFunctor f => (a -> b) -> f j k a -> f j k b
-class IxFunctor w => IxCopointed w
-iextract :: IxCopointed w => w i i a -> a
-class IxFunctor m => IxPointed m
-ireturn :: IxPointed m => a -> m i i a
-class IxPointed m => IxApplicative m
-iap :: IxApplicative m => m i j (a -> b) -> m j k a -> m i k b
+class IxFunctor (f :: k -> k1 -> Type -> Type)
+imap :: forall a b (j :: k) (k2 :: k1). IxFunctor f => (a -> b) -> f j k2 a -> f j k2 b
+class IxFunctor w => IxCopointed (w :: k -> k -> Type -> Type)
+iextract :: forall (i :: k) a. IxCopointed w => w i i a -> a
+class IxFunctor m => IxPointed (m :: k -> k -> Type -> Type)
+ireturn :: forall a (i :: k). IxPointed m => a -> m i i a
+class IxPointed m => IxApplicative (m :: k -> k -> Type -> Type)
+iap :: forall (i :: k) (j :: k) a b (k1 :: k). IxApplicative m => m i j (a -> b) -> m j k1 a -> m i k1 b
 
 -- | Infix alias of <a>imap</a>. Or, (<a>&lt;$&gt;</a>) for
 --   <a>IxFunctor</a>. Should be interchangeable with (<a>&lt;$&gt;</a>),
 --   but requires <a>IxFunctor</a> constraints instead of (possibly many)
 --   <a>Functor</a> constraints.
-(<<$>>) :: IxFunctor f => (a -> b) -> f j k a -> f j k b
+(<<$>>) :: forall {k1} {k2} f a b (j :: k1) (k3 :: k2). IxFunctor f => (a -> b) -> f j k3 a -> f j k3 b
 infixl 4 <<$>>
 
 -- | Infix alias of <a>iap</a>. Or, (<a>&lt;*&gt;</a>) for
 --   <a>IxApplicative</a>.
-(<<*>>) :: IxApplicative f => f i j (a -> b) -> f j k a -> f i k b
+(<<*>>) :: forall {k1} f (i :: k1) (j :: k1) a b (k2 :: k1). IxApplicative f => f i j (a -> b) -> f j k2 a -> f i k2 b
 infixl 4 <<*>>
 
 -- | (<a>&lt;*</a>) for <a>IxApplicative</a>.
-(<<*) :: IxApplicative f => f i j a -> f j k b -> f i k a
+(<<*) :: forall {k1} f (i :: k1) (j :: k1) a (k2 :: k1) b. IxApplicative f => f i j a -> f j k2 b -> f i k2 a
 infixl 4 <<*
 
 -- | (<a>*&gt;</a>) for <a>IxApplicative</a>.
-(*>>) :: IxApplicative f => f i j a -> f j k b -> f i k b
+(*>>) :: forall {k1} f (i :: k1) (j :: k1) a (k2 :: k1) b. IxApplicative f => f i j a -> f j k2 b -> f i k2 b
 infixl 4 *>>
 
 
 module Control.Monad.Indexed
-class IxFunctor f
-imap :: IxFunctor f => (a -> b) -> f j k a -> f j k b
-class IxFunctor m => IxPointed m
-ireturn :: IxPointed m => a -> m i i a
-class IxPointed m => IxApplicative m
-iap :: IxApplicative m => m i j (a -> b) -> m j k a -> m i k b
-class IxApplicative m => IxMonad m
-ibind :: IxMonad m => (a -> m j k b) -> m i j a -> m i k b
-class IxMonad m => IxMonadZero m
-imzero :: IxMonadZero m => m i j a
-class IxMonadZero m => IxMonadPlus m
-implus :: IxMonadPlus m => m i j a -> m i j a -> m i j a
-ijoin :: IxMonad m => m i j (m j k a) -> m i k a
-(>>>=) :: IxMonad m => m i j a -> (a -> m j k b) -> m i k b
+class IxFunctor (f :: k -> k1 -> Type -> Type)
+imap :: forall a b (j :: k) (k2 :: k1). IxFunctor f => (a -> b) -> f j k2 a -> f j k2 b
+class IxFunctor m => IxPointed (m :: k -> k -> Type -> Type)
+ireturn :: forall a (i :: k). IxPointed m => a -> m i i a
+class IxPointed m => IxApplicative (m :: k -> k -> Type -> Type)
+iap :: forall (i :: k) (j :: k) a b (k1 :: k). IxApplicative m => m i j (a -> b) -> m j k1 a -> m i k1 b
+class IxApplicative m => IxMonad (m :: k -> k -> Type -> Type)
+ibind :: forall a (j :: k) (k1 :: k) b (i :: k). IxMonad m => (a -> m j k1 b) -> m i j a -> m i k1 b
+class IxMonad m => IxMonadZero (m :: k -> k -> Type -> Type)
+imzero :: forall (i :: k) (j :: k) a. IxMonadZero m => m i j a
+class IxMonadZero m => IxMonadPlus (m :: k -> k -> Type -> Type)
+implus :: forall (i :: k) (j :: k) a. IxMonadPlus m => m i j a -> m i j a -> m i j a
+ijoin :: forall {k1} m (i :: k1) (j :: k1) (k2 :: k1) a. IxMonad m => m i j (m j k2 a) -> m i k2 a
+(>>>=) :: forall {k1} m (i :: k1) (j :: k1) a (k2 :: k1) b. IxMonad m => m i j a -> (a -> m j k2 b) -> m i k2 b
 infixl 1 >>>=
-(=<<<) :: IxMonad m => (a -> m j k b) -> m i j a -> m i k b
+(=<<<) :: forall {k1} m a (j :: k1) (k2 :: k1) b (i :: k1). IxMonad m => (a -> m j k2 b) -> m i j a -> m i k2 b
 infixr 1 =<<<
-iapIxMonad :: IxMonad m => m i j (a -> b) -> m j k a -> m i k b
+iapIxMonad :: forall {k1} m (i :: k1) (j :: k1) a b (k2 :: k1). IxMonad m => m i j (a -> b) -> m j k2 a -> m i k2 b
 
 
 module Control.Monad.Indexed.Fix
-class IxMonad m => IxMonadFix m
-imfix :: IxMonadFix m => (a -> m i i a) -> m i i a
+class IxMonad m => IxMonadFix (m :: k -> k -> Type -> Type)
+imfix :: forall a (i :: k). IxMonadFix m => (a -> m i i a) -> m i i a
 
 
 module Control.Comonad.Indexed
-class IxFunctor f
-imap :: IxFunctor f => (a -> b) -> f j k a -> f j k b
-class IxFunctor w => IxCopointed w
-iextract :: IxCopointed w => w i i a -> a
-class IxCopointed w => IxComonad w
-iextend :: IxComonad w => (w j k a -> b) -> w i k a -> w i j b
-iduplicate :: IxComonad w => w i k a -> w i j (w j k a)
+class IxFunctor (f :: k -> k1 -> Type -> Type)
+imap :: forall a b (j :: k) (k2 :: k1). IxFunctor f => (a -> b) -> f j k2 a -> f j k2 b
+class IxFunctor w => IxCopointed (w :: k -> k -> Type -> Type)
+iextract :: forall (i :: k) a. IxCopointed w => w i i a -> a
+class IxCopointed w => IxComonad (w :: k -> k -> Type -> Type)
+iextend :: forall (j :: k) (k1 :: k) a b (i :: k). IxComonad w => (w j k1 a -> b) -> w i k1 a -> w i j b
+iduplicate :: forall {k1} w (i :: k1) (k2 :: k1) a (j :: k1). IxComonad w => w i k2 a -> w i j (w j k2 a)

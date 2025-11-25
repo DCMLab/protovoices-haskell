@@ -1,0 +1,701 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget Layout</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Axel Simon</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 15 May 2001</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 1999-2005 Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Infinite scrollable area containing child widgets and\/or custom drawing</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html"><span class="hs-identifier">Graphics.UI.Gtk.Layout.Layout</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | 'Layout' is similar to 'DrawingArea' in that it's a \&quot;blank slate\&quot; and</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- doesn't do anything but paint a blank background by default. It's different</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- in that it supports scrolling natively (you can add it to a</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- 'ScrolledWindow'), and it can contain child widgets, since it's a</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- 'Container'. However if you\'re just going to draw, a 'DrawingArea' is a</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- better choice since it has lower overhead.</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | +----'Object'</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | +----'Widget'</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | +----'Container'</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | +----Layout</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier">Layout</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier">LayoutClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToLayout"><span class="hs-identifier">castToLayout</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeLayout"><span class="hs-identifier">gTypeLayout</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toLayout"><span class="hs-identifier">toLayout</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutNew"><span class="hs-identifier">layoutNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutPut"><span class="hs-identifier">layoutPut</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutMove"><span class="hs-identifier">layoutMove</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetSize"><span class="hs-identifier">layoutSetSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetSize"><span class="hs-identifier">layoutGetSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetHAdjustment"><span class="hs-identifier">layoutGetHAdjustment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetVAdjustment"><span class="hs-identifier">layoutGetVAdjustment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetHAdjustment"><span class="hs-identifier">layoutSetHAdjustment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetVAdjustment"><span class="hs-identifier">layoutSetVAdjustment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetDrawWindow"><span class="hs-identifier">layoutGetDrawWindow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><span class="hs-comment">-- * Attributes</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutHAdjustment"><span class="hs-identifier">layoutHAdjustment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutVAdjustment"><span class="hs-identifier">layoutVAdjustment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutWidth"><span class="hs-identifier">layoutWidth</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutHeight"><span class="hs-identifier">layoutHeight</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="annot"><span class="hs-comment">-- * Child Attributes</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutChildX"><span class="hs-identifier">layoutChildX</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutChildY"><span class="hs-identifier">layoutChildY</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="annot"><span class="hs-comment">-- * Signals</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#onSetScrollAdjustments"><span class="hs-identifier">onSetScrollAdjustments</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#afterSetScrollAdjustments"><span class="hs-identifier">afterSetScrollAdjustments</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Attributes</span></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Properties</span></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html"><span class="hs-identifier">Graphics.UI.Gtk.Abstract.Object</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier">makeNewObject</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-91"></span><span class="hs-pragma">{-# LINE 91 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-91"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.Signals</span><span>
+</span><span id="line-92"></span><span class="hs-pragma">{-# LINE 92 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-92"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.Abstract.ContainerChildProperties</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-pragma">{-# LINE 95 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- | Creates a new 'Layout'. Unless you have a specific adjustment you'd like</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- the layout to use for scrolling, pass @Nothing@ for @hadjustment@ and</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- @vadjustment@.</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutNew"><span class="hs-identifier hs-type">layoutNew</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span class="hs-comment">-- ^ @hadjustment@ - horizontal scroll adjustment, or</span><span>
+</span><span id="line-105"></span><span>                     </span><span class="hs-comment">-- @Nothing@</span><span>
+</span><span id="line-106"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span class="hs-comment">-- ^ @vadjustment@ - vertical scroll adjustment, or</span><span>
+</span><span id="line-107"></span><span>                     </span><span class="hs-comment">-- @Nothing@</span><span>
+</span><span id="line-108"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span>
+</span><span id="line-109"></span><span id="layoutNew"><span class="annot"><span class="annottext">layoutNew :: Maybe Adjustment -&gt; Maybe Adjustment -&gt; IO Layout
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutNew"><span class="hs-identifier hs-var hs-var">layoutNew</span></a></span></span><span> </span><span id="local-6989586621679702215"><span class="annot"><span class="annottext">Maybe Adjustment
+</span><a href="#local-6989586621679702215"><span class="hs-identifier hs-var">hadjustment</span></a></span></span><span> </span><span id="local-6989586621679702216"><span class="annot"><span class="annottext">Maybe Adjustment
+</span><a href="#local-6989586621679702216"><span class="hs-identifier hs-var">vadjustment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Layout -&gt; Layout, FinalizerPtr Layout)
+-&gt; IO (Ptr Layout) -&gt; IO Layout
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Layout -&gt; Layout, FinalizerPtr Layout)
+forall {a}. (ForeignPtr Layout -&gt; Layout, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkLayout"><span class="hs-identifier hs-var">mkLayout</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Layout) -&gt; IO Layout) -&gt; IO (Ptr Layout) -&gt; IO Layout
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr Layout) -&gt; IO (Ptr Widget) -&gt; IO (Ptr Layout)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr Layout
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr Layout))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr Layout)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span id="local-6989586621679702220"><span class="annot"><span class="annottext">ForeignPtr Adjustment
+</span><a href="#local-6989586621679702220"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span id="local-6989586621679702221"><span class="annot"><span class="annottext">ForeignPtr Adjustment
+</span><a href="#local-6989586621679702221"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Adjustment
+-&gt; (Ptr Adjustment -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Adjustment
+</span><a href="#local-6989586621679702220"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Adjustment -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (Ptr Adjustment -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702223"><span class="annot"><span class="annottext">Ptr Adjustment
+</span><a href="#local-6989586621679702223"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Adjustment
+-&gt; (Ptr Adjustment -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Adjustment
+</span><a href="#local-6989586621679702221"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Adjustment -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (Ptr Adjustment -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702224"><span class="annot"><span class="annottext">Ptr Adjustment
+</span><a href="#local-6989586621679702224"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Adjustment -&gt; Ptr Adjustment -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_new"><span class="hs-identifier hs-var">gtk_layout_new</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Adjustment
+</span><a href="#local-6989586621679702223"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Adjustment
+</span><a href="#local-6989586621679702224"><span class="hs-identifier hs-var">argPtr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span class="hs-pragma">{-# LINE 113 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">fromMaybe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Adjustment</span><span> </span><span class="hs-identifier">nullForeignPtr</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">hadjustment</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Adjustment -&gt; Maybe Adjustment -&gt; Adjustment
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ForeignPtr Adjustment -&gt; Adjustment
+</span><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-var">Adjustment</span></a></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Adjustment
+forall a. ForeignPtr a
+</span><span class="hs-identifier hs-var">nullForeignPtr</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Adjustment
+</span><a href="#local-6989586621679702216"><span class="hs-identifier hs-var">vadjustment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- | Adds @childWidget@ to @layout@, at position @(x,y)@. @layout@ becomes</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- the new parent container of @childWidget@.</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span id="local-6989586621679702106"><span id="local-6989586621679702107"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutPut"><span class="hs-identifier hs-type">layoutPut</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702106"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#WidgetClass"><span class="hs-identifier hs-type">WidgetClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702107"><span class="hs-identifier hs-type">childWidget</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702106"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-123"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702107"><span class="hs-identifier hs-type">childWidget</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @childWidget@ - child widget</span></span><span>
+</span><span id="line-124"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @x@ - X position of child widget</span></span><span>
+</span><span id="line-125"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @y@ - Y position of child widget</span></span><span>
+</span><span id="line-126"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-127"></span><span id="layoutPut"><span class="annot"><span class="annottext">layoutPut :: forall self childWidget.
+(LayoutClass self, WidgetClass childWidget) =&gt;
+self -&gt; childWidget -&gt; Int -&gt; Int -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutPut"><span class="hs-identifier hs-var hs-var">layoutPut</span></a></span></span><span> </span><span id="local-6989586621679702237"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679702237"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679702238"><span class="annot"><span class="annottext">childWidget
+</span><a href="#local-6989586621679702238"><span class="hs-identifier hs-var">childWidget</span></a></span></span><span> </span><span id="local-6989586621679702239"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702239"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679702240"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702240"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702241"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702241"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span id="local-6989586621679702242"><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679702242"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679702243"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679702243"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621679702244"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679702244"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702241"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702245"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702245"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Widget -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679702242"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Widget -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702246"><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679702246"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; Ptr Widget -&gt; CInt -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_put"><span class="hs-identifier hs-var">gtk_layout_put</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702245"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679702246"><span class="hs-identifier hs-var">argPtr2</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679702243"><span class="hs-identifier hs-var">arg3</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679702244"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span class="hs-pragma">{-# LINE 129 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-129"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">childWidget -&gt; Widget
+forall o. WidgetClass o =&gt; o -&gt; Widget
+</span><a href="Graphics.UI.Gtk.Types.html#toWidget"><span class="hs-identifier hs-var">toWidget</span></a></span><span> </span><span class="annot"><span class="annottext">childWidget
+</span><a href="#local-6989586621679702238"><span class="hs-identifier hs-var">childWidget</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702239"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702240"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- | Moves a current child of @layout@ to a new position.</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span id="local-6989586621679702249"><span id="local-6989586621679702250"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutMove"><span class="hs-identifier hs-type">layoutMove</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702249"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#WidgetClass"><span class="hs-identifier hs-type">WidgetClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702250"><span class="hs-identifier hs-type">childWidget</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702249"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-137"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702250"><span class="hs-identifier hs-type">childWidget</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @childWidget@ - a current child of @layout@</span></span><span>
+</span><span id="line-138"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @x@ - X position to move to</span></span><span>
+</span><span id="line-139"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @y@ - Y position to move to</span></span><span>
+</span><span id="line-140"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-141"></span><span id="layoutMove"><span class="annot"><span class="annottext">layoutMove :: forall self childWidget.
+(LayoutClass self, WidgetClass childWidget) =&gt;
+self -&gt; childWidget -&gt; Int -&gt; Int -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutMove"><span class="hs-identifier hs-var hs-var">layoutMove</span></a></span></span><span> </span><span id="local-6989586621679702259"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679702259"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679702260"><span class="annot"><span class="annottext">childWidget
+</span><a href="#local-6989586621679702260"><span class="hs-identifier hs-var">childWidget</span></a></span></span><span> </span><span id="local-6989586621679702261"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702261"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679702262"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702262"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702263"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702263"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span id="local-6989586621679702264"><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679702264"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679702265"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679702265"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621679702266"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679702266"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702263"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702267"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702267"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Widget -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679702264"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Widget -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702268"><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679702268"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; Ptr Widget -&gt; CInt -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_move"><span class="hs-identifier hs-var">gtk_layout_move</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702267"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679702268"><span class="hs-identifier hs-var">argPtr2</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679702265"><span class="hs-identifier hs-var">arg3</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679702266"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span class="hs-pragma">{-# LINE 143 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">childWidget -&gt; Widget
+forall o. WidgetClass o =&gt; o -&gt; Widget
+</span><a href="Graphics.UI.Gtk.Types.html#toWidget"><span class="hs-identifier hs-var">toWidget</span></a></span><span> </span><span class="annot"><span class="annottext">childWidget
+</span><a href="#local-6989586621679702260"><span class="hs-identifier hs-var">childWidget</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702261"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702262"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- | Sets the size of the scrollable area of the layout.</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--</span><span>
+</span><span id="line-150"></span><span id="local-6989586621679702118"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetSize"><span class="hs-identifier hs-type">layoutSetSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702118"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702118"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-151"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @width@ - width of entire scrollable area</span></span><span>
+</span><span id="line-152"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @height@ - height of entire scrollable area</span></span><span>
+</span><span id="line-153"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-154"></span><span id="layoutSetSize"><span class="annot"><span class="annottext">layoutSetSize :: forall self. LayoutClass self =&gt; self -&gt; Int -&gt; Int -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetSize"><span class="hs-identifier hs-var hs-var">layoutSetSize</span></a></span></span><span> </span><span id="local-6989586621679702277"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679702277"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679702278"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702278"><span class="hs-identifier hs-var">width</span></a></span></span><span> </span><span id="local-6989586621679702279"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702279"><span class="hs-identifier hs-var">height</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702280"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702280"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679702281"><span class="annot"><span class="annottext">CUInt
+</span><a href="#local-6989586621679702281"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679702282"><span class="annot"><span class="annottext">CUInt
+</span><a href="#local-6989586621679702282"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702280"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702283"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702283"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; CUInt -&gt; CUInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_set_size"><span class="hs-identifier hs-var">gtk_layout_set_size</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702283"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CUInt
+</span><a href="#local-6989586621679702281"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">CUInt
+</span><a href="#local-6989586621679702282"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span class="hs-pragma">{-# LINE 156 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CUInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702278"><span class="hs-identifier hs-var">width</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CUInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679702279"><span class="hs-identifier hs-var">height</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- | Gets the size that has been set on the layout, and that determines the</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- total extents of the layout's scrollbar area. See 'layoutSetSize'.</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--</span><span>
+</span><span id="line-163"></span><span id="local-6989586621679702121"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetSize"><span class="hs-identifier hs-type">layoutGetSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702121"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702121"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-164"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @(width, height)@</span></span><span>
+</span><span id="line-165"></span><span id="layoutGetSize"><span class="annot"><span class="annottext">layoutGetSize :: forall self. LayoutClass self =&gt; self -&gt; IO (Int, Int)
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetSize"><span class="hs-identifier hs-var hs-var">layoutGetSize</span></a></span></span><span> </span><span id="local-6989586621679702302"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679702302"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><span class="annottext">(Ptr CUInt -&gt; IO (Int, Int)) -&gt; IO (Int, Int)
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr CUInt -&gt; IO (Int, Int)) -&gt; IO (Int, Int))
+-&gt; (Ptr CUInt -&gt; IO (Int, Int)) -&gt; IO (Int, Int)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702304"><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702304"><span class="hs-identifier hs-var">widthPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><span class="annottext">(Ptr CUInt -&gt; IO (Int, Int)) -&gt; IO (Int, Int)
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr CUInt -&gt; IO (Int, Int)) -&gt; IO (Int, Int))
+-&gt; (Ptr CUInt -&gt; IO (Int, Int)) -&gt; IO (Int, Int)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702305"><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702305"><span class="hs-identifier hs-var">heightPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702306"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702306"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679702307"><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702307"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679702308"><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702308"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702306"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702309"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702309"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; Ptr CUInt -&gt; Ptr CUInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_get_size"><span class="hs-identifier hs-var">gtk_layout_get_size</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702309"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702307"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702308"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span class="hs-pragma">{-# LINE 169 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702304"><span class="hs-identifier hs-var">widthPtr</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702305"><span class="hs-identifier hs-var">heightPtr</span></a></span><span>
+</span><span id="line-172"></span><span>  </span><span id="local-6989586621679702311"><span class="annot"><a href="#local-6989586621679702311"><span class="hs-identifier hs-var">width</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span class="annot"><span class="annottext">Ptr CUInt -&gt; IO CUInt
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr CUInt
+</span><a href="#local-6989586621679702304"><span class="hs-identifier hs-var">widthPtr</span></a></span><span>
+</span><span id="line-173"></span><span>  </span><span id="local-6989586621679702313"><span class="annot"><a href="#local-6989586621679702313"><span class="hs-identifier hs-var">height</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">peek</span></span><span> </span><span class="annot"><a href="#local-6989586621679702305"><span class="hs-identifier hs-type">heightPtr</span></a></span><span>
+</span><span id="line-174"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621679702311"><span class="hs-identifier hs-type">width</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621679702313"><span class="hs-identifier hs-type">height</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- | This function should only be called after the layout has been placed in a</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- 'ScrolledWindow' or otherwise configured for scrolling. It returns the</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- 'Adjustment' used for communication between the horizontal scrollbar and</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- @layout@.</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- See 'ScrolledWindow', 'Scrollbar', 'Adjustment' for details.</span><span>
+</span><span id="line-182"></span><span class="hs-comment">--</span><span>
+</span><span id="line-183"></span><span id="local-6989586621679702129"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetHAdjustment"><span class="hs-identifier hs-type">layoutGetHAdjustment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702129"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702129"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-184"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns horizontal scroll adjustment</span></span><span>
+</span><span id="line-185"></span><span id="layoutGetHAdjustment"><span class="annot"><span class="annottext">layoutGetHAdjustment :: forall self. LayoutClass self =&gt; self -&gt; IO Adjustment
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetHAdjustment"><span class="hs-identifier hs-var hs-var">layoutGetHAdjustment</span></a></span></span><span> </span><span id="local-6989586621679702320"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679702320"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-186"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Adjustment -&gt; Adjustment, FinalizerPtr Adjustment)
+-&gt; IO (Ptr Adjustment) -&gt; IO Adjustment
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Adjustment -&gt; Adjustment, FinalizerPtr Adjustment)
+forall {a}. (ForeignPtr Adjustment -&gt; Adjustment, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkAdjustment"><span class="hs-identifier hs-var">mkAdjustment</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Adjustment) -&gt; IO Adjustment)
+-&gt; IO (Ptr Adjustment) -&gt; IO Adjustment
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702322"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702322"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+-&gt; (Ptr Layout -&gt; IO (Ptr Adjustment)) -&gt; IO (Ptr Adjustment)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702322"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO (Ptr Adjustment)) -&gt; IO (Ptr Adjustment))
+-&gt; (Ptr Layout -&gt; IO (Ptr Adjustment)) -&gt; IO (Ptr Adjustment)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702323"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702323"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; IO (Ptr Adjustment)
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_get_hadjustment"><span class="hs-identifier hs-var">gtk_layout_get_hadjustment</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702323"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span class="hs-pragma">{-# LINE 188 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-188"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- | This function should only be called after the layout has been placed in a</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- 'ScrolledWindow' or otherwise configured for scrolling. It returns the</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- 'Adjustment' used for communication between the vertical scrollbar and</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- @layout@.</span><span>
+</span><span id="line-194"></span><span class="hs-comment">--</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- See 'ScrolledWindow', 'Scrollbar', 'Adjustment' for details.</span><span>
+</span><span id="line-196"></span><span class="hs-comment">--</span><span>
+</span><span id="line-197"></span><span id="local-6989586621679702325"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetVAdjustment"><span class="hs-identifier hs-type">layoutGetVAdjustment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702325"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702325"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-198"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns vertical scroll adjustment</span></span><span>
+</span><span id="line-199"></span><span id="layoutGetVAdjustment"><span class="annot"><span class="annottext">layoutGetVAdjustment :: forall self. LayoutClass self =&gt; self -&gt; IO Adjustment
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetVAdjustment"><span class="hs-identifier hs-var hs-var">layoutGetVAdjustment</span></a></span></span><span> </span><span id="local-6989586621679702329"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679702329"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Adjustment -&gt; Adjustment, FinalizerPtr Adjustment)
+-&gt; IO (Ptr Adjustment) -&gt; IO Adjustment
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Adjustment -&gt; Adjustment, FinalizerPtr Adjustment)
+forall {a}. (ForeignPtr Adjustment -&gt; Adjustment, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkAdjustment"><span class="hs-identifier hs-var">mkAdjustment</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Adjustment) -&gt; IO Adjustment)
+-&gt; IO (Ptr Adjustment) -&gt; IO Adjustment
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702330"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702330"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+-&gt; (Ptr Layout -&gt; IO (Ptr Adjustment)) -&gt; IO (Ptr Adjustment)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702330"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO (Ptr Adjustment)) -&gt; IO (Ptr Adjustment))
+-&gt; (Ptr Layout -&gt; IO (Ptr Adjustment)) -&gt; IO (Ptr Adjustment)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702331"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702331"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; IO (Ptr Adjustment)
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_get_vadjustment"><span class="hs-identifier hs-var">gtk_layout_get_vadjustment</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702331"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span class="hs-pragma">{-# LINE 202 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-202"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- | Sets the horizontal scroll adjustment for the layout.</span><span>
+</span><span id="line-205"></span><span class="hs-comment">--</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- See 'ScrolledWindow', 'Scrollbar', 'Adjustment' for details.</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--</span><span>
+</span><span id="line-208"></span><span id="local-6989586621679702133"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetHAdjustment"><span class="hs-identifier hs-type">layoutSetHAdjustment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702133"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702133"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-209"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @adjustment@ - new scroll adjustment</span></span><span>
+</span><span id="line-210"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-211"></span><span id="layoutSetHAdjustment"><span class="annot"><span class="annottext">layoutSetHAdjustment :: forall self. LayoutClass self =&gt; self -&gt; Adjustment -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetHAdjustment"><span class="hs-identifier hs-var hs-var">layoutSetHAdjustment</span></a></span></span><span> </span><span id="local-6989586621679702335"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679702335"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679702336"><span class="annot"><span class="annottext">Adjustment
+</span><a href="#local-6989586621679702336"><span class="hs-identifier hs-var">adjustment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-212"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702337"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702337"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span id="local-6989586621679702338"><span class="annot"><span class="annottext">ForeignPtr Adjustment
+</span><a href="#local-6989586621679702338"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702337"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702339"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702339"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Adjustment -&gt; (Ptr Adjustment -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Adjustment
+</span><a href="#local-6989586621679702338"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Adjustment -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr Adjustment -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702340"><span class="annot"><span class="annottext">Ptr Adjustment
+</span><a href="#local-6989586621679702340"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; Ptr Adjustment -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_set_hadjustment"><span class="hs-identifier hs-var">gtk_layout_set_hadjustment</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702339"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Adjustment
+</span><a href="#local-6989586621679702340"><span class="hs-identifier hs-var">argPtr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span class="hs-pragma">{-# LINE 213 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-213"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-214"></span><span>    </span><span class="annot"><span class="annottext">Adjustment
+</span><a href="#local-6989586621679702336"><span class="hs-identifier hs-var">adjustment</span></a></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- | Sets the vertical scroll adjustment for the layout.</span><span>
+</span><span id="line-217"></span><span class="hs-comment">--</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- See 'ScrolledWindow', 'Scrollbar', 'Adjustment' for details.</span><span>
+</span><span id="line-219"></span><span class="hs-comment">--</span><span>
+</span><span id="line-220"></span><span id="local-6989586621679702342"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetVAdjustment"><span class="hs-identifier hs-type">layoutSetVAdjustment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702342"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702342"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-221"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @adjustment@ - new scroll adjustment</span></span><span>
+</span><span id="line-222"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-223"></span><span id="layoutSetVAdjustment"><span class="annot"><span class="annottext">layoutSetVAdjustment :: forall self. LayoutClass self =&gt; self -&gt; Adjustment -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetVAdjustment"><span class="hs-identifier hs-var hs-var">layoutSetVAdjustment</span></a></span></span><span> </span><span id="local-6989586621679702345"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679702345"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679702346"><span class="annot"><span class="annottext">Adjustment
+</span><a href="#local-6989586621679702346"><span class="hs-identifier hs-var">adjustment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-224"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702347"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702347"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span id="local-6989586621679702348"><span class="annot"><span class="annottext">ForeignPtr Adjustment
+</span><a href="#local-6989586621679702348"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702347"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Layout -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702349"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702349"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Adjustment -&gt; (Ptr Adjustment -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Adjustment
+</span><a href="#local-6989586621679702348"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Adjustment -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr Adjustment -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702350"><span class="annot"><span class="annottext">Ptr Adjustment
+</span><a href="#local-6989586621679702350"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; Ptr Adjustment -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_set_vadjustment"><span class="hs-identifier hs-var">gtk_layout_set_vadjustment</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702349"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Adjustment
+</span><a href="#local-6989586621679702350"><span class="hs-identifier hs-var">argPtr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span class="hs-pragma">{-# LINE 225 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-225"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span>    </span><span class="annot"><span class="annottext">Adjustment
+</span><a href="#local-6989586621679702346"><span class="hs-identifier hs-var">adjustment</span></a></span><span>
+</span><span id="line-227"></span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- | Retrieves the 'Drawable' part of the layout used for drawing operations.</span><span>
+</span><span id="line-229"></span><span class="hs-comment">--</span><span>
+</span><span id="line-230"></span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetDrawWindow"><span class="hs-identifier hs-type">layoutGetDrawWindow</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawWindow"><span class="hs-identifier hs-type">DrawWindow</span></a></span><span>
+</span><span id="line-231"></span><span id="layoutGetDrawWindow"><span class="annot"><span class="annottext">layoutGetDrawWindow :: Layout -&gt; IO DrawWindow
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetDrawWindow"><span class="hs-identifier hs-var hs-var">layoutGetDrawWindow</span></a></span></span><span> </span><span id="local-6989586621679702354"><span class="annot"><span class="annottext">Layout
+</span><a href="#local-6989586621679702354"><span class="hs-identifier hs-var">lay</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ForeignPtr DrawWindow -&gt; DrawWindow, FinalizerPtr DrawWindow)
+-&gt; IO (Ptr DrawWindow) -&gt; IO DrawWindow
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr DrawWindow -&gt; DrawWindow, FinalizerPtr DrawWindow)
+forall {a}. (ForeignPtr DrawWindow -&gt; DrawWindow, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkDrawWindow"><span class="hs-identifier hs-var">mkDrawWindow</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr DrawWindow) -&gt; IO DrawWindow)
+-&gt; IO (Ptr DrawWindow) -&gt; IO DrawWindow
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span id="local-6989586621679702357"><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702357"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+-&gt; (Ptr Layout -&gt; IO (Ptr DrawWindow)) -&gt; IO (Ptr DrawWindow)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Layout
+</span><a href="#local-6989586621679702357"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Layout -&gt; IO (Ptr DrawWindow)) -&gt; IO (Ptr DrawWindow))
+-&gt; (Ptr Layout -&gt; IO (Ptr DrawWindow)) -&gt; IO (Ptr DrawWindow)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679702358"><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702358"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Layout -&gt; IO (Ptr DrawWindow)
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_get_bin_window"><span class="hs-identifier hs-var">gtk_layout_get_bin_window</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Layout
+</span><a href="#local-6989586621679702358"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span class="hs-pragma">{-# LINE 233 &quot;./Graphics/UI/Gtk/Layout/Layout.chs&quot; #-}</span><span>
+</span><span id="line-233"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toLayout</span><span> </span><span class="hs-identifier">lay</span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- Attributes</span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- | The 'Adjustment' for the horizontal position.</span><span>
+</span><span id="line-239"></span><span class="hs-comment">--</span><span>
+</span><span id="line-240"></span><span id="local-6989586621679702138"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutHAdjustment"><span class="hs-identifier hs-type">layoutHAdjustment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702138"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679702138"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span></span><span>
+</span><span id="line-241"></span><span id="layoutHAdjustment"><span class="annot"><span class="annottext">layoutHAdjustment :: forall self. LayoutClass self =&gt; Attr self Adjustment
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutHAdjustment"><span class="hs-identifier hs-var hs-var">layoutHAdjustment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO Adjustment)
+-&gt; (self -&gt; Adjustment -&gt; IO ())
+-&gt; ReadWriteAttr self Adjustment Adjustment
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-242"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO Adjustment
+forall self. LayoutClass self =&gt; self -&gt; IO Adjustment
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetHAdjustment"><span class="hs-identifier hs-var">layoutGetHAdjustment</span></a></span><span>
+</span><span id="line-243"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; Adjustment -&gt; IO ()
+forall self. LayoutClass self =&gt; self -&gt; Adjustment -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetHAdjustment"><span class="hs-identifier hs-var">layoutSetHAdjustment</span></a></span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- | The 'Adjustment' for the vertical position.</span><span>
+</span><span id="line-246"></span><span class="hs-comment">--</span><span>
+</span><span id="line-247"></span><span id="local-6989586621679702364"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutVAdjustment"><span class="hs-identifier hs-type">layoutVAdjustment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702364"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679702364"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span></span><span>
+</span><span id="line-248"></span><span id="layoutVAdjustment"><span class="annot"><span class="annottext">layoutVAdjustment :: forall self. LayoutClass self =&gt; Attr self Adjustment
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutVAdjustment"><span class="hs-identifier hs-var hs-var">layoutVAdjustment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO Adjustment)
+-&gt; (self -&gt; Adjustment -&gt; IO ())
+-&gt; ReadWriteAttr self Adjustment Adjustment
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-249"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO Adjustment
+forall self. LayoutClass self =&gt; self -&gt; IO Adjustment
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutGetVAdjustment"><span class="hs-identifier hs-var">layoutGetVAdjustment</span></a></span><span>
+</span><span id="line-250"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; Adjustment -&gt; IO ()
+forall self. LayoutClass self =&gt; self -&gt; Adjustment -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutSetVAdjustment"><span class="hs-identifier hs-var">layoutSetVAdjustment</span></a></span><span>
+</span><span id="line-251"></span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- | The width of the layout.</span><span>
+</span><span id="line-253"></span><span class="hs-comment">--</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- Allowed values: \&lt;= @('maxBound' :: Int)@</span><span>
+</span><span id="line-255"></span><span class="hs-comment">--</span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- Default value: 100</span><span>
+</span><span id="line-257"></span><span class="hs-comment">--</span><span>
+</span><span id="line-258"></span><span id="local-6989586621679702146"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutWidth"><span class="hs-identifier hs-type">layoutWidth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702146"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679702146"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-259"></span><span id="layoutWidth"><span class="annot"><span class="annottext">layoutWidth :: forall self. LayoutClass self =&gt; Attr self Int
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutWidth"><span class="hs-identifier hs-var hs-var">layoutWidth</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr self Int
+forall gobj. GObjectClass gobj =&gt; String -&gt; Attr gobj Int
+</span><span class="hs-identifier hs-var">newAttrFromUIntProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;width&quot;</span></span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- | The height of the layout.</span><span>
+</span><span id="line-262"></span><span class="hs-comment">--</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- Allowed values: \&lt;= @('maxBound' :: Int)@</span><span>
+</span><span id="line-264"></span><span class="hs-comment">--</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- Default value: 100</span><span>
+</span><span id="line-266"></span><span class="hs-comment">--</span><span>
+</span><span id="line-267"></span><span id="local-6989586621679702380"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutHeight"><span class="hs-identifier hs-type">layoutHeight</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702380"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679702380"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-268"></span><span id="layoutHeight"><span class="annot"><span class="annottext">layoutHeight :: forall self. LayoutClass self =&gt; Attr self Int
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutHeight"><span class="hs-identifier hs-var hs-var">layoutHeight</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr self Int
+forall gobj. GObjectClass gobj =&gt; String -&gt; Attr gobj Int
+</span><span class="hs-identifier hs-var">newAttrFromUIntProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;height&quot;</span></span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- Child Attributes</span><span>
+</span><span id="line-272"></span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- | X position of child widget.</span><span>
+</span><span id="line-274"></span><span class="hs-comment">--</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- Default value: 0</span><span>
+</span><span id="line-276"></span><span class="hs-comment">--</span><span>
+</span><span id="line-277"></span><span id="local-6989586621679702155"><span id="local-6989586621679702156"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutChildX"><span class="hs-identifier hs-type">layoutChildX</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702155"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#WidgetClass"><span class="hs-identifier hs-type">WidgetClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702156"><span class="hs-identifier hs-type">child</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702156"><span class="hs-identifier hs-type">child</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679702155"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span></span><span>
+</span><span id="line-278"></span><span id="layoutChildX"><span class="annot"><span class="annottext">layoutChildX :: forall self child.
+(LayoutClass self, WidgetClass child) =&gt;
+child -&gt; Attr self Int
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutChildX"><span class="hs-identifier hs-var hs-var">layoutChildX</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; child -&gt; Attr self Int
+forall container child.
+(ContainerClass container, WidgetClass child) =&gt;
+String -&gt; child -&gt; Attr container Int
+</span><a href="Graphics.UI.Gtk.Abstract.ContainerChildProperties.html#newAttrFromContainerChildIntProperty"><span class="hs-identifier hs-var">newAttrFromContainerChildIntProperty</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;x&quot;</span></span><span>
+</span><span id="line-279"></span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- | Y position of child widget.</span><span>
+</span><span id="line-281"></span><span class="hs-comment">--</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- Default value: 0</span><span>
+</span><span id="line-283"></span><span class="hs-comment">--</span><span>
+</span><span id="line-284"></span><span id="local-6989586621679702393"><span id="local-6989586621679702394"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutChildY"><span class="hs-identifier hs-type">layoutChildY</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702393"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#WidgetClass"><span class="hs-identifier hs-type">WidgetClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702394"><span class="hs-identifier hs-type">child</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702394"><span class="hs-identifier hs-type">child</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679702393"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span></span><span>
+</span><span id="line-285"></span><span id="layoutChildY"><span class="annot"><span class="annottext">layoutChildY :: forall self child.
+(LayoutClass self, WidgetClass child) =&gt;
+child -&gt; Attr self Int
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#layoutChildY"><span class="hs-identifier hs-var hs-var">layoutChildY</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; child -&gt; Attr self Int
+forall container child.
+(ContainerClass container, WidgetClass child) =&gt;
+String -&gt; child -&gt; Attr container Int
+</span><a href="Graphics.UI.Gtk.Abstract.ContainerChildProperties.html#newAttrFromContainerChildIntProperty"><span class="hs-identifier hs-var">newAttrFromContainerChildIntProperty</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;y&quot;</span></span><span>
+</span><span id="line-286"></span><span>
+</span><span id="line-287"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- Signals</span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- | In case the adjustments are replaced, this signal is emitted.</span><span>
+</span><span id="line-291"></span><span class="hs-comment">--</span><span>
+</span><span id="line-292"></span><span id="local-6989586621679702163"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#onSetScrollAdjustments"><span class="hs-identifier hs-type">onSetScrollAdjustments</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#afterSetScrollAdjustments"><span class="hs-identifier hs-type">afterSetScrollAdjustments</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#LayoutClass"><span class="hs-identifier hs-type">LayoutClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679702163"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679702163"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-293"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConnectId</span></span><span> </span><span class="annot"><a href="#local-6989586621679702163"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-295"></span><span id="onSetScrollAdjustments"><span class="annot"><span class="annottext">onSetScrollAdjustments :: forall self.
+LayoutClass self =&gt;
+self -&gt; (Adjustment -&gt; Adjustment -&gt; IO ()) -&gt; IO (ConnectId self)
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#onSetScrollAdjustments"><span class="hs-identifier hs-var hs-var">onSetScrollAdjustments</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; ConnectAfter
+-&gt; self
+-&gt; (Adjustment -&gt; Adjustment -&gt; IO ())
+-&gt; IO (ConnectId self)
+forall a' b' obj.
+(GObjectClass a', GObjectClass b', GObjectClass obj) =&gt;
+String
+-&gt; ConnectAfter -&gt; obj -&gt; (a' -&gt; b' -&gt; IO ()) -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_OBJECT_OBJECT__NONE"><span class="hs-identifier hs-var">connect_OBJECT_OBJECT__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;set-scroll-adjustments&quot;</span></span><span> </span><span class="annot"><span class="annottext">ConnectAfter
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-296"></span><span id="afterSetScrollAdjustments"><span class="annot"><span class="annottext">afterSetScrollAdjustments :: forall self.
+LayoutClass self =&gt;
+self -&gt; (Adjustment -&gt; Adjustment -&gt; IO ()) -&gt; IO (ConnectId self)
+</span><a href="Graphics.UI.Gtk.Layout.Layout.html#afterSetScrollAdjustments"><span class="hs-identifier hs-var hs-var">afterSetScrollAdjustments</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; ConnectAfter
+-&gt; self
+-&gt; (Adjustment -&gt; Adjustment -&gt; IO ())
+-&gt; IO (ConnectId self)
+forall a' b' obj.
+(GObjectClass a', GObjectClass b', GObjectClass obj) =&gt;
+String
+-&gt; ConnectAfter -&gt; obj -&gt; (a' -&gt; b' -&gt; IO ()) -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_OBJECT_OBJECT__NONE"><span class="hs-identifier hs-var">connect_OBJECT_OBJECT__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;set-scroll-adjustments&quot;</span></span><span> </span><span class="annot"><span class="annottext">ConnectAfter
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_new&quot;</span></span><span>
+</span><span id="line-299"></span><span>  </span><span id="gtk_layout_new"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_new"><span class="hs-identifier hs-var">gtk_layout_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-300"></span><span>
+</span><span id="line-301"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_put&quot;</span></span><span>
+</span><span id="line-302"></span><span>  </span><span id="gtk_layout_put"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_put"><span class="hs-identifier hs-var">gtk_layout_put</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-303"></span><span>
+</span><span id="line-304"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_move&quot;</span></span><span>
+</span><span id="line-305"></span><span>  </span><span id="gtk_layout_move"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_move"><span class="hs-identifier hs-var">gtk_layout_move</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-306"></span><span>
+</span><span id="line-307"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_set_size&quot;</span></span><span>
+</span><span id="line-308"></span><span>  </span><span id="gtk_layout_set_size"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_set_size"><span class="hs-identifier hs-var">gtk_layout_set_size</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CUInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CUInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-309"></span><span>
+</span><span id="line-310"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_get_size&quot;</span></span><span>
+</span><span id="line-311"></span><span>  </span><span id="gtk_layout_get_size"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_get_size"><span class="hs-identifier hs-var">gtk_layout_get_size</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CUInt</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CUInt</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-312"></span><span>
+</span><span id="line-313"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_get_hadjustment&quot;</span></span><span>
+</span><span id="line-314"></span><span>  </span><span id="gtk_layout_get_hadjustment"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_get_hadjustment"><span class="hs-identifier hs-var">gtk_layout_get_hadjustment</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-315"></span><span>
+</span><span id="line-316"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_get_vadjustment&quot;</span></span><span>
+</span><span id="line-317"></span><span>  </span><span id="gtk_layout_get_vadjustment"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_get_vadjustment"><span class="hs-identifier hs-var">gtk_layout_get_vadjustment</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-318"></span><span>
+</span><span id="line-319"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_set_hadjustment&quot;</span></span><span>
+</span><span id="line-320"></span><span>  </span><span id="gtk_layout_set_hadjustment"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_set_hadjustment"><span class="hs-identifier hs-var">gtk_layout_set_hadjustment</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-321"></span><span>
+</span><span id="line-322"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_set_vadjustment&quot;</span></span><span>
+</span><span id="line-323"></span><span>  </span><span id="gtk_layout_set_vadjustment"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_set_vadjustment"><span class="hs-identifier hs-var">gtk_layout_set_vadjustment</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Adjustment"><span class="hs-identifier hs-type">Adjustment</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-324"></span><span>
+</span><span id="line-325"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_layout_get_bin_window&quot;</span></span><span>
+</span><span id="line-326"></span><span>  </span><span id="gtk_layout_get_bin_window"><span class="annot"><a href="Graphics.UI.Gtk.Layout.Layout.html#gtk_layout_get_bin_window"><span class="hs-identifier hs-var">gtk_layout_get_bin_window</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawWindow"><span class="hs-identifier hs-type">DrawWindow</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-327"></span></pre></body></html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK hide #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--  GIMP Toolkit (GTK) Pixbuf as Array</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--  Author : Ciancia, Axel Simon</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--  Created: 26 March 2002</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--  Copyright (C) 2002-2005 Axel Simon</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--  This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--  modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--  License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--  version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--  This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--  but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--  Lesser General Public License for more details.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Maintainer  : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Stability   : provisional</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- Portability : no (uses MTC, depends on internal GHC module)</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- 'PixbufData' exposes 'Pixbuf's as mutable array.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- #hide</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html"><span class="hs-identifier">Graphics.UI.Gtk.Gdk.PixbufData</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier">PixbufData</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#mkPixbufData"><span class="hs-identifier">mkPixbufData</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- internal module of GHC</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Array.Base</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">MArray</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newArray_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unsafeRead</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unsafeWrite</span></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>                         </span><span class="annot"><span class="hs-identifier">getBounds</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getNumElements</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | An array that stored the raw pixel data of a 'Pixbuf'.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- * See 'Graphics.UI.Gtk.Gdk.Pixbuf.pixbufGetPixels'.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">data</span><span> </span><span id="PixbufData"><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-var">PixbufData</span></a></span></span><span> </span><span id="local-6989586621679644375"><span class="annot"><a href="#local-6989586621679644375"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621679644374"><span class="annot"><a href="#local-6989586621679644374"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PixbufData"><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-var">PixbufData</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span>
+</span><span id="line-47"></span><span>                  </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679644374"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>                                 </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679644375"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679644375"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>                  </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span id="local-6989586621679644369"><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#mkPixbufData"><span class="hs-identifier hs-type">mkPixbufData</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679644369"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679644369"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-type">PixbufData</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="#local-6989586621679644369"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-52"></span><span id="mkPixbufData"><span class="annot"><span class="annottext">mkPixbufData :: forall e. Storable e =&gt; Pixbuf -&gt; Ptr e -&gt; Int -&gt; PixbufData Int e
+</span><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#mkPixbufData"><span class="hs-identifier hs-var hs-var">mkPixbufData</span></a></span></span><span> </span><span id="local-6989586621679644420"><span class="annot"><span class="annottext">Pixbuf
+</span><a href="#local-6989586621679644420"><span class="hs-identifier hs-var">pb</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679644421"><span id="local-6989586621679644422"><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679644422"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679644421"><span class="hs-identifier hs-type">e</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679644423"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644423"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="annottext">Pixbuf -&gt; Ptr e -&gt; (Int, Int) -&gt; Int -&gt; PixbufData Int e
+forall i e. Pixbuf -&gt; Ptr e -&gt; (i, i) -&gt; Int -&gt; PixbufData i e
+</span><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-var">PixbufData</span></a></span><span> </span><span class="annot"><span class="annottext">Pixbuf
+</span><a href="#local-6989586621679644420"><span class="hs-identifier hs-var">pb</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679644422"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644424"><span class="hs-identifier hs-var">count</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644424"><span class="hs-identifier hs-var">count</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679644424"><span class="annot"><span class="annottext">count :: Int
+</span><a href="#local-6989586621679644424"><span class="hs-identifier hs-var hs-var">count</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644423"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">e -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679644421"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- | 'PixbufData' is a mutable array.</span></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679644396"><span id="local-6989586621679644444"><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679644396"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MArray</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-type">PixbufData</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679644396"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679644455"><span class="annot"><span class="annottext">newArray :: forall i. Ix i =&gt; (i, i) -&gt; e -&gt; IO (PixbufData i e)
+</span><a href="#local-6989586621679644455"><span class="hs-identifier hs-var hs-var hs-var">newArray</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679644457"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679644457"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679644458"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679644458"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679644459"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679644459"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO (PixbufData i e)
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Gtk.Gdk.Pixbuf.newArray: not implemented&quot;</span></span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679644464"><span class="annot"><span class="annottext">newArray_ :: forall i. Ix i =&gt; (i, i) -&gt; IO (PixbufData i e)
+</span><span class="hs-identifier hs-var hs-var hs-var">newArray_</span></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679644465"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679644465"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679644466"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679644466"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO (PixbufData i e)
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Gtk.Gdk.Pixbuf.newArray_: not implemented&quot;</span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">unsafeRead</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621679644472"><span class="annot"><span class="annottext">unsafeRead :: forall i. Ix i =&gt; PixbufData i e -&gt; Int -&gt; IO e
+</span><span class="hs-identifier hs-var hs-var hs-var">unsafeRead</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-type">PixbufData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span> </span><span id="local-6989586621679644473"><span class="annot"><span class="annottext">ForeignPtr Pixbuf
+</span><a href="#local-6989586621679644473"><span class="hs-identifier hs-var">pb</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679644474"><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679644474"><span class="hs-identifier hs-var">pixPtr</span></a></span></span><span> </span><span class="annot"><span class="annottext">(i, i)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679644475"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644475"><span class="hs-identifier hs-var">idx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-62"></span><span>      </span><span id="local-6989586621679644476"><span class="annot"><a href="#local-6989586621679644476"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr e -&gt; Int -&gt; IO e
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679644474"><span class="hs-identifier hs-var">pixPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644475"><span class="hs-identifier hs-var">idx</span></a></span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">touchForeignPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621679644473"><span class="hs-identifier hs-type">pb</span></a></span><span>
+</span><span id="line-64"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679644476"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">unsafeWrite</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679644482"><span class="annot"><span class="annottext">unsafeWrite :: forall i. Ix i =&gt; PixbufData i e -&gt; Int -&gt; e -&gt; IO ()
+</span><span class="hs-identifier hs-var hs-var hs-var">unsafeWrite</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-type">PixbufData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span> </span><span id="local-6989586621679644483"><span class="annot"><span class="annottext">ForeignPtr Pixbuf
+</span><a href="#local-6989586621679644483"><span class="hs-identifier hs-var">pb</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679644484"><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679644484"><span class="hs-identifier hs-var">pixPtr</span></a></span></span><span> </span><span class="annot"><span class="annottext">(i, i)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679644485"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644485"><span class="hs-identifier hs-var">idx</span></a></span></span><span> </span><span id="local-6989586621679644486"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679644486"><span class="hs-identifier hs-var">elem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="annottext">Ptr e -&gt; Int -&gt; e -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">pokeElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679644484"><span class="hs-identifier hs-var">pixPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644485"><span class="hs-identifier hs-var">idx</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679644486"><span class="hs-identifier hs-var">elem</span></a></span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><span class="annottext">ForeignPtr Pixbuf -&gt; IO ()
+forall a. ForeignPtr a -&gt; IO ()
+</span><span class="hs-identifier hs-var">touchForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Pixbuf
+</span><a href="#local-6989586621679644483"><span class="hs-identifier hs-var">pb</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">getBounds</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621679644490"><span class="annot"><span class="annottext">getBounds :: forall i. Ix i =&gt; PixbufData i e -&gt; IO (i, i)
+</span><span class="hs-identifier hs-var hs-var hs-var">getBounds</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-type">PixbufData</span></a></span><span> </span><span class="annot"><span class="annottext">Pixbuf
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ptr e
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679644491"><span class="annot"><span class="annottext">(i, i)
+</span><a href="#local-6989586621679644491"><span class="hs-identifier hs-var">bd</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(i, i) -&gt; IO (i, i)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(i, i)
+</span><a href="#local-6989586621679644491"><span class="hs-identifier hs-var">bd</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">getNumElements</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679644494"><span class="annot"><span class="annottext">getNumElements :: forall i. Ix i =&gt; PixbufData i e -&gt; IO Int
+</span><span class="hs-identifier hs-var hs-var hs-var">getNumElements</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Gdk.PixbufData.html#PixbufData"><span class="hs-identifier hs-type">PixbufData</span></a></span><span> </span><span class="annot"><span class="annottext">Pixbuf
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ptr e
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">(i, i)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679644495"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644495"><span class="hs-identifier hs-var">count</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO Int
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679644495"><span class="hs-identifier hs-var">count</span></a></span><span>
+</span><span id="line-73"></span></pre></body></html>

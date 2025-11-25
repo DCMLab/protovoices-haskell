@@ -1,0 +1,674 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget RecentManager</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Andy Stewart</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 27 Mar 2010</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 2010 Andy Stewart</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Managing Recently Used Files</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- * Module available since Gtk+ version 2.10</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- TODO:</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- GtkRecentData</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- gtk_recent_manager_add_full</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html"><span class="hs-identifier">Graphics.UI.Gtk.Recent.RecentManager</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | 'RecentManager' provides a facility for adding, removing and looking up</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- recently used files. Each recently used file is identified by its URI, and</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- has meta-data associated to it, like the names and command lines of the</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- applications that have registered it, the number of time each application</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- has registered the same file, the mime type of the file and whether the file</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- should be displayed only by the applications that have registered it.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- The 'RecentManager' acts like a database of all the recently used files.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- You can create new 'RecentManager' objects, but it is more efficient to use</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- the standard recent manager for the 'Screen' so that information about the</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- recently used files is shared with other people using them. In case the</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- default screen is being used, adding a new recently used file is as simple</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- as:</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- Recently used files are supported since Gtk+ 2.10.</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | +----RecentManager</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier">RecentManager</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier">RecentManagerClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToRecentManager"><span class="hs-identifier">castToRecentManager</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toRecentManager"><span class="hs-identifier">toRecentManager</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerNew"><span class="hs-identifier">recentManagerNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerGetDefault"><span class="hs-identifier">recentManagerGetDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerAddItem"><span class="hs-identifier">recentManagerAddItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerRemoveItem"><span class="hs-identifier">recentManagerRemoveItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerLookupItem"><span class="hs-identifier">recentManagerLookupItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerHasItem"><span class="hs-identifier">recentManagerHasItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerMoveItem"><span class="hs-identifier">recentManagerMoveItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerGetItems"><span class="hs-identifier">recentManagerGetItems</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerPurgeItems"><span class="hs-identifier">recentManagerPurgeItems</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="annot"><span class="hs-comment">-- * Attributes</span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerFilename"><span class="hs-identifier">recentManagerFilename</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerLimit"><span class="hs-identifier">recentManagerLimit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerSize"><span class="hs-identifier">recentManagerSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="annot"><span class="hs-comment">-- * Signals</span></span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerChanged"><span class="hs-identifier">recentManagerChanged</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Attributes</span></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Properties</span></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.GList</span></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.UTFString</span></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.GError</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">propagateGError</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">checkGError</span></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentInfo.html"><span class="hs-identifier">Graphics.UI.Gtk.Recent.RecentInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentInfo.html#RecentInfo"><span class="hs-identifier">RecentInfo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentInfo.html#mkRecentInfo"><span class="hs-identifier">mkRecentInfo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-104"></span><span class="hs-pragma">{-# LINE 104 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-104"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.Signals</span><span>
+</span><span id="line-105"></span><span class="hs-pragma">{-# LINE 105 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-pragma">{-# LINE 107 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- | Creates a new recent manager object. Recent manager objects are used to</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- handle the list of recently used resources. A 'RecentManager' object</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- monitors the recently used resources list, and emits the \&quot;changed\&quot; signal</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- each time something inside the list changes.</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerNew"><span class="hs-identifier hs-type">recentManagerNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span>
+</span><span id="line-119"></span><span id="recentManagerNew"><span class="annot"><span class="annottext">recentManagerNew :: IO RecentManager
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerNew"><span class="hs-identifier hs-var hs-var">recentManagerNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr RecentManager -&gt; RecentManager,
+ FinalizerPtr RecentManager)
+-&gt; IO (Ptr RecentManager) -&gt; IO RecentManager
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">wrapNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr RecentManager -&gt; RecentManager,
+ FinalizerPtr RecentManager)
+forall {a}.
+(ForeignPtr RecentManager -&gt; RecentManager, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkRecentManager"><span class="hs-identifier hs-var">mkRecentManager</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr RecentManager) -&gt; IO RecentManager)
+-&gt; IO (Ptr RecentManager) -&gt; IO RecentManager
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr RecentManager)
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_new"><span class="hs-identifier hs-var">gtk_recent_manager_new</span></a></span><span>
+</span><span id="line-122"></span><span class="hs-pragma">{-# LINE 122 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- | Gets a unique instance of 'RecentManager'.</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--</span><span>
+</span><span id="line-130"></span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerGetDefault"><span class="hs-identifier hs-type">recentManagerGetDefault</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns A unique 'RecentManager'.</span></span><span>
+</span><span id="line-131"></span><span id="recentManagerGetDefault"><span class="annot"><span class="annottext">recentManagerGetDefault :: IO RecentManager
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerGetDefault"><span class="hs-identifier hs-var hs-var">recentManagerGetDefault</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr RecentManager -&gt; RecentManager,
+ FinalizerPtr RecentManager)
+-&gt; IO (Ptr RecentManager) -&gt; IO RecentManager
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr RecentManager -&gt; RecentManager,
+ FinalizerPtr RecentManager)
+forall {a}.
+(ForeignPtr RecentManager -&gt; RecentManager, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkRecentManager"><span class="hs-identifier hs-var">mkRecentManager</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr RecentManager) -&gt; IO RecentManager)
+-&gt; IO (Ptr RecentManager) -&gt; IO RecentManager
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr RecentManager)
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_get_default"><span class="hs-identifier hs-var">gtk_recent_manager_get_default</span></a></span><span>
+</span><span id="line-134"></span><span class="hs-pragma">{-# LINE 134 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- | Adds a new resource, pointed by @uri@, into the recently used resources</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- list.</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- This function automatically retrieves some of the needed metadata and</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- setting other metadata to common default values; it then feeds the data to</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- 'recentManagerAddFull'.</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- See 'recentManagerAddFull' if you want to explicitly define the metadata</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- for the resource pointed by @uri@.</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span id="local-6989586621679634403"><span id="local-6989586621679634405"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerAddItem"><span class="hs-identifier hs-type">recentManagerAddItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634403"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679634405"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634403"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-149"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634405"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @uri@ - a valid URI</span></span><span>
+</span><span id="line-150"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span> </span><span class="hs-comment">-- ^ returns @True@ if the new item was successfully added to the</span><span>
+</span><span id="line-151"></span><span>            </span><span class="hs-comment">-- recently used resources list</span><span>
+</span><span id="line-152"></span><span id="recentManagerAddItem"><span class="annot"><span class="annottext">recentManagerAddItem :: forall self string.
+(RecentManagerClass self, GlibString string) =&gt;
+self -&gt; string -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerAddItem"><span class="hs-identifier hs-var hs-var">recentManagerAddItem</span></a></span></span><span> </span><span id="local-6989586621679634513"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634513"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679634514"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634514"><span class="hs-identifier hs-var">uri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; Bool) -&gt; IO CInt -&gt; IO Bool
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Bool
+forall a. (Eq a, Num a) =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">toBool</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Bool) -&gt; IO CInt -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634514"><span class="hs-identifier hs-var">uri</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634517"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634517"><span class="hs-identifier hs-var">uriPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span> </span><span id="local-6989586621679634518"><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634518"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679634519"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634519"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634518"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634521"><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634521"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RecentManager -&gt; CString -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_add_item"><span class="hs-identifier hs-var">gtk_recent_manager_add_item</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634521"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634519"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span class="hs-pragma">{-# LINE 156 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toRecentManager</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634517"><span class="hs-identifier hs-var">uriPtr</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- | Removes a resource pointed by @uri@ from the recently used resources list</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- handled by a recent manager.</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--</span><span>
+</span><span id="line-165"></span><span id="local-6989586621679634523"><span id="local-6989586621679634524"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerRemoveItem"><span class="hs-identifier hs-type">recentManagerRemoveItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634523"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679634524"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634523"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-166"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634524"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @uri@ - the URI of the item you wish to remove</span></span><span>
+</span><span id="line-167"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span> </span><span class="hs-comment">-- ^ returns @True@ if the item pointed by @uri@ has been</span><span>
+</span><span id="line-168"></span><span>            </span><span class="hs-comment">-- successfully removed by the recently used resources list, and</span><span>
+</span><span id="line-169"></span><span>            </span><span class="hs-comment">-- @False@ otherwise.</span><span>
+</span><span id="line-170"></span><span id="recentManagerRemoveItem"><span class="annot"><span class="annottext">recentManagerRemoveItem :: forall self string.
+(RecentManagerClass self, GlibString string) =&gt;
+self -&gt; string -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerRemoveItem"><span class="hs-identifier hs-var hs-var">recentManagerRemoveItem</span></a></span></span><span> </span><span id="local-6989586621679634533"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634533"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679634534"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634534"><span class="hs-identifier hs-var">uri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-171"></span><span>      </span><span class="annot"><span class="annottext">(Ptr (Ptr ()) -&gt; IO Bool) -&gt; (GError -&gt; IO Bool) -&gt; IO Bool
+forall a. (Ptr (Ptr ()) -&gt; IO a) -&gt; (GError -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">checkGError</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679634535"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634535"><span class="hs-identifier hs-var">errorPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-172"></span><span>                       </span><span class="annot"><span class="annottext">(CInt -&gt; Bool) -&gt; IO CInt -&gt; IO Bool
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Bool
+forall a. (Eq a, Num a) =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">toBool</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Bool) -&gt; IO CInt -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-173"></span><span>                       </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634534"><span class="hs-identifier hs-var">uri</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634536"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634536"><span class="hs-identifier hs-var">uriPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-174"></span><span>                       </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span> </span><span id="local-6989586621679634537"><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634537"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679634538"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634538"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679634539"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634539"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634537"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634540"><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634540"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RecentManager -&gt; CString -&gt; Ptr (Ptr ()) -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_remove_item"><span class="hs-identifier hs-var">gtk_recent_manager_remove_item</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634540"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634538"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634539"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span class="hs-pragma">{-# LINE 175 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-175"></span><span>                            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">self -&gt; RecentManager
+forall o. RecentManagerClass o =&gt; o -&gt; RecentManager
+</span><a href="Graphics.UI.Gtk.Types.html#toRecentManager"><span class="hs-identifier hs-var">toRecentManager</span></a></span><span> </span><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634533"><span class="hs-identifier hs-var">self</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>                            </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634536"><span class="hs-identifier hs-var">uriPtr</span></a></span><span>
+</span><span id="line-177"></span><span>                            </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634535"><span class="hs-identifier hs-var">errorPtr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>                  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">GError
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO Bool
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- | Searches for a URI inside the recently used resources list, and returns a</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- structure containing information about the resource like its MIME type, or</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- its display name.</span><span>
+</span><span id="line-183"></span><span class="hs-comment">--</span><span>
+</span><span id="line-184"></span><span class="hs-comment">--</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-186"></span><span class="hs-comment">--</span><span>
+</span><span id="line-187"></span><span id="local-6989586621679634426"><span id="local-6989586621679634427"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerLookupItem"><span class="hs-identifier hs-type">recentManagerLookupItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634426"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679634427"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634426"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-188"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634427"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @uri@ - a URI</span></span><span>
+</span><span id="line-189"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentInfo.html#RecentInfo"><span class="hs-identifier hs-type">RecentInfo</span></a></span></span></span><span> </span><span class="hs-comment">-- ^ returns a 'RecentInfo'</span><span>
+</span><span id="line-190"></span><span>                          </span><span class="hs-comment">-- structure containing information about the</span><span>
+</span><span id="line-191"></span><span>                          </span><span class="hs-comment">-- resource pointed by @uri@, or {@NULL@, FIXME: this</span><span>
+</span><span id="line-192"></span><span>                          </span><span class="hs-comment">-- should probably be converted to a Maybe data type}</span><span>
+</span><span id="line-193"></span><span>                          </span><span class="hs-comment">-- if the URI was not registered in the recently used</span><span>
+</span><span id="line-194"></span><span>                          </span><span class="hs-comment">-- resources list.</span><span>
+</span><span id="line-195"></span><span id="recentManagerLookupItem"><span class="annot"><span class="annottext">recentManagerLookupItem :: forall self string.
+(RecentManagerClass self, GlibString string) =&gt;
+self -&gt; string -&gt; IO RecentInfo
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerLookupItem"><span class="hs-identifier hs-var hs-var">recentManagerLookupItem</span></a></span></span><span> </span><span id="local-6989586621679634547"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634547"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679634548"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634548"><span class="hs-identifier hs-var">uri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-196"></span><span>  </span><span class="annot"><span class="annottext">(Ptr (Ptr ()) -&gt; IO RecentInfo) -&gt; IO RecentInfo
+forall a. (Ptr (Ptr ()) -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">propagateGError</span></span><span> </span><span class="annot"><span class="annottext">((Ptr (Ptr ()) -&gt; IO RecentInfo) -&gt; IO RecentInfo)
+-&gt; (Ptr (Ptr ()) -&gt; IO RecentInfo) -&gt; IO RecentInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634549"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634549"><span class="hs-identifier hs-var">errorPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-197"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO RecentInfo) -&gt; IO RecentInfo
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634548"><span class="hs-identifier hs-var">uri</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO RecentInfo) -&gt; IO RecentInfo)
+-&gt; (CString -&gt; IO RecentInfo) -&gt; IO RecentInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634550"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634550"><span class="hs-identifier hs-var">uriPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-198"></span><span>  </span><span id="local-6989586621679634551"><span class="annot"><a href="#local-6989586621679634551"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span> </span><span id="local-6989586621679634552"><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634552"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679634553"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634553"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679634554"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634554"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+-&gt; (Ptr RecentManager -&gt; IO (Ptr RecentInfo))
+-&gt; IO (Ptr RecentInfo)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634552"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RecentManager -&gt; IO (Ptr RecentInfo)) -&gt; IO (Ptr RecentInfo))
+-&gt; (Ptr RecentManager -&gt; IO (Ptr RecentInfo))
+-&gt; IO (Ptr RecentInfo)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634555"><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634555"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RecentManager -&gt; CString -&gt; Ptr (Ptr ()) -&gt; IO (Ptr RecentInfo)
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_lookup_item"><span class="hs-identifier hs-var">gtk_recent_manager_lookup_item</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634555"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634553"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634554"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span class="hs-pragma">{-# LINE 199 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-199"></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="annottext">self -&gt; RecentManager
+forall o. RecentManagerClass o =&gt; o -&gt; RecentManager
+</span><a href="Graphics.UI.Gtk.Types.html#toRecentManager"><span class="hs-identifier hs-var">toRecentManager</span></a></span><span> </span><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634547"><span class="hs-identifier hs-var">self</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-200"></span><span>           </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634550"><span class="hs-identifier hs-var">uriPtr</span></a></span><span>
+</span><span id="line-201"></span><span>           </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634549"><span class="hs-identifier hs-var">errorPtr</span></a></span><span>
+</span><span id="line-202"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentInfo.html#mkRecentInfo"><span class="hs-identifier hs-type">mkRecentInfo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634551"><span class="hs-identifier hs-type">result</span></a></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- | Checks whether there is a recently used resource registered with @uri@</span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- inside the recent manager.</span><span>
+</span><span id="line-206"></span><span class="hs-comment">--</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--</span><span>
+</span><span id="line-208"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-209"></span><span class="hs-comment">--</span><span>
+</span><span id="line-210"></span><span id="local-6989586621679634557"><span id="local-6989586621679634558"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerHasItem"><span class="hs-identifier hs-type">recentManagerHasItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634557"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679634558"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634557"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-211"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634558"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @uri@ - a URI</span></span><span>
+</span><span id="line-212"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns @True@ if the resource was found, @False@ otherwise.</span></span><span>
+</span><span id="line-213"></span><span id="recentManagerHasItem"><span class="annot"><span class="annottext">recentManagerHasItem :: forall self string.
+(RecentManagerClass self, GlibString string) =&gt;
+self -&gt; string -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerHasItem"><span class="hs-identifier hs-var hs-var">recentManagerHasItem</span></a></span></span><span> </span><span id="local-6989586621679634566"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634566"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679634567"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634567"><span class="hs-identifier hs-var">uri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-214"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; Bool) -&gt; IO CInt -&gt; IO Bool
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Bool
+forall a. (Eq a, Num a) =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">toBool</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Bool) -&gt; IO CInt -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-215"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634567"><span class="hs-identifier hs-var">uri</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634568"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634568"><span class="hs-identifier hs-var">uriPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span> </span><span id="local-6989586621679634569"><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634569"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679634570"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634570"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634569"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634571"><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634571"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RecentManager -&gt; CString -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_has_item"><span class="hs-identifier hs-var">gtk_recent_manager_has_item</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634571"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634570"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span class="hs-pragma">{-# LINE 217 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-217"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toRecentManager</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634568"><span class="hs-identifier hs-var">uriPtr</span></a></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- | Changes the location of a recently used resource from @uri@ to @newUri@.</span><span>
+</span><span id="line-221"></span><span class="hs-comment">--</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- Please note that this function will not affect the resource pointed by</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- the URIs, but only the URI used in the recently used resources list.</span><span>
+</span><span id="line-224"></span><span class="hs-comment">--</span><span>
+</span><span id="line-225"></span><span class="hs-comment">--</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-227"></span><span class="hs-comment">--</span><span>
+</span><span id="line-228"></span><span id="local-6989586621679634434"><span id="local-6989586621679634435"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerMoveItem"><span class="hs-identifier hs-type">recentManagerMoveItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634434"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679634435"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634434"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-229"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634435"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @uri@ - the URI of a recently used resource</span></span><span>
+</span><span id="line-230"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634435"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @newUri@ - the new URI of the recently used resource to remove the item pointed by @uri@ in the list</span></span><span>
+</span><span id="line-231"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns @True@ on success.</span></span><span>
+</span><span id="line-232"></span><span id="recentManagerMoveItem"><span class="annot"><span class="annottext">recentManagerMoveItem :: forall self string.
+(RecentManagerClass self, GlibString string) =&gt;
+self -&gt; string -&gt; string -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerMoveItem"><span class="hs-identifier hs-var hs-var">recentManagerMoveItem</span></a></span></span><span> </span><span id="local-6989586621679634582"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634582"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679634583"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634583"><span class="hs-identifier hs-var">uri</span></a></span></span><span> </span><span id="local-6989586621679634584"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634584"><span class="hs-identifier hs-var">newUri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-233"></span><span>  </span><span class="annot"><span class="annottext">(Ptr (Ptr ()) -&gt; IO Bool) -&gt; (GError -&gt; IO Bool) -&gt; IO Bool
+forall a. (Ptr (Ptr ()) -&gt; IO a) -&gt; (GError -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">checkGError</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634585"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634585"><span class="hs-identifier hs-var">errorPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-234"></span><span>                    </span><span class="annot"><span class="annottext">(CInt -&gt; Bool) -&gt; IO CInt -&gt; IO Bool
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Bool
+forall a. (Eq a, Num a) =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">toBool</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Bool) -&gt; IO CInt -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-235"></span><span>                    </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634584"><span class="hs-identifier hs-var">newUri</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634586"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634586"><span class="hs-identifier hs-var">newUriPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-236"></span><span>                    </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679634583"><span class="hs-identifier hs-var">uri</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (CString -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634587"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634587"><span class="hs-identifier hs-var">uriPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-237"></span><span>                    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span> </span><span id="local-6989586621679634588"><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634588"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679634589"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634589"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679634590"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634590"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621679634591"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634591"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634588"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634592"><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634592"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RecentManager -&gt; CString -&gt; CString -&gt; Ptr (Ptr ()) -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_move_item"><span class="hs-identifier hs-var">gtk_recent_manager_move_item</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634592"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634589"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634590"><span class="hs-identifier hs-var">arg3</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634591"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span class="hs-pragma">{-# LINE 238 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-238"></span><span>                         </span><span class="hs-special">(</span><span class="annot"><span class="annottext">self -&gt; RecentManager
+forall o. RecentManagerClass o =&gt; o -&gt; RecentManager
+</span><a href="Graphics.UI.Gtk.Types.html#toRecentManager"><span class="hs-identifier hs-var">toRecentManager</span></a></span><span> </span><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634582"><span class="hs-identifier hs-var">self</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>                         </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634587"><span class="hs-identifier hs-var">uriPtr</span></a></span><span>
+</span><span id="line-240"></span><span>                         </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679634586"><span class="hs-identifier hs-var">newUriPtr</span></a></span><span>
+</span><span id="line-241"></span><span>                         </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634585"><span class="hs-identifier hs-var">errorPtr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span>              </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">GError
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO Bool
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-243"></span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- | Gets the list of recently used resources.</span><span>
+</span><span id="line-245"></span><span class="hs-comment">--</span><span>
+</span><span id="line-246"></span><span class="hs-comment">--</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-248"></span><span class="hs-comment">--</span><span>
+</span><span id="line-249"></span><span id="local-6989586621679634438"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerGetItems"><span class="hs-identifier hs-type">recentManagerGetItems</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634438"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634438"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-250"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentInfo.html#RecentInfo"><span class="hs-identifier hs-type">RecentInfo</span></a></span><span class="hs-special">]</span></span><span> </span><span class="hs-comment">-- ^ returns a list of newly allocated</span><span>
+</span><span id="line-251"></span><span>                            </span><span class="hs-comment">-- 'RecentInfo' objects.</span><span>
+</span><span id="line-252"></span><span id="recentManagerGetItems"><span class="annot"><span class="annottext">recentManagerGetItems :: forall self. RecentManagerClass self =&gt; self -&gt; IO [RecentInfo]
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerGetItems"><span class="hs-identifier hs-var hs-var">recentManagerGetItems</span></a></span></span><span> </span><span id="local-6989586621679634601"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634601"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-253"></span><span>  </span><span id="local-6989586621679634602"><span class="annot"><a href="#local-6989586621679634602"><span class="hs-identifier hs-var">glist</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span> </span><span id="local-6989586621679634603"><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634603"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+-&gt; (Ptr RecentManager -&gt; IO (Ptr ())) -&gt; IO (Ptr ())
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634603"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RecentManager -&gt; IO (Ptr ())) -&gt; IO (Ptr ()))
+-&gt; (Ptr RecentManager -&gt; IO (Ptr ())) -&gt; IO (Ptr ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634604"><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634604"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RecentManager -&gt; IO (Ptr ())
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_get_items"><span class="hs-identifier hs-var">gtk_recent_manager_get_items</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634604"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-254"></span><span class="hs-pragma">{-# LINE 254 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-254"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">self -&gt; RecentManager
+forall o. RecentManagerClass o =&gt; o -&gt; RecentManager
+</span><a href="Graphics.UI.Gtk.Types.html#toRecentManager"><span class="hs-identifier hs-var">toRecentManager</span></a></span><span> </span><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634601"><span class="hs-identifier hs-var">self</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-255"></span><span>  </span><span id="local-6989586621679634606"><span class="annot"><a href="#local-6989586621679634606"><span class="hs-identifier hs-var">list</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">fromGList</span></span><span> </span><span class="annot"><a href="#local-6989586621679634602"><span class="hs-identifier hs-type">glist</span></a></span><span>
+</span><span id="line-256"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">mapM</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentInfo.html#mkRecentInfo"><span class="hs-identifier hs-type">mkRecentInfo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634606"><span class="hs-identifier hs-type">list</span></a></span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- | Purges every item from the recently used resources list.</span><span>
+</span><span id="line-259"></span><span class="hs-comment">--</span><span>
+</span><span id="line-260"></span><span class="hs-comment">--</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-262"></span><span class="hs-comment">--</span><span>
+</span><span id="line-263"></span><span id="local-6989586621679634445"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerPurgeItems"><span class="hs-identifier hs-type">recentManagerPurgeItems</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634445"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679634445"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-264"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span> </span><span class="hs-comment">-- ^ returns the number of items that have been removed from the</span><span>
+</span><span id="line-265"></span><span>           </span><span class="hs-comment">-- recently used resources list.</span><span>
+</span><span id="line-266"></span><span id="recentManagerPurgeItems"><span class="annot"><span class="annottext">recentManagerPurgeItems :: forall self. RecentManagerClass self =&gt; self -&gt; IO Int
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerPurgeItems"><span class="hs-identifier hs-var hs-var">recentManagerPurgeItems</span></a></span></span><span> </span><span id="local-6989586621679634616"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679634616"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-267"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; Int) -&gt; IO CInt -&gt; IO Int
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Int) -&gt; IO CInt -&gt; IO Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-268"></span><span>  </span><span class="annot"><span class="annottext">(Ptr (Ptr ()) -&gt; IO CInt) -&gt; IO CInt
+forall a. (Ptr (Ptr ()) -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">propagateGError</span></span><span> </span><span class="annot"><span class="annottext">((Ptr (Ptr ()) -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr (Ptr ()) -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634617"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634617"><span class="hs-identifier hs-var">errorPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-269"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span> </span><span id="local-6989586621679634618"><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634618"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679634619"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634619"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RecentManager
+</span><a href="#local-6989586621679634618"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr RecentManager -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679634620"><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634620"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RecentManager -&gt; Ptr (Ptr ()) -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_purge_items"><span class="hs-identifier hs-var">gtk_recent_manager_purge_items</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RecentManager
+</span><a href="#local-6989586621679634620"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634619"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span class="hs-pragma">{-# LINE 270 &quot;./Graphics/UI/Gtk/Recent/RecentManager.chs&quot; #-}</span><span>
+</span><span id="line-270"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toRecentManager</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span>    </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621679634617"><span class="hs-identifier hs-var">errorPtr</span></a></span><span>
+</span><span id="line-272"></span><span>
+</span><span id="line-273"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- Attributes</span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- | The full path to the file to be used to store and read the recently used resources list</span><span>
+</span><span id="line-277"></span><span class="hs-comment">--</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- Default value: 'Nothing'</span><span>
+</span><span id="line-279"></span><span class="hs-comment">--</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-281"></span><span class="hs-comment">--</span><span>
+</span><span id="line-282"></span><span id="local-6989586621679634449"><span id="local-6989586621679634450"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerFilename"><span class="hs-identifier hs-type">recentManagerFilename</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634449"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679634450"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadAttr</span></span><span> </span><span class="annot"><a href="#local-6989586621679634449"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634450"><span class="hs-identifier hs-type">string</span></a></span></span></span><span>
+</span><span id="line-283"></span><span id="recentManagerFilename"><span class="annot"><span class="annottext">recentManagerFilename :: forall self string.
+(RecentManagerClass self, GlibString string) =&gt;
+ReadAttr self string
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerFilename"><span class="hs-identifier hs-var hs-var">recentManagerFilename</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ReadAttr self string
+forall gobj string.
+(GObjectClass gobj, GlibString string) =&gt;
+String -&gt; ReadAttr gobj string
+</span><span class="hs-identifier hs-var">readAttrFromStringProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;filename&quot;</span></span><span>
+</span><span id="line-284"></span><span>
+</span><span id="line-285"></span><span class="hs-comment">-- | The maximum number of items to be returned by the 'recentManagerGetItems' function.</span><span>
+</span><span id="line-286"></span><span class="hs-comment">--</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- Allowed values: &gt;= 'GMaxulong'</span><span>
+</span><span id="line-288"></span><span class="hs-comment">--</span><span>
+</span><span id="line-289"></span><span class="hs-comment">-- Default value: -1</span><span>
+</span><span id="line-290"></span><span class="hs-comment">--</span><span>
+</span><span id="line-291"></span><span class="hs-comment">--</span><span>
+</span><span id="line-292"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-293"></span><span class="hs-comment">--</span><span>
+</span><span id="line-294"></span><span id="local-6989586621679634457"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerLimit"><span class="hs-identifier hs-type">recentManagerLimit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634457"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679634457"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-295"></span><span id="recentManagerLimit"><span class="annot"><span class="annottext">recentManagerLimit :: forall self. RecentManagerClass self =&gt; Attr self Int
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerLimit"><span class="hs-identifier hs-var hs-var">recentManagerLimit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr self Int
+forall gobj. GObjectClass gobj =&gt; String -&gt; Attr gobj Int
+</span><span class="hs-identifier hs-var">newAttrFromIntProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;limit&quot;</span></span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- | The size of the recently used resources list.</span><span>
+</span><span id="line-298"></span><span class="hs-comment">--</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- Allowed values: &gt;= 'GMaxulong'</span><span>
+</span><span id="line-300"></span><span class="hs-comment">--</span><span>
+</span><span id="line-301"></span><span class="hs-comment">-- Default value: 0</span><span>
+</span><span id="line-302"></span><span class="hs-comment">--</span><span>
+</span><span id="line-303"></span><span class="hs-comment">--</span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-305"></span><span class="hs-comment">--</span><span>
+</span><span id="line-306"></span><span id="local-6989586621679634461"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerSize"><span class="hs-identifier hs-type">recentManagerSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634461"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadAttr</span></span><span> </span><span class="annot"><a href="#local-6989586621679634461"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-307"></span><span id="recentManagerSize"><span class="annot"><span class="annottext">recentManagerSize :: forall self. RecentManagerClass self =&gt; ReadAttr self Int
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerSize"><span class="hs-identifier hs-var hs-var">recentManagerSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ReadAttr self Int
+forall gobj. GObjectClass gobj =&gt; String -&gt; ReadAttr gobj Int
+</span><span class="hs-identifier hs-var">readAttrFromIntProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;size&quot;</span></span><span>
+</span><span id="line-308"></span><span>
+</span><span id="line-309"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- Signals</span><span>
+</span><span id="line-311"></span><span>
+</span><span id="line-312"></span><span class="hs-comment">-- | Emitted when the current recently used resources manager changes its</span><span>
+</span><span id="line-313"></span><span class="hs-comment">-- contents.</span><span>
+</span><span id="line-314"></span><span class="hs-comment">--</span><span>
+</span><span id="line-315"></span><span class="hs-comment">--</span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-317"></span><span class="hs-comment">--</span><span>
+</span><span id="line-318"></span><span id="local-6989586621679634464"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerChanged"><span class="hs-identifier hs-type">recentManagerChanged</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManagerClass"><span class="hs-identifier hs-type">RecentManagerClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679634464"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679634464"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-319"></span><span id="recentManagerChanged"><span class="annot"><span class="annottext">recentManagerChanged :: forall self. RecentManagerClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.Recent.RecentManager.html#recentManagerChanged"><span class="hs-identifier hs-var hs-var">recentManagerChanged</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self))
+-&gt; Signal self (IO ())
+forall object handler.
+(Bool -&gt; object -&gt; handler -&gt; IO (ConnectId object))
+-&gt; Signal object handler
+</span><span class="hs-identifier hs-var">Signal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;changed&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-320"></span><span>
+</span><span id="line-321"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_new&quot;</span></span><span>
+</span><span id="line-322"></span><span>  </span><span id="gtk_recent_manager_new"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_new"><span class="hs-identifier hs-var">gtk_recent_manager_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-323"></span><span>
+</span><span id="line-324"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_get_default&quot;</span></span><span>
+</span><span id="line-325"></span><span>  </span><span id="gtk_recent_manager_get_default"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_get_default"><span class="hs-identifier hs-var">gtk_recent_manager_get_default</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-326"></span><span>
+</span><span id="line-327"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_add_item&quot;</span></span><span>
+</span><span id="line-328"></span><span>  </span><span id="gtk_recent_manager_add_item"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_add_item"><span class="hs-identifier hs-var">gtk_recent_manager_add_item</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-329"></span><span>
+</span><span id="line-330"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_remove_item&quot;</span></span><span>
+</span><span id="line-331"></span><span>  </span><span id="gtk_recent_manager_remove_item"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_remove_item"><span class="hs-identifier hs-var">gtk_recent_manager_remove_item</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-332"></span><span>
+</span><span id="line-333"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_lookup_item&quot;</span></span><span>
+</span><span id="line-334"></span><span>  </span><span id="gtk_recent_manager_lookup_item"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_lookup_item"><span class="hs-identifier hs-var">gtk_recent_manager_lookup_item</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentInfo.html#RecentInfo"><span class="hs-identifier hs-type">RecentInfo</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-335"></span><span>
+</span><span id="line-336"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_has_item&quot;</span></span><span>
+</span><span id="line-337"></span><span>  </span><span id="gtk_recent_manager_has_item"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_has_item"><span class="hs-identifier hs-var">gtk_recent_manager_has_item</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-338"></span><span>
+</span><span id="line-339"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_move_item&quot;</span></span><span>
+</span><span id="line-340"></span><span>  </span><span id="gtk_recent_manager_move_item"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_move_item"><span class="hs-identifier hs-var">gtk_recent_manager_move_item</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-341"></span><span>
+</span><span id="line-342"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_get_items&quot;</span></span><span>
+</span><span id="line-343"></span><span>  </span><span id="gtk_recent_manager_get_items"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_get_items"><span class="hs-identifier hs-var">gtk_recent_manager_get_items</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-344"></span><span>
+</span><span id="line-345"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_recent_manager_purge_items&quot;</span></span><span>
+</span><span id="line-346"></span><span>  </span><span id="gtk_recent_manager_purge_items"><span class="annot"><a href="Graphics.UI.Gtk.Recent.RecentManager.html#gtk_recent_manager_purge_items"><span class="hs-identifier hs-var">gtk_recent_manager_purge_items</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RecentManager"><span class="hs-identifier hs-type">RecentManager</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-347"></span></pre></body></html>

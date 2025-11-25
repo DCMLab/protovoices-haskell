@@ -1,0 +1,121 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-2"></span><span class="annot"><span class="hs-comment">-- | A module that contains exception-safe equivalents of @inline-c@ QuasiQuoters.</span></span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ViewPatterns #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE QuasiQuotes #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.C.Inline.Cpp.Unsafe.html"><span class="hs-identifier">Language.C.Inline.Cpp.Unsafe</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Language.C.Inline.Cpp.Unsafe.html#throwBlock"><span class="hs-identifier">throwBlock</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Cpp.Unsafe.html#tryBlock"><span class="hs-identifier">tryBlock</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Cpp.Unsafe.html#catchBlock"><span class="hs-identifier">catchBlock</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Cpp.Exception.html#toSomeException"><span class="hs-identifier">toSomeException</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception.Safe</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.C.Inline.Unsafe</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Unsafe</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH.Quote</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.C.Inline.Cpp.Exception.html"><span class="hs-identifier">Language.C.Inline.Cpp.Exception</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.C.Inline.Cpp.Exception.html#tryBlockQuoteExp"><span class="hs-identifier">tryBlockQuoteExp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.C.Inline.Cpp.Exception.html"><span class="hs-identifier">Language.C.Inline.Cpp.Exception</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.C.Inline.Cpp.Exception.html#tryBlockQuoteExp"><span class="hs-identifier">tryBlockQuoteExp</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Language.C.Inline.Cpp.Exception.html#toSomeException"><span class="hs-identifier">toSomeException</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | Like 'tryBlock', but will throw unwrapped 'CppHaskellException's or other 'CppException's rather than returning</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- them in an 'Either'</span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Language.C.Inline.Cpp.Unsafe.html#throwBlock"><span class="hs-identifier hs-type">throwBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QuasiQuoter</span></span><span>
+</span><span id="line-25"></span><span id="throwBlock"><span class="annot"><span class="annottext">throwBlock :: QuasiQuoter
+</span><a href="Language.C.Inline.Cpp.Unsafe.html#throwBlock"><span class="hs-identifier hs-var hs-var">throwBlock</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QuasiQuoter</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">quoteExp :: String -&gt; Q Exp
+</span><span class="hs-identifier hs-var">quoteExp</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679080522"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679080522"><span class="hs-identifier hs-var">blockStr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-27"></span><span>      </span><span class="hs-special">[e|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">throwIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><a href="Language.C.Inline.Cpp.Exception.html#toSomeException"><span class="hs-identifier hs-type">toSomeException</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">=&lt;&lt;</span></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><span class="annottext">QuasiQuoter -&gt; String -&gt; Q Exp
+</span><a href="Language.C.Inline.Cpp.Exception.html#tryBlockQuoteExp"><span class="hs-identifier hs-var">tryBlockQuoteExp</span></a></span><span> </span><span class="annot"><span class="annottext">QuasiQuoter
+</span><span class="hs-identifier hs-var">Unsafe.block</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679080522"><span class="hs-identifier hs-var">blockStr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">|]</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quotePat :: String -&gt; Q Pat
+</span><span class="hs-identifier hs-var">quotePat</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q Pat
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080528"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quoteType :: String -&gt; Q Type
+</span><span class="hs-identifier hs-var">quoteType</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q Type
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080528"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quoteDec :: String -&gt; Q [Dec]
+</span><span class="hs-identifier hs-var">quoteDec</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q [Dec]
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080528"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>      </span><span id="local-6989586621679080528"><span class="annot"><span class="annottext">unsupported :: p -&gt; m a
+</span><a href="#local-6989586621679080528"><span class="hs-identifier hs-var hs-var">unsupported</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; m a
+forall a. String -&gt; m a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unsupported quasiquotation.&quot;</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><span class="hs-comment">-- | Variant of 'throwBlock' for blocks which return 'void'.</span></span><span>
+</span><span id="line-35"></span><span class="annot"><a href="Language.C.Inline.Cpp.Unsafe.html#catchBlock"><span class="hs-identifier hs-type">catchBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QuasiQuoter</span></span><span>
+</span><span id="line-36"></span><span id="catchBlock"><span class="annot"><span class="annottext">catchBlock :: QuasiQuoter
+</span><a href="Language.C.Inline.Cpp.Unsafe.html#catchBlock"><span class="hs-identifier hs-var hs-var">catchBlock</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QuasiQuoter</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">quoteExp :: String -&gt; Q Exp
+</span><span class="hs-identifier hs-var">quoteExp</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679080540"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679080540"><span class="hs-identifier hs-var">blockStr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">QuasiQuoter -&gt; String -&gt; Q Exp
+</span><span class="hs-identifier hs-var">quoteExp</span></span><span> </span><span class="annot"><span class="annottext">QuasiQuoter
+</span><a href="Language.C.Inline.Cpp.Unsafe.html#throwBlock"><span class="hs-identifier hs-var">throwBlock</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;void {&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679080540"><span class="hs-identifier hs-var">blockStr</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;}&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quotePat :: String -&gt; Q Pat
+</span><span class="hs-identifier hs-var">quotePat</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q Pat
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080541"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quoteType :: String -&gt; Q Type
+</span><span class="hs-identifier hs-var">quoteType</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q Type
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080541"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quoteDec :: String -&gt; Q [Dec]
+</span><span class="hs-identifier hs-var">quoteDec</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q [Dec]
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080541"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>      </span><span id="local-6989586621679080541"><span class="annot"><span class="annottext">unsupported :: p -&gt; m a
+</span><a href="#local-6989586621679080541"><span class="hs-identifier hs-var hs-var">unsupported</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; m a
+forall a. String -&gt; m a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unsupported quasiquotation.&quot;</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | Similar to `C.block`, but C++ exceptions will be caught and the result is (Either CppException value). The return type must be void or constructible with @{}@.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- Using this will automatically include @exception@, @cstring@ and @cstdlib@.</span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Language.C.Inline.Cpp.Unsafe.html#tryBlock"><span class="hs-identifier hs-type">tryBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QuasiQuoter</span></span><span>
+</span><span id="line-47"></span><span id="tryBlock"><span class="annot"><span class="annottext">tryBlock :: QuasiQuoter
+</span><a href="Language.C.Inline.Cpp.Unsafe.html#tryBlock"><span class="hs-identifier hs-var hs-var">tryBlock</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QuasiQuoter</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">quoteExp :: String -&gt; Q Exp
+</span><span class="hs-identifier hs-var">quoteExp</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QuasiQuoter -&gt; String -&gt; Q Exp
+</span><a href="Language.C.Inline.Cpp.Exception.html#tryBlockQuoteExp"><span class="hs-identifier hs-var">tryBlockQuoteExp</span></a></span><span> </span><span class="annot"><span class="annottext">QuasiQuoter
+</span><span class="hs-identifier hs-var">Unsafe.block</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quotePat :: String -&gt; Q Pat
+</span><span class="hs-identifier hs-var">quotePat</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q Pat
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080550"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quoteType :: String -&gt; Q Type
+</span><span class="hs-identifier hs-var">quoteType</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q Type
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080550"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quoteDec :: String -&gt; Q [Dec]
+</span><span class="hs-identifier hs-var">quoteDec</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q [Dec]
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679080550"><span class="hs-identifier hs-var">unsupported</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>      </span><span id="local-6989586621679080550"><span class="annot"><span class="annottext">unsupported :: p -&gt; m a
+</span><a href="#local-6989586621679080550"><span class="hs-identifier hs-var hs-var">unsupported</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; m a
+forall a. String -&gt; m a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unsupported quasiquotation.&quot;</span></span><span>
+</span><span id="line-54"></span></pre></body></html>

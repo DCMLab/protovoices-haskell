@@ -1,0 +1,673 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Strict #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="RL.Callbacks.html"><span class="hs-identifier">RL.Callbacks</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Common</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GreedyParser</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Action</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ActionDouble</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ActionDouble</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ActionSingle</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ActionSingle</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DoubleParent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DoubleParent</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">GreedyState</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">SingleParent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SingleParent</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">gsOps</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">opGoesLeft</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PVGrammar</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PVGrammar.Prob.Simple</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="RL.ModelTypes.html"><span class="hs-identifier">RL.ModelTypes</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Inference.Conjugate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hyper</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Prior</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">expectedProbs</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">evalTraceLogP</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sampleProbs</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Musicology.Pitch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SPitch</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fifths</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Primitive</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">RealWorld</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NE</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">listToMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Random.MWC.Probability</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MWC</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Reward</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- ======</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span id="local-6989586621679368670"><span class="annot"><a href="RL.Callbacks.html#pvRewardSample"><span class="hs-identifier hs-type">pvRewardSample</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MWC.Gen</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">RealWorld</span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hyper</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PVParams</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#PVRewardFn"><span class="hs-identifier hs-type">PVRewardFn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679368670"><span class="hs-keyword hs-type">label</span></a></span></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- -&gt; PVAnalysis SPitch</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- -&gt; IO QType</span><span>
+</span><span id="line-31"></span><span id="pvRewardSample"><span class="annot"><span class="annottext">pvRewardSample :: forall label. Gen RealWorld -&gt; Hyper PVParams -&gt; PVRewardFn label
+</span><a href="RL.Callbacks.html#pvRewardSample"><span class="hs-identifier hs-var hs-var">pvRewardSample</span></a></span></span><span> </span><span class="annot"><span class="annottext">Gen RealWorld
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">PVState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">NonEmpty PVAction
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-32"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardSample"><span class="hs-identifier hs-var">pvRewardSample</span></a></span><span> </span><span class="annot"><span class="annottext">Gen RealWorld
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">PVState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><a href="RL.ModelTypes.html#inf"><span class="hs-identifier hs-var">inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardSample"><span class="hs-identifier hs-var">pvRewardSample</span></a></span><span> </span><span id="local-6989586621679369041"><span class="annot"><span class="annottext">Gen RealWorld
+</span><a href="#local-6989586621679369041"><span class="hs-identifier hs-var">gen</span></a></span></span><span> </span><span id="local-6989586621679369042"><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369042"><span class="hs-identifier hs-var">hyper</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679369043"><span class="annot"><span class="annottext">Edges SPitch
+</span><a href="#local-6989586621679369043"><span class="hs-identifier hs-var">top</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679369044"><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369044"><span class="hs-identifier hs-var">deriv</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679369045"><span class="annot"><span class="annottext">trace :: Either String (Trace PVParams)
+</span><a href="#local-6989586621679369045"><span class="hs-identifier hs-var hs-var hs-var">trace</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+-&gt; Path (Edges SPitch) (Notes SPitch)
+-&gt; Either String (Trace PVParams)
+</span><span class="hs-identifier hs-var">observeDerivation</span></span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369044"><span class="hs-identifier hs-var">deriv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Edges SPitch -&gt; Path (Edges SPitch) (Notes SPitch)
+forall around between. around -&gt; Path around between
+</span><span class="hs-identifier hs-var">PathEnd</span></span><span> </span><span class="annot"><span class="annottext">Edges SPitch
+</span><a href="#local-6989586621679369043"><span class="hs-identifier hs-var">top</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679369048"><span class="annot"><a href="#local-6989586621679369048"><span class="hs-identifier hs-var">probs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Prob IO (PVParams ProbsRep)
+-&gt; Gen (PrimState IO) -&gt; IO (PVParams ProbsRep)
+forall (m :: * -&gt; *) a. Prob m a -&gt; Gen (PrimState m) -&gt; m a
+</span><span class="hs-identifier hs-var">MWC.sample</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} (a :: k) (m :: * -&gt; *).
+(Prior a, PrimMonad m) =&gt;
+Hyper a -&gt; Prob m (Probs a)
+forall (a :: (* -&gt; *) -&gt; *) (m :: * -&gt; *).
+(Prior a, PrimMonad m) =&gt;
+Hyper a -&gt; Prob m (Probs a)
+</span><span class="hs-identifier hs-var">sampleProbs</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">PVParams</span></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369042"><span class="hs-identifier hs-var">hyper</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Gen RealWorld
+Gen (PrimState IO)
+</span><a href="#local-6989586621679369041"><span class="hs-identifier hs-var">gen</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679369045"><span class="hs-identifier hs-type">trace</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679369050"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679369050"><span class="hs-identifier hs-var">error</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-38"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO ()) -&gt; String -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;error giving reward: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679369050"><span class="hs-identifier hs-var">error</span></a></span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><a href="RL.ModelTypes.html#inf"><span class="hs-identifier hs-var">inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679369052"><span class="annot"><span class="annottext">Trace PVParams
+</span><a href="#local-6989586621679369052"><span class="hs-identifier hs-var">trace</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PVParams ProbsRep
+-&gt; Trace PVParams
+-&gt; EvalTraceI
+     PVParams
+     (Either
+        String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+-&gt; Maybe
+     (Either
+        String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)],
+      QType)
+forall (r :: (* -&gt; *) -&gt; *) a.
+r ProbsRep -&gt; Trace r -&gt; EvalTraceI r a -&gt; Maybe (a, QType)
+</span><span class="hs-identifier hs-var">evalTraceLogP</span></span><span> </span><span class="annot"><span class="annottext">PVParams ProbsRep
+</span><a href="#local-6989586621679369048"><span class="hs-identifier hs-var">probs</span></a></span><span> </span><span class="annot"><span class="annottext">Trace PVParams
+</span><a href="#local-6989586621679369052"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="annot"><span class="annottext">EvalTraceI
+  PVParams
+  (Either
+     String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+forall (m :: * -&gt; *).
+(SampleCtx m Bernoulli, SampleCtx m Geometric1,
+ SampleCtx m Geometric0, SampleCtx m MagicalOctaves,
+ SampleCtx m MagicalID, SampleCtx m (Categorical 3),
+ RandomInterpreter m PVParams) =&gt;
+m (Either
+     String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+</span><span class="hs-identifier hs-var">sampleDerivation'</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><span class="annottext">Maybe
+  (Either
+     String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)],
+   QType)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-42"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Couldn't evaluate trace while giving reward&quot;</span></span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><a href="RL.ModelTypes.html#inf"><span class="hs-identifier hs-var">inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Either
+  String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679369054"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369054"><span class="hs-identifier hs-var">logprob</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369054"><span class="hs-identifier hs-var">logprob</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span id="local-6989586621679368738"><span class="annot"><a href="RL.Callbacks.html#pvRewardExp"><span class="hs-identifier hs-type">pvRewardExp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hyper</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PVParams</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#PVRewardFn"><span class="hs-identifier hs-type">PVRewardFn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679368738"><span class="hs-keyword hs-type">label</span></a></span></span><span> </span><span class="hs-comment">-- PVAnalysis SPitch -&gt; IO QType</span><span>
+</span><span id="line-47"></span><span id="pvRewardExp"><span class="annot"><span class="annottext">pvRewardExp :: forall label. Hyper PVParams -&gt; PVRewardFn label
+</span><a href="RL.Callbacks.html#pvRewardExp"><span class="hs-identifier hs-var hs-var">pvRewardExp</span></a></span></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">PVState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">NonEmpty PVAction
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardExp"><span class="hs-identifier hs-var">pvRewardExp</span></a></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">PVState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><a href="RL.ModelTypes.html#inf"><span class="hs-identifier hs-var">inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardExp"><span class="hs-identifier hs-var">pvRewardExp</span></a></span><span> </span><span id="local-6989586621679369060"><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369060"><span class="hs-identifier hs-var">hyper</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679369061"><span class="annot"><span class="annottext">Edges SPitch
+</span><a href="#local-6989586621679369061"><span class="hs-identifier hs-var">top</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679369062"><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369062"><span class="hs-identifier hs-var">deriv</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><span class="annottext">Hyper PVParams -&gt; PVAnalysis SPitch -&gt; IO QType
+</span><a href="RL.Callbacks.html#pvRewardExp%27"><span class="hs-identifier hs-var">pvRewardExp'</span></a></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369060"><span class="hs-identifier hs-var">hyper</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+-&gt; Path (Edges SPitch) (Notes SPitch) -&gt; PVAnalysis SPitch
+forall s f h tr slc.
+[Leftmost s f h] -&gt; Path tr slc -&gt; Analysis s f h tr slc
+</span><span class="hs-identifier hs-var">Analysis</span></span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369062"><span class="hs-identifier hs-var">deriv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Edges SPitch -&gt; Path (Edges SPitch) (Notes SPitch)
+forall around between. around -&gt; Path around between
+</span><span class="hs-identifier hs-var">PathEnd</span></span><span> </span><span class="annot"><span class="annottext">Edges SPitch
+</span><a href="#local-6989586621679369061"><span class="hs-identifier hs-var">top</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardExp%27"><span class="hs-identifier hs-type">pvRewardExp'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hyper</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PVParams</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PVAnalysis</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SPitch</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span>
+</span><span id="line-53"></span><span id="pvRewardExp%27"><span class="annot"><span class="annottext">pvRewardExp' :: Hyper PVParams -&gt; PVAnalysis SPitch -&gt; IO QType
+</span><a href="RL.Callbacks.html#pvRewardExp%27"><span class="hs-identifier hs-var hs-var">pvRewardExp'</span></a></span></span><span> </span><span id="local-6989586621679369065"><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369065"><span class="hs-identifier hs-var">hyper</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Analysis</span></span><span> </span><span id="local-6989586621679369066"><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369066"><span class="hs-identifier hs-var">deriv</span></a></span></span><span> </span><span id="local-6989586621679369067"><span class="annot"><span class="annottext">Path (Edges SPitch) (Notes SPitch)
+</span><a href="#local-6989586621679369067"><span class="hs-identifier hs-var">top</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either String (Trace PVParams)
+</span><a href="#local-6989586621679369068"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679369069"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679369069"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-56"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO ()) -&gt; String -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;error giving reward: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679369069"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-57"></span><span>      </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)] -&gt; IO ()
+forall a. Show a =&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">print</span></span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369066"><span class="hs-identifier hs-var">deriv</span></a></span><span>
+</span><span id="line-58"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO (ZonkAny 0)
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;error&quot;</span></span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><a href="RL.ModelTypes.html#inf"><span class="hs-identifier hs-var">inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679369071"><span class="annot"><span class="annottext">Trace PVParams
+</span><a href="#local-6989586621679369071"><span class="hs-identifier hs-var">trace</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-61"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PVParams ProbsRep
+-&gt; Trace PVParams
+-&gt; EvalTraceI
+     PVParams
+     (Either
+        String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+-&gt; Maybe
+     (Either
+        String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)],
+      QType)
+forall (r :: (* -&gt; *) -&gt; *) a.
+r ProbsRep -&gt; Trace r -&gt; EvalTraceI r a -&gt; Maybe (a, QType)
+</span><span class="hs-identifier hs-var">evalTraceLogP</span></span><span> </span><span class="annot"><span class="annottext">PVParams ProbsRep
+</span><a href="#local-6989586621679369072"><span class="hs-identifier hs-var">probs</span></a></span><span> </span><span class="annot"><span class="annottext">Trace PVParams
+</span><a href="#local-6989586621679369071"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="annot"><span class="annottext">EvalTraceI
+  PVParams
+  (Either
+     String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+forall (m :: * -&gt; *).
+(SampleCtx m Bernoulli, SampleCtx m Geometric1,
+ SampleCtx m Geometric0, SampleCtx m MagicalOctaves,
+ SampleCtx m MagicalID, SampleCtx m (Categorical 3),
+ RandomInterpreter m PVParams) =&gt;
+m (Either
+     String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+</span><span class="hs-identifier hs-var">sampleDerivation'</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="annottext">Maybe
+  (Either
+     String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)],
+   QType)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-63"></span><span>          </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Couldn't evaluate trace while giving reward&quot;</span></span><span>
+</span><span id="line-64"></span><span>          </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><a href="RL.ModelTypes.html#inf"><span class="hs-identifier hs-var">inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Either
+  String [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679369073"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369073"><span class="hs-identifier hs-var">logprob</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(QType -&gt; IO QType) -&gt; QType -&gt; IO QType
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369073"><span class="hs-identifier hs-var">logprob</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; QType
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369066"><span class="hs-identifier hs-var">deriv</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679369072"><span class="annot"><span class="annottext">probs :: Probs PVParams
+</span><a href="#local-6989586621679369072"><span class="hs-identifier hs-var hs-var">probs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (a :: k). Prior a =&gt; Hyper a -&gt; Probs a
+forall (a :: (* -&gt; *) -&gt; *). Prior a =&gt; Hyper a -&gt; Probs a
+</span><span class="hs-identifier hs-var">expectedProbs</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">PVParams</span></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369065"><span class="hs-identifier hs-var">hyper</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679369068"><span class="annot"><span class="annottext">trace :: Either String (Trace PVParams)
+</span><a href="#local-6989586621679369068"><span class="hs-identifier hs-var hs-var">trace</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+-&gt; Path (Edges SPitch) (Notes SPitch)
+-&gt; Either String (Trace PVParams)
+</span><span class="hs-identifier hs-var">observeDerivation</span></span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369066"><span class="hs-identifier hs-var">deriv</span></a></span><span> </span><span class="annot"><span class="annottext">Path (Edges SPitch) (Notes SPitch)
+</span><a href="#local-6989586621679369067"><span class="hs-identifier hs-var">top</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardActionByLen"><span class="hs-identifier hs-type">pvRewardActionByLen</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hyper</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PVParams</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#PVRewardFn"><span class="hs-identifier hs-type">PVRewardFn</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- -&gt; PVAction</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- -&gt; Maybe Bool</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- -&gt; Int</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- -&gt; IO QType</span><span>
+</span><span id="line-76"></span><span id="pvRewardActionByLen"><span class="annot"><span class="annottext">pvRewardActionByLen :: Hyper PVParams -&gt; PVRewardFn Int
+</span><a href="RL.Callbacks.html#pvRewardActionByLen"><span class="hs-identifier hs-var hs-var">pvRewardActionByLen</span></a></span></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">PVState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardActionByLen"><span class="hs-identifier hs-var">pvRewardActionByLen</span></a></span><span> </span><span id="local-6989586621679369164"><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369164"><span class="hs-identifier hs-var">hyper</span></a></span></span><span> </span><span id="local-6989586621679369165"><span class="annot"><span class="annottext">Either
+  PVState
+  (Edges SPitch,
+   [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+</span><a href="#local-6989586621679369165"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679369166"><span class="annot"><span class="annottext">PVAction
+</span><a href="#local-6989586621679369166"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679369167"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679369167"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either String (Maybe ((), QType))
+</span><a href="#local-6989586621679369168"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679369169"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679369169"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-80"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO ()) -&gt; String -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;error giving reward: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679369169"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-81"></span><span>      </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><a href="RL.ModelTypes.html#inf"><span class="hs-identifier hs-var">inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">Maybe ((), QType)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Couldn't evaluate trace while giving reward&quot;</span></span><span>
+</span><span id="line-84"></span><span>      </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><a href="RL.ModelTypes.html#inf"><span class="hs-identifier hs-var">inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679369170"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369170"><span class="hs-identifier hs-var">logprob</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(QType -&gt; IO QType) -&gt; QType -&gt; IO QType
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369170"><span class="hs-identifier hs-var">logprob</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; QType
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679369167"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-86"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>  </span><span id="local-6989586621679369258"><span class="annot"><span class="annottext">probs :: Probs PVParams
+</span><a href="#local-6989586621679369258"><span class="hs-identifier hs-var hs-var">probs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (a :: k). Prior a =&gt; Hyper a -&gt; Probs a
+forall (a :: (* -&gt; *) -&gt; *). Prior a =&gt; Hyper a -&gt; Probs a
+</span><span class="hs-identifier hs-var">expectedProbs</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">PVParams</span></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369164"><span class="hs-identifier hs-var">hyper</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621679369259"><span class="annot"><span class="annottext">singleTop :: SingleParent slc b -&gt; (StartStop slc, b, StartStop slc)
+</span><a href="#local-6989586621679369259"><span class="hs-identifier hs-var hs-var">singleTop</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SingleParent</span></span><span> </span><span id="local-6989586621679369260"><span class="annot"><span class="annottext">StartStop slc
+</span><a href="#local-6989586621679369260"><span class="hs-identifier hs-var">sl</span></a></span></span><span> </span><span id="local-6989586621679369261"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679369261"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679369262"><span class="annot"><span class="annottext">StartStop slc
+</span><a href="#local-6989586621679369262"><span class="hs-identifier hs-var">sr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StartStop slc
+</span><a href="#local-6989586621679369260"><span class="hs-identifier hs-var">sl</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679369261"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">StartStop slc
+</span><a href="#local-6989586621679369262"><span class="hs-identifier hs-var">sr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>  </span><span id="local-6989586621679369263"><span class="annot"><span class="annottext">doubleTop :: DoubleParent c d -&gt; (StartStop c, d, c, d, StartStop c)
+</span><a href="#local-6989586621679369263"><span class="hs-identifier hs-var hs-var">doubleTop</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DoubleParent</span></span><span> </span><span id="local-6989586621679369264"><span class="annot"><span class="annottext">StartStop c
+</span><a href="#local-6989586621679369264"><span class="hs-identifier hs-var">sl</span></a></span></span><span> </span><span id="local-6989586621679369265"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679369265"><span class="hs-identifier hs-var">tl</span></a></span></span><span> </span><span id="local-6989586621679369266"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679369266"><span class="hs-identifier hs-var">sm</span></a></span></span><span> </span><span id="local-6989586621679369267"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679369267"><span class="hs-identifier hs-var">tr</span></a></span></span><span> </span><span id="local-6989586621679369268"><span class="annot"><span class="annottext">StartStop c
+</span><a href="#local-6989586621679369268"><span class="hs-identifier hs-var">sr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StartStop c
+</span><a href="#local-6989586621679369264"><span class="hs-identifier hs-var">sl</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679369265"><span class="hs-identifier hs-var">tl</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679369266"><span class="hs-identifier hs-var">sm</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679369267"><span class="hs-identifier hs-var">tr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">StartStop c
+</span><a href="#local-6989586621679369268"><span class="hs-identifier hs-var">sr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679369269"><span class="annot"><span class="annottext">ops :: [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369269"><span class="hs-identifier hs-var hs-var">ops</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either
+  PVState
+  (Edges SPitch,
+   [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+</span><a href="#local-6989586621679369165"><span class="hs-identifier hs-var">state</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679369270"><span class="annot"><span class="annottext">PVState
+</span><a href="#local-6989586621679369270"><span class="hs-identifier hs-var">gs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PVState
+-&gt; [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+forall tr tr' slc op. GreedyState tr tr' slc op -&gt; [op]
+</span><span class="hs-identifier hs-var">gsOps</span></span><span> </span><span class="annot"><span class="annottext">PVState
+</span><a href="#local-6989586621679369270"><span class="hs-identifier hs-var">gs</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Edges SPitch
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679369271"><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369271"><span class="hs-identifier hs-var">deriv</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369271"><span class="hs-identifier hs-var">deriv</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679369274"><span class="annot"><span class="annottext">decision :: Maybe Bool
+</span><a href="#local-6989586621679369274"><span class="hs-identifier hs-var hs-var">decision</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)
+-&gt; Maybe Bool
+forall s f h. Leftmost s f h -&gt; Maybe Bool
+</span><span class="hs-identifier hs-var">opGoesLeft</span></span><span> </span><span class="annot"><span class="annottext">(Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)
+ -&gt; Maybe Bool)
+-&gt; Maybe (Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch))
+-&gt; Maybe Bool
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+-&gt; Maybe (Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch))
+forall a. [a] -&gt; Maybe a
+</span><span class="hs-identifier hs-var">listToMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+-&gt; [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+-&gt; [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369269"><span class="hs-identifier hs-var">ops</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span id="local-6989586621679369168"><span class="annot"><span class="annottext">result :: Either String (Maybe ((), QType))
+</span><a href="#local-6989586621679369168"><span class="hs-identifier hs-var hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><a href="#local-6989586621679369166"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ActionSingle</span></span><span> </span><span id="local-6989586621679369277"><span class="annot"><span class="annottext">SingleParent (Notes SPitch) (Edges SPitch)
+</span><a href="#local-6989586621679369277"><span class="hs-identifier hs-var">top</span></a></span></span><span> </span><span id="local-6989586621679369278"><span class="annot"><span class="annottext">LeftmostSingle (Split SPitch) (Freeze SPitch)
+</span><a href="#local-6989586621679369278"><span class="hs-identifier hs-var">op</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Probs PVParams
+-&gt; ContextSingle SPitch
+-&gt; LeftmostSingle (Split SPitch) (Freeze SPitch)
+-&gt; Maybe Bool
+-&gt; Either String (Maybe ((), QType))
+</span><span class="hs-identifier hs-var">evalSingleStep</span></span><span> </span><span class="annot"><span class="annottext">Probs PVParams
+PVParams ProbsRep
+</span><a href="#local-6989586621679369258"><span class="hs-identifier hs-var">probs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SingleParent (Notes SPitch) (Edges SPitch) -&gt; ContextSingle SPitch
+forall {slc} {b}.
+SingleParent slc b -&gt; (StartStop slc, b, StartStop slc)
+</span><a href="#local-6989586621679369259"><span class="hs-identifier hs-var">singleTop</span></a></span><span> </span><span class="annot"><span class="annottext">SingleParent (Notes SPitch) (Edges SPitch)
+</span><a href="#local-6989586621679369277"><span class="hs-identifier hs-var">top</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">LeftmostSingle (Split SPitch) (Freeze SPitch)
+</span><a href="#local-6989586621679369278"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621679369274"><span class="hs-identifier hs-var">decision</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ActionDouble</span></span><span> </span><span id="local-6989586621679369280"><span class="annot"><span class="annottext">DoubleParent (Notes SPitch) (Edges SPitch)
+</span><a href="#local-6989586621679369280"><span class="hs-identifier hs-var">top</span></a></span></span><span> </span><span id="local-6989586621679369281"><span class="annot"><span class="annottext">LeftmostDouble (Split SPitch) (Freeze SPitch) (Spread SPitch)
+</span><a href="#local-6989586621679369281"><span class="hs-identifier hs-var">op</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Probs PVParams
+-&gt; ContextDouble SPitch
+-&gt; LeftmostDouble (Split SPitch) (Freeze SPitch) (Spread SPitch)
+-&gt; Maybe Bool
+-&gt; Either String (Maybe ((), QType))
+</span><span class="hs-identifier hs-var">evalDoubleStep</span></span><span> </span><span class="annot"><span class="annottext">Probs PVParams
+PVParams ProbsRep
+</span><a href="#local-6989586621679369258"><span class="hs-identifier hs-var">probs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DoubleParent (Notes SPitch) (Edges SPitch) -&gt; ContextDouble SPitch
+forall {c} {d}.
+DoubleParent c d -&gt; (StartStop c, d, c, d, StartStop c)
+</span><a href="#local-6989586621679369263"><span class="hs-identifier hs-var">doubleTop</span></a></span><span> </span><span class="annot"><span class="annottext">DoubleParent (Notes SPitch) (Edges SPitch)
+</span><a href="#local-6989586621679369280"><span class="hs-identifier hs-var">top</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">LeftmostDouble (Split SPitch) (Freeze SPitch) (Spread SPitch)
+</span><a href="#local-6989586621679369281"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621679369274"><span class="hs-identifier hs-var">decision</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardChord"><span class="hs-identifier hs-type">pvRewardChord</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#PVRewardFn"><span class="hs-identifier hs-type">PVRewardFn</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span>
+</span><span id="line-99"></span><span id="pvRewardChord"><span class="annot"><span class="annottext">pvRewardChord :: PVRewardFn [Int]
+</span><a href="RL.Callbacks.html#pvRewardChord"><span class="hs-identifier hs-var hs-var">pvRewardChord</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">PVState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardChord"><span class="hs-identifier hs-var">pvRewardChord</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">PVState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">NonEmpty PVAction
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-101"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardChord"><span class="hs-identifier hs-var">pvRewardChord</span></a></span><span> </span><span class="annot"><span class="annottext">Either
+  PVState
+  (Edges SPitch,
+   [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-102"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardChord"><span class="hs-identifier hs-var">pvRewardChord</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Edges SPitch
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679369284"><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369284"><span class="hs-identifier hs-var">deriv</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679369285"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679369285"><span class="hs-identifier hs-var">expected</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; IO QType
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(QType -&gt; IO QType) -&gt; QType -&gt; IO QType
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><a href="#local-6989586621679369284"><span class="hs-identifier hs-var">deriv</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679369286"><span class="annot"><span class="annottext">Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)
+</span><a href="#local-6989586621679369286"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)
+</span><a href="#local-6989586621679369286"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-106"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">LMSplitOnly</span></span><span> </span><span id="local-6989586621679369288"><span class="annot"><span class="annottext">Split SPitch
+</span><a href="#local-6989586621679369288"><span class="hs-identifier hs-var">splt</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-107"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679369292"><span class="annot"><span class="annottext">rootNotes :: [Note SPitch]
+</span><a href="#local-6989586621679369292"><span class="hs-identifier hs-var hs-var">rootNotes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Note SPitch, DoubleOrnament) -&gt; Note SPitch)
+-&gt; [(Note SPitch, DoubleOrnament)] -&gt; [Note SPitch]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">(Note SPitch, DoubleOrnament) -&gt; Note SPitch
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(Note SPitch, DoubleOrnament)] -&gt; [Note SPitch])
+-&gt; [(Note SPitch, DoubleOrnament)] -&gt; [Note SPitch]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[(Note SPitch, DoubleOrnament)]]
+-&gt; [(Note SPitch, DoubleOrnament)]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[(Note SPitch, DoubleOrnament)]]
+ -&gt; [(Note SPitch, DoubleOrnament)])
+-&gt; [[(Note SPitch, DoubleOrnament)]]
+-&gt; [(Note SPitch, DoubleOrnament)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Map (Edge SPitch) [(Note SPitch, DoubleOrnament)]
+-&gt; [[(Note SPitch, DoubleOrnament)]]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">M.elems</span></span><span> </span><span class="annot"><span class="annottext">(Map (Edge SPitch) [(Note SPitch, DoubleOrnament)]
+ -&gt; [[(Note SPitch, DoubleOrnament)]])
+-&gt; Map (Edge SPitch) [(Note SPitch, DoubleOrnament)]
+-&gt; [[(Note SPitch, DoubleOrnament)]]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Split SPitch -&gt; Map (Edge SPitch) [(Note SPitch, DoubleOrnament)]
+forall n. Split n -&gt; Map (Edge n) [(Note n, DoubleOrnament)]
+</span><span class="hs-identifier hs-var">splitReg</span></span><span> </span><span class="annot"><span class="annottext">Split SPitch
+</span><a href="#local-6989586621679369288"><span class="hs-identifier hs-var">splt</span></a></span><span>
+</span><span id="line-108"></span><span>            </span><span id="local-6989586621679369310"><span class="annot"><span class="annottext">correctRoots :: [Int]
+</span><a href="#local-6989586621679369310"><span class="hs-identifier hs-var hs-var">correctRoots</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Bool) -&gt; [Int] -&gt; [Int]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679369285"><span class="hs-identifier hs-var">expected</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; [Int]) -&gt; [Int] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SPitch -&gt; Int
+forall i. Spelled i =&gt; i -&gt; Int
+</span><span class="hs-identifier hs-var">fifths</span></span><span> </span><span class="annot"><span class="annottext">(SPitch -&gt; Int) -&gt; (Note SPitch -&gt; SPitch) -&gt; Note SPitch -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Note SPitch -&gt; SPitch
+forall n. Note n -&gt; n
+</span><span class="hs-identifier hs-var">notePitch</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Note SPitch -&gt; Int) -&gt; [Note SPitch] -&gt; [Int]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Note SPitch]
+</span><a href="#local-6989586621679369292"><span class="hs-identifier hs-var">rootNotes</span></a></span><span>
+</span><span id="line-109"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; QType
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679369310"><span class="hs-identifier hs-var">correctRoots</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; QType
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Note SPitch] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Note SPitch]
+</span><a href="#local-6989586621679369292"><span class="hs-identifier hs-var">rootNotes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>      </span><span class="annot"><span class="annottext">Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span id="local-6989586621679368812"><span id="local-6989586621679368813"><span class="annot"><a href="RL.Callbacks.html#addRewards"><span class="hs-identifier hs-type">addRewards</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#PVRewardFn"><span class="hs-identifier hs-type">PVRewardFn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679368812"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#PVRewardFn"><span class="hs-identifier hs-type">PVRewardFn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679368813"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#PVRewardFn"><span class="hs-identifier hs-type">PVRewardFn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679368812"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679368813"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-113"></span><span id="addRewards"><span class="annot"><span class="annottext">addRewards :: forall a b.
+QType -&gt; PVRewardFn a -&gt; PVRewardFn b -&gt; PVRewardFn (a, b)
+</span><a href="RL.Callbacks.html#addRewards"><span class="hs-identifier hs-var hs-var">addRewards</span></a></span></span><span> </span><span id="local-6989586621679369321"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369321"><span class="hs-identifier hs-var">beta</span></a></span></span><span> </span><span id="local-6989586621679369322"><span class="annot"><span class="annottext">PVRewardFn a
+</span><a href="#local-6989586621679369322"><span class="hs-identifier hs-var">f1</span></a></span></span><span> </span><span id="local-6989586621679369323"><span class="annot"><span class="annottext">PVRewardFn b
+</span><a href="#local-6989586621679369323"><span class="hs-identifier hs-var">f2</span></a></span></span><span> </span><span id="local-6989586621679369324"><span class="annot"><span class="annottext">Either
+  PVState
+  (Edges SPitch,
+   [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+</span><a href="#local-6989586621679369324"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span id="local-6989586621679369325"><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><a href="#local-6989586621679369325"><span class="hs-identifier hs-var">acs</span></a></span></span><span> </span><span id="local-6989586621679369326"><span class="annot"><span class="annottext">PVAction
+</span><a href="#local-6989586621679369326"><span class="hs-identifier hs-var">ac</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679369327"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679369327"><span class="hs-identifier hs-var">labela</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679369328"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679369328"><span class="hs-identifier hs-var">labelb</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-114"></span><span>  </span><span id="local-6989586621679369329"><span class="annot"><a href="#local-6989586621679369329"><span class="hs-identifier hs-var">r1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">PVRewardFn a
+</span><a href="#local-6989586621679369322"><span class="hs-identifier hs-var">f1</span></a></span><span> </span><span class="annot"><span class="annottext">Either
+  PVState
+  (Edges SPitch,
+   [Leftmost (Split SPitch) (Freeze SPitch) (Spread SPitch)])
+</span><a href="#local-6989586621679369324"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty PVAction)
+</span><a href="#local-6989586621679369325"><span class="hs-identifier hs-var">acs</span></a></span><span> </span><span class="annot"><span class="annottext">PVAction
+</span><a href="#local-6989586621679369326"><span class="hs-identifier hs-var">ac</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679369327"><span class="hs-identifier hs-var">labela</span></a></span><span>
+</span><span id="line-115"></span><span>  </span><span id="local-6989586621679369330"><span class="annot"><a href="#local-6989586621679369330"><span class="hs-identifier hs-var">r2</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679369323"><span class="hs-identifier hs-type">f2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369324"><span class="hs-identifier hs-type">st</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369325"><span class="hs-identifier hs-type">acs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369326"><span class="hs-identifier hs-type">ac</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369328"><span class="hs-identifier hs-type">labelb</span></a></span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679369329"><span class="hs-identifier hs-type">r1</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">+</span></span><span> </span><span class="annot"><a href="#local-6989586621679369321"><span class="hs-identifier hs-type">beta</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">*</span></span><span> </span><span class="annot"><a href="#local-6989586621679369330"><span class="hs-identifier hs-type">r2</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="annot"><a href="RL.Callbacks.html#pvRewardChordAndActionByLen"><span class="hs-identifier hs-type">pvRewardChordAndActionByLen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hyper</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PVParams</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#PVRewardFn"><span class="hs-identifier hs-type">PVRewardFn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span id="pvRewardChordAndActionByLen"><span class="annot"><span class="annottext">pvRewardChordAndActionByLen :: QType -&gt; Hyper PVParams -&gt; PVRewardFn (Int, [Int])
+</span><a href="RL.Callbacks.html#pvRewardChordAndActionByLen"><span class="hs-identifier hs-var hs-var">pvRewardChordAndActionByLen</span></a></span></span><span> </span><span id="local-6989586621679369334"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369334"><span class="hs-identifier hs-var">beta</span></a></span></span><span> </span><span id="local-6989586621679369335"><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369335"><span class="hs-identifier hs-var">hyper</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><span class="annottext">QType
+-&gt; PVRewardFn Int -&gt; PVRewardFn [Int] -&gt; PVRewardFn (Int, [Int])
+forall a b.
+QType -&gt; PVRewardFn a -&gt; PVRewardFn b -&gt; PVRewardFn (a, b)
+</span><a href="RL.Callbacks.html#addRewards"><span class="hs-identifier hs-var">addRewards</span></a></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369334"><span class="hs-identifier hs-var">beta</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Hyper PVParams -&gt; PVRewardFn Int
+</span><a href="RL.Callbacks.html#pvRewardActionByLen"><span class="hs-identifier hs-var">pvRewardActionByLen</span></a></span><span> </span><span class="annot"><span class="annottext">Hyper PVParams
+</span><a href="#local-6989586621679369335"><span class="hs-identifier hs-var">hyper</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PVRewardFn [Int]
+</span><a href="RL.Callbacks.html#pvRewardChord"><span class="hs-identifier hs-var">pvRewardChord</span></a></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- Schedules</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- =========</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="annot"><a href="RL.Callbacks.html#cosSchedule"><span class="hs-identifier hs-type">cosSchedule</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span>
+</span><span id="line-126"></span><span id="cosSchedule"><span class="annot"><span class="annottext">cosSchedule :: QType -&gt; QType -&gt; QType
+</span><a href="RL.Callbacks.html#cosSchedule"><span class="hs-identifier hs-var hs-var">cosSchedule</span></a></span></span><span> </span><span id="local-6989586621679369337"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369337"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679369338"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369338"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">QType -&gt; QType
+forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">cos</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369340"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">QType
+forall a. Floating a =&gt; a
+</span><span class="hs-identifier hs-var">pi</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-127"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-128"></span><span>  </span><span id="local-6989586621679369340"><span class="annot"><span class="annottext">t :: QType
+</span><a href="#local-6989586621679369340"><span class="hs-identifier hs-var hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369338"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369337"><span class="hs-identifier hs-var">total</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="annot"><a href="RL.Callbacks.html#expSchedule"><span class="hs-identifier hs-type">expSchedule</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span>
+</span><span id="line-131"></span><span id="expSchedule"><span class="annot"><span class="annottext">expSchedule :: QType -&gt; QType -&gt; QType -&gt; QType -&gt; QType
+</span><a href="RL.Callbacks.html#expSchedule"><span class="hs-identifier hs-var hs-var">expSchedule</span></a></span></span><span> </span><span id="local-6989586621679369344"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369344"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679369345"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369345"><span class="hs-identifier hs-var">end</span></a></span></span><span> </span><span id="local-6989586621679369346"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369346"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679369347"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369347"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369344"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType
+forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">exp</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">QType -&gt; QType
+forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">log</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369345"><span class="hs-identifier hs-var">end</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369344"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369347"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679369346"><span class="hs-identifier hs-var">total</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span></pre></body></html>

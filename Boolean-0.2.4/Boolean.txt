@@ -45,7 +45,7 @@ infixr 2 ||*
 type family BooleanOf a
 
 -- | Types with conditionals
-class Boolean (BooleanOf a) => IfB a
+class Boolean BooleanOf a => IfB a
 ifB :: (IfB a, bool ~ BooleanOf a) => bool -> a -> a -> a
 
 -- | Expression-lifted conditional with condition last
@@ -59,22 +59,22 @@ cond :: (Applicative f, IfB a, bool ~ BooleanOf a) => f bool -> f a -> f a -> f 
 crop :: (Applicative f, Monoid (f a), IfB a, bool ~ BooleanOf a) => f bool -> f a -> f a
 
 -- | Types with equality. Minimum definition: <a>(==*)</a>.
-class Boolean (BooleanOf a) => EqB a
+class Boolean BooleanOf a => EqB a
 (==*) :: (EqB a, bool ~ BooleanOf a) => a -> a -> bool
 (/=*) :: (EqB a, bool ~ BooleanOf a) => a -> a -> bool
 infix 4 ==*
 infix 4 /=*
 
 -- | Types with inequality. Minimum definition: <a>(&lt;*)</a>.
-class Boolean (BooleanOf a) => OrdB a
+class Boolean BooleanOf a => OrdB a
 (<*) :: (OrdB a, bool ~ BooleanOf a) => a -> a -> bool
 (<=*) :: (OrdB a, bool ~ BooleanOf a) => a -> a -> bool
 (>*) :: (OrdB a, bool ~ BooleanOf a) => a -> a -> bool
 (>=*) :: (OrdB a, bool ~ BooleanOf a) => a -> a -> bool
 infix 4 <*
 infix 4 <=*
-infix 4 >=*
 infix 4 >*
+infix 4 >=*
 
 -- | Variant of <a>min</a> using <a>ifB</a> and <a>(&lt;=*)</a>
 minB :: (IfB a, OrdB a) => a -> a -> a
@@ -91,33 +91,33 @@ guardedB :: (IfB b, bool ~ BooleanOf b) => bool -> [(bool, b)] -> b -> b
 
 -- | A generalized version of a case like control structure.
 caseB :: (IfB b, bool ~ BooleanOf b) => a -> [(a -> bool, b)] -> b -> b
-instance Data.Boolean.OrdB GHC.Types.Int
-instance Data.Boolean.OrdB GHC.Num.Integer.Integer
-instance Data.Boolean.OrdB GHC.Types.Float
-instance Data.Boolean.OrdB GHC.Types.Double
-instance Data.Boolean.OrdB GHC.Types.Bool
-instance Data.Boolean.OrdB GHC.Types.Char
-instance Data.Boolean.OrdB a => Data.Boolean.OrdB (z -> a)
-instance Data.Boolean.EqB GHC.Types.Int
-instance Data.Boolean.EqB GHC.Num.Integer.Integer
-instance Data.Boolean.EqB GHC.Types.Float
-instance Data.Boolean.EqB GHC.Types.Double
+instance Data.Boolean.Boolean GHC.Types.Bool
+instance Data.Boolean.Boolean bool => Data.Boolean.Boolean (z -> bool)
 instance Data.Boolean.EqB GHC.Types.Bool
 instance Data.Boolean.EqB GHC.Types.Char
+instance Data.Boolean.EqB GHC.Types.Double
 instance Data.Boolean.EqB a => Data.Boolean.EqB (z -> a)
-instance Data.Boolean.IfB GHC.Types.Int
-instance Data.Boolean.IfB GHC.Num.Integer.Integer
-instance Data.Boolean.IfB GHC.Types.Float
-instance Data.Boolean.IfB GHC.Types.Double
+instance Data.Boolean.EqB GHC.Types.Float
+instance Data.Boolean.EqB GHC.Types.Int
+instance Data.Boolean.EqB GHC.Num.Integer.Integer
 instance Data.Boolean.IfB GHC.Types.Bool
 instance Data.Boolean.IfB GHC.Types.Char
+instance Data.Boolean.IfB GHC.Types.Double
+instance Data.Boolean.IfB a => Data.Boolean.IfB (z -> a)
+instance Data.Boolean.IfB GHC.Types.Float
+instance Data.Boolean.IfB GHC.Types.Int
+instance Data.Boolean.IfB GHC.Num.Integer.Integer
 instance (Data.Boolean.Boolean (Data.Boolean.BooleanOf a), Data.Boolean.BooleanOf a GHC.Types.~ GHC.Types.Bool) => Data.Boolean.IfB [a]
 instance (bool GHC.Types.~ Data.Boolean.BooleanOf p, bool GHC.Types.~ Data.Boolean.BooleanOf q, Data.Boolean.IfB p, Data.Boolean.IfB q) => Data.Boolean.IfB (p, q)
 instance (bool GHC.Types.~ Data.Boolean.BooleanOf p, bool GHC.Types.~ Data.Boolean.BooleanOf q, bool GHC.Types.~ Data.Boolean.BooleanOf r, Data.Boolean.IfB p, Data.Boolean.IfB q, Data.Boolean.IfB r) => Data.Boolean.IfB (p, q, r)
 instance (bool GHC.Types.~ Data.Boolean.BooleanOf p, bool GHC.Types.~ Data.Boolean.BooleanOf q, bool GHC.Types.~ Data.Boolean.BooleanOf r, bool GHC.Types.~ Data.Boolean.BooleanOf s, Data.Boolean.IfB p, Data.Boolean.IfB q, Data.Boolean.IfB r, Data.Boolean.IfB s) => Data.Boolean.IfB (p, q, r, s)
-instance Data.Boolean.IfB a => Data.Boolean.IfB (z -> a)
-instance Data.Boolean.Boolean GHC.Types.Bool
-instance Data.Boolean.Boolean bool => Data.Boolean.Boolean (z -> bool)
+instance Data.Boolean.OrdB GHC.Types.Bool
+instance Data.Boolean.OrdB GHC.Types.Char
+instance Data.Boolean.OrdB GHC.Types.Double
+instance Data.Boolean.OrdB a => Data.Boolean.OrdB (z -> a)
+instance Data.Boolean.OrdB GHC.Types.Float
+instance Data.Boolean.OrdB GHC.Types.Int
+instance Data.Boolean.OrdB GHC.Num.Integer.Integer
 
 
 -- | A generalized version of the class hirarchy for numbers. All functions
@@ -175,8 +175,8 @@ toIntegerB :: IntegralB a => a -> IntegerOf a
 -- | Deep embedded version of <a>RealFloat</a>. Extracting components of
 --   fractions.
 --   
---   Minimal complete definition: <a>properFraction</a>, <a>RealFracB</a>,
---   <a>RealFracB</a> and <a>RealFracB</a>.
+--   Minimal complete definition: <a>properFraction</a>, <a>round</a>,
+--   <a>floor</a> and <a>ceiling</a>.
 class (NumB a, OrdB a, Fractional a) => RealFracB a
 
 -- | The function <a>properFraction</a> takes a real fractional number
@@ -190,25 +190,25 @@ class (NumB a, OrdB a, Fractional a) => RealFracB a
 --   <tt>x</tt>, and with absolute value less than <tt>1</tt>.</li>
 --   </ul>
 --   
---   The default definitions of the <a>RealFracB</a>, <a>RealFracB</a>,
---   <a>RealFracB</a> and <a>RealFracB</a> functions are in terms of
+--   The default definitions of the <a>ceiling</a>, <a>floor</a>,
+--   <a>truncate</a> and <a>round</a> functions are in terms of
 --   <a>properFraction</a>.
 properFraction :: (RealFracB a, IntegerOf a ~ IntegerOf b, IntegralB b) => a -> (b, a)
 
--- | <tt><a>RealFracB</a> x</tt> returns the integer nearest <tt>x</tt>
+-- | <tt><a>truncate</a> x</tt> returns the integer nearest <tt>x</tt>
 --   between zero and <tt>x</tt>
 truncate :: (RealFracB a, IntegerOf a ~ IntegerOf b, IntegralB b) => a -> b
 
--- | <tt><a>RealFracB</a> x</tt> returns the nearest integer to <tt>x</tt>;
---   the even integer if <tt>x</tt> is equidistant between two integers
+-- | <tt><a>round</a> x</tt> returns the nearest integer to <tt>x</tt>; the
+--   even integer if <tt>x</tt> is equidistant between two integers
 round :: (RealFracB a, IntegerOf a ~ IntegerOf b, IntegralB b) => a -> b
 
--- | <tt><a>RealFracB</a> x</tt> returns the least integer not less than
+-- | <tt><a>ceiling</a> x</tt> returns the least integer not less than
 --   <tt>x</tt>
 ceiling :: (RealFracB a, IntegerOf a ~ IntegerOf b, IntegralB b) => a -> b
 
--- | <tt><a>RealFracB</a> x</tt> returns the greatest integer not greater
---   than <tt>x</tt>.
+-- | <tt><a>floor</a> x</tt> returns the greatest integer not greater than
+--   <tt>x</tt>.
 floor :: (RealFracB a, IntegerOf a ~ IntegerOf b, IntegralB b) => a -> b
 
 -- | Deep embedded version of <a>RealFloat</a>. Efficient,
@@ -216,7 +216,7 @@ floor :: (RealFracB a, IntegerOf a ~ IntegerOf b, IntegralB b) => a -> b
 --   number.
 --   
 --   A complete definition has to define all functions.
-class (Boolean (BooleanOf a), RealFracB a, Floating a) => RealFloatB a
+class (Boolean BooleanOf a, RealFracB a, Floating a) => RealFloatB a
 
 -- | <a>true</a> if the argument is an IEEE "not-a-number" (NaN) value.
 isNaN :: RealFloatB a => a -> BooleanOf a
@@ -231,14 +231,14 @@ isNegativeZero :: RealFloatB a => a -> BooleanOf a
 isIEEE :: RealFloatB a => a -> BooleanOf a
 
 -- | a version of arctangent taking two real floating-point arguments. For
---   real floating <tt>x</tt> and <tt>y</tt>, <tt><a>RealFloatB</a> y
---   x</tt> computes the angle (from the positive x-axis) of the vector
---   from the origin to the point <tt>(x,y)</tt>. <tt><a>RealFloatB</a> y
---   x</tt> returns a value in the range [<tt>-pi</tt>, <tt>pi</tt>]. It
---   follows the Common Lisp semantics for the origin when signed zeroes
---   are supported. <tt><a>RealFloatB</a> y 1</tt>, with <tt>y</tt> in a
---   type that is <a>RealFloatB</a>, should return the same value as
---   <tt><a>atan</a> y</tt>.
+--   real floating <tt>x</tt> and <tt>y</tt>, <tt><a>atan2</a> y x</tt>
+--   computes the angle (from the positive x-axis) of the vector from the
+--   origin to the point <tt>(x,y)</tt>. <tt><a>atan2</a> y x</tt> returns
+--   a value in the range [<tt>-pi</tt>, <tt>pi</tt>]. It follows the
+--   Common Lisp semantics for the origin when signed zeroes are supported.
+--   <tt><a>atan2</a> y 1</tt>, with <tt>y</tt> in a type that is
+--   <a>RealFloatB</a>, should return the same value as <tt><a>atan</a>
+--   y</tt>.
 atan2 :: RealFloatB a => a -> a -> a
 
 -- | Variant of <a>even</a> for generalized booleans.
@@ -249,16 +249,16 @@ oddB :: (IfB a, EqB a, IntegralB a) => a -> BooleanOf a
 
 -- | Variant of <a>fromIntegral</a> for generalized booleans.
 fromIntegralB :: (IntegerOf a ~ IntegerOf b, IntegralB a, NumB b) => a -> b
-instance Data.Boolean.Numbers.RealFloatB GHC.Types.Float
-instance Data.Boolean.Numbers.RealFloatB GHC.Types.Double
-instance Data.Boolean.Numbers.RealFracB GHC.Types.Float
-instance Data.Boolean.Numbers.RealFracB GHC.Types.Double
 instance Data.Boolean.Numbers.IntegralB GHC.Types.Int
 instance Data.Boolean.Numbers.IntegralB GHC.Num.Integer.Integer
+instance Data.Boolean.Numbers.NumB GHC.Types.Double
+instance Data.Boolean.Numbers.NumB GHC.Types.Float
 instance Data.Boolean.Numbers.NumB GHC.Types.Int
 instance Data.Boolean.Numbers.NumB GHC.Num.Integer.Integer
-instance Data.Boolean.Numbers.NumB GHC.Types.Float
-instance Data.Boolean.Numbers.NumB GHC.Types.Double
+instance Data.Boolean.Numbers.RealFloatB GHC.Types.Double
+instance Data.Boolean.Numbers.RealFloatB GHC.Types.Float
+instance Data.Boolean.Numbers.RealFracB GHC.Types.Double
+instance Data.Boolean.Numbers.RealFracB GHC.Types.Float
 
 
 -- | Definitions of Prelude function names in terms of their corresponding

@@ -1,0 +1,122 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--  class of flag types</span><span>
+</span><span id="line-3"></span><span class="hs-comment">--</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--  Author : Duncan Coutts</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--  Created: 21 January 2005</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--  Copyright (C) 2001-2005 Duncan Coutts, Axel Simon</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--  This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--  modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--  License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--  version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--  This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--  but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--  Lesser General Public License for more details.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Maintainer  : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Stability   : provisional</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- This module defines a type class for flags that are marshaled as bitflags.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Glib.Flags.html"><span class="hs-identifier">System.Glib.Flags</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><a href="System.Glib.Flags.html#Flags"><span class="hs-identifier">Flags</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><a href="System.Glib.Flags.html#fromFlags"><span class="hs-identifier">fromFlags</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><a href="System.Glib.Flags.html#toFlags"><span class="hs-identifier">toFlags</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(.|.)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.&amp;.)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">testBit</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftL</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftR</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">catMaybes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">class</span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621679079131"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bounded</span></span><span> </span><span class="annot"><a href="#local-6989586621679079131"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Flags"><span class="annot"><a href="System.Glib.Flags.html#Flags"><span class="hs-identifier hs-var">Flags</span></a></span></span><span> </span><span id="local-6989586621679079131"><span class="annot"><a href="#local-6989586621679079131"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span id="local-6989586621679079133"><span class="annot"><a href="System.Glib.Flags.html#fromFlags"><span class="hs-identifier hs-type">fromFlags</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Glib.Flags.html#Flags"><span class="hs-identifier hs-type">Flags</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679079133"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679079133"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-39"></span><span id="fromFlags"><span class="annot"><span class="annottext">fromFlags :: forall a. Flags a =&gt; [a] -&gt; Int
+</span><a href="System.Glib.Flags.html#fromFlags"><span class="hs-identifier hs-var hs-var">fromFlags</span></a></span></span><span> </span><span id="local-6989586621679079158"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079158"><span class="hs-identifier hs-var">is</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; Int
+forall {a}. Enum a =&gt; Int -&gt; [a] -&gt; Int
+</span><a href="#local-6989586621679079159"><span class="hs-identifier hs-var">orNum</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079158"><span class="hs-identifier hs-var">is</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679079159"><span class="annot"><span class="annottext">orNum :: Int -&gt; [a] -&gt; Int
+</span><a href="#local-6989586621679079159"><span class="hs-identifier hs-var hs-var">orNum</span></a></span></span><span> </span><span id="local-6989586621679079164"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679079164"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679079164"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><a href="#local-6989586621679079159"><span class="hs-identifier hs-var">orNum</span></a></span><span> </span><span id="local-6989586621679079165"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679079165"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679079166"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679079166"><span class="hs-identifier hs-var">i</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679079167"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079167"><span class="hs-identifier hs-var">is</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; Int
+</span><a href="#local-6989586621679079159"><span class="hs-identifier hs-var">orNum</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679079165"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679079166"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079167"><span class="hs-identifier hs-var">is</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><span class="hs-comment">-- * Note that this function ignores bits set in the passed</span></span><span>
+</span><span id="line-44"></span><span class="hs-comment">--   'Int' that do not correspond to a flag.</span><span>
+</span><span id="line-45"></span><span id="local-6989586621679079139"><span class="annot"><a href="System.Glib.Flags.html#toFlags"><span class="hs-identifier hs-type">toFlags</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Glib.Flags.html#Flags"><span class="hs-identifier hs-type">Flags</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679079139"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679079139"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-46"></span><span id="toFlags"><span class="annot"><span class="annottext">toFlags :: forall a. Flags a =&gt; Int -&gt; [a]
+</span><a href="System.Glib.Flags.html#toFlags"><span class="hs-identifier hs-var hs-var">toFlags</span></a></span></span><span> </span><span id="local-6989586621679079180"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679079180"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe a] -&gt; [a]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679079180"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679079181"><span class="hs-identifier hs-var">flag</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679079181"><span class="hs-identifier hs-var">flag</span></a></span><span>
+</span><span id="line-47"></span><span>                           </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679079181"><span class="hs-identifier hs-var">flag</span></a></span><span>
+</span><span id="line-48"></span><span>                           </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-49"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679079181"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679079181"><span class="hs-identifier hs-var">flag</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">a
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-------------------------</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- QuickCheck test code</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">{-
+import Test.QuickCheck
+import List (sort, nub)
+-- to run these tests you must copy EventMask and its Enum instance here
+-- and make it an instance of Ord, Eq and Show.
+
+prop_ToFlagsFromFlags :: Int -&gt; Property
+prop_ToFlagsFromFlags n =
+  (n &gt;= 1 &amp;&amp; n &lt;= 21)
+  ==&gt;
+  collect n $
+  let flag :: [EventMask]
+      flag = toFlags (2^n)
+   in 2^n == fromFlags flag
+
+prop_FromFlagsToFlags :: [EventMask] -&gt; Bool
+prop_FromFlagsToFlags flags =
+  (nub . sort) flags == toFlags (fromFlags flags)
+
+instance Arbitrary EventMask where
+  arbitrary     = sized $ \_ -&gt; do x &lt;- choose (1,21 :: Int)
+                                   return (toEnum $ 2^x)
+-}</span><span>
+</span><span id="line-77"></span></pre></body></html>

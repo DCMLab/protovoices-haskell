@@ -72,80 +72,80 @@ module Pipes.ByteString
 
 -- | Convert a lazy <a>ByteString</a> into a <a>Producer</a> of strict
 --   <a>ByteString</a>s
-fromLazy :: Monad m => ByteString -> Producer' ByteString m ()
+fromLazy :: forall (m :: Type -> Type). Monad m => ByteString -> Producer' ByteString m ()
 
 -- | Stream bytes from <a>stdin</a>
-stdin :: MonadIO m => Producer' ByteString m ()
+stdin :: forall (m :: Type -> Type). MonadIO m => Producer' ByteString m ()
 
 -- | Convert a <a>Handle</a> into a byte stream using a default chunk size
-fromHandle :: MonadIO m => Handle -> Producer' ByteString m ()
+fromHandle :: forall (m :: Type -> Type). MonadIO m => Handle -> Producer' ByteString m ()
 
 -- | Convert a handle into a byte stream using a maximum chunk size
 --   
 --   <a>hGetSome</a> forwards input immediately as it becomes available,
 --   splitting the input into multiple chunks if it exceeds the maximum
 --   chunk size.
-hGetSome :: MonadIO m => Int -> Handle -> Producer' ByteString m ()
+hGetSome :: forall (m :: Type -> Type). MonadIO m => Int -> Handle -> Producer' ByteString m ()
 
 -- | Convert a handle into a byte stream using a fixed chunk size
 --   
 --   Similar to <a>hGet</a> except that it will never block waiting for
 --   data to become available.
-hGetNonBlocking :: MonadIO m => Int -> Handle -> Producer' ByteString m ()
+hGetNonBlocking :: forall (m :: Type -> Type). MonadIO m => Int -> Handle -> Producer' ByteString m ()
 
 -- | Convert a handle into a byte stream using a fixed chunk size
 --   
 --   <a>hGet</a> waits until exactly the requested number of bytes are
 --   available for each chunk.
-hGet :: MonadIO m => Int -> Handle -> Producer' ByteString m ()
+hGet :: forall (m :: Type -> Type). MonadIO m => Int -> Handle -> Producer' ByteString m ()
 
 -- | Like <a>hGet</a> but with an extra parameter specifying an initial
 --   handle offset
-hGetRange :: MonadIO m => Int -> Int -> Handle -> Producer' ByteString m ()
+hGetRange :: forall (m :: Type -> Type). MonadIO m => Int -> Int -> Handle -> Producer' ByteString m ()
 
 -- | Like <a>hGetSome</a>, except you can vary the maximum chunk size for
 --   each request
-hGetSomeN :: MonadIO m => Handle -> Int -> Server' Int ByteString m ()
+hGetSomeN :: forall (m :: Type -> Type). MonadIO m => Handle -> Int -> Server' Int ByteString m ()
 
 -- | Like <a>hGet</a>, except you can vary the chunk size for each request
-hGetN :: MonadIO m => Handle -> Int -> Server' Int ByteString m ()
+hGetN :: forall (m :: Type -> Type). MonadIO m => Handle -> Int -> Server' Int ByteString m ()
 
 -- | Stream bytes to <a>stdout</a>
 --   
 --   Unlike <a>toHandle</a>, <a>stdout</a> gracefully terminates on a
 --   broken output pipe.
-stdout :: MonadIO m => Consumer' ByteString m ()
+stdout :: forall (m :: Type -> Type). MonadIO m => Consumer' ByteString m ()
 
 -- | Convert a byte stream into a <tt>Handle</tt>
 --   
 --   <pre>
 --   p &gt;-&gt; toHandle handle = for p (liftIO . hPutStr handle)
 --   </pre>
-toHandle :: MonadIO m => Handle -> Consumer' ByteString m r
+toHandle :: forall (m :: Type -> Type) r. MonadIO m => Handle -> Consumer' ByteString m r
 
 -- | Apply a transformation to each <a>Word8</a> in the stream
-map :: Monad m => (Word8 -> Word8) -> Pipe ByteString ByteString m r
+map :: forall (m :: Type -> Type) r. Monad m => (Word8 -> Word8) -> Pipe ByteString ByteString m r
 
 -- | Map a function over the byte stream and concatenate the results
-concatMap :: Monad m => (Word8 -> ByteString) -> Pipe ByteString ByteString m r
+concatMap :: forall (m :: Type -> Type) r. Monad m => (Word8 -> ByteString) -> Pipe ByteString ByteString m r
 
 -- | <tt>(take n)</tt> only allows <tt>n</tt> bytes to pass
-take :: (Monad m, Integral n) => n -> Pipe ByteString ByteString m ()
+take :: forall (m :: Type -> Type) n. (Monad m, Integral n) => n -> Pipe ByteString ByteString m ()
 
 -- | Take bytes until they fail the predicate
-takeWhile :: Monad m => (Word8 -> Bool) -> Pipe ByteString ByteString m ()
+takeWhile :: forall (m :: Type -> Type). Monad m => (Word8 -> Bool) -> Pipe ByteString ByteString m ()
 
 -- | Only allows <a>Word8</a>s to pass if they satisfy the predicate
-filter :: Monad m => (Word8 -> Bool) -> Pipe ByteString ByteString m r
+filter :: forall (m :: Type -> Type) r. Monad m => (Word8 -> Bool) -> Pipe ByteString ByteString m r
 
 -- | Stream all indices whose elements match the given <a>Word8</a>
-elemIndices :: (Monad m, Num n) => Word8 -> Pipe ByteString n m r
+elemIndices :: forall (m :: Type -> Type) n r. (Monad m, Num n) => Word8 -> Pipe ByteString n m r
 
 -- | Stream all indices whose elements satisfy the given predicate
-findIndices :: (Monad m, Num n) => (Word8 -> Bool) -> Pipe ByteString n m r
+findIndices :: forall (m :: Type -> Type) n r. (Monad m, Num n) => (Word8 -> Bool) -> Pipe ByteString n m r
 
 -- | Strict left scan over the bytes
-scan :: Monad m => (Word8 -> Word8 -> Word8) -> Word8 -> Pipe ByteString ByteString m r
+scan :: forall (m :: Type -> Type) r. Monad m => (Word8 -> Word8 -> Word8) -> Word8 -> Pipe ByteString ByteString m r
 
 -- | Fold a pure <a>Producer</a> of strict <a>ByteString</a>s into a lazy
 --   <a>ByteString</a>
@@ -234,10 +234,10 @@ nextByte :: Monad m => Producer ByteString m r -> m (Either r (Word8, Producer B
 
 -- | Draw one <a>Word8</a> from the underlying <a>Producer</a>, returning
 --   <a>Nothing</a> if the <a>Producer</a> is empty
-drawByte :: Monad m => Parser ByteString m (Maybe Word8)
+drawByte :: forall (m :: Type -> Type). Monad m => Parser ByteString m (Maybe Word8)
 
 -- | Push back a <a>Word8</a> onto the underlying <a>Producer</a>
-unDrawByte :: Monad m => Word8 -> Parser ByteString m ()
+unDrawByte :: forall (m :: Type -> Type). Monad m => Word8 -> Parser ByteString m ()
 
 -- | <a>peekByte</a> checks the first <a>Word8</a> in the stream, but uses
 --   <a>unDrawByte</a> to push the <a>Word8</a> back
@@ -250,7 +250,7 @@ unDrawByte :: Monad m => Word8 -> Parser ByteString m ()
 --           Just w8 -&gt; unDrawByte w8
 --       return x
 --   </pre>
-peekByte :: Monad m => Parser ByteString m (Maybe Word8)
+peekByte :: forall (m :: Type -> Type). Monad m => Parser ByteString m (Maybe Word8)
 
 -- | Check if the underlying <a>Producer</a> has no more bytes
 --   
@@ -260,29 +260,29 @@ peekByte :: Monad m => Parser ByteString m (Maybe Word8)
 --   <pre>
 --   isEndOfBytes = liftM isNothing peekByte
 --   </pre>
-isEndOfBytes :: Monad m => Parser ByteString m Bool
+isEndOfBytes :: forall (m :: Type -> Type). Monad m => Parser ByteString m Bool
 
 -- | Improper lens that splits a <a>Producer</a> after the given number of
 --   bytes
-splitAt :: (Monad m, Integral n) => n -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
+splitAt :: forall (m :: Type -> Type) n x. (Monad m, Integral n) => n -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
 
 -- | Improper lens that splits after the longest consecutive group of bytes
 --   that satisfy the given predicate
-span :: Monad m => (Word8 -> Bool) -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
+span :: forall (m :: Type -> Type) x. Monad m => (Word8 -> Bool) -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
 
 -- | Improper lens that splits after the longest consecutive group of bytes
 --   that fail the given predicate
-break :: Monad m => (Word8 -> Bool) -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
+break :: forall (m :: Type -> Type) x. Monad m => (Word8 -> Bool) -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
 
 -- | Improper lens that splits at the first occurrence of the pattern.
-breakOn :: Monad m => ByteString -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
+breakOn :: forall (m :: Type -> Type) x. Monad m => ByteString -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
 
 -- | Improper lens that splits after the first group of matching bytes, as
 --   defined by the given equality predicate
-groupBy :: Monad m => (Word8 -> Word8 -> Bool) -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
+groupBy :: forall (m :: Type -> Type) x. Monad m => (Word8 -> Word8 -> Bool) -> Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
 
 -- | Like <a>groupBy</a>, where the equality predicate is (<a>==</a>)
-group :: Monad m => Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
+group :: forall (m :: Type -> Type) x. Monad m => Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
 
 -- | Improper lens that splits a <a>Producer</a> after the first word
 --   
@@ -291,7 +291,7 @@ group :: Monad m => Lens' (Producer ByteString m x) (Producer ByteString m (Prod
 --   Note: This function is purely for demonstration purposes since it
 --   assumes a particular encoding. You should prefer the <a>Text</a>
 --   equivalent of this function from the <tt>pipes-text</tt> library.
-word :: Monad m => Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
+word :: forall (m :: Type -> Type) x. Monad m => Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
 
 -- | Improper lens that splits a <a>Producer</a> after the first line
 --   
@@ -301,80 +301,80 @@ word :: Monad m => Lens' (Producer ByteString m x) (Producer ByteString m (Produ
 --   Note: This function is purely for demonstration purposes since it
 --   assumes a particular encoding. You should prefer the <a>Text</a>
 --   equivalent of this function from the <tt>pipes-text</tt> library.
-line :: Monad m => Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
+line :: forall (m :: Type -> Type) x. Monad m => Lens' (Producer ByteString m x) (Producer ByteString m (Producer ByteString m x))
 
 -- | <tt>(drop n)</tt> drops the first <tt>n</tt> bytes
-drop :: (Monad m, Integral n) => n -> Producer ByteString m r -> Producer ByteString m r
+drop :: forall (m :: Type -> Type) n r. (Monad m, Integral n) => n -> Producer ByteString m r -> Producer ByteString m r
 
 -- | Drop bytes until they fail the predicate
-dropWhile :: Monad m => (Word8 -> Bool) -> Producer ByteString m r -> Producer ByteString m r
+dropWhile :: forall (m :: Type -> Type) r. Monad m => (Word8 -> Bool) -> Producer ByteString m r -> Producer ByteString m r
 
 -- | Intersperse a <a>Word8</a> in between the bytes of the byte stream
-intersperse :: Monad m => Word8 -> Producer ByteString m r -> Producer ByteString m r
+intersperse :: forall (m :: Type -> Type) r. Monad m => Word8 -> Producer ByteString m r -> Producer ByteString m r
 
 -- | Improper lens from unpacked <a>Word8</a>s to packaged
 --   <a>ByteString</a>s
-pack :: Monad m => Lens' (Producer Word8 m x) (Producer ByteString m x)
+pack :: forall (m :: Type -> Type) x. Monad m => Lens' (Producer Word8 m x) (Producer ByteString m x)
 
 -- | Improper lens from packed <a>ByteString</a>s to unpacked <a>Word8</a>s
-unpack :: Monad m => Lens' (Producer ByteString m x) (Producer Word8 m x)
+unpack :: forall (m :: Type -> Type) x. Monad m => Lens' (Producer ByteString m x) (Producer Word8 m x)
 
 -- | Group byte stream chunks into chunks of fixed length
 --   
 --   Note: This is the <i>only</i> function in this API that concatenates
 --   <a>ByteString</a> chunks, which requires allocating new
 --   <a>ByteString</a>s
-chunksOf' :: (Monad m, Integral n) => n -> Producer ByteString m r -> Producer ByteString m r
+chunksOf' :: forall (m :: Type -> Type) n r. (Monad m, Integral n) => n -> Producer ByteString m r -> Producer ByteString m r
 
 -- | Split a byte stream into <a>FreeT</a>-delimited byte streams of fixed
 --   size
-chunksOf :: (Monad m, Integral n) => n -> Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
+chunksOf :: forall (m :: Type -> Type) n x. (Monad m, Integral n) => n -> Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
 
 -- | Split a byte stream into groups separated by bytes that satisfy the
 --   predicate
-splitsWith :: Monad m => (Word8 -> Bool) -> Producer ByteString m x -> FreeT (Producer ByteString m) m x
+splitsWith :: forall (m :: Type -> Type) x. Monad m => (Word8 -> Bool) -> Producer ByteString m x -> FreeT (Producer ByteString m) m x
 
 -- | Split a byte stream into groups separated by the given byte
-splits :: Monad m => Word8 -> Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
+splits :: forall (m :: Type -> Type) x. Monad m => Word8 -> Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
 
 -- | Split a byte stream into groups separated by the given
 --   <a>ByteString</a>
-splitOn :: Monad m => ByteString -> Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
+splitOn :: forall (m :: Type -> Type) x. Monad m => ByteString -> Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
 
 -- | Isomorphism between a byte stream and groups of identical bytes using
 --   the supplied equality predicate
-groupsBy :: Monad m => (Word8 -> Word8 -> Bool) -> Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
+groupsBy :: forall (m :: Type -> Type) x. Monad m => (Word8 -> Word8 -> Bool) -> Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
 
 -- | Like <a>groupsBy</a>, where the equality predicate is (<a>==</a>)
-groups :: Monad m => Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
+groups :: forall (m :: Type -> Type) x. Monad m => Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
 
 -- | Improper lens between a bytestream and its lines
 --   
 --   Note: This function is purely for demonstration purposes since it
 --   assumes a particular encoding. You should prefer the <a>Text</a>
 --   equivalent of this function from the <tt>pipes-text</tt> library.
-lines :: Monad m => Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
+lines :: forall (m :: Type -> Type) x. Monad m => Lens' (Producer ByteString m x) (FreeT (Producer ByteString m) m x)
 
 -- | Improper lens between lines and a bytestream
 --   
 --   Note: This function is purely for demonstration purposes since it
 --   assumes a particular encoding. You should prefer the <a>Text</a>
 --   equivalent of this function from the <tt>pipes-text</tt> library.
-unlines :: Monad m => Lens' (FreeT (Producer ByteString m) m x) (Producer ByteString m x)
+unlines :: forall (m :: Type -> Type) x. Monad m => Lens' (FreeT (Producer ByteString m) m x) (Producer ByteString m x)
 
 -- | Convert a bytestream to delimited words
 --   
 --   Note: This function is purely for demonstration purposes since it
 --   assumes a particular encoding. You should prefer the <a>Text</a>
 --   equivalent of this function from the <tt>pipes-text</tt> library.
-words :: Monad m => Producer ByteString m x -> FreeT (Producer ByteString m) m x
+words :: forall (m :: Type -> Type) x. Monad m => Producer ByteString m x -> FreeT (Producer ByteString m) m x
 
 -- | Convert delimited words back to a byte stream
 --   
 --   Note: This function is purely for demonstration purposes since it
 --   assumes a particular encoding. You should prefer the <a>Text</a>
 --   equivalent of this function from the <tt>pipes-text</tt> library.
-unwords :: Monad m => FreeT (Producer ByteString m) m x -> Producer ByteString m x
+unwords :: forall (m :: Type -> Type) x. Monad m => FreeT (Producer ByteString m) m x -> Producer ByteString m x
 
 -- | A space-efficient representation of a <a>Word8</a> vector, supporting
 --   many efficient operations.
@@ -388,15 +388,7 @@ data ByteString
 data Word8
 
 -- | The "free monad transformer" for a functor <tt>f</tt>
-data FreeT (f :: Type -> Type) (m :: Type -> TYPE LiftedRep) a
-
--- | Join a <a>FreeT</a>-delimited stream of <a>Producer</a>s into a single
---   <a>Producer</a> by intercalating a <a>Producer</a> in between them
---   
---   <pre>
---   intercalates :: Monad m =&gt; <a>Producer</a> a m () -&gt; Joiner a m x
---   </pre>
-intercalates :: forall (m :: Type -> Type) a x. Monad m => Producer a m () -> FreeT (Producer a m) m x -> Producer a m x
+data FreeT (f :: Type -> Type) (m :: Type -> Type) a
 
 -- | Join a <a>FreeT</a>-delimited stream of <a>Producer</a>s into a single
 --   <a>Producer</a>
@@ -405,6 +397,14 @@ intercalates :: forall (m :: Type -> Type) a x. Monad m => Producer a m () -> Fr
 --   concats :: Monad m =&gt; Joiner a m x
 --   </pre>
 concats :: forall (m :: Type -> Type) a x. Monad m => FreeT (Producer a m) m x -> Producer a m x
+
+-- | Join a <a>FreeT</a>-delimited stream of <a>Producer</a>s into a single
+--   <a>Producer</a> by intercalating a <a>Producer</a> in between them
+--   
+--   <pre>
+--   intercalates :: Monad m =&gt; <a>Producer</a> a m () -&gt; Joiner a m x
+--   </pre>
+intercalates :: forall (m :: Type -> Type) a x. Monad m => Producer a m () -> FreeT (Producer a m) m x -> Producer a m x
 
 -- | A <a>Parser</a> is an action that reads from and writes to a stored
 --   <a>Producer</a>

@@ -1,0 +1,235 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns, MagicHash #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Module      :  Data.CharSet.ByteSet</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Copyright   :  Edward Kmett 2011</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--                Bryan O'Sullivan 2008</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- License     :  BSD3</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  :  ekmett@gmail.com</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Portability :  non-portable (BangPatterns, MagicHash)</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Fast set membership tests for byte values. The set representation is</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- unboxed for efficiency and uses one bit per byte to represent the presence</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- or absence of a byte in the set.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- This is a fairly minimal API. You probably want to use CharSet.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.CharSet.ByteSet.html"><span class="hs-identifier">Data.CharSet.ByteSet</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Data type</span></span><span>
+</span><span id="line-24"></span><span>      </span><span class="annot"><a href="Data.CharSet.ByteSet.html#ByteSet"><span class="hs-identifier">ByteSet</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Construction</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.ByteSet.html#fromList"><span class="hs-identifier">fromList</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Lookup</span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.ByteSet.html#member"><span class="hs-identifier">member</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(.&amp;.)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.|.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">peekByteOff</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">pokeByteOff</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Utils</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fillBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Int</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">I#</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Word#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">iShiftRA#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftL#</span></span><span class="hs-cpp">
+#if MIN_VERSION_base(4,16,0)
+</span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Word8#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">word8ToWord#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">wordToWord8#</span></span><span class="hs-cpp">
+#else
+</span><span>                </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">narrow8Word#</span><span class="hs-cpp">
+#endif
+</span><span>                </span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word8</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">W8#</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Internal</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">I</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Unsafe</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">U</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">newtype</span><span> </span><span id="ByteSet"><span class="annot"><a href="Data.CharSet.ByteSet.html#ByteSet"><span class="hs-identifier hs-var">ByteSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ByteSet"><span class="annot"><a href="Data.CharSet.ByteSet.html#ByteSet"><span class="hs-identifier hs-var">ByteSet</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679067418"><span id="local-6989586621679067423"><span class="annot"><span class="annottext">ByteSet -&gt; ByteSet -&gt; Bool
+(ByteSet -&gt; ByteSet -&gt; Bool)
+-&gt; (ByteSet -&gt; ByteSet -&gt; Bool) -&gt; Eq ByteSet
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ByteSet -&gt; ByteSet -&gt; Bool
+== :: ByteSet -&gt; ByteSet -&gt; Bool
+$c/= :: ByteSet -&gt; ByteSet -&gt; Bool
+/= :: ByteSet -&gt; ByteSet -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679067432"><span id="local-6989586621679067437"><span id="local-6989586621679067441"><span id="local-6989586621679067445"><span id="local-6989586621679067449"><span id="local-6989586621679067453"><span id="local-6989586621679067457"><span class="annot"><span class="annottext">Eq ByteSet
+Eq ByteSet =&gt;
+(ByteSet -&gt; ByteSet -&gt; Ordering)
+-&gt; (ByteSet -&gt; ByteSet -&gt; Bool)
+-&gt; (ByteSet -&gt; ByteSet -&gt; Bool)
+-&gt; (ByteSet -&gt; ByteSet -&gt; Bool)
+-&gt; (ByteSet -&gt; ByteSet -&gt; Bool)
+-&gt; (ByteSet -&gt; ByteSet -&gt; ByteSet)
+-&gt; (ByteSet -&gt; ByteSet -&gt; ByteSet)
+-&gt; Ord ByteSet
+ByteSet -&gt; ByteSet -&gt; Bool
+ByteSet -&gt; ByteSet -&gt; Ordering
+ByteSet -&gt; ByteSet -&gt; ByteSet
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ByteSet -&gt; ByteSet -&gt; Ordering
+compare :: ByteSet -&gt; ByteSet -&gt; Ordering
+$c&lt; :: ByteSet -&gt; ByteSet -&gt; Bool
+&lt; :: ByteSet -&gt; ByteSet -&gt; Bool
+$c&lt;= :: ByteSet -&gt; ByteSet -&gt; Bool
+&lt;= :: ByteSet -&gt; ByteSet -&gt; Bool
+$c&gt; :: ByteSet -&gt; ByteSet -&gt; Bool
+&gt; :: ByteSet -&gt; ByteSet -&gt; Bool
+$c&gt;= :: ByteSet -&gt; ByteSet -&gt; Bool
+&gt;= :: ByteSet -&gt; ByteSet -&gt; Bool
+$cmax :: ByteSet -&gt; ByteSet -&gt; ByteSet
+max :: ByteSet -&gt; ByteSet -&gt; ByteSet
+$cmin :: ByteSet -&gt; ByteSet -&gt; ByteSet
+min :: ByteSet -&gt; ByteSet -&gt; ByteSet
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679067469"><span id="local-6989586621679067475"><span id="local-6989586621679067479"><span class="annot"><span class="annottext">Int -&gt; ByteSet -&gt; ShowS
+[ByteSet] -&gt; ShowS
+ByteSet -&gt; String
+(Int -&gt; ByteSet -&gt; ShowS)
+-&gt; (ByteSet -&gt; String) -&gt; ([ByteSet] -&gt; ShowS) -&gt; Show ByteSet
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ByteSet -&gt; ShowS
+showsPrec :: Int -&gt; ByteSet -&gt; ShowS
+$cshow :: ByteSet -&gt; String
+show :: ByteSet -&gt; String
+$cshowList :: [ByteSet] -&gt; ShowS
+showList :: [ByteSet] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Representation of the index of a bit inside a bytestring</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- in terms of a byte index and a bit index inside the byte</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">data</span><span> </span><span id="I"><span class="annot"><a href="Data.CharSet.ByteSet.html#I"><span class="hs-identifier hs-var">I</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="I"><span class="annot"><a href="Data.CharSet.ByteSet.html#I"><span class="hs-identifier hs-var">I</span></a></span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>         </span><span class="hs-comment">-- byte index</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>       </span><span class="hs-comment">-- bit index</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Data.CharSet.ByteSet.html#shiftR"><span class="hs-identifier hs-type">shiftR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-55"></span><span id="shiftR"><span class="annot"><span class="annottext">shiftR :: Int -&gt; Int -&gt; Int
+</span><a href="Data.CharSet.ByteSet.html#shiftR"><span class="hs-identifier hs-var hs-var">shiftR</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679067485"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679067485"><span class="hs-identifier hs-var">x#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679067486"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679067486"><span class="hs-identifier hs-var">i#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679067485"><span class="hs-identifier hs-var">x#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><span class="hs-operator hs-var">`iShiftRA#`</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679067486"><span class="hs-identifier hs-var">i#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Data.CharSet.ByteSet.html#shiftL"><span class="hs-identifier hs-type">shiftL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-58"></span><span id="shiftL"><span class="annot"><span class="annottext">shiftL :: Word8 -&gt; Int -&gt; Word8
+</span><a href="Data.CharSet.ByteSet.html#shiftL"><span class="hs-identifier hs-var hs-var">shiftL</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">W8#</span></span><span> </span><span id="local-6989586621679067488"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679067488"><span class="hs-identifier hs-var">x#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679067489"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679067489"><span class="hs-identifier hs-var">i#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8# -&gt; Word8
+</span><span class="hs-identifier hs-var">W8#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Word8#
+</span><a href="Data.CharSet.ByteSet.html#narrow8WordCompat%23"><span class="hs-identifier hs-var">narrow8WordCompat#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="Data.CharSet.ByteSet.html#word8ToWordCompat%23"><span class="hs-identifier hs-var">word8ToWordCompat#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679067488"><span class="hs-identifier hs-var">x#</span></a></span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int# -&gt; Word#
+</span><span class="hs-operator hs-var">`shiftL#`</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679067489"><span class="hs-identifier hs-var">i#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- | Convert a bit index to a byte index and bit index inside the byte</span></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Data.CharSet.ByteSet.html#index"><span class="hs-identifier hs-type">index</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CharSet.ByteSet.html#I"><span class="hs-identifier hs-type">I</span></a></span><span>
+</span><span id="line-62"></span><span id="index"><span class="annot"><span class="annottext">index :: Int -&gt; I
+</span><a href="Data.CharSet.ByteSet.html#index"><span class="hs-identifier hs-var hs-var">index</span></a></span></span><span> </span><span id="local-6989586621679067493"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679067493"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8 -&gt; I
+</span><a href="Data.CharSet.ByteSet.html#I"><span class="hs-identifier hs-var">I</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679067493"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+</span><a href="Data.CharSet.ByteSet.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Int -&gt; Word8
+</span><a href="Data.CharSet.ByteSet.html#shiftL"><span class="hs-operator hs-var">`shiftL`</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679067493"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.CharSet.ByteSet.html#index"><span class="hs-pragma hs-type">index</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Data.CharSet.ByteSet.html#fromList"><span class="hs-identifier hs-type">fromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CharSet.ByteSet.html#ByteSet"><span class="hs-identifier hs-type">ByteSet</span></a></span><span>
+</span><span id="line-66"></span><span id="fromList"><span class="annot"><span class="annottext">fromList :: [Word8] -&gt; ByteSet
+</span><a href="Data.CharSet.ByteSet.html#fromList"><span class="hs-identifier hs-var hs-var">fromList</span></a></span></span><span> </span><span id="local-6989586621679067494"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679067494"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteSet
+</span><a href="Data.CharSet.ByteSet.html#ByteSet"><span class="hs-identifier hs-var">ByteSet</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; ByteSet) -&gt; ByteString -&gt; ByteSet
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Ptr Word8 -&gt; IO ()) -&gt; ByteString
+</span><span class="hs-identifier hs-var">I.unsafeCreate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span> </span><span class="annot"><span class="annottext">((Ptr Word8 -&gt; IO ()) -&gt; ByteString)
+-&gt; (Ptr Word8 -&gt; IO ()) -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679067496"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679067496"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Word8 -&gt; Int -&gt; IO ()
+forall a. Ptr a -&gt; Word8 -&gt; Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">fillBytes</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679067496"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679067515"><span class="annot"><a href="#local-6989586621679067515"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><a href="#local-6989586621679067515"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679067516"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679067516"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679067517"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679067517"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-70"></span><span>        </span><span id="local-6989586621679067518"><span class="annot"><a href="#local-6989586621679067518"><span class="hs-identifier hs-var">prev</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word8
+forall b. Ptr b -&gt; Int -&gt; IO Word8
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679067496"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679067519"><span class="hs-identifier hs-var">byte</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">pokeByteOff</span></span><span> </span><span class="annot"><a href="#local-6989586621679067496"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679067519"><span class="hs-identifier hs-type">byte</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679067518"><span class="hs-identifier hs-type">prev</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.|.</span></span><span> </span><span class="annot"><a href="#local-6989586621679067520"><span class="hs-identifier hs-type">bit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><a href="#local-6989586621679067515"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679067517"><span class="hs-identifier hs-type">cs</span></a></span><span>
+</span><span id="line-73"></span><span>        </span><span class="hs-keyword">where</span><span> </span><span class="annot"><a href="Data.CharSet.ByteSet.html#I"><span class="hs-identifier hs-type">I</span></a></span><span> </span><span id="local-6989586621679067519"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679067519"><span class="hs-identifier hs-var">byte</span></a></span></span><span> </span><span id="local-6989586621679067520"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679067520"><span class="hs-identifier hs-var">bit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; I
+</span><a href="Data.CharSet.ByteSet.html#index"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679067516"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="#local-6989586621679067515"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679067494"><span class="hs-identifier hs-type">s0</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><span class="hs-comment">-- | Check the set for membership.</span></span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Data.CharSet.ByteSet.html#member"><span class="hs-identifier hs-type">member</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CharSet.ByteSet.html#ByteSet"><span class="hs-identifier hs-type">ByteSet</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-78"></span><span id="member"><span class="annot"><span class="annottext">member :: Word8 -&gt; ByteSet -&gt; Bool
+</span><a href="Data.CharSet.ByteSet.html#member"><span class="hs-identifier hs-var hs-var">member</span></a></span></span><span> </span><span id="local-6989586621679067528"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679067528"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.CharSet.ByteSet.html#ByteSet"><span class="hs-identifier hs-type">ByteSet</span></a></span><span> </span><span id="local-6989586621679067529"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679067529"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int -&gt; Word8
+</span><span class="hs-identifier hs-var">U.unsafeIndex</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679067529"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679067531"><span class="hs-identifier hs-var">byte</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679067532"><span class="hs-identifier hs-var">bit</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><a href="Data.CharSet.ByteSet.html#I"><span class="hs-identifier hs-type">I</span></a></span><span> </span><span id="local-6989586621679067531"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679067531"><span class="hs-identifier hs-var">byte</span></a></span></span><span> </span><span id="local-6989586621679067532"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679067532"><span class="hs-identifier hs-var">bit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; I
+</span><a href="Data.CharSet.ByteSet.html#index"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679067528"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,16,0)
+</span><span class="annot"><a href="Data.CharSet.ByteSet.html#word8ToWordCompat%23"><span class="hs-identifier hs-type">word8ToWordCompat#</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8#</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word#</span></span><span>
+</span><span id="line-84"></span><span id="word8ToWordCompat%23"><span class="annot"><span class="annottext">word8ToWordCompat# :: Word8# -&gt; Word#
+</span><a href="Data.CharSet.ByteSet.html#word8ToWordCompat%23"><span class="hs-identifier hs-var hs-var">word8ToWordCompat#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><span class="hs-identifier hs-var">word8ToWord#</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="annot"><a href="Data.CharSet.ByteSet.html#narrow8WordCompat%23"><span class="hs-identifier hs-type">narrow8WordCompat#</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word#</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8#</span></span><span>
+</span><span id="line-87"></span><span id="narrow8WordCompat%23"><span class="annot"><span class="annottext">narrow8WordCompat# :: Word# -&gt; Word8#
+</span><a href="Data.CharSet.ByteSet.html#narrow8WordCompat%23"><span class="hs-identifier hs-var hs-var">narrow8WordCompat#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Word8#
+</span><span class="hs-identifier hs-var">wordToWord8#</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-identifier">word8ToWordCompat#</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Word#</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Word#</span><span>
+</span><span id="line-90"></span><span class="hs-identifier">word8ToWordCompat#</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-identifier">narrow8WordCompat#</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Word#</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Word#</span><span>
+</span><span id="line-93"></span><span class="hs-identifier">narrow8WordCompat#</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">narrow8Word#</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

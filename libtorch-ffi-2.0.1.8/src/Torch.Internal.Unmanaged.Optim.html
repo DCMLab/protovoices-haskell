@@ -1,0 +1,529 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE QuasiQuotes #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html"><span class="hs-identifier">Torch.Internal.Unmanaged.Optim</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception.Safe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">bracket</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.String</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.Types</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.C.Inline.Context</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.C.Inline.Cpp</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.C.Inline.Cpp.Unsafe</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.C.Types</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Torch.Internal.Type.html"><span class="hs-identifier">Torch.Internal.Type</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch.Internal.Unmanaged.Helper</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-identifier">C.context</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">C.cppCtx</span><span> </span><span class="hs-operator">&lt;&gt;</span><span> </span><span class="hs-identifier">mempty</span><span> </span><span class="hs-special">{</span><span class="hs-identifier">C.ctxTypesTable</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">typeTable</span><span class="hs-special">}</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-identifier">C.include</span><span> </span><span class="hs-string">&quot;&lt;fstream&gt;&quot;</span><span>
+</span><span id="line-26"></span><span class="hs-identifier">C.include</span><span> </span><span class="hs-string">&quot;&lt;vector&gt;&quot;</span><span>
+</span><span id="line-27"></span><span class="hs-identifier">C.include</span><span> </span><span class="hs-string">&quot;&lt;tuple&gt;&quot;</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-identifier">C.include</span><span> </span><span class="hs-string">&quot;hasktorch_profile.h&quot;</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-identifier">C.include</span><span> </span><span class="hs-string">&quot;&lt;torch/types.h&gt;&quot;</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-identifier">C.include</span><span> </span><span class="hs-string">&quot;&lt;torch/optim.h&gt;&quot;</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-identifier">C.include</span><span> </span><span class="hs-string">&quot;&lt;torch/serialize.h&gt;&quot;</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- optimizerWithAdam</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--   :: CDouble</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--   -&gt; CDouble</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--   -&gt; CDouble</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--   -&gt; CDouble</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--   -&gt; CDouble</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--   -&gt; CBool</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--   -&gt; Ptr TensorList</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--   -&gt; (Ptr TensorList -&gt; IO (Ptr Tensor))</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--   -&gt; CInt</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--   -&gt; IO (Ptr TensorList)</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- optimizerWithAdam adamLr adamBetas0 adamBetas1 adamEps adamWeightDecay adamAmsgrad initParams loss numIter =</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--   bracket</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--     (callbackHelper loss')</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--     freeHaskellFunPtr</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--     $ \funcPtr -&gt;</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--       [C.throwBlock| std::vector&lt;at::Tensor&gt;* {</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--         std::vector&lt;at::Tensor&gt;* init_params = $(std::vector&lt;at::Tensor&gt;* initParams);</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--         std::vector&lt;at::Tensor&gt;* params = new std::vector&lt;at::Tensor&gt;();</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--         auto tfunc = $(void* (*funcPtr)(void*));</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--         for(int i=0;i&lt;init_params-&gt;size();i++){</span><span>
+</span><span id="line-58"></span><span class="hs-comment">--           params-&gt;push_back((*init_params)[i].detach().set_requires_grad(true));</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--         }</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--         auto options = torch::optim::AdamOptions()</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--           .lr($(double adamLr))</span><span>
+</span><span id="line-62"></span><span class="hs-comment">--           .betas(std::make_tuple($(double adamBetas0),$(double adamBetas1)))</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--           .eps($(double adamEps))</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--           .weight_decay($(double adamWeightDecay))</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--           .amsgrad($(bool adamAmsgrad));</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--         torch::optim::Adam optimizer(*params, options);</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--         optimizer.zero_grad();</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--         typedef at::Tensor* (*Func)(std::vector&lt;at::Tensor&gt;*);</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--         auto func = (Func)tfunc;</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--         for(int i=0;i&lt;$(int numIter);i++){</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--           auto loss = func(params);</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--           loss-&gt;backward();</span><span>
+</span><span id="line-73"></span><span class="hs-comment">--           optimizer.step();</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--         }</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--         return params;</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--       }|]</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--   where</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--     loss' :: Ptr () -&gt; IO (Ptr ())</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--     loss' params = castPtr &lt;$&gt; loss (castPtr params)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#adagrad"><span class="hs-identifier hs-type">adagrad</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span id="adagrad"><span class="annot"><span class="annottext">adagrad :: CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; Ptr TensorList
+-&gt; IO (Ptr Optimizer)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#adagrad"><span class="hs-identifier hs-var hs-var">adagrad</span></a></span></span><span> </span><span id="local-6989586621685549072"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549072"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span id="local-6989586621685549073"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549073"><span class="hs-identifier hs-var">lr_decay</span></a></span></span><span> </span><span id="local-6989586621685549074"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549074"><span class="hs-identifier hs-var">weight_decay</span></a></span></span><span> </span><span id="local-6989586621685549075"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549075"><span class="hs-identifier hs-var">initial_accumulator_value</span></a></span></span><span> </span><span id="local-6989586621685549076"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549076"><span class="hs-identifier hs-var">eps</span></a></span></span><span> </span><span id="local-6989586621685549077"><span class="annot"><span class="annottext">Ptr TensorList
+</span><a href="#local-6989586621685549077"><span class="hs-identifier hs-var">initParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| torch::optim::Optimizer* {
+    std::vector&lt;at::Tensor&gt;* init_params = $(std::vector&lt;at::Tensor&gt;* initParams);
+    std::vector&lt;at::Tensor&gt; params;
+    for(int i=0;i&lt;init_params-&gt;size();i++){
+      params.push_back((*init_params)[i].detach().set_requires_grad(true));
+    }
+    auto options = torch::optim::AdagradOptions()
+      .lr($(double lr))
+      .lr_decay($(double lr_decay))
+      .weight_decay($(double weight_decay))
+      .initial_accumulator_value($(double initial_accumulator_value))
+      .eps($(double eps));
+    torch::optim::Adagrad* optimizer = new torch::optim::Adagrad(params, options);
+    optimizer-&gt;zero_grad();
+    return dynamic_cast&lt;torch::optim::Optimizer*&gt;(optimizer);
+  }|]</span></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#rmsprop"><span class="hs-identifier hs-type">rmsprop</span></a></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CBool</span></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span id="rmsprop"><span class="annot"><span class="annottext">rmsprop :: CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CBool
+-&gt; Ptr TensorList
+-&gt; IO (Ptr Optimizer)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#rmsprop"><span class="hs-identifier hs-var hs-var">rmsprop</span></a></span></span><span> </span><span id="local-6989586621685549102"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549102"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span id="local-6989586621685549103"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549103"><span class="hs-identifier hs-var">alpha</span></a></span></span><span> </span><span id="local-6989586621685549104"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549104"><span class="hs-identifier hs-var">eps</span></a></span></span><span> </span><span id="local-6989586621685549105"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549105"><span class="hs-identifier hs-var">weight_decay</span></a></span></span><span> </span><span id="local-6989586621685549106"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549106"><span class="hs-identifier hs-var">momentum</span></a></span></span><span> </span><span id="local-6989586621685549107"><span class="annot"><span class="annottext">CBool
+</span><a href="#local-6989586621685549107"><span class="hs-identifier hs-var">centered</span></a></span></span><span> </span><span id="local-6989586621685549108"><span class="annot"><span class="annottext">Ptr TensorList
+</span><a href="#local-6989586621685549108"><span class="hs-identifier hs-var">initParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| torch::optim::Optimizer* {
+    std::vector&lt;at::Tensor&gt;* init_params = $(std::vector&lt;at::Tensor&gt;* initParams);
+    std::vector&lt;at::Tensor&gt; params;
+    for(int i=0;i&lt;init_params-&gt;size();i++){
+      params.push_back((*init_params)[i].detach().set_requires_grad(true));
+    }
+    auto options = torch::optim::RMSpropOptions()
+      .lr($(double lr))
+      .alpha($(double alpha))
+      .eps($(double eps))
+      .weight_decay($(double weight_decay))
+      .momentum($(double momentum))
+      .centered($(bool centered));
+    torch::optim::RMSprop* optimizer = new torch::optim::RMSprop(params, options);
+    optimizer-&gt;zero_grad();
+    return dynamic_cast&lt;torch::optim::Optimizer*&gt;(optimizer);
+  }|]</span></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#sgd"><span class="hs-identifier hs-type">sgd</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CBool</span></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span id="sgd"><span class="annot"><span class="annottext">sgd :: CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CBool
+-&gt; Ptr TensorList
+-&gt; IO (Ptr Optimizer)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#sgd"><span class="hs-identifier hs-var hs-var">sgd</span></a></span></span><span> </span><span id="local-6989586621685549128"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549128"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span id="local-6989586621685549129"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549129"><span class="hs-identifier hs-var">momentum</span></a></span></span><span> </span><span id="local-6989586621685549130"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549130"><span class="hs-identifier hs-var">dampening</span></a></span></span><span> </span><span id="local-6989586621685549131"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549131"><span class="hs-identifier hs-var">weight_decay</span></a></span></span><span> </span><span id="local-6989586621685549132"><span class="annot"><span class="annottext">CBool
+</span><a href="#local-6989586621685549132"><span class="hs-identifier hs-var">nesterov</span></a></span></span><span> </span><span id="local-6989586621685549133"><span class="annot"><span class="annottext">Ptr TensorList
+</span><a href="#local-6989586621685549133"><span class="hs-identifier hs-var">initParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-145"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| torch::optim::Optimizer* {
+    std::vector&lt;at::Tensor&gt;* init_params = $(std::vector&lt;at::Tensor&gt;* initParams);
+    std::vector&lt;at::Tensor&gt; params;
+    for(int i=0;i&lt;init_params-&gt;size();i++){
+      params.push_back((*init_params)[i].detach().set_requires_grad(true));
+    }
+    auto options = torch::optim::SGDOptions($(double lr))
+      .momentum($(double momentum))
+      .dampening($(double dampening))
+      .weight_decay($(double weight_decay))
+      .nesterov($(bool nesterov));
+    torch::optim::SGD* optimizer = new torch::optim::SGD(params, options);
+    optimizer-&gt;zero_grad();
+    return dynamic_cast&lt;torch::optim::Optimizer*&gt;(optimizer);
+  }|]</span></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#adam"><span class="hs-identifier hs-type">adam</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CBool</span></span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span id="adam"><span class="annot"><span class="annottext">adam :: CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CBool
+-&gt; Ptr TensorList
+-&gt; IO (Ptr Optimizer)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#adam"><span class="hs-identifier hs-var hs-var">adam</span></a></span></span><span> </span><span id="local-6989586621685549151"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549151"><span class="hs-identifier hs-var">adamLr</span></a></span></span><span> </span><span id="local-6989586621685549152"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549152"><span class="hs-identifier hs-var">adamBetas0</span></a></span></span><span> </span><span id="local-6989586621685549153"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549153"><span class="hs-identifier hs-var">adamBetas1</span></a></span></span><span> </span><span id="local-6989586621685549154"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549154"><span class="hs-identifier hs-var">adamEps</span></a></span></span><span> </span><span id="local-6989586621685549155"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549155"><span class="hs-identifier hs-var">adamWeightDecay</span></a></span></span><span> </span><span id="local-6989586621685549156"><span class="annot"><span class="annottext">CBool
+</span><a href="#local-6989586621685549156"><span class="hs-identifier hs-var">adamAmsgrad</span></a></span></span><span> </span><span id="local-6989586621685549157"><span class="annot"><span class="annottext">Ptr TensorList
+</span><a href="#local-6989586621685549157"><span class="hs-identifier hs-var">initParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| torch::optim::Optimizer* {
+    std::vector&lt;at::Tensor&gt;* init_params = $(std::vector&lt;at::Tensor&gt;* initParams);
+    std::vector&lt;at::Tensor&gt; params;
+    for(int i=0;i&lt;init_params-&gt;size();i++){
+      params.push_back((*init_params)[i].detach().set_requires_grad(true));
+    }
+    auto options = torch::optim::AdamOptions()
+      .lr($(double adamLr))
+      .betas(std::make_tuple($(double adamBetas0),$(double adamBetas1)))
+      .eps($(double adamEps))
+      .weight_decay($(double adamWeightDecay))
+      .amsgrad($(bool adamAmsgrad));
+    torch::optim::Adam* optimizer = new torch::optim::Adam(params, options);
+    optimizer-&gt;zero_grad();
+    return dynamic_cast&lt;torch::optim::Optimizer*&gt;(optimizer);
+  }|]</span></span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#adamw"><span class="hs-identifier hs-type">adamw</span></a></span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CBool</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span id="adamw"><span class="annot"><span class="annottext">adamw :: CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CBool
+-&gt; Ptr TensorList
+-&gt; IO (Ptr Optimizer)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#adamw"><span class="hs-identifier hs-var hs-var">adamw</span></a></span></span><span> </span><span id="local-6989586621685549177"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549177"><span class="hs-identifier hs-var">adamLr</span></a></span></span><span> </span><span id="local-6989586621685549178"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549178"><span class="hs-identifier hs-var">adamBetas0</span></a></span></span><span> </span><span id="local-6989586621685549179"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549179"><span class="hs-identifier hs-var">adamBetas1</span></a></span></span><span> </span><span id="local-6989586621685549180"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549180"><span class="hs-identifier hs-var">adamEps</span></a></span></span><span> </span><span id="local-6989586621685549181"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549181"><span class="hs-identifier hs-var">adamWeightDecay</span></a></span></span><span> </span><span id="local-6989586621685549182"><span class="annot"><span class="annottext">CBool
+</span><a href="#local-6989586621685549182"><span class="hs-identifier hs-var">adamAmsgrad</span></a></span></span><span> </span><span id="local-6989586621685549183"><span class="annot"><span class="annottext">Ptr TensorList
+</span><a href="#local-6989586621685549183"><span class="hs-identifier hs-var">initParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-198"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| torch::optim::Optimizer* {
+    std::vector&lt;at::Tensor&gt;* init_params = $(std::vector&lt;at::Tensor&gt;* initParams);
+    std::vector&lt;at::Tensor&gt; params;
+    for(int i=0;i&lt;init_params-&gt;size();i++){
+      params.push_back((*init_params)[i].detach().set_requires_grad(true));
+    }
+    auto options = torch::optim::AdamWOptions()
+      .lr($(double adamLr))
+      .betas(std::make_tuple($(double adamBetas0),$(double adamBetas1)))
+      .eps($(double adamEps))
+      .weight_decay($(double adamWeightDecay))
+      .amsgrad($(bool adamAmsgrad));
+    torch::optim::AdamW* optimizer = new torch::optim::AdamW(params, options);
+    optimizer-&gt;zero_grad();
+    return dynamic_cast&lt;torch::optim::Optimizer*&gt;(optimizer);
+  }|]</span></span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#lbfgs"><span class="hs-identifier hs-type">lbfgs</span></a></span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-219"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-220"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-221"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-223"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#StdString"><span class="hs-identifier hs-type">StdString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-224"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span>
+</span><span id="line-225"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span id="lbfgs"><span class="annot"><span class="annottext">lbfgs :: CDouble
+-&gt; CInt
+-&gt; CInt
+-&gt; CDouble
+-&gt; CDouble
+-&gt; CInt
+-&gt; Maybe (Ptr StdString)
+-&gt; Ptr TensorList
+-&gt; IO (Ptr Optimizer)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#lbfgs"><span class="hs-identifier hs-var hs-var">lbfgs</span></a></span></span><span> </span><span id="local-6989586621685549203"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549203"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span id="local-6989586621685549204"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621685549204"><span class="hs-identifier hs-var">max_iter</span></a></span></span><span> </span><span id="local-6989586621685549205"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621685549205"><span class="hs-identifier hs-var">max_eval</span></a></span></span><span> </span><span id="local-6989586621685549206"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549206"><span class="hs-identifier hs-var">tolerance_grad</span></a></span></span><span> </span><span id="local-6989586621685549207"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549207"><span class="hs-identifier hs-var">tolerance_change</span></a></span></span><span> </span><span id="local-6989586621685549208"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621685549208"><span class="hs-identifier hs-var">history_size</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (Ptr StdString)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span id="local-6989586621685549209"><span class="annot"><span class="annottext">Ptr TensorList
+</span><a href="#local-6989586621685549209"><span class="hs-identifier hs-var">initParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-227"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| torch::optim::Optimizer* {
+    std::vector&lt;at::Tensor&gt;* init_params = $(std::vector&lt;at::Tensor&gt;* initParams);
+    std::vector&lt;at::Tensor&gt; params;
+    for(int i=0;i&lt;init_params-&gt;size();i++){
+      params.push_back((*init_params)[i].detach().set_requires_grad(true));
+    }
+    auto options = torch::optim::LBFGSOptions()
+      .lr($(double lr))
+      .max_iter($(int max_iter))
+      .max_eval($(int max_eval))
+      .tolerance_grad($(double tolerance_grad))
+      .tolerance_change($(double tolerance_change))
+      .history_size($(int history_size));
+    torch::optim::LBFGS* optimizer = new torch::optim::LBFGS(params, options);
+    optimizer-&gt;zero_grad();
+    return dynamic_cast&lt;torch::optim::Optimizer*&gt;(optimizer);
+  }|]</span></span><span>
+</span><span id="line-244"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#lbfgs"><span class="hs-identifier hs-var">lbfgs</span></a></span><span> </span><span id="local-6989586621685549228"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549228"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span id="local-6989586621685549229"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621685549229"><span class="hs-identifier hs-var">max_iter</span></a></span></span><span> </span><span id="local-6989586621685549230"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621685549230"><span class="hs-identifier hs-var">max_eval</span></a></span></span><span> </span><span id="local-6989586621685549231"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549231"><span class="hs-identifier hs-var">tolerance_grad</span></a></span></span><span> </span><span id="local-6989586621685549232"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621685549232"><span class="hs-identifier hs-var">tolerance_change</span></a></span></span><span> </span><span id="local-6989586621685549233"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621685549233"><span class="hs-identifier hs-var">history_size</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621685549234"><span class="annot"><span class="annottext">Ptr StdString
+</span><a href="#local-6989586621685549234"><span class="hs-identifier hs-var">line_search_fn</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621685549235"><span class="annot"><span class="annottext">Ptr TensorList
+</span><a href="#local-6989586621685549235"><span class="hs-identifier hs-var">initParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-245"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| torch::optim::Optimizer* {
+    std::vector&lt;at::Tensor&gt;* init_params = $(std::vector&lt;at::Tensor&gt;* initParams);
+    std::vector&lt;at::Tensor&gt; params;
+    for(int i=0;i&lt;init_params-&gt;size();i++){
+      params.push_back((*init_params)[i].detach().set_requires_grad(true));
+    }
+    auto options = torch::optim::LBFGSOptions()
+      .lr($(double lr))
+      .max_iter($(int max_iter))
+      .max_eval($(int max_eval))
+      .tolerance_grad($(double tolerance_grad))
+      .tolerance_change($(double tolerance_change))
+      .history_size($(int history_size))
+      .line_search_fn(*$(std::string* line_search_fn));
+    torch::optim::LBFGS* optimizer = new torch::optim::LBFGS(params, options);
+    optimizer-&gt;zero_grad();
+    return dynamic_cast&lt;torch::optim::Optimizer*&gt;(optimizer);
+  }|]</span></span><span>
+</span><span id="line-263"></span><span>
+</span><span id="line-264"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#getParams"><span class="hs-identifier hs-type">getParams</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span class="hs-special">)</span><span> </span><span>
+</span><span id="line-265"></span><span id="getParams"><span class="annot"><span class="annottext">getParams :: Ptr Optimizer -&gt; IO (Ptr TensorList)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#getParams"><span class="hs-identifier hs-var hs-var">getParams</span></a></span></span><span> </span><span id="local-6989586621685549257"><span class="annot"><span class="annottext">Ptr Optimizer
+</span><a href="#local-6989586621685549257"><span class="hs-identifier hs-var">optimizer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-266"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| std::vector&lt;at::Tensor&gt;* {
+    return new std::vector&lt;at::Tensor&gt;($(torch::optim::Optimizer* optimizer)-&gt;param_groups().at(0).params());
+  }|]</span></span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#step"><span class="hs-identifier hs-type">step</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span id="step"><span class="annot"><span class="annottext">step :: Ptr Optimizer
+-&gt; (Ptr TensorList -&gt; IO (Ptr Tensor)) -&gt; IO (Ptr Tensor)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#step"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621685549265"><span class="annot"><span class="annottext">Ptr Optimizer
+</span><a href="#local-6989586621685549265"><span class="hs-identifier hs-var">optimizer</span></a></span></span><span> </span><span id="local-6989586621685549266"><span class="annot"><span class="annottext">Ptr TensorList -&gt; IO (Ptr Tensor)
+</span><a href="#local-6989586621685549266"><span class="hs-identifier hs-var">lossFunc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-272"></span><span>  </span><span class="annot"><span class="annottext">IO (FunPtr (Ptr () -&gt; IO (Ptr ())))
+-&gt; (FunPtr (Ptr () -&gt; IO (Ptr ())) -&gt; IO ())
+-&gt; (FunPtr (Ptr () -&gt; IO (Ptr ())) -&gt; IO (Ptr Tensor))
+-&gt; IO (Ptr Tensor)
+forall (m :: * -&gt; *) a b c.
+(HasCallStack, MonadMask m) =&gt;
+m a -&gt; (a -&gt; m b) -&gt; (a -&gt; m c) -&gt; m c
+</span><span class="hs-identifier hs-var">bracket</span></span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Ptr () -&gt; IO (Ptr ())) -&gt; IO (FunPtr (Ptr () -&gt; IO (Ptr ())))
+</span><span class="hs-identifier hs-var">callbackHelper</span></span><span> </span><span class="annot"><span class="annottext">Ptr () -&gt; IO (Ptr ())
+</span><a href="#local-6989586621685549268"><span class="hs-identifier hs-var">lossFunc'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-274"></span><span>    </span><span class="annot"><span class="annottext">FunPtr (Ptr () -&gt; IO (Ptr ())) -&gt; IO ()
+forall a. FunPtr a -&gt; IO ()
+</span><span class="hs-identifier hs-var">freeHaskellFunPtr</span></span><span>
+</span><span id="line-275"></span><span>    </span><span class="annot"><span class="annottext">((FunPtr (Ptr () -&gt; IO (Ptr ())) -&gt; IO (Ptr Tensor))
+ -&gt; IO (Ptr Tensor))
+-&gt; (FunPtr (Ptr () -&gt; IO (Ptr ())) -&gt; IO (Ptr Tensor))
+-&gt; IO (Ptr Tensor)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621685549270"><span class="annot"><span class="annottext">FunPtr (Ptr () -&gt; IO (Ptr ()))
+</span><a href="#local-6989586621685549270"><span class="hs-identifier hs-var">funcPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-276"></span><span>      </span><span class="annot"><span class="">[C.throwBlock| at::Tensor* {
+        auto tfunc = $(void* (*funcPtr)(void*));
+        auto optimizer = $(torch::optim::Optimizer* optimizer);
+        typedef at::Tensor* (*Func)(std::vector&lt;at::Tensor&gt;*);
+        auto func = (Func)tfunc;
+        auto v = optimizer-&gt;step([&amp;]{
+          optimizer-&gt;zero_grad();
+          auto loss = func(&amp;(optimizer-&gt;param_groups().at(0).params()));
+          loss-&gt;backward();
+          return *loss;
+        });
+        return new at::Tensor(v);
+      }|]</span></span><span>
+</span><span id="line-289"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-290"></span><span>    </span><span class="annot"><a href="#local-6989586621685549268"><span class="hs-identifier hs-type">lossFunc'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-291"></span><span>    </span><span id="local-6989586621685549268"><span class="annot"><span class="annottext">lossFunc' :: Ptr () -&gt; IO (Ptr ())
+</span><a href="#local-6989586621685549268"><span class="hs-identifier hs-var hs-var">lossFunc'</span></a></span></span><span> </span><span id="local-6989586621685549279"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621685549279"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Tensor -&gt; Ptr ()
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">(Ptr Tensor -&gt; Ptr ()) -&gt; IO (Ptr Tensor) -&gt; IO (Ptr ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr TensorList -&gt; IO (Ptr Tensor)
+</span><a href="#local-6989586621685549266"><span class="hs-identifier hs-var">lossFunc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr () -&gt; Ptr TensorList
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621685549279"><span class="hs-identifier hs-var">params</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-292"></span><span>
+</span><span id="line-293"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#stepWithGenerator"><span class="hs-identifier hs-type">stepWithGenerator</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Generator"><span class="hs-identifier hs-type">Generator</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Generator"><span class="hs-identifier hs-type">Generator</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Torch.Internal.Type.html#StdTuple"><span class="hs-identifier hs-type">StdTuple</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">(</span><span class="annot"><a href="Torch.Internal.Type.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Torch.Internal.Type.html#Generator"><span class="hs-identifier hs-type">Generator</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Torch.Internal.Type.html#StdTuple"><span class="hs-identifier hs-type">StdTuple</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">(</span><span class="annot"><a href="Torch.Internal.Type.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Torch.Internal.Type.html#Generator"><span class="hs-identifier hs-type">Generator</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span id="stepWithGenerator"><span class="annot"><span class="annottext">stepWithGenerator :: Ptr Optimizer
+-&gt; Ptr Generator
+-&gt; (Ptr TensorList
+    -&gt; Ptr Generator -&gt; IO (Ptr (StdTuple '(Tensor, Generator))))
+-&gt; IO (Ptr (StdTuple '(Tensor, Generator)))
+</span><a href="Torch.Internal.Unmanaged.Optim.html#stepWithGenerator"><span class="hs-identifier hs-var hs-var">stepWithGenerator</span></a></span></span><span> </span><span id="local-6989586621685549283"><span class="annot"><span class="annottext">Ptr Optimizer
+</span><a href="#local-6989586621685549283"><span class="hs-identifier hs-var">optimizer</span></a></span></span><span> </span><span id="local-6989586621685549284"><span class="annot"><span class="annottext">Ptr Generator
+</span><a href="#local-6989586621685549284"><span class="hs-identifier hs-var">generator</span></a></span></span><span> </span><span id="local-6989586621685549285"><span class="annot"><span class="annottext">Ptr TensorList
+-&gt; Ptr Generator -&gt; IO (Ptr (StdTuple '(Tensor, Generator)))
+</span><a href="#local-6989586621685549285"><span class="hs-identifier hs-var">lossFunc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-295"></span><span>  </span><span class="annot"><span class="annottext">IO (FunPtr (Ptr () -&gt; Ptr () -&gt; IO (Ptr ())))
+-&gt; (FunPtr (Ptr () -&gt; Ptr () -&gt; IO (Ptr ())) -&gt; IO ())
+-&gt; (FunPtr (Ptr () -&gt; Ptr () -&gt; IO (Ptr ()))
+    -&gt; IO (Ptr (StdTuple '(Tensor, Generator))))
+-&gt; IO (Ptr (StdTuple '(Tensor, Generator)))
+forall (m :: * -&gt; *) a b c.
+(HasCallStack, MonadMask m) =&gt;
+m a -&gt; (a -&gt; m b) -&gt; (a -&gt; m c) -&gt; m c
+</span><span class="hs-identifier hs-var">bracket</span></span><span>
+</span><span id="line-296"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Ptr () -&gt; Ptr () -&gt; IO (Ptr ()))
+-&gt; IO (FunPtr (Ptr () -&gt; Ptr () -&gt; IO (Ptr ())))
+</span><span class="hs-identifier hs-var">callbackHelper2</span></span><span> </span><span class="annot"><span class="annottext">Ptr () -&gt; Ptr () -&gt; IO (Ptr ())
+</span><a href="#local-6989586621685549287"><span class="hs-identifier hs-var">lossFunc'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-297"></span><span>    </span><span class="annot"><span class="annottext">FunPtr (Ptr () -&gt; Ptr () -&gt; IO (Ptr ())) -&gt; IO ()
+forall a. FunPtr a -&gt; IO ()
+</span><span class="hs-identifier hs-var">freeHaskellFunPtr</span></span><span>
+</span><span id="line-298"></span><span>    </span><span class="annot"><span class="annottext">((FunPtr (Ptr () -&gt; Ptr () -&gt; IO (Ptr ()))
+  -&gt; IO (Ptr (StdTuple '(Tensor, Generator))))
+ -&gt; IO (Ptr (StdTuple '(Tensor, Generator))))
+-&gt; (FunPtr (Ptr () -&gt; Ptr () -&gt; IO (Ptr ()))
+    -&gt; IO (Ptr (StdTuple '(Tensor, Generator))))
+-&gt; IO (Ptr (StdTuple '(Tensor, Generator)))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621685549288"><span class="annot"><span class="annottext">FunPtr (Ptr () -&gt; Ptr () -&gt; IO (Ptr ()))
+</span><a href="#local-6989586621685549288"><span class="hs-identifier hs-var">funcPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-299"></span><span>      </span><span class="annot"><span class="">[C.throwBlock| std::tuple&lt;at::Tensor,at::Generator&gt;* {
+        auto tfunc = $(void* (*funcPtr)(void*,void*));
+        auto optimizer = $(torch::optim::Optimizer* optimizer);
+        typedef std::tuple&lt;at::Tensor,at::Generator&gt;* (*Func)(std::vector&lt;at::Tensor&gt;*,at::Generator*);
+        auto generator = $(at::Generator* generator)-&gt;clone();
+        auto func = (Func)tfunc;
+        auto v = optimizer-&gt;step([&amp;]{
+          optimizer-&gt;zero_grad();
+          auto lossWithGenerator = func(&amp;(optimizer-&gt;param_groups().at(0).params()),&amp;generator);
+          auto loss = std::get&lt;0&gt;(*lossWithGenerator);
+          generator = std::get&lt;1&gt;(*lossWithGenerator);
+          loss.backward();
+          return loss;
+        });
+        return new std::tuple&lt;at::Tensor,at::Generator&gt;(std::make_tuple(v,generator));
+      }|]</span></span><span>
+</span><span id="line-315"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-316"></span><span>    </span><span class="annot"><a href="#local-6989586621685549287"><span class="hs-identifier hs-type">lossFunc'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-317"></span><span>    </span><span id="local-6989586621685549287"><span class="annot"><span class="annottext">lossFunc' :: Ptr () -&gt; Ptr () -&gt; IO (Ptr ())
+</span><a href="#local-6989586621685549287"><span class="hs-identifier hs-var hs-var">lossFunc'</span></a></span></span><span> </span><span id="local-6989586621685549299"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621685549299"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span id="local-6989586621685549300"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621685549300"><span class="hs-identifier hs-var">generator</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr (StdTuple '(Tensor, Generator)) -&gt; Ptr ()
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">(Ptr (StdTuple '(Tensor, Generator)) -&gt; Ptr ())
+-&gt; IO (Ptr (StdTuple '(Tensor, Generator))) -&gt; IO (Ptr ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr TensorList
+-&gt; Ptr Generator -&gt; IO (Ptr (StdTuple '(Tensor, Generator)))
+</span><a href="#local-6989586621685549285"><span class="hs-identifier hs-var">lossFunc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr () -&gt; Ptr TensorList
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621685549299"><span class="hs-identifier hs-var">params</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr () -&gt; Ptr Generator
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621685549300"><span class="hs-identifier hs-var">generator</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-318"></span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- After this function is called, params(TensorList) of optimizer is updated.</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- TensorList of output is the same as optimizer's params(TensorList).</span><span>
+</span><span id="line-321"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#unsafeStep"><span class="hs-identifier hs-type">unsafeStep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#TensorList"><span class="hs-identifier hs-type">TensorList</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-322"></span><span id="unsafeStep"><span class="annot"><span class="annottext">unsafeStep :: Ptr Optimizer -&gt; Ptr Tensor -&gt; IO (Ptr TensorList)
+</span><a href="Torch.Internal.Unmanaged.Optim.html#unsafeStep"><span class="hs-identifier hs-var hs-var">unsafeStep</span></a></span></span><span> </span><span id="local-6989586621685549302"><span class="annot"><span class="annottext">Ptr Optimizer
+</span><a href="#local-6989586621685549302"><span class="hs-identifier hs-var">optimizer</span></a></span></span><span> </span><span id="local-6989586621685549303"><span class="annot"><span class="annottext">Ptr Tensor
+</span><a href="#local-6989586621685549303"><span class="hs-identifier hs-var">loss</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-323"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| std::vector&lt;at::Tensor&gt;* {
+    auto optimizer = $(torch::optim::Optimizer* optimizer);
+    auto loss = $(at::Tensor* loss);
+    optimizer-&gt;zero_grad();
+    loss-&gt;backward();
+    optimizer-&gt;step();
+    return new std::vector&lt;at::Tensor&gt;(optimizer-&gt;param_groups().at(0).params());
+  }|]</span></span><span>
+</span><span id="line-331"></span><span>
+</span><span id="line-332"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#save"><span class="hs-identifier hs-type">save</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#StdString"><span class="hs-identifier hs-type">StdString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-333"></span><span id="save"><span class="annot"><span class="annottext">save :: Ptr Optimizer -&gt; Ptr StdString -&gt; IO ()
+</span><a href="Torch.Internal.Unmanaged.Optim.html#save"><span class="hs-identifier hs-var hs-var">save</span></a></span></span><span> </span><span id="local-6989586621685549313"><span class="annot"><span class="annottext">Ptr Optimizer
+</span><a href="#local-6989586621685549313"><span class="hs-identifier hs-var">optimizer</span></a></span></span><span> </span><span id="local-6989586621685549314"><span class="annot"><span class="annottext">Ptr StdString
+</span><a href="#local-6989586621685549314"><span class="hs-identifier hs-var">filename</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-334"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| void {
+    std::ofstream output(*$(std::string* filename));
+    torch::save(*$(torch::optim::Optimizer* optimizer),output);
+  }|]</span></span><span>
+</span><span id="line-338"></span><span>
+</span><span id="line-339"></span><span class="annot"><a href="Torch.Internal.Unmanaged.Optim.html#load"><span class="hs-identifier hs-type">load</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Torch.Internal.Type.html#StdString"><span class="hs-identifier hs-type">StdString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-340"></span><span id="load"><span class="annot"><span class="annottext">load :: Ptr Optimizer -&gt; Ptr StdString -&gt; IO ()
+</span><a href="Torch.Internal.Unmanaged.Optim.html#load"><span class="hs-identifier hs-var hs-var">load</span></a></span></span><span> </span><span id="local-6989586621685549324"><span class="annot"><span class="annottext">Ptr Optimizer
+</span><a href="#local-6989586621685549324"><span class="hs-identifier hs-var">optimizer</span></a></span></span><span> </span><span id="local-6989586621685549325"><span class="annot"><span class="annottext">Ptr StdString
+</span><a href="#local-6989586621685549325"><span class="hs-identifier hs-var">filename</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-341"></span><span>  </span><span class="annot"><span class="">[C.throwBlock| void {
+    std::ifstream input(*$(std::string* filename));
+    torch::load(*$(torch::optim::Optimizer* optimizer),input);
+  }|]</span></span><span>
+</span><span id="line-345"></span></pre></body></html>

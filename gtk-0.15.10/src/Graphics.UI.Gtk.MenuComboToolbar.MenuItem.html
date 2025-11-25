@@ -1,0 +1,1025 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LINE 3 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget MenuItem</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Author : Axel Simon</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Created: 15 May 2001</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Copyright (C) 1999-2005 Axel Simon</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- NOTES</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- This widget derives from 'Item'. Since CList and CTree are deprecated, it</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- is the only child of that widget. The three signals defined by Item are</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- therefore bound in this module.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- figure out what the signals \&quot;toggle-size-allocate\&quot; and</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- \&quot;toggle-size-request\&quot; are good for and bind them if useful</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- figure out if the connectToToggle signal is useful at all</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- The widget used for item in menus</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html"><span class="hs-identifier">Graphics.UI.Gtk.MenuComboToolbar.MenuItem</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-43"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | The 'MenuItem' widget and the derived widgets are the only valid children</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- for menus. Their function is to correctly handle highlighting, alignment,</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- events and submenus.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- As it derives from 'Bin' it can hold any valid child widget, although only</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- a few are really useful.</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | +----'Object'</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | +----'Widget'</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | +----'Container'</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | +----'Bin'</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | +----'Item'</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- | +----MenuItem</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | +----'CheckMenuItem'</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | +----'ImageMenuItem'</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | +----'SeparatorMenuItem'</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | +----'TearoffMenuItem'</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier">MenuItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier">MenuItemClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToMenuItem"><span class="hs-identifier">castToMenuItem</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeMenuItem"><span class="hs-identifier">gTypeMenuItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toMenuItem"><span class="hs-identifier">toMenuItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNew"><span class="hs-identifier">menuItemNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNewWithLabel"><span class="hs-identifier">menuItemNewWithLabel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNewWithMnemonic"><span class="hs-identifier">menuItemNewWithMnemonic</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetLabel"><span class="hs-identifier">menuItemSetLabel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetLabel"><span class="hs-identifier">menuItemGetLabel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetUseUnderline"><span class="hs-identifier">menuItemSetUseUnderline</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetUseUnderline"><span class="hs-identifier">menuItemGetUseUnderline</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetSubmenu"><span class="hs-identifier">menuItemSetSubmenu</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetSubmenu"><span class="hs-identifier">menuItemGetSubmenu</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemRemoveSubmenu"><span class="hs-identifier">menuItemRemoveSubmenu</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitSelect"><span class="hs-identifier">menuItemEmitSelect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitDeselect"><span class="hs-identifier">menuItemEmitDeselect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitActivate"><span class="hs-identifier">menuItemEmitActivate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetRightJustified"><span class="hs-identifier">menuItemSetRightJustified</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetRightJustified"><span class="hs-identifier">menuItemGetRightJustified</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetAccelPath"><span class="hs-identifier">menuItemSetAccelPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><span class="hs-comment">-- * Attributes</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSubmenu"><span class="hs-identifier">menuItemSubmenu</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemRightJustified"><span class="hs-identifier">menuItemRightJustified</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemLabel"><span class="hs-identifier">menuItemLabel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-101"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemUseUnderline"><span class="hs-identifier">menuItemUseUnderline</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="annot"><span class="hs-comment">-- * Signals</span></span><span>
+</span><span id="line-105"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivatedItem"><span class="hs-identifier">menuItemActivatedItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-106"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivated"><span class="hs-identifier">menuItemActivated</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivateItem"><span class="hs-identifier">menuItemActivateItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivate"><span class="hs-identifier">menuItemActivate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSelect"><span class="hs-identifier">menuItemSelect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemDeselect"><span class="hs-identifier">menuItemDeselect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemToggle"><span class="hs-identifier">menuItemToggle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="annot"><span class="hs-comment">-- * Deprecated</span></span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onActivateItem"><span class="hs-identifier">onActivateItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterActivateItem"><span class="hs-identifier">afterActivateItem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onActivateLeaf"><span class="hs-identifier">onActivateLeaf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterActivateLeaf"><span class="hs-identifier">afterActivateLeaf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onSelect"><span class="hs-identifier">onSelect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterSelect"><span class="hs-identifier">afterSelect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onDeselect"><span class="hs-identifier">onDeselect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterDeselect"><span class="hs-identifier">afterDeselect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-124"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onToggle"><span class="hs-identifier">onToggle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterToggle"><span class="hs-identifier">afterToggle</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.UTFString</span></span><span>
+</span><span id="line-134"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Attributes</span></span><span>
+</span><span id="line-135"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html"><span class="hs-identifier">Graphics.UI.Gtk.Abstract.Object</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier">makeNewObject</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-137"></span><span class="hs-pragma">{-# LINE 137 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-137"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.Signals</span><span>
+</span><span id="line-138"></span><span class="hs-pragma">{-# LINE 138 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-pragma">{-# LINE 140 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- | Creates a new 'MenuItem'.</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--</span><span>
+</span><span id="line-146"></span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNew"><span class="hs-identifier hs-type">menuItemNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span>
+</span><span id="line-147"></span><span id="menuItemNew"><span class="annot"><span class="annottext">menuItemNew :: IO MenuItem
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNew"><span class="hs-identifier hs-var hs-var">menuItemNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-148"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr MenuItem)
+-&gt; IO (Ptr MenuItem) -&gt; IO MenuItem
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr MenuItem)
+forall {a}. (ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkMenuItem"><span class="hs-identifier hs-var">mkMenuItem</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr MenuItem) -&gt; IO MenuItem)
+-&gt; IO (Ptr MenuItem) -&gt; IO MenuItem
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr MenuItem)
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr MenuItem)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr MenuItem
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr MenuItem))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr MenuItem)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-150"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_new"><span class="hs-identifier hs-var">gtk_menu_item_new</span></a></span><span>
+</span><span id="line-151"></span><span class="hs-pragma">{-# LINE 151 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- | Creates a new 'MenuItem' whose child is a 'Label'.</span><span>
+</span><span id="line-153"></span><span class="hs-comment">--</span><span>
+</span><span id="line-154"></span><span id="local-6989586621679654829"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNewWithLabel"><span class="hs-identifier hs-type">menuItemNewWithLabel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679654829"><span class="hs-identifier hs-type">string</span></a></span><span>
+</span><span id="line-155"></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654829"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @label@ - the text for the label</span></span><span>
+</span><span id="line-156"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span></span><span>
+</span><span id="line-157"></span><span id="menuItemNewWithLabel"><span class="annot"><span class="annottext">menuItemNewWithLabel :: forall string. GlibString string =&gt; string -&gt; IO MenuItem
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNewWithLabel"><span class="hs-identifier hs-var hs-var">menuItemNewWithLabel</span></a></span></span><span> </span><span id="local-6989586621679655022"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679655022"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-158"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr MenuItem)
+-&gt; IO (Ptr MenuItem) -&gt; IO MenuItem
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr MenuItem)
+forall {a}. (ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkMenuItem"><span class="hs-identifier hs-var">mkMenuItem</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr MenuItem) -&gt; IO MenuItem)
+-&gt; IO (Ptr MenuItem) -&gt; IO MenuItem
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr MenuItem)
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr MenuItem)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr MenuItem
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr MenuItem))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr MenuItem)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679655022"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655024"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655024"><span class="hs-identifier hs-var">labelPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="annottext">CString -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_new_with_label"><span class="hs-identifier hs-var">gtk_menu_item_new_with_label</span></a></span><span>
+</span><span id="line-162"></span><span class="hs-pragma">{-# LINE 162 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-identifier">labelPtr</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- | Creates a new 'MenuItem' containing a label. The label will be created</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- using 'labelNewWithMnemonic', so underscores in @label@ indicate the</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- mnemonic for the menu item.</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--</span><span>
+</span><span id="line-168"></span><span id="local-6989586621679655026"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNewWithMnemonic"><span class="hs-identifier hs-type">menuItemNewWithMnemonic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679655026"><span class="hs-identifier hs-type">string</span></a></span><span>
+</span><span id="line-169"></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655026"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-comment">-- ^ @label@ - The text of the label, with an underscore in</span><span>
+</span><span id="line-170"></span><span>                </span><span class="hs-comment">-- front of the mnemonic character</span><span>
+</span><span id="line-171"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span></span><span>
+</span><span id="line-172"></span><span id="menuItemNewWithMnemonic"><span class="annot"><span class="annottext">menuItemNewWithMnemonic :: forall string. GlibString string =&gt; string -&gt; IO MenuItem
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemNewWithMnemonic"><span class="hs-identifier hs-var hs-var">menuItemNewWithMnemonic</span></a></span></span><span> </span><span id="local-6989586621679655031"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679655031"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr MenuItem)
+-&gt; IO (Ptr MenuItem) -&gt; IO MenuItem
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr MenuItem)
+forall {a}. (ForeignPtr MenuItem -&gt; MenuItem, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkMenuItem"><span class="hs-identifier hs-var">mkMenuItem</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr MenuItem) -&gt; IO MenuItem)
+-&gt; IO (Ptr MenuItem) -&gt; IO MenuItem
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-174"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr MenuItem)
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr MenuItem)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr MenuItem
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr MenuItem))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr MenuItem)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679655031"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655032"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655032"><span class="hs-identifier hs-var">labelPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-176"></span><span>  </span><span class="annot"><span class="annottext">CString -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_new_with_mnemonic"><span class="hs-identifier hs-var">gtk_menu_item_new_with_mnemonic</span></a></span><span>
+</span><span id="line-177"></span><span class="hs-pragma">{-# LINE 177 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-177"></span><span>    </span><span class="hs-identifier">labelPtr</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="annot"><span class="hs-comment">-- | Sets text on the MenuItem label</span></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span id="local-6989586621679654836"><span id="local-6989586621679654838"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetLabel"><span class="hs-identifier hs-type">menuItemSetLabel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654836"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679654838"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654836"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654838"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-185"></span><span id="menuItemSetLabel"><span class="annot"><span class="annottext">menuItemSetLabel :: forall self string.
+(MenuItemClass self, GlibString string) =&gt;
+self -&gt; string -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetLabel"><span class="hs-identifier hs-var hs-var">menuItemSetLabel</span></a></span></span><span> </span><span id="local-6989586621679655038"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655038"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679655039"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679655039"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-186"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679655039"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655040"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655040"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679655041"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655041"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655040"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655043"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655043"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; CString -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_label"><span class="hs-identifier hs-var">gtk_menu_item_set_label</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655043"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655041"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">self -&gt; MenuItem
+forall o. MenuItemClass o =&gt; o -&gt; MenuItem
+</span><a href="Graphics.UI.Gtk.Types.html#toMenuItem"><span class="hs-identifier hs-var">toMenuItem</span></a></span><span> </span><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655038"><span class="hs-identifier hs-var">self</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="annot"><span class="hs-comment">-- | Gets text on the MenuItem label</span></span><span>
+</span><span id="line-189"></span><span id="local-6989586621679654844"><span id="local-6989586621679654845"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetLabel"><span class="hs-identifier hs-type">menuItemGetLabel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654844"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679654845"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654844"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679654845"><span class="hs-identifier hs-type">string</span></a></span></span></span><span>
+</span><span id="line-190"></span><span id="menuItemGetLabel"><span class="annot"><span class="annottext">menuItemGetLabel :: forall self string.
+(MenuItemClass self, GlibString string) =&gt;
+self -&gt; IO string
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetLabel"><span class="hs-identifier hs-var hs-var">menuItemGetLabel</span></a></span></span><span> </span><span id="local-6989586621679655056"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655056"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655057"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655057"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO CString) -&gt; IO CString
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655057"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO CString) -&gt; IO CString)
+-&gt; (Ptr MenuItem -&gt; IO CString) -&gt; IO CString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655058"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655058"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; IO CString
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_get_label"><span class="hs-identifier hs-var">gtk_menu_item_get_label</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655058"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span class="hs-pragma">{-# LINE 192 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-192"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-193"></span><span>  </span><span class="annot"><span class="annottext">IO CString -&gt; (CString -&gt; IO string) -&gt; IO string
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655060"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655060"><span class="hs-identifier hs-var">strPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655060"><span class="hs-identifier hs-var">strPtr</span></a></span><span> </span><span class="annot"><span class="annottext">CString -&gt; CString -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CString
+forall a. Ptr a
+</span><span class="hs-identifier hs-var">nullPtr</span></span><span>
+</span><span id="line-194"></span><span>                   </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">string -&gt; IO string
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-195"></span><span>                   </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">CString -&gt; IO string
+forall s. GlibString s =&gt; CString -&gt; IO s
+</span><span class="hs-identifier hs-var">peekUTFString</span></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655060"><span class="hs-identifier hs-var">strPtr</span></a></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- | If True, an underline in the text indicates the next character should be used for the mnemonic accelerator key.</span><span>
+</span><span id="line-198"></span><span class="hs-comment">--</span><span>
+</span><span id="line-199"></span><span id="local-6989586621679654856"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetUseUnderline"><span class="hs-identifier hs-type">menuItemSetUseUnderline</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654856"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654856"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-200"></span><span id="menuItemSetUseUnderline"><span class="annot"><span class="annottext">menuItemSetUseUnderline :: forall self. MenuItemClass self =&gt; self -&gt; Bool -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetUseUnderline"><span class="hs-identifier hs-var hs-var">menuItemSetUseUnderline</span></a></span></span><span> </span><span id="local-6989586621679655067"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655067"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655068"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655068"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679655069"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679655069"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655068"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655070"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655070"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_use_underline"><span class="hs-identifier hs-var">gtk_menu_item_set_use_underline</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655070"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679655069"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">self -&gt; MenuItem
+forall o. MenuItemClass o =&gt; o -&gt; MenuItem
+</span><a href="Graphics.UI.Gtk.Types.html#toMenuItem"><span class="hs-identifier hs-var">toMenuItem</span></a></span><span> </span><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655067"><span class="hs-identifier hs-var">self</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(CInt -&gt; IO ()) -&gt; (Bool -&gt; CInt) -&gt; Bool -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; CInt
+forall a. Num a =&gt; Bool -&gt; a
+</span><span class="hs-identifier hs-var">fromBool</span></span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- | Checks if an underline in the text indicates the next character should be used for the mnemonic accelerator key.</span><span>
+</span><span id="line-204"></span><span class="hs-comment">--</span><span>
+</span><span id="line-205"></span><span id="local-6989586621679654863"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetUseUnderline"><span class="hs-identifier hs-type">menuItemGetUseUnderline</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654863"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654863"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-206"></span><span id="menuItemGetUseUnderline"><span class="annot"><span class="annottext">menuItemGetUseUnderline :: forall self. MenuItemClass self =&gt; self -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetUseUnderline"><span class="hs-identifier hs-var hs-var">menuItemGetUseUnderline</span></a></span></span><span> </span><span id="local-6989586621679655080"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655080"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; Bool) -&gt; IO CInt -&gt; IO Bool
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Bool
+forall a. (Eq a, Num a) =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">toBool</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Bool) -&gt; IO CInt -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655082"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655082"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655082"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr MenuItem -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655083"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655083"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_get_use_underline"><span class="hs-identifier hs-var">gtk_menu_item_get_use_underline</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655083"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span class="hs-pragma">{-# LINE 208 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-208"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- | Sets the item's submenu, or changes it.</span><span>
+</span><span id="line-212"></span><span class="hs-comment">--</span><span>
+</span><span id="line-213"></span><span id="local-6989586621679654866"><span id="local-6989586621679654867"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetSubmenu"><span class="hs-identifier hs-type">menuItemSetSubmenu</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654866"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuClass"><span class="hs-identifier hs-type">MenuClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654867"><span class="hs-identifier hs-type">submenu</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654866"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654867"><span class="hs-identifier hs-type">submenu</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-214"></span><span id="menuItemSetSubmenu"><span class="annot"><span class="annottext">menuItemSetSubmenu :: forall self submenu.
+(MenuItemClass self, MenuClass submenu) =&gt;
+self -&gt; submenu -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetSubmenu"><span class="hs-identifier hs-var hs-var">menuItemSetSubmenu</span></a></span></span><span> </span><span id="local-6989586621679655095"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655095"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679655096"><span class="annot"><span class="annottext">submenu
+</span><a href="#local-6989586621679655096"><span class="hs-identifier hs-var">submenu</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-215"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655097"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655097"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span id="local-6989586621679655098"><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679655098"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655097"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655099"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655099"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Widget -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679655098"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Widget -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655100"><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679655100"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; Ptr Widget -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_submenu"><span class="hs-identifier hs-var">gtk_menu_item_set_submenu</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655099"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679655100"><span class="hs-identifier hs-var">argPtr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-216"></span><span class="hs-pragma">{-# LINE 216 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-216"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">submenu -&gt; Widget
+forall o. WidgetClass o =&gt; o -&gt; Widget
+</span><a href="Graphics.UI.Gtk.Types.html#toWidget"><span class="hs-identifier hs-var">toWidget</span></a></span><span> </span><span class="annot"><span class="annottext">submenu
+</span><a href="#local-6989586621679655096"><span class="hs-identifier hs-var">submenu</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- | Gets the submenu underneath this menu item, if any. See</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- 'menuItemSetSubmenu'.</span><span>
+</span><span id="line-221"></span><span class="hs-comment">--</span><span>
+</span><span id="line-222"></span><span id="local-6989586621679654878"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetSubmenu"><span class="hs-identifier hs-type">menuItemGetSubmenu</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654878"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654878"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-223"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-comment">-- ^ returns submenu for this menu item, or @Nothing@ if</span><span>
+</span><span id="line-224"></span><span>                      </span><span class="hs-comment">-- none.</span><span>
+</span><span id="line-225"></span><span id="menuItemGetSubmenu"><span class="annot"><span class="annottext">menuItemGetSubmenu :: forall self. MenuItemClass self =&gt; self -&gt; IO (Maybe Widget)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetSubmenu"><span class="hs-identifier hs-var hs-var">menuItemGetSubmenu</span></a></span></span><span> </span><span id="local-6989586621679655107"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655107"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-226"></span><span>  </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO Widget)
+-&gt; IO (Ptr Widget) -&gt; IO (Maybe Widget)
+forall a. (IO (Ptr a) -&gt; IO a) -&gt; IO (Ptr a) -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">maybeNull</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ForeignPtr Widget -&gt; Widget, FinalizerPtr Widget)
+-&gt; IO (Ptr Widget) -&gt; IO Widget
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Widget -&gt; Widget, FinalizerPtr Widget)
+forall {a}. (ForeignPtr Widget -&gt; Widget, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkWidget"><span class="hs-identifier hs-var">mkWidget</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Maybe Widget))
+-&gt; IO (Ptr Widget) -&gt; IO (Maybe Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-227"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655110"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655110"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+-&gt; (Ptr MenuItem -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655110"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (Ptr MenuItem -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655111"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655111"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_get_submenu"><span class="hs-identifier hs-var">gtk_menu_item_get_submenu</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655111"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-228"></span><span class="hs-pragma">{-# LINE 228 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-228"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- | Removes the item's submenu.</span><span>
+</span><span id="line-231"></span><span class="hs-comment">--</span><span>
+</span><span id="line-232"></span><span id="local-6989586621679654882"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemRemoveSubmenu"><span class="hs-identifier hs-type">menuItemRemoveSubmenu</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654882"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654882"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-233"></span><span id="menuItemRemoveSubmenu"><span class="annot"><span class="annottext">menuItemRemoveSubmenu :: forall self. MenuItemClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemRemoveSubmenu"><span class="hs-identifier hs-var hs-var">menuItemRemoveSubmenu</span></a></span></span><span> </span><span id="local-6989586621679655115"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655115"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-234"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655116"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655116"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span id="local-6989586621679655117"><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679655117"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655116"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655118"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655118"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Widget -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679655117"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Widget -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655119"><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679655119"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; Ptr Widget -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_submenu"><span class="hs-identifier hs-var">gtk_menu_item_set_submenu</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655118"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679655119"><span class="hs-identifier hs-var">argPtr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-235"></span><span class="hs-pragma">{-# LINE 235 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-235"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-236"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ForeignPtr Widget -&gt; Widget
+</span><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-var">Widget</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Widget -&gt; Widget) -&gt; ForeignPtr Widget -&gt; Widget
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO (ForeignPtr Widget) -&gt; ForeignPtr Widget
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (ForeignPtr Widget) -&gt; ForeignPtr Widget)
+-&gt; IO (ForeignPtr Widget) -&gt; ForeignPtr Widget
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Ptr Widget -&gt; IO (ForeignPtr Widget)
+forall a. Ptr a -&gt; IO (ForeignPtr a)
+</span><span class="hs-identifier hs-var">newForeignPtr_</span></span><span> </span><span class="annot"><span class="annottext">Ptr Widget
+forall a. Ptr a
+</span><span class="hs-identifier hs-var">nullPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- | Select the menu item. Emits the \&quot;select\&quot; signal on the item.</span><span>
+</span><span id="line-239"></span><span class="hs-comment">--</span><span>
+</span><span id="line-240"></span><span id="local-6989586621679655122"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitSelect"><span class="hs-identifier hs-type">menuItemEmitSelect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655122"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655122"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-241"></span><span id="menuItemEmitSelect"><span class="annot"><span class="annottext">menuItemEmitSelect :: forall self. MenuItemClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitSelect"><span class="hs-identifier hs-var hs-var">menuItemEmitSelect</span></a></span></span><span> </span><span id="local-6989586621679655125"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655125"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-242"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655126"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655126"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655126"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655127"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655127"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_select"><span class="hs-identifier hs-var">gtk_menu_item_select</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655127"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-243"></span><span class="hs-pragma">{-# LINE 243 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-243"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- | Deselect the menu item. Emits the \&quot;deselect\&quot; signal on the item.</span><span>
+</span><span id="line-246"></span><span class="hs-comment">--</span><span>
+</span><span id="line-247"></span><span id="local-6989586621679655129"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitDeselect"><span class="hs-identifier hs-type">menuItemEmitDeselect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655129"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655129"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-248"></span><span id="menuItemEmitDeselect"><span class="annot"><span class="annottext">menuItemEmitDeselect :: forall self. MenuItemClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitDeselect"><span class="hs-identifier hs-var hs-var">menuItemEmitDeselect</span></a></span></span><span> </span><span id="local-6989586621679655132"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655132"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-249"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655133"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655133"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655133"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655134"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655134"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_deselect"><span class="hs-identifier hs-var">gtk_menu_item_deselect</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655134"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-250"></span><span class="hs-pragma">{-# LINE 250 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-250"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-251"></span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- | Simulate a click on the menu item. Emits the \&quot;activate\&quot; signal on the item.</span><span>
+</span><span id="line-253"></span><span class="hs-comment">--</span><span>
+</span><span id="line-254"></span><span id="local-6989586621679655136"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitActivate"><span class="hs-identifier hs-type">menuItemEmitActivate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655136"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655136"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-255"></span><span id="menuItemEmitActivate"><span class="annot"><span class="annottext">menuItemEmitActivate :: forall self. MenuItemClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemEmitActivate"><span class="hs-identifier hs-var hs-var">menuItemEmitActivate</span></a></span></span><span> </span><span id="local-6989586621679655139"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655139"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-256"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655140"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655140"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655140"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655141"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655141"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_activate"><span class="hs-identifier hs-var">gtk_menu_item_activate</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655141"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span class="hs-pragma">{-# LINE 257 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-257"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-258"></span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- | Sets whether the menu item appears justified at the right side of a menu</span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- bar. This was traditionally done for \&quot;Help\&quot; menu items, but is now</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- considered a bad idea. (If the widget layout is reversed for a right-to-left</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- language like Hebrew or Arabic, right-justified-menu-items appear at the</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- left.)</span><span>
+</span><span id="line-264"></span><span class="hs-comment">--</span><span>
+</span><span id="line-265"></span><span id="local-6989586621679655143"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetRightJustified"><span class="hs-identifier hs-type">menuItemSetRightJustified</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655143"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655143"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-266"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ @rightJustified@ - if @True@ the menu item will appear at the</span><span>
+</span><span id="line-267"></span><span>          </span><span class="hs-comment">-- far right if added to a menu bar.</span><span>
+</span><span id="line-268"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-269"></span><span id="menuItemSetRightJustified"><span class="annot"><span class="annottext">menuItemSetRightJustified :: forall self. MenuItemClass self =&gt; self -&gt; Bool -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetRightJustified"><span class="hs-identifier hs-var hs-var">menuItemSetRightJustified</span></a></span></span><span> </span><span id="local-6989586621679655147"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655147"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679655148"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679655148"><span class="hs-identifier hs-var">rightJustified</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-270"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655149"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655149"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679655150"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679655150"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655149"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655151"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655151"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_right_justified"><span class="hs-identifier hs-var">gtk_menu_item_set_right_justified</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655151"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679655150"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span class="hs-pragma">{-# LINE 271 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-271"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-272"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; CInt
+forall a. Num a =&gt; Bool -&gt; a
+</span><span class="hs-identifier hs-var">fromBool</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679655148"><span class="hs-identifier hs-var">rightJustified</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-273"></span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- | Gets whether the menu item appears justified at the right side of the</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- menu bar.</span><span>
+</span><span id="line-276"></span><span class="hs-comment">--</span><span>
+</span><span id="line-277"></span><span id="local-6989586621679655153"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetRightJustified"><span class="hs-identifier hs-type">menuItemGetRightJustified</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655153"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655153"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-278"></span><span id="menuItemGetRightJustified"><span class="annot"><span class="annottext">menuItemGetRightJustified :: forall self. MenuItemClass self =&gt; self -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetRightJustified"><span class="hs-identifier hs-var hs-var">menuItemGetRightJustified</span></a></span></span><span> </span><span id="local-6989586621679655159"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655159"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-279"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; Bool) -&gt; IO CInt -&gt; IO Bool
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Bool
+forall a. (Eq a, Num a) =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">toBool</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Bool) -&gt; IO CInt -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-280"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655160"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655160"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655160"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr MenuItem -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655161"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655161"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_get_right_justified"><span class="hs-identifier hs-var">gtk_menu_item_get_right_justified</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655161"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-281"></span><span class="hs-pragma">{-# LINE 281 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-281"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-282"></span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- | Set the accelerator path on the menu item, through which runtime changes of</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- the menu item's accelerator caused by the user can be identified and saved</span><span>
+</span><span id="line-285"></span><span class="hs-comment">-- to persistent storage (see 'accelMapSave' on this). To setup a default</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- accelerator for this menu item, call 'accelMapAddEntry' with the same accel</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- path. See also 'accelMapAddEntry' on the specifics of accelerator paths, and</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- 'menuSetAccelPath' for a more convenient variant of this function.</span><span>
+</span><span id="line-289"></span><span class="hs-comment">--</span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- This function is basically a convenience wrapper that handles calling</span><span>
+</span><span id="line-291"></span><span class="hs-comment">-- 'widgetSetAccelPath' with the appropriate accelerator group for the menu</span><span>
+</span><span id="line-292"></span><span class="hs-comment">-- item.</span><span>
+</span><span id="line-293"></span><span class="hs-comment">--</span><span>
+</span><span id="line-294"></span><span class="hs-comment">-- Note that you do need to set an accelerator on the parent menu with</span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- 'menuSetAccelGroup' for this to work.</span><span>
+</span><span id="line-296"></span><span class="hs-comment">--</span><span>
+</span><span id="line-297"></span><span id="local-6989586621679654891"><span id="local-6989586621679654892"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetAccelPath"><span class="hs-identifier hs-type">menuItemSetAccelPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654891"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679654892"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654891"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-298"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679654892"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-comment">-- ^ @accelPath@ - accelerator path, corresponding to this</span><span>
+</span><span id="line-299"></span><span>                 </span><span class="hs-comment">-- menu item's functionality, or @Nothing@ to unset the</span><span>
+</span><span id="line-300"></span><span>                 </span><span class="hs-comment">-- current path.</span><span>
+</span><span id="line-301"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-302"></span><span id="menuItemSetAccelPath"><span class="annot"><span class="annottext">menuItemSetAccelPath :: forall self string.
+(MenuItemClass self, GlibString string) =&gt;
+self -&gt; Maybe string -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetAccelPath"><span class="hs-identifier hs-var hs-var">menuItemSetAccelPath</span></a></span></span><span> </span><span id="local-6989586621679655167"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679655167"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679655168"><span class="annot"><span class="annottext">Maybe string
+</span><a href="#local-6989586621679655168"><span class="hs-identifier hs-var">accelPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-303"></span><span>  </span><span class="annot"><span class="annottext">(string -&gt; (CString -&gt; IO ()) -&gt; IO ())
+-&gt; Maybe string -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b c.
+(a -&gt; (Ptr b -&gt; IO c) -&gt; IO c)
+-&gt; Maybe a -&gt; (Ptr b -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">maybeWith</span></span><span> </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">Maybe string
+</span><a href="#local-6989586621679655168"><span class="hs-identifier hs-var">accelPath</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655170"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655170"><span class="hs-identifier hs-var">accelPathPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-304"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span> </span><span id="local-6989586621679655171"><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655171"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679655172"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655172"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem -&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr MenuItem
+</span><a href="#local-6989586621679655171"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr MenuItem -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr MenuItem -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679655173"><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655173"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr MenuItem -&gt; CString -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_accel_path"><span class="hs-identifier hs-var">gtk_menu_item_set_accel_path</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr MenuItem
+</span><a href="#local-6989586621679655173"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655172"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-305"></span><span class="hs-pragma">{-# LINE 305 &quot;./Graphics/UI/Gtk/MenuComboToolbar/MenuItem.chs&quot; #-}</span><span>
+</span><span id="line-305"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toMenuItem</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-306"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679655170"><span class="hs-identifier hs-var">accelPathPtr</span></a></span><span>
+</span><span id="line-307"></span><span>
+</span><span id="line-308"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- Attributes</span><span>
+</span><span id="line-310"></span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- | \'submenu\' property. See 'menuItemGetSubmenu' and 'menuItemSetSubmenu'</span><span>
+</span><span id="line-312"></span><span class="hs-comment">--</span><span>
+</span><span id="line-313"></span><span id="local-6989586621679654898"><span id="local-6989586621679654899"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSubmenu"><span class="hs-identifier hs-type">menuItemSubmenu</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654898"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuClass"><span class="hs-identifier hs-type">MenuClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654899"><span class="hs-identifier hs-type">submenu</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadWriteAttr</span></span><span> </span><span class="annot"><a href="#local-6989586621679654898"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679654899"><span class="hs-identifier hs-type">submenu</span></a></span></span></span><span>
+</span><span id="line-314"></span><span id="menuItemSubmenu"><span class="annot"><span class="annottext">menuItemSubmenu :: forall self submenu.
+(MenuItemClass self, MenuClass submenu) =&gt;
+ReadWriteAttr self (Maybe Widget) submenu
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSubmenu"><span class="hs-identifier hs-var hs-var">menuItemSubmenu</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO (Maybe Widget))
+-&gt; (self -&gt; submenu -&gt; IO ())
+-&gt; ReadWriteAttr self (Maybe Widget) submenu
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-315"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO (Maybe Widget)
+forall self. MenuItemClass self =&gt; self -&gt; IO (Maybe Widget)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetSubmenu"><span class="hs-identifier hs-var">menuItemGetSubmenu</span></a></span><span>
+</span><span id="line-316"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; submenu -&gt; IO ()
+forall self submenu.
+(MenuItemClass self, MenuClass submenu) =&gt;
+self -&gt; submenu -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetSubmenu"><span class="hs-identifier hs-var">menuItemSetSubmenu</span></a></span><span>
+</span><span id="line-317"></span><span>
+</span><span id="line-318"></span><span class="hs-comment">-- | \'rightJustified\' property. See 'menuItemGetRightJustified' and</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- 'menuItemSetRightJustified'</span><span>
+</span><span id="line-320"></span><span class="hs-comment">--</span><span>
+</span><span id="line-321"></span><span id="local-6989586621679654906"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemRightJustified"><span class="hs-identifier hs-type">menuItemRightJustified</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654906"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679654906"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-322"></span><span id="menuItemRightJustified"><span class="annot"><span class="annottext">menuItemRightJustified :: forall self. MenuItemClass self =&gt; Attr self Bool
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemRightJustified"><span class="hs-identifier hs-var hs-var">menuItemRightJustified</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO Bool)
+-&gt; (self -&gt; Bool -&gt; IO ()) -&gt; ReadWriteAttr self Bool Bool
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-323"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO Bool
+forall self. MenuItemClass self =&gt; self -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetRightJustified"><span class="hs-identifier hs-var">menuItemGetRightJustified</span></a></span><span>
+</span><span id="line-324"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; Bool -&gt; IO ()
+forall self. MenuItemClass self =&gt; self -&gt; Bool -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetRightJustified"><span class="hs-identifier hs-var">menuItemSetRightJustified</span></a></span><span>
+</span><span id="line-325"></span><span>
+</span><span id="line-326"></span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- | \'label\' property. See 'menuItemSetLabel' and 'menuItemGetLabel'</span><span>
+</span><span id="line-328"></span><span class="hs-comment">--</span><span>
+</span><span id="line-329"></span><span id="local-6989586621679654909"><span id="local-6989586621679654910"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemLabel"><span class="hs-identifier hs-type">menuItemLabel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654909"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679654910"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679654909"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654910"><span class="hs-identifier hs-type">string</span></a></span></span></span><span>
+</span><span id="line-330"></span><span id="menuItemLabel"><span class="annot"><span class="annottext">menuItemLabel :: forall self string.
+(MenuItemClass self, GlibString string) =&gt;
+Attr self string
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemLabel"><span class="hs-identifier hs-var hs-var">menuItemLabel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO string)
+-&gt; (self -&gt; string -&gt; IO ()) -&gt; ReadWriteAttr self string string
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-331"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO string
+forall self string.
+(MenuItemClass self, GlibString string) =&gt;
+self -&gt; IO string
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetLabel"><span class="hs-identifier hs-var">menuItemGetLabel</span></a></span><span>
+</span><span id="line-332"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; string -&gt; IO ()
+forall self string.
+(MenuItemClass self, GlibString string) =&gt;
+self -&gt; string -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetLabel"><span class="hs-identifier hs-var">menuItemSetLabel</span></a></span><span>
+</span><span id="line-333"></span><span>
+</span><span id="line-334"></span><span class="hs-comment">-- | \'useUnderline\' property. See 'menuItemSetUseUnderline' and</span><span>
+</span><span id="line-335"></span><span class="hs-comment">-- 'menuItemGetUseEUnderline'</span><span>
+</span><span id="line-336"></span><span class="hs-comment">--</span><span>
+</span><span id="line-337"></span><span id="local-6989586621679655190"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemUseUnderline"><span class="hs-identifier hs-type">menuItemUseUnderline</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655190"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679655190"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-338"></span><span id="menuItemUseUnderline"><span class="annot"><span class="annottext">menuItemUseUnderline :: forall self. MenuItemClass self =&gt; Attr self Bool
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemUseUnderline"><span class="hs-identifier hs-var hs-var">menuItemUseUnderline</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO Bool)
+-&gt; (self -&gt; Bool -&gt; IO ()) -&gt; ReadWriteAttr self Bool Bool
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-339"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO Bool
+forall self. MenuItemClass self =&gt; self -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemGetUseUnderline"><span class="hs-identifier hs-var">menuItemGetUseUnderline</span></a></span><span>
+</span><span id="line-340"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; Bool -&gt; IO ()
+forall self. MenuItemClass self =&gt; self -&gt; Bool -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSetUseUnderline"><span class="hs-identifier hs-var">menuItemSetUseUnderline</span></a></span><span>
+</span><span id="line-341"></span><span>
+</span><span id="line-342"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- Signals</span><span>
+</span><span id="line-344"></span><span>
+</span><span id="line-345"></span><span class="hs-comment">-- | The user has chosen the menu item.</span><span>
+</span><span id="line-346"></span><span class="hs-comment">--</span><span>
+</span><span id="line-347"></span><span class="hs-comment">-- * This is the only function applications normally connect to.</span><span>
+</span><span id="line-348"></span><span class="hs-comment">-- It is not emitted if the item has a submenu.</span><span>
+</span><span id="line-349"></span><span class="hs-comment">--</span><span>
+</span><span id="line-350"></span><span id="local-6989586621679654914"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivated"><span class="hs-identifier hs-type">menuItemActivated</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654914"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679654914"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-351"></span><span id="menuItemActivated"><span class="annot"><span class="annottext">menuItemActivated :: forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivated"><span class="hs-identifier hs-var hs-var">menuItemActivated</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self))
+-&gt; Signal self (IO ())
+forall object handler.
+(Bool -&gt; object -&gt; handler -&gt; IO (ConnectId object))
+-&gt; Signal object handler
+</span><span class="hs-identifier hs-var">Signal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;activate&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-352"></span><span>
+</span><span id="line-353"></span><span class="annot"><span class="hs-comment">-- | Deprecated. See 'menuItemActivated'.</span></span><span>
+</span><span id="line-354"></span><span id="local-6989586621679655209"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivate"><span class="hs-identifier hs-type">menuItemActivate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655209"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679655209"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-355"></span><span id="menuItemActivate"><span class="annot"><span class="annottext">menuItemActivate :: forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivate"><span class="hs-identifier hs-var hs-var">menuItemActivate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Signal self (IO ())
+forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivated"><span class="hs-identifier hs-var">menuItemActivated</span></a></span><span>
+</span><span id="line-356"></span><span>
+</span><span id="line-357"></span><span class="hs-comment">-- | Emitted when the user chooses a menu item that has a submenu.</span><span>
+</span><span id="line-358"></span><span class="hs-comment">--</span><span>
+</span><span id="line-359"></span><span class="hs-comment">-- * This signal is not emitted if the menu item does not have a</span><span>
+</span><span id="line-360"></span><span class="hs-comment">-- submenu.</span><span>
+</span><span id="line-361"></span><span class="hs-comment">--</span><span>
+</span><span id="line-362"></span><span id="local-6989586621679655212"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivatedItem"><span class="hs-identifier hs-type">menuItemActivatedItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655212"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679655212"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-363"></span><span id="menuItemActivatedItem"><span class="annot"><span class="annottext">menuItemActivatedItem :: forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivatedItem"><span class="hs-identifier hs-var hs-var">menuItemActivatedItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self))
+-&gt; Signal self (IO ())
+forall object handler.
+(Bool -&gt; object -&gt; handler -&gt; IO (ConnectId object))
+-&gt; Signal object handler
+</span><span class="hs-identifier hs-var">Signal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;activate-item&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-364"></span><span>
+</span><span id="line-365"></span><span class="annot"><span class="hs-comment">-- | Deprecated. See 'menuItemActivatedItem'.</span></span><span>
+</span><span id="line-366"></span><span id="local-6989586621679655221"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivateItem"><span class="hs-identifier hs-type">menuItemActivateItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655221"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679655221"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-367"></span><span id="menuItemActivateItem"><span class="annot"><span class="annottext">menuItemActivateItem :: forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivateItem"><span class="hs-identifier hs-var hs-var">menuItemActivateItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Signal self (IO ())
+forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemActivatedItem"><span class="hs-identifier hs-var">menuItemActivatedItem</span></a></span><span>
+</span><span id="line-368"></span><span>
+</span><span id="line-369"></span><span class="hs-comment">-- | This signal is emitted when the item is selected.</span><span>
+</span><span id="line-370"></span><span class="hs-comment">--</span><span>
+</span><span id="line-371"></span><span id="local-6989586621679655224"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSelect"><span class="hs-identifier hs-type">menuItemSelect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655224"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679655224"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-372"></span><span id="menuItemSelect"><span class="annot"><span class="annottext">menuItemSelect :: forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemSelect"><span class="hs-identifier hs-var hs-var">menuItemSelect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)) -&gt; Signal i (IO ())
+forall object handler.
+(Bool -&gt; object -&gt; handler -&gt; IO (ConnectId object))
+-&gt; Signal object handler
+</span><span class="hs-identifier hs-var">Signal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;select&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-373"></span><span>
+</span><span id="line-374"></span><span class="hs-comment">-- | This signal is emitted when the item is deselected.</span><span>
+</span><span id="line-375"></span><span class="hs-comment">--</span><span>
+</span><span id="line-376"></span><span id="local-6989586621679655233"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemDeselect"><span class="hs-identifier hs-type">menuItemDeselect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655233"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679655233"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-377"></span><span id="menuItemDeselect"><span class="annot"><span class="annottext">menuItemDeselect :: forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemDeselect"><span class="hs-identifier hs-var hs-var">menuItemDeselect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)) -&gt; Signal i (IO ())
+forall object handler.
+(Bool -&gt; object -&gt; handler -&gt; IO (ConnectId object))
+-&gt; Signal object handler
+</span><span class="hs-identifier hs-var">Signal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deselect&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-378"></span><span>
+</span><span id="line-379"></span><span class="hs-comment">-- | This signal is emitted when the item is toggled.</span><span>
+</span><span id="line-380"></span><span class="hs-comment">--</span><span>
+</span><span id="line-381"></span><span id="local-6989586621679655242"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemToggle"><span class="hs-identifier hs-type">menuItemToggle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655242"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679655242"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-382"></span><span id="menuItemToggle"><span class="annot"><span class="annottext">menuItemToggle :: forall self. MenuItemClass self =&gt; Signal self (IO ())
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#menuItemToggle"><span class="hs-identifier hs-var hs-var">menuItemToggle</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)) -&gt; Signal i (IO ())
+forall object handler.
+(Bool -&gt; object -&gt; handler -&gt; IO (ConnectId object))
+-&gt; Signal object handler
+</span><span class="hs-identifier hs-var">Signal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;toggle&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-383"></span><span>
+</span><span id="line-384"></span><span>
+</span><span id="line-385"></span><span>
+</span><span id="line-386"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-387"></span><span class="hs-comment">-- Deprecated Signals</span><span>
+</span><span id="line-388"></span><span>
+</span><span id="line-389"></span><span id="local-6989586621679654935"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onActivateLeaf"><span class="hs-identifier hs-type">onActivateLeaf</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterActivateLeaf"><span class="hs-identifier hs-type">afterActivateLeaf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654935"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654935"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-390"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-391"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConnectId</span></span><span> </span><span class="annot"><a href="#local-6989586621679654935"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-392"></span><span id="onActivateLeaf"><span class="annot"><span class="annottext">onActivateLeaf :: forall self.
+MenuItemClass self =&gt;
+self -&gt; IO () -&gt; IO (ConnectId self)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onActivateLeaf"><span class="hs-identifier hs-var hs-var">onActivateLeaf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;activate&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-393"></span><span id="afterActivateLeaf"><span class="annot"><span class="annottext">afterActivateLeaf :: forall self.
+MenuItemClass self =&gt;
+self -&gt; IO () -&gt; IO (ConnectId self)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterActivateLeaf"><span class="hs-identifier hs-var hs-var">afterActivateLeaf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;activate&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-394"></span><span>
+</span><span id="line-395"></span><span id="local-6989586621679655267"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onActivateItem"><span class="hs-identifier hs-type">onActivateItem</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterActivateItem"><span class="hs-identifier hs-type">afterActivateItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItemClass"><span class="hs-identifier hs-type">MenuItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655267"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655267"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-396"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-397"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConnectId</span></span><span> </span><span class="annot"><a href="#local-6989586621679655267"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-398"></span><span id="onActivateItem"><span class="annot"><span class="annottext">onActivateItem :: forall self.
+MenuItemClass self =&gt;
+self -&gt; IO () -&gt; IO (ConnectId self)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onActivateItem"><span class="hs-identifier hs-var hs-var">onActivateItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;activate-item&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-399"></span><span id="afterActivateItem"><span class="annot"><span class="annottext">afterActivateItem :: forall self.
+MenuItemClass self =&gt;
+self -&gt; IO () -&gt; IO (ConnectId self)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterActivateItem"><span class="hs-identifier hs-var hs-var">afterActivateItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; self -&gt; IO () -&gt; IO (ConnectId self)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;activate-item&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-400"></span><span>
+</span><span id="line-401"></span><span id="local-6989586621679654940"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onSelect"><span class="hs-identifier hs-type">onSelect</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterSelect"><span class="hs-identifier hs-type">afterSelect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ItemClass"><span class="hs-identifier hs-type">ItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679654940"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679654940"><span class="hs-identifier hs-type">i</span></a></span><span>
+</span><span id="line-402"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-403"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConnectId</span></span><span> </span><span class="annot"><a href="#local-6989586621679654940"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-404"></span><span id="onSelect"><span class="annot"><span class="annottext">onSelect :: forall i. ItemClass i =&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onSelect"><span class="hs-identifier hs-var hs-var">onSelect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;select&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-405"></span><span id="afterSelect"><span class="annot"><span class="annottext">afterSelect :: forall i. ItemClass i =&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterSelect"><span class="hs-identifier hs-var hs-var">afterSelect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;select&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-406"></span><span>
+</span><span id="line-407"></span><span id="local-6989586621679655298"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onDeselect"><span class="hs-identifier hs-type">onDeselect</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterDeselect"><span class="hs-identifier hs-type">afterDeselect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ItemClass"><span class="hs-identifier hs-type">ItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655298"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655298"><span class="hs-identifier hs-type">i</span></a></span><span>
+</span><span id="line-408"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-409"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConnectId</span></span><span> </span><span class="annot"><a href="#local-6989586621679655298"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-410"></span><span id="onDeselect"><span class="annot"><span class="annottext">onDeselect :: forall i. ItemClass i =&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onDeselect"><span class="hs-identifier hs-var hs-var">onDeselect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deselect&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-411"></span><span id="afterDeselect"><span class="annot"><span class="annottext">afterDeselect :: forall i. ItemClass i =&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterDeselect"><span class="hs-identifier hs-var hs-var">afterDeselect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deselect&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-412"></span><span>
+</span><span id="line-413"></span><span id="local-6989586621679655313"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onToggle"><span class="hs-identifier hs-type">onToggle</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterToggle"><span class="hs-identifier hs-type">afterToggle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ItemClass"><span class="hs-identifier hs-type">ItemClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679655313"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679655313"><span class="hs-identifier hs-type">i</span></a></span><span>
+</span><span id="line-414"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-415"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConnectId</span></span><span> </span><span class="annot"><a href="#local-6989586621679655313"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-416"></span><span id="onToggle"><span class="annot"><span class="annottext">onToggle :: forall i. ItemClass i =&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#onToggle"><span class="hs-identifier hs-var hs-var">onToggle</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;toggle&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-417"></span><span id="afterToggle"><span class="annot"><span class="annottext">afterToggle :: forall i. ItemClass i =&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+</span><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#afterToggle"><span class="hs-identifier hs-var hs-var">afterToggle</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; i -&gt; IO () -&gt; IO (ConnectId i)
+forall obj.
+GObjectClass obj =&gt;
+String -&gt; Bool -&gt; obj -&gt; IO () -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_NONE__NONE"><span class="hs-identifier hs-var">connect_NONE__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;toggle&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-418"></span><span>
+</span><span id="line-419"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_new&quot;</span></span><span>
+</span><span id="line-420"></span><span>  </span><span id="gtk_menu_item_new"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_new"><span class="hs-identifier hs-var">gtk_menu_item_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-421"></span><span>
+</span><span id="line-422"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_new_with_label&quot;</span></span><span>
+</span><span id="line-423"></span><span>  </span><span id="gtk_menu_item_new_with_label"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_new_with_label"><span class="hs-identifier hs-var">gtk_menu_item_new_with_label</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-424"></span><span>
+</span><span id="line-425"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_new_with_mnemonic&quot;</span></span><span>
+</span><span id="line-426"></span><span>  </span><span id="gtk_menu_item_new_with_mnemonic"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_new_with_mnemonic"><span class="hs-identifier hs-var">gtk_menu_item_new_with_mnemonic</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-427"></span><span>
+</span><span id="line-428"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_set_label&quot;</span></span><span>
+</span><span id="line-429"></span><span>  </span><span id="gtk_menu_item_set_label"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_label"><span class="hs-identifier hs-var">gtk_menu_item_set_label</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-430"></span><span>
+</span><span id="line-431"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_get_label&quot;</span></span><span>
+</span><span id="line-432"></span><span>  </span><span id="gtk_menu_item_get_label"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_get_label"><span class="hs-identifier hs-var">gtk_menu_item_get_label</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-433"></span><span>
+</span><span id="line-434"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_set_use_underline&quot;</span></span><span>
+</span><span id="line-435"></span><span>  </span><span id="gtk_menu_item_set_use_underline"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_use_underline"><span class="hs-identifier hs-var">gtk_menu_item_set_use_underline</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-436"></span><span>
+</span><span id="line-437"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_get_use_underline&quot;</span></span><span>
+</span><span id="line-438"></span><span>  </span><span id="gtk_menu_item_get_use_underline"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_get_use_underline"><span class="hs-identifier hs-var">gtk_menu_item_get_use_underline</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-439"></span><span>
+</span><span id="line-440"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_set_submenu&quot;</span></span><span>
+</span><span id="line-441"></span><span>  </span><span id="gtk_menu_item_set_submenu"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_submenu"><span class="hs-identifier hs-var">gtk_menu_item_set_submenu</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-442"></span><span>
+</span><span id="line-443"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_get_submenu&quot;</span></span><span>
+</span><span id="line-444"></span><span>  </span><span id="gtk_menu_item_get_submenu"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_get_submenu"><span class="hs-identifier hs-var">gtk_menu_item_get_submenu</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-445"></span><span>
+</span><span id="line-446"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_select&quot;</span></span><span>
+</span><span id="line-447"></span><span>  </span><span id="gtk_menu_item_select"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_select"><span class="hs-identifier hs-var">gtk_menu_item_select</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-448"></span><span>
+</span><span id="line-449"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_deselect&quot;</span></span><span>
+</span><span id="line-450"></span><span>  </span><span id="gtk_menu_item_deselect"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_deselect"><span class="hs-identifier hs-var">gtk_menu_item_deselect</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-451"></span><span>
+</span><span id="line-452"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_activate&quot;</span></span><span>
+</span><span id="line-453"></span><span>  </span><span id="gtk_menu_item_activate"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_activate"><span class="hs-identifier hs-var">gtk_menu_item_activate</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-454"></span><span>
+</span><span id="line-455"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_set_right_justified&quot;</span></span><span>
+</span><span id="line-456"></span><span>  </span><span id="gtk_menu_item_set_right_justified"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_right_justified"><span class="hs-identifier hs-var">gtk_menu_item_set_right_justified</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-457"></span><span>
+</span><span id="line-458"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_get_right_justified&quot;</span></span><span>
+</span><span id="line-459"></span><span>  </span><span id="gtk_menu_item_get_right_justified"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_get_right_justified"><span class="hs-identifier hs-var">gtk_menu_item_get_right_justified</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-460"></span><span>
+</span><span id="line-461"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_menu_item_set_accel_path&quot;</span></span><span>
+</span><span id="line-462"></span><span>  </span><span id="gtk_menu_item_set_accel_path"><span class="annot"><a href="Graphics.UI.Gtk.MenuComboToolbar.MenuItem.html#gtk_menu_item_set_accel_path"><span class="hs-identifier hs-var">gtk_menu_item_set_accel_path</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#MenuItem"><span class="hs-identifier hs-type">MenuItem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-463"></span></pre></body></html>

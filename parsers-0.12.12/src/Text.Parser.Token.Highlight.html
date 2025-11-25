@@ -1,0 +1,175 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679097934"><span id="local-6989586621679097935"></span></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module      :  Text.Parser.Token.Highlight</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright   :  (C) 2011 Edward Kmett</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Highlighting isn't strictly a parsing concern, but it makes more sense</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- to annotate a parser with highlighting information than to require</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- someone to completely reimplement all of the combinators to add</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- this functionality later when they need it.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Text.Parser.Token.Highlight.html"><span class="hs-identifier">Text.Parser.Token.Highlight</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Text.Parser.Token.Highlight.html#Highlight"><span class="hs-identifier">Highlight</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">-- | Tags used by the 'Text.Parser.Token.TokenParsing' 'Text.Parser.Token.highlight' combinator.</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">data</span><span> </span><span id="Highlight"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Highlight"><span class="hs-identifier hs-var">Highlight</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="EscapeCode"><span class="annot"><a href="Text.Parser.Token.Highlight.html#EscapeCode"><span class="hs-identifier hs-var">EscapeCode</span></a></span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Number"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Number"><span class="hs-identifier hs-var">Number</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Comment"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Comment"><span class="hs-identifier hs-var">Comment</span></a></span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CharLiteral"><span class="annot"><a href="Text.Parser.Token.Highlight.html#CharLiteral"><span class="hs-identifier hs-var">CharLiteral</span></a></span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StringLiteral"><span class="annot"><a href="Text.Parser.Token.Highlight.html#StringLiteral"><span class="hs-identifier hs-var">StringLiteral</span></a></span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Constant"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Constant"><span class="hs-identifier hs-var">Constant</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Statement"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Statement"><span class="hs-identifier hs-var">Statement</span></a></span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Special"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Special"><span class="hs-identifier hs-var">Special</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Symbol"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Symbol"><span class="hs-identifier hs-var">Symbol</span></a></span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Identifier"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Identifier"><span class="hs-identifier hs-var">Identifier</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReservedIdentifier"><span class="annot"><a href="Text.Parser.Token.Highlight.html#ReservedIdentifier"><span class="hs-identifier hs-var">ReservedIdentifier</span></a></span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Operator"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Operator"><span class="hs-identifier hs-var">Operator</span></a></span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReservedOperator"><span class="annot"><a href="Text.Parser.Token.Highlight.html#ReservedOperator"><span class="hs-identifier hs-var">ReservedOperator</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Constructor"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Constructor"><span class="hs-identifier hs-var">Constructor</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReservedConstructor"><span class="annot"><a href="Text.Parser.Token.Highlight.html#ReservedConstructor"><span class="hs-identifier hs-var">ReservedConstructor</span></a></span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ConstructorOperator"><span class="annot"><a href="Text.Parser.Token.Highlight.html#ConstructorOperator"><span class="hs-identifier hs-var">ConstructorOperator</span></a></span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReservedConstructorOperator"><span class="annot"><a href="Text.Parser.Token.Highlight.html#ReservedConstructorOperator"><span class="hs-identifier hs-var">ReservedConstructorOperator</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BadInput"><span class="annot"><a href="Text.Parser.Token.Highlight.html#BadInput"><span class="hs-identifier hs-var">BadInput</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Unbound"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Unbound"><span class="hs-identifier hs-var">Unbound</span></a></span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Layout"><span class="annot"><a href="Text.Parser.Token.Highlight.html#Layout"><span class="hs-identifier hs-var">Layout</span></a></span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MatchedSymbols"><span class="annot"><a href="Text.Parser.Token.Highlight.html#MatchedSymbols"><span class="hs-identifier hs-var">MatchedSymbols</span></a></span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LiterateComment"><span class="annot"><a href="Text.Parser.Token.Highlight.html#LiterateComment"><span class="hs-identifier hs-var">LiterateComment</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LiterateSyntax"><span class="annot"><a href="Text.Parser.Token.Highlight.html#LiterateSyntax"><span class="hs-identifier hs-var">LiterateSyntax</span></a></span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679097960"><span id="local-6989586621679097965"><span class="annot"><span class="annottext">Highlight -&gt; Highlight -&gt; Bool
+(Highlight -&gt; Highlight -&gt; Bool)
+-&gt; (Highlight -&gt; Highlight -&gt; Bool) -&gt; Eq Highlight
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Highlight -&gt; Highlight -&gt; Bool
+== :: Highlight -&gt; Highlight -&gt; Bool
+$c/= :: Highlight -&gt; Highlight -&gt; Bool
+/= :: Highlight -&gt; Highlight -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679097972"><span id="local-6989586621679097976"><span id="local-6989586621679097980"><span id="local-6989586621679097984"><span id="local-6989586621679097987"><span id="local-6989586621679097990"><span id="local-6989586621679097993"><span class="annot"><span class="annottext">Eq Highlight
+Eq Highlight =&gt;
+(Highlight -&gt; Highlight -&gt; Ordering)
+-&gt; (Highlight -&gt; Highlight -&gt; Bool)
+-&gt; (Highlight -&gt; Highlight -&gt; Bool)
+-&gt; (Highlight -&gt; Highlight -&gt; Bool)
+-&gt; (Highlight -&gt; Highlight -&gt; Bool)
+-&gt; (Highlight -&gt; Highlight -&gt; Highlight)
+-&gt; (Highlight -&gt; Highlight -&gt; Highlight)
+-&gt; Ord Highlight
+Highlight -&gt; Highlight -&gt; Bool
+Highlight -&gt; Highlight -&gt; Ordering
+Highlight -&gt; Highlight -&gt; Highlight
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Highlight -&gt; Highlight -&gt; Ordering
+compare :: Highlight -&gt; Highlight -&gt; Ordering
+$c&lt; :: Highlight -&gt; Highlight -&gt; Bool
+&lt; :: Highlight -&gt; Highlight -&gt; Bool
+$c&lt;= :: Highlight -&gt; Highlight -&gt; Bool
+&lt;= :: Highlight -&gt; Highlight -&gt; Bool
+$c&gt; :: Highlight -&gt; Highlight -&gt; Bool
+&gt; :: Highlight -&gt; Highlight -&gt; Bool
+$c&gt;= :: Highlight -&gt; Highlight -&gt; Bool
+&gt;= :: Highlight -&gt; Highlight -&gt; Bool
+$cmax :: Highlight -&gt; Highlight -&gt; Highlight
+max :: Highlight -&gt; Highlight -&gt; Highlight
+$cmin :: Highlight -&gt; Highlight -&gt; Highlight
+min :: Highlight -&gt; Highlight -&gt; Highlight
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679098001"><span id="local-6989586621679098003"><span id="local-6989586621679098007"><span class="annot"><span class="annottext">Int -&gt; Highlight -&gt; ShowS
+[Highlight] -&gt; ShowS
+Highlight -&gt; String
+(Int -&gt; Highlight -&gt; ShowS)
+-&gt; (Highlight -&gt; String)
+-&gt; ([Highlight] -&gt; ShowS)
+-&gt; Show Highlight
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Highlight -&gt; ShowS
+showsPrec :: Int -&gt; Highlight -&gt; ShowS
+$cshow :: Highlight -&gt; String
+show :: Highlight -&gt; String
+$cshowList :: [Highlight] -&gt; ShowS
+showList :: [Highlight] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679098012"><span id="local-6989586621679098016"><span id="local-6989586621679098019"><span id="local-6989586621679098045"><span class="annot"><span class="annottext">ReadPrec [Highlight]
+ReadPrec Highlight
+Int -&gt; ReadS Highlight
+ReadS [Highlight]
+(Int -&gt; ReadS Highlight)
+-&gt; ReadS [Highlight]
+-&gt; ReadPrec Highlight
+-&gt; ReadPrec [Highlight]
+-&gt; Read Highlight
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: Int -&gt; ReadS Highlight
+readsPrec :: Int -&gt; ReadS Highlight
+$creadList :: ReadS [Highlight]
+readList :: ReadS [Highlight]
+$creadPrec :: ReadPrec Highlight
+readPrec :: ReadPrec Highlight
+$creadListPrec :: ReadPrec [Highlight]
+readListPrec :: ReadPrec [Highlight]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679098052"><span id="local-6989586621679098061"><span id="local-6989586621679098068"><span id="local-6989586621679098078"><span id="local-6989586621679098081"><span id="local-6989586621679098086"><span id="local-6989586621679098092"><span id="local-6989586621679098096"><span class="annot"><span class="annottext">Int -&gt; Highlight
+Highlight -&gt; Int
+Highlight -&gt; [Highlight]
+Highlight -&gt; Highlight
+Highlight -&gt; Highlight -&gt; [Highlight]
+Highlight -&gt; Highlight -&gt; Highlight -&gt; [Highlight]
+(Highlight -&gt; Highlight)
+-&gt; (Highlight -&gt; Highlight)
+-&gt; (Int -&gt; Highlight)
+-&gt; (Highlight -&gt; Int)
+-&gt; (Highlight -&gt; [Highlight])
+-&gt; (Highlight -&gt; Highlight -&gt; [Highlight])
+-&gt; (Highlight -&gt; Highlight -&gt; [Highlight])
+-&gt; (Highlight -&gt; Highlight -&gt; Highlight -&gt; [Highlight])
+-&gt; Enum Highlight
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: Highlight -&gt; Highlight
+succ :: Highlight -&gt; Highlight
+$cpred :: Highlight -&gt; Highlight
+pred :: Highlight -&gt; Highlight
+$ctoEnum :: Int -&gt; Highlight
+toEnum :: Int -&gt; Highlight
+$cfromEnum :: Highlight -&gt; Int
+fromEnum :: Highlight -&gt; Int
+$cenumFrom :: Highlight -&gt; [Highlight]
+enumFrom :: Highlight -&gt; [Highlight]
+$cenumFromThen :: Highlight -&gt; Highlight -&gt; [Highlight]
+enumFromThen :: Highlight -&gt; Highlight -&gt; [Highlight]
+$cenumFromTo :: Highlight -&gt; Highlight -&gt; [Highlight]
+enumFromTo :: Highlight -&gt; Highlight -&gt; [Highlight]
+$cenumFromThenTo :: Highlight -&gt; Highlight -&gt; Highlight -&gt; [Highlight]
+enumFromThenTo :: Highlight -&gt; Highlight -&gt; Highlight -&gt; [Highlight]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679098104"><span id="local-6989586621679098106"><span class="annot"><span class="annottext">Highlight
+Highlight -&gt; Highlight -&gt; Bounded Highlight
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: Highlight
+minBound :: Highlight
+$cmaxBound :: Highlight
+maxBound :: Highlight
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span></pre></body></html>

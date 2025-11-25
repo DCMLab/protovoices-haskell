@@ -1,0 +1,687 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Strict #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="RL.A2CHelpers.html"><span class="hs-identifier">RL.A2CHelpers</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">force</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="RL.Model.html"><span class="hs-identifier">RL.Model</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="RL.ModelTypes.html"><span class="hs-identifier">RL.ModelTypes</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="RL.TorchHelpers.html"><span class="hs-identifier">RL.TorchHelpers</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch.Typed</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TT</span></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- helpers for operating on HLists</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- ===============================</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">type</span><span> </span><span id="ModelParams"><span class="annot"><a href="RL.A2CHelpers.html#ModelParams"><span class="hs-identifier hs-var">ModelParams</span></a></span></span><span> </span><span id="local-6989586621679385263"><span class="annot"><a href="#local-6989586621679385263"><span class="hs-identifier hs-type">dev</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Parameters</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.Model.html#QModel"><span class="hs-identifier hs-type">QModel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385263"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">type</span><span> </span><span id="ModelTensors"><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-var">ModelTensors</span></a></span></span><span> </span><span id="local-6989586621679385264"><span class="annot"><a href="#local-6989586621679385264"><span class="hs-identifier hs-type">dev</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="RL.TorchHelpers.html#ToModelTensors"><span class="hs-identifier hs-type">ToModelTensors</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelParams"><span class="hs-identifier hs-type">ModelParams</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385264"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">newtype</span><span> </span><span id="UpdateEligCritic"><span class="annot"><a href="RL.A2CHelpers.html#UpdateEligCritic"><span class="hs-identifier hs-var">UpdateEligCritic</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UpdateEligCritic"><span class="annot"><a href="RL.A2CHelpers.html#UpdateEligCritic"><span class="hs-identifier hs-var">UpdateEligCritic</span></a></span></span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679385116"><span id="local-6989586621679385117"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.KnownDevice</span></span><span> </span><span class="annot"><a href="#local-6989586621679385116"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="annot"><a href="RL.A2CHelpers.html#UpdateEligCritic"><span class="hs-identifier hs-type">UpdateEligCritic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385116"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385117"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385116"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385117"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385116"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385117"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>  </span><span id="local-6989586621679385275"><span class="annot"><span class="annottext">apply' :: UpdateEligCritic
+-&gt; (QTensor dev shape, QTensor dev shape) -&gt; QTensor dev shape
+</span><a href="#local-6989586621679385275"><span class="hs-identifier hs-var hs-var hs-var">apply'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#UpdateEligCritic"><span class="hs-identifier hs-type">UpdateEligCritic</span></a></span><span> </span><span id="local-6989586621679385277"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385277"><span class="hs-identifier hs-var">factor</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679385278"><span class="annot"><span class="annottext">QTensor dev shape
+</span><a href="#local-6989586621679385278"><span class="hs-identifier hs-var">zV</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679385279"><span class="annot"><span class="annottext">QTensor dev shape
+</span><a href="#local-6989586621679385279"><span class="hs-identifier hs-var">grad</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">QType -&gt; QTensor dev shape -&gt; QTensor dev shape
+forall a (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Scalar a =&gt;
+a -&gt; Tensor device dtype shape -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.mulScalar</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385277"><span class="hs-identifier hs-var">factor</span></a></span><span> </span><span class="annot"><span class="annottext">QTensor dev shape
+</span><a href="#local-6989586621679385278"><span class="hs-identifier hs-var">zV</span></a></span><span> </span><span class="annot"><span class="annottext">QTensor dev shape -&gt; QTensor dev shape -&gt; QTensor dev shape
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">QTensor dev shape
+</span><a href="#local-6989586621679385279"><span class="hs-identifier hs-var">grad</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span id="local-6989586621679385130"><span class="annot"><a href="RL.A2CHelpers.html#updateEligCritic"><span class="hs-identifier hs-type">updateEligCritic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.KnownDevice</span></span><span> </span><span class="annot"><a href="#local-6989586621679385130"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385130"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385130"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385130"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-24"></span><span id="updateEligCritic"><span class="annot"><span class="annottext">updateEligCritic :: forall (dev :: (DeviceType, Nat)).
+KnownDevice dev =&gt;
+QType
+-&gt; QType
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+</span><a href="RL.A2CHelpers.html#updateEligCritic"><span class="hs-identifier hs-var hs-var">updateEligCritic</span></a></span></span><span> </span><span id="local-6989586621679385359"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385359"><span class="hs-identifier hs-var">gamma</span></a></span></span><span> </span><span id="local-6989586621679385360"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385360"><span class="hs-identifier hs-var">lambdaV</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(HList (ModelTensors dev)
+ -&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+forall a. NFData a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">force</span></span><span> </span><span class="annot"><span class="annottext">((HList (ModelTensors dev)
+  -&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+ -&gt; HList (ModelTensors dev)
+ -&gt; HList (ModelTensors dev)
+ -&gt; HList (ModelTensors dev))
+-&gt; (HList (ModelTensors dev)
+    -&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UpdateEligCritic
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+forall k f (xs :: [k]) (ys :: [k]) (zs :: [k]).
+HZipWith f xs ys zs =&gt;
+f -&gt; HList xs -&gt; HList ys -&gt; HList zs
+</span><span class="hs-identifier hs-var">TT.hzipWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">QType -&gt; UpdateEligCritic
+</span><a href="RL.A2CHelpers.html#UpdateEligCritic"><span class="hs-identifier hs-var">UpdateEligCritic</span></a></span><span> </span><span class="annot"><span class="annottext">(QType -&gt; UpdateEligCritic) -&gt; QType -&gt; UpdateEligCritic
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385359"><span class="hs-identifier hs-var">gamma</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385360"><span class="hs-identifier hs-var">lambdaV</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="RL.A2CHelpers.html#updateEligCritic"><span class="hs-pragma hs-type">updateEligCritic</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="UpdateEligActor"><span class="annot"><a href="RL.A2CHelpers.html#UpdateEligActor"><span class="hs-identifier hs-var">UpdateEligActor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UpdateEligActor"><span class="annot"><a href="RL.A2CHelpers.html#UpdateEligActor"><span class="hs-identifier hs-var">UpdateEligActor</span></a></span></span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679385161"><span id="local-6989586621679385162"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.KnownDevice</span></span><span> </span><span class="annot"><a href="#local-6989586621679385161"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="annot"><a href="RL.A2CHelpers.html#UpdateEligActor"><span class="hs-identifier hs-type">UpdateEligActor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385161"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385162"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385161"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385162"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385161"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385162"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>  </span><span id="local-6989586621679385370"><span class="annot"><span class="annottext">apply' :: UpdateEligActor
+-&gt; (QTensor dev shape, QTensor dev shape) -&gt; QTensor dev shape
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#UpdateEligActor"><span class="hs-identifier hs-type">UpdateEligActor</span></a></span><span> </span><span id="local-6989586621679385371"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385371"><span class="hs-identifier hs-var">intensity</span></a></span></span><span> </span><span id="local-6989586621679385372"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385372"><span class="hs-identifier hs-var">factor</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679385373"><span class="annot"><span class="annottext">QTensor dev shape
+</span><a href="#local-6989586621679385373"><span class="hs-identifier hs-var">zP</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679385374"><span class="annot"><span class="annottext">QTensor dev shape
+</span><a href="#local-6989586621679385374"><span class="hs-identifier hs-var">grad</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="annottext">QType -&gt; QTensor dev shape -&gt; QTensor dev shape
+forall a (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Scalar a =&gt;
+a -&gt; Tensor device dtype shape -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.mulScalar</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385372"><span class="hs-identifier hs-var">factor</span></a></span><span> </span><span class="annot"><span class="annottext">QTensor dev shape
+</span><a href="#local-6989586621679385373"><span class="hs-identifier hs-var">zP</span></a></span><span> </span><span class="annot"><span class="annottext">QTensor dev shape -&gt; QTensor dev shape -&gt; QTensor dev shape
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QTensor dev shape -&gt; QTensor dev shape
+forall a (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Scalar a =&gt;
+a -&gt; Tensor device dtype shape -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.mulScalar</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385371"><span class="hs-identifier hs-var">intensity</span></a></span><span> </span><span class="annot"><span class="annottext">QTensor dev shape
+</span><a href="#local-6989586621679385374"><span class="hs-identifier hs-var">grad</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span id="local-6989586621679385163"><span class="annot"><a href="RL.A2CHelpers.html#updateEligActor"><span class="hs-identifier hs-type">updateEligActor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.KnownDevice</span></span><span> </span><span class="annot"><a href="#local-6989586621679385163"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385163"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385163"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385163"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-34"></span><span id="updateEligActor"><span class="annot"><span class="annottext">updateEligActor :: forall (dev :: (DeviceType, Nat)).
+KnownDevice dev =&gt;
+QType
+-&gt; QType
+-&gt; QType
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+</span><a href="RL.A2CHelpers.html#updateEligActor"><span class="hs-identifier hs-var hs-var">updateEligActor</span></a></span></span><span> </span><span id="local-6989586621679385448"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385448"><span class="hs-identifier hs-var">gamma</span></a></span></span><span> </span><span id="local-6989586621679385449"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385449"><span class="hs-identifier hs-var">lambdaP</span></a></span></span><span> </span><span id="local-6989586621679385450"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385450"><span class="hs-identifier hs-var">intensity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">(HList (ModelTensors dev)
+ -&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+forall a. NFData a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">force</span></span><span> </span><span class="annot"><span class="annottext">((HList (ModelTensors dev)
+  -&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+ -&gt; HList (ModelTensors dev)
+ -&gt; HList (ModelTensors dev)
+ -&gt; HList (ModelTensors dev))
+-&gt; (HList (ModelTensors dev)
+    -&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UpdateEligActor
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+forall k f (xs :: [k]) (ys :: [k]) (zs :: [k]).
+HZipWith f xs ys zs =&gt;
+f -&gt; HList xs -&gt; HList ys -&gt; HList zs
+</span><span class="hs-identifier hs-var">TT.hzipWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; UpdateEligActor
+</span><a href="RL.A2CHelpers.html#UpdateEligActor"><span class="hs-identifier hs-var">UpdateEligActor</span></a></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385450"><span class="hs-identifier hs-var">intensity</span></a></span><span> </span><span class="annot"><span class="annottext">(QType -&gt; UpdateEligActor) -&gt; QType -&gt; UpdateEligActor
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385448"><span class="hs-identifier hs-var">gamma</span></a></span><span> </span><span class="annot"><span class="annottext">QType -&gt; QType -&gt; QType
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679385449"><span class="hs-identifier hs-var">lambdaP</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="RL.A2CHelpers.html#updateEligActor"><span class="hs-pragma hs-type">updateEligActor</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span id="local-6989586621679385165"><span class="annot"><a href="RL.A2CHelpers.html#mulModelTensors"><span class="hs-identifier hs-type">mulModelTensors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ModelTypes.html#IsValidDevice"><span class="hs-identifier hs-type">IsValidDevice</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385165"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385165"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385165"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385165"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-39"></span><span id="mulModelTensors"><span class="annot"><span class="annottext">mulModelTensors :: forall (dev :: (DeviceType, Nat)).
+IsValidDevice dev =&gt;
+QTensor dev '[]
+-&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev)
+</span><a href="RL.A2CHelpers.html#mulModelTensors"><span class="hs-identifier hs-var hs-var">mulModelTensors</span></a></span></span><span> </span><span id="local-6989586621679385554"><span class="annot"><span class="annottext">QTensor dev '[]
+</span><a href="#local-6989586621679385554"><span class="hs-identifier hs-var">factor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+-&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev)
+forall a. NFData a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">force</span></span><span> </span><span class="annot"><span class="annottext">((HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+ -&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+-&gt; (HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+-&gt; HList (ModelTensors dev)
+-&gt; HList (ModelTensors dev)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Mul' dev 'Double
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+forall k f (xs :: [k]) (ys :: [k]).
+HMap' f xs ys =&gt;
+f -&gt; HList xs -&gt; HList ys
+</span><span class="hs-identifier hs-var">TT.hmap'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">QTensor dev '[] -&gt; Mul' dev 'Double
+forall (dev :: (DeviceType, Nat)) (dtype :: DType).
+Tensor dev dtype '[] -&gt; Mul' dev dtype
+</span><a href="RL.TorchHelpers.html#Mul%27"><span class="hs-identifier hs-var">Mul'</span></a></span><span> </span><span class="annot"><span class="annottext">QTensor dev '[]
+</span><a href="#local-6989586621679385554"><span class="hs-identifier hs-var">factor</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="RL.A2CHelpers.html#mulModelTensors"><span class="hs-pragma hs-type">mulModelTensors</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span id="local-6989586621679385196"><span class="annot"><a href="RL.A2CHelpers.html#modelZeros"><span class="hs-identifier hs-type">modelZeros</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ModelTypes.html#IsValidDevice"><span class="hs-identifier hs-type">IsValidDevice</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385196"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="RL.Model.html#QModel"><span class="hs-identifier hs-type">QModel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385196"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385196"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-43"></span><span id="modelZeros"><span class="annot"><span class="annottext">modelZeros :: forall (dev :: (DeviceType, Nat)).
+IsValidDevice dev =&gt;
+QModel dev -&gt; HList (ModelTensors dev)
+</span><a href="RL.A2CHelpers.html#modelZeros"><span class="hs-identifier hs-var hs-var">modelZeros</span></a></span></span><span> </span><span id="local-6989586621679385748"><span class="annot"><span class="annottext">QModel dev
+</span><a href="#local-6989586621679385748"><span class="hs-identifier hs-var">model</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HList (ModelTensors dev) -&gt; HList (ModelTensors dev)
+forall a. NFData a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">force</span></span><span> </span><span class="annot"><span class="annottext">(HList (ModelTensors dev) -&gt; HList (ModelTensors dev))
+-&gt; HList (ModelTensors dev) -&gt; HList (ModelTensors dev)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ZerosLike
+-&gt; HList
+     '[Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 13, 5],
+       Parameter dev 'Double '[8, 13, 5],
+       Parameter dev 'Double '[8, 2, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 2, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[5],
+       Parameter dev 'Double '[5], Parameter dev 'Double '[5],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[1, 8], Parameter dev 'Double '[1],
+       Parameter dev 'Double '[8, 8], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[1, 8], Parameter dev 'Double '[1]]
+-&gt; HList (ModelTensors dev)
+forall k f (xs :: [k]) (ys :: [k]).
+HMap' f xs ys =&gt;
+f -&gt; HList xs -&gt; HList ys
+</span><span class="hs-identifier hs-var">TT.hmap'</span></span><span> </span><span class="annot"><span class="annottext">ZerosLike
+</span><span class="hs-identifier hs-var">TT.ZerosLike</span></span><span> </span><span class="annot"><span class="annottext">(HList
+   '[Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 13, 5],
+     Parameter dev 'Double '[8, 13, 5],
+     Parameter dev 'Double '[8, 2, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 2, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[5],
+     Parameter dev 'Double '[5], Parameter dev 'Double '[5],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[1, 8], Parameter dev 'Double '[1],
+     Parameter dev 'Double '[8, 8], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[8], Parameter dev 'Double '[8],
+     Parameter dev 'Double '[1, 8], Parameter dev 'Double '[1]]
+ -&gt; HList (ModelTensors dev))
+-&gt; HList
+     '[Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 13, 5],
+       Parameter dev 'Double '[8, 13, 5],
+       Parameter dev 'Double '[8, 2, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 2, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 1, 1, 1], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8, 8, 13, 5],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[5],
+       Parameter dev 'Double '[5], Parameter dev 'Double '[5],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8, 8, 13, 5], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[1, 8], Parameter dev 'Double '[1],
+       Parameter dev 'Double '[8, 8], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[8], Parameter dev 'Double '[8],
+       Parameter dev 'Double '[1, 8], Parameter dev 'Double '[1]]
+-&gt; HList (ModelTensors dev)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">QModel dev -&gt; HList (Parameters (QModel dev))
+forall f. Parameterized f =&gt; f -&gt; HList (Parameters f)
+</span><span class="hs-identifier hs-var">TT.flattenParameters</span></span><span> </span><span class="annot"><span class="annottext">QModel dev
+</span><a href="#local-6989586621679385748"><span class="hs-identifier hs-var">model</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="RL.A2CHelpers.html#modelZeros"><span class="hs-pragma hs-type">modelZeros</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="RL.A2CHelpers.html#sumTensorList"><span class="hs-identifier hs-type">sumTensorList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679385224"><span class="annot"><a href="#local-6989586621679385224"><span class="hs-identifier hs-type">dev</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ModelTypes.html#IsValidDevice"><span class="hs-identifier hs-type">IsValidDevice</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385224"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.HList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.A2CHelpers.html#ModelTensors"><span class="hs-identifier hs-type">ModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385224"><span class="hs-identifier hs-type">dev</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385224"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-47"></span><span id="sumTensorList"><span class="annot"><span class="annottext">sumTensorList :: forall (dev :: (DeviceType, Nat)).
+IsValidDevice dev =&gt;
+HList (ModelTensors dev) -&gt; QTensor dev '[]
+</span><a href="RL.A2CHelpers.html#sumTensorList"><span class="hs-identifier hs-var hs-var">sumTensorList</span></a></span></span><span> </span><span id="local-6989586621679386345"><span class="annot"><span class="annottext">HList (ModelTensors dev)
+</span><a href="#local-6989586621679386345"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Add
+-&gt; QTensor dev '[]
+-&gt; HList
+     '[QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[]]
+-&gt; QTensor dev '[]
+forall {k} f acc (xs :: [k]) res.
+HFoldr f acc xs res =&gt;
+f -&gt; acc -&gt; HList xs -&gt; res
+</span><span class="hs-identifier hs-var">TT.hfoldr</span></span><span> </span><span class="annot"><span class="annottext">Add
+</span><a href="RL.TorchHelpers.html#Add"><span class="hs-identifier hs-var">Add</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">QTensor dev '[]
+forall (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+TensorOptions shape dtype device =&gt;
+Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.zeros</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="RL.ModelTypes.html#QTensor"><span class="hs-identifier hs-type">QTensor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679385224"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(HList
+   '[QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+     QTensor dev '[], QTensor dev '[], QTensor dev '[]]
+ -&gt; QTensor dev '[])
+-&gt; HList
+     '[QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[]]
+-&gt; QTensor dev '[]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SumAll
+-&gt; HList
+     '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+       Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+       Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+-&gt; HList
+     '[QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[], QTensor dev '[],
+       QTensor dev '[], QTensor dev '[], QTensor dev '[]]
+forall k f (xs :: [k]) (ys :: [k]).
+HMap' f xs ys =&gt;
+f -&gt; HList xs -&gt; HList ys
+</span><span class="hs-identifier hs-var">TT.hmap'</span></span><span> </span><span class="annot"><span class="annottext">SumAll
+</span><a href="RL.TorchHelpers.html#SumAll"><span class="hs-identifier hs-var">SumAll</span></a></span><span> </span><span class="annot"><span class="annottext">HList
+  '[Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 13, 5], Tensor dev 'Double '[8, 13, 5],
+    Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 2, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 1, 1, 1], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8, 8, 13, 5],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[5],
+    Tensor dev 'Double '[5], Tensor dev 'Double '[5],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8, 8, 13, 5], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1],
+    Tensor dev 'Double '[8, 8], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[8], Tensor dev 'Double '[8],
+    Tensor dev 'Double '[1, 8], Tensor dev 'Double '[1]]
+HList (ModelTensors dev)
+</span><a href="#local-6989586621679386345"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-48"></span></pre></body></html>

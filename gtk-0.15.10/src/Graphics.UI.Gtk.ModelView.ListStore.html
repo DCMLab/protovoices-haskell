@@ -1,0 +1,875 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">--  GIMP Toolkit (GTK) CustomStore TreeModel</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--  Author : Duncan Coutts, Axel Simon</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--  Created: 11 February 2006</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--  Copyright (C) 2005 Duncan Coutts, Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--  This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--  modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--  License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--  version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--  This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--  but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--  Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer  : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability   : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Standard model to store list data.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html"><span class="hs-identifier">Graphics.UI.Gtk.ModelView.ListStore</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier">ListStore</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreNew"><span class="hs-identifier">listStoreNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreNewDND"><span class="hs-identifier">listStoreNewDND</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><span class="hs-comment">-- * Implementation of Interfaces</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreDefaultDragSourceIface"><span class="hs-identifier">listStoreDefaultDragSourceIface</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreDefaultDragDestIface"><span class="hs-identifier">listStoreDefaultDragDestIface</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreIterToIndex"><span class="hs-identifier">listStoreIterToIndex</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreGetValue"><span class="hs-identifier">listStoreGetValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreSafeGetValue"><span class="hs-identifier">listStoreSafeGetValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreSetValue"><span class="hs-identifier">listStoreSetValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreToList"><span class="hs-identifier">listStoreToList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreGetSize"><span class="hs-identifier">listStoreGetSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreInsert"><span class="hs-identifier">listStoreInsert</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStorePrepend"><span class="hs-identifier">listStorePrepend</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreAppend"><span class="hs-identifier">listStoreAppend</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreRemove"><span class="hs-identifier">listStoreRemove</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreClear"><span class="hs-identifier">listStoreClear</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Ix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">inRange</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__&gt;=606
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Seq</span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Seq</span></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">F</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.ModelView.Sequence</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Seq</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.ModelView.Sequence</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Seq</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">GObjectClass</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- import Graphics.UI.Gtk.ModelView.Types ()</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html"><span class="hs-identifier">Graphics.UI.Gtk.ModelView.CustomStore</span></a></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModel.html"><span class="hs-identifier">Graphics.UI.Gtk.ModelView.TreeModel</span></a></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeDrag.html"><span class="hs-identifier">Graphics.UI.Gtk.ModelView.TreeDrag</span></a></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">liftIO</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">newtype</span><span> </span><span id="ListStore"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-var">ListStore</span></a></span></span><span> </span><span id="local-6989586621679643459"><span class="annot"><a href="#local-6989586621679643459"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ListStore"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-var">ListStore</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#CustomStore"><span class="hs-identifier hs-type">CustomStore</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><a href="#local-6989586621679643459"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679643459"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643591"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelClass"><span class="hs-identifier hs-type">TypedTreeModelClass</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643450"><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelClass"><span class="hs-identifier hs-type">TreeModelClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643450"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643600"><span class="annot"><span class="hs-identifier hs-type">GObjectClass</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643600"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621679643606"><span class="annot"><span class="annottext">toGObject :: ListStore a -&gt; GObject
+</span><a href="#local-6989586621679643606"><span class="hs-identifier hs-var hs-var hs-var">toGObject</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643608"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643608"><span class="hs-identifier hs-var">tm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; GObject
+forall o. GObjectClass o =&gt; o -&gt; GObject
+</span><span class="hs-identifier hs-var">toGObject</span></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643608"><span class="hs-identifier hs-var">tm</span></a></span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679643610"><span class="annot"><span class="annottext">unsafeCastGObject :: GObject -&gt; ListStore a
+</span><a href="#local-6989586621679643610"><span class="hs-identifier hs-var hs-var hs-var">unsafeCastGObject</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; ListStore a
+forall a. CustomStore (IORef (Seq a)) a -&gt; ListStore a
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-var">ListStore</span></a></span><span> </span><span class="annot"><span class="annottext">(CustomStore (IORef (Seq a)) a -&gt; ListStore a)
+-&gt; (GObject -&gt; CustomStore (IORef (Seq a)) a)
+-&gt; GObject
+-&gt; ListStore a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">GObject -&gt; CustomStore (IORef (Seq a)) a
+forall o. GObjectClass o =&gt; GObject -&gt; o
+</span><span class="hs-identifier hs-var">unsafeCastGObject</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="annot"><span class="hs-comment">-- | Create a new 'TreeModel' that contains a list of elements.</span></span><span>
+</span><span id="line-84"></span><span id="local-6989586621679643463"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreNew"><span class="hs-identifier hs-type">listStoreNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679643463"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643463"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-85"></span><span id="listStoreNew"><span class="annot"><span class="annottext">listStoreNew :: forall a. [a] -&gt; IO (ListStore a)
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreNew"><span class="hs-identifier hs-var hs-var">listStoreNew</span></a></span></span><span> </span><span id="local-6989586621679643613"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679643613"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a]
+-&gt; Maybe (DragSourceIface ListStore a)
+-&gt; Maybe (DragDestIface ListStore a)
+-&gt; IO (ListStore a)
+forall a.
+[a]
+-&gt; Maybe (DragSourceIface ListStore a)
+-&gt; Maybe (DragDestIface ListStore a)
+-&gt; IO (ListStore a)
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreNewDND"><span class="hs-identifier hs-var">listStoreNewDND</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679643613"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DragSourceIface ListStore a -&gt; Maybe (DragSourceIface ListStore a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">DragSourceIface ListStore a
+forall row. DragSourceIface ListStore row
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreDefaultDragSourceIface"><span class="hs-identifier hs-var">listStoreDefaultDragSourceIface</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>                                     </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DragDestIface ListStore a -&gt; Maybe (DragDestIface ListStore a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">DragDestIface ListStore a
+forall row. DragDestIface ListStore row
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreDefaultDragDestIface"><span class="hs-identifier hs-var">listStoreDefaultDragDestIface</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | Create a new 'TreeModel' that contains a list of elements. In addition, specify two</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--   interfaces for drag and drop.</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span id="local-6989586621679643467"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreNewDND"><span class="hs-identifier hs-type">listStoreNewDND</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679643467"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-comment">-- ^ the initial content of the model</span></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#DragSourceIface"><span class="hs-identifier hs-type">DragSourceIface</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643467"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ an optional interface for drags</span></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#DragDestIface"><span class="hs-identifier hs-type">DragDestIface</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643467"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ an optional interface to handle drops</span></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643467"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ the new model</span></span><span>
+</span><span id="line-95"></span><span id="listStoreNewDND"><span class="annot"><span class="annottext">listStoreNewDND :: forall a.
+[a]
+-&gt; Maybe (DragSourceIface ListStore a)
+-&gt; Maybe (DragDestIface ListStore a)
+-&gt; IO (ListStore a)
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreNewDND"><span class="hs-identifier hs-var hs-var">listStoreNewDND</span></a></span></span><span> </span><span id="local-6989586621679643687"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679643687"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679643688"><span class="annot"><span class="annottext">Maybe (DragSourceIface ListStore a)
+</span><a href="#local-6989586621679643688"><span class="hs-identifier hs-var">mDSource</span></a></span></span><span> </span><span id="local-6989586621679643689"><span class="annot"><span class="annottext">Maybe (DragDestIface ListStore a)
+</span><a href="#local-6989586621679643689"><span class="hs-identifier hs-var">mDDest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621679643690"><span class="annot"><a href="#local-6989586621679643690"><span class="hs-identifier hs-var">rows</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; IO (IORef (Seq a))
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Seq a
+forall a. [a] -&gt; Seq a
+</span><span class="hs-identifier hs-var">Seq.fromList</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679643687"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreNew"><span class="hs-identifier hs-type">customStoreNew</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643690"><span class="hs-identifier hs-type">rows</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#TreeModelIface"><span class="hs-identifier hs-type">TreeModelIface</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceGetFlags"><span class="hs-identifier hs-var">treeModelIfaceGetFlags</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#TreeModelListOnly"><span class="hs-identifier hs-type">TreeModelListOnly</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceGetIter"><span class="hs-identifier hs-var">treeModelIfaceGetIter</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">[</span><span id="local-6989586621679643698"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643698"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (Seq a)
+</span><a href="#local-6989586621679643690"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Seq a) -&gt; (Seq a -&gt; IO (Maybe TreeIter)) -&gt; IO (Maybe TreeIter)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643700"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643700"><span class="hs-identifier hs-var">rows</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-101"></span><span>                                     </span><span class="annot"><span class="annottext">Maybe TreeIter -&gt; IO (Maybe TreeIter)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">(Int, Int) -&gt; Int -&gt; Bool
+forall a. Ix a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">inRange</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int
+forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643700"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643698"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-102"></span><span>                                                 </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">TreeIter -&gt; Maybe TreeIter
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt -&gt; Word32 -&gt; Word32 -&gt; Word32 -&gt; TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-var">TreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word32
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643698"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>                                                 </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-104"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceGetPath"><span class="hs-identifier hs-var">treeModelIfaceGetPath</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679643704"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643704"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TreePath -&gt; IO TreePath
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word32 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643704"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-105"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceGetRow"><span class="hs-identifier hs-var">treeModelIfaceGetRow</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679643706"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643706"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-106"></span><span>                                 </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (Seq a)
+</span><a href="#local-6989586621679643690"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Seq a) -&gt; (Seq a -&gt; IO a) -&gt; IO a
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643707"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643707"><span class="hs-identifier hs-var">rows</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-107"></span><span>                                 </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">(Int, Int) -&gt; Int -&gt; Bool
+forall a. Ix a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">inRange</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int
+forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643707"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643706"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>                                   </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643707"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int -&gt; a
+forall a. Seq a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`Seq.index`</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643706"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>                                   </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO a
+forall a. String -&gt; IO a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ListStore.getRow: iter does not refer to a valid entry&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceIterNext"><span class="hs-identifier hs-var">treeModelIfaceIterNext</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679643710"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643710"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-112"></span><span>                                 </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (Seq a)
+</span><a href="#local-6989586621679643690"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Seq a) -&gt; (Seq a -&gt; IO (Maybe TreeIter)) -&gt; IO (Maybe TreeIter)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643711"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643711"><span class="hs-identifier hs-var">rows</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-113"></span><span>                                 </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">(Int, Int) -&gt; Int -&gt; Bool
+forall a. Ix a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">inRange</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int
+forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643711"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643710"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>                                   </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter -&gt; IO (Maybe TreeIter)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TreeIter -&gt; Maybe TreeIter
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt -&gt; Word32 -&gt; Word32 -&gt; Word32 -&gt; TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-var">TreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643710"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>                                   </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter -&gt; IO (Maybe TreeIter)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span>
+</span><span id="line-116"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceIterChildren"><span class="hs-identifier hs-var">treeModelIfaceIterChildren</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643714"><span class="annot"><span class="annottext">Maybe TreeIter
+</span><a href="#local-6989586621679643714"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (Seq a)
+</span><a href="#local-6989586621679643690"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Seq a) -&gt; (Seq a -&gt; IO (Maybe TreeIter)) -&gt; IO (Maybe TreeIter)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643715"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643715"><span class="hs-identifier hs-var">rows</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-117"></span><span>                                         </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><a href="#local-6989586621679643714"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-118"></span><span>                                             </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq a -&gt; Bool
+forall a. Seq a -&gt; Bool
+</span><span class="hs-identifier hs-var">Seq.null</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643715"><span class="hs-identifier hs-var">rows</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-119"></span><span>                                                        </span><span class="annot"><span class="annottext">Maybe TreeIter -&gt; IO (Maybe TreeIter)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TreeIter -&gt; Maybe TreeIter
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt -&gt; Word32 -&gt; Word32 -&gt; Word32 -&gt; TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-var">TreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>                                             </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><span class="hs-identifier">_</span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter -&gt; IO (Maybe TreeIter)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span>
+</span><span id="line-121"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceIterHasChild"><span class="hs-identifier hs-var">treeModelIfaceIterHasChild</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TreeIter
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO Bool
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">,</span><span>
+</span><span id="line-122"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceIterNChildren"><span class="hs-identifier hs-var">treeModelIfaceIterNChildren</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643720"><span class="annot"><span class="annottext">Maybe TreeIter
+</span><a href="#local-6989586621679643720"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (Seq a)
+</span><a href="#local-6989586621679643690"><span class="hs-identifier hs-var">rows</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Seq a) -&gt; (Seq a -&gt; IO Int) -&gt; IO Int
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643721"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643721"><span class="hs-identifier hs-var">rows</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-123"></span><span>                                           </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><a href="#local-6989586621679643720"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-124"></span><span>                                             </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO Int
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; IO Int) -&gt; Int -&gt; IO Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int
+forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643721"><span class="hs-identifier hs-var">rows</span></a></span><span>
+</span><span id="line-125"></span><span>                                             </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><span class="hs-identifier">_</span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO Int
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span>
+</span><span id="line-126"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceIterNthChild"><span class="hs-identifier hs-var">treeModelIfaceIterNthChild</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643724"><span class="annot"><span class="annottext">Maybe TreeIter
+</span><a href="#local-6989586621679643724"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span id="local-6989586621679643725"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643725"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><a href="#local-6989586621679643724"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-127"></span><span>                                               </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter -&gt; IO (Maybe TreeIter)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TreeIter -&gt; Maybe TreeIter
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt -&gt; Word32 -&gt; Word32 -&gt; Word32 -&gt; TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-var">TreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word32
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643725"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>                                               </span><span class="annot"><span class="annottext">Maybe TreeIter
+</span><span class="hs-identifier">_</span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter -&gt; IO (Maybe TreeIter)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span>
+</span><span id="line-129"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceIterParent"><span class="hs-identifier hs-var">treeModelIfaceIterParent</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TreeIter
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter -&gt; IO (Maybe TreeIter)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe TreeIter
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span>
+</span><span id="line-130"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceRefNode"><span class="hs-identifier hs-var">treeModelIfaceRefNode</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TreeIter
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-131"></span><span>      </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeModelIfaceUnrefNode"><span class="hs-identifier hs-var">treeModelIfaceUnrefNode</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TreeIter
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="annot"><a href="#local-6989586621679643688"><span class="hs-identifier hs-type">mDSource</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643689"><span class="hs-identifier hs-type">mDDest</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- | Convert a 'TreeIter' to an an index into the 'ListStore'. Note that this</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--   function merely extracts the second element of the 'TreeIter'.</span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreIterToIndex"><span class="hs-identifier hs-type">listStoreIterToIndex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-138"></span><span id="listStoreIterToIndex"><span class="annot"><span class="annottext">listStoreIterToIndex :: TreeIter -&gt; Int
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreIterToIndex"><span class="hs-identifier hs-var hs-var">listStoreIterToIndex</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679643729"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643729"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679643729"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- | Default drag functions for 'Graphics.UI.Gtk.ModelView.ListStore'. These</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- functions allow the rows of the model to serve as drag source. Any row is</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- allowed to be dragged and the data set in the 'SelectionDataM' object is</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- set with 'treeSetRowDragData', i.e. it contains the model and the</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- 'TreePath' to the row.</span><span>
+</span><span id="line-145"></span><span id="local-6989586621679643469"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreDefaultDragSourceIface"><span class="hs-identifier hs-type">listStoreDefaultDragSourceIface</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#DragSourceIface"><span class="hs-identifier hs-type">DragSourceIface</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643469"><span class="hs-identifier hs-type">row</span></a></span></span><span>
+</span><span id="line-146"></span><span id="listStoreDefaultDragSourceIface"><span class="annot"><span class="annottext">listStoreDefaultDragSourceIface :: forall row. DragSourceIface ListStore row
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreDefaultDragSourceIface"><span class="hs-identifier hs-var hs-var">listStoreDefaultDragSourceIface</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#DragSourceIface"><span class="hs-identifier hs-type">DragSourceIface</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-147"></span><span>    </span><span class="annot"><span class="annottext">treeDragSourceRowDraggable :: ListStore row -&gt; TreePath -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeDragSourceRowDraggable"><span class="hs-identifier hs-var">treeDragSourceRowDraggable</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">ListStore row
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TreePath
+</span><span class="hs-identifier">_</span></span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO Bool
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><span class="annottext">treeDragSourceDragDataGet :: ListStore row -&gt; TreePath -&gt; SelectionDataM Bool
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeDragSourceDragDataGet"><span class="hs-identifier hs-var">treeDragSourceDragDataGet</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ListStore row -&gt; TreePath -&gt; SelectionDataM Bool
+forall treeModel.
+TreeModelClass treeModel =&gt;
+treeModel -&gt; TreePath -&gt; SelectionDataM Bool
+</span><a href="Graphics.UI.Gtk.ModelView.TreeDrag.html#treeSetRowDragData"><span class="hs-identifier hs-var">treeSetRowDragData</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><span class="annottext">treeDragSourceDragDataDelete :: ListStore row -&gt; TreePath -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeDragSourceDragDataDelete"><span class="hs-identifier hs-var">treeDragSourceDragDataDelete</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643741"><span class="annot"><span class="annottext">ListStore row
+</span><a href="#local-6989586621679643741"><span class="hs-identifier hs-var">model</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679643742"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643742"><span class="hs-identifier hs-var">dest</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">TreePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>            </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ListStore row -&gt; Int -&gt; IO ()
+forall a. ListStore a -&gt; Int -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreRemove"><span class="hs-identifier hs-var">listStoreRemove</span></a></span><span> </span><span class="annot"><span class="annottext">ListStore row
+</span><a href="#local-6989586621679643741"><span class="hs-identifier hs-var">model</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643742"><span class="hs-identifier hs-var">dest</span></a></span><span>
+</span><span id="line-151"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; IO Bool
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- | Default drop functions for 'Graphics.UI.Gtk.ModelView.ListStore'. These</span><span>
+</span><span id="line-156"></span><span class="hs-comment">--   functions accept a row and insert the row into the new location if it is</span><span>
+</span><span id="line-157"></span><span class="hs-comment">--   dragged into a tree view</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- that uses the same model.</span><span>
+</span><span id="line-159"></span><span id="local-6989586621679643470"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreDefaultDragDestIface"><span class="hs-identifier hs-type">listStoreDefaultDragDestIface</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#DragDestIface"><span class="hs-identifier hs-type">DragDestIface</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643470"><span class="hs-identifier hs-type">row</span></a></span></span><span>
+</span><span id="line-160"></span><span id="listStoreDefaultDragDestIface"><span class="annot"><span class="annottext">listStoreDefaultDragDestIface :: forall row. DragDestIface ListStore row
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreDefaultDragDestIface"><span class="hs-identifier hs-var hs-var">listStoreDefaultDragDestIface</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#DragDestIface"><span class="hs-identifier hs-type">DragDestIface</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-161"></span><span>    </span><span class="annot"><span class="annottext">treeDragDestRowDropPossible :: ListStore row -&gt; TreePath -&gt; SelectionDataM Bool
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeDragDestRowDropPossible"><span class="hs-identifier hs-var">treeDragDestRowDropPossible</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643767"><span class="annot"><span class="annottext">ListStore row
+</span><a href="#local-6989586621679643767"><span class="hs-identifier hs-var">model</span></a></span></span><span> </span><span id="local-6989586621679643768"><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643768"><span class="hs-identifier hs-var">dest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-162"></span><span>      </span><span id="local-6989586621679643769"><span class="annot"><a href="#local-6989586621679643769"><span class="hs-identifier hs-var">mModelPath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">SelectionDataM (Maybe (TreeModel, TreePath))
+</span><a href="Graphics.UI.Gtk.ModelView.TreeDrag.html#treeGetRowDragData"><span class="hs-identifier hs-var">treeGetRowDragData</span></a></span><span>
+</span><span id="line-163"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679643769"><span class="hs-identifier hs-type">mModelPath</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-164"></span><span>        </span><span class="annot"><span class="annottext">Maybe (TreeModel, TreePath)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SelectionDataM Bool
+forall a. a -&gt; ReaderT (Ptr ()) IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-165"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679643771"><span class="annot"><span class="annottext">TreeModel
+</span><a href="#local-6989586621679643771"><span class="hs-identifier hs-var">model'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679643772"><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643772"><span class="hs-identifier hs-var">source</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SelectionDataM Bool
+forall a. a -&gt; ReaderT (Ptr ()) IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ListStore row -&gt; TreeModel
+forall o. TreeModelClass o =&gt; o -&gt; TreeModel
+</span><a href="Graphics.UI.Gtk.Types.html#toTreeModel"><span class="hs-identifier hs-var">toTreeModel</span></a></span><span> </span><span class="annot"><span class="annottext">ListStore row
+</span><a href="#local-6989586621679643767"><span class="hs-identifier hs-var">model</span></a></span><span class="annot"><span class="annottext">TreeModel -&gt; TreeModel -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">TreeModel -&gt; TreeModel
+forall o. TreeModelClass o =&gt; o -&gt; TreeModel
+</span><a href="Graphics.UI.Gtk.Types.html#toTreeModel"><span class="hs-identifier hs-var">toTreeModel</span></a></span><span> </span><span class="annot"><span class="annottext">TreeModel
+</span><a href="#local-6989586621679643771"><span class="hs-identifier hs-var">model'</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-166"></span><span>    </span><span class="annot"><span class="annottext">treeDragDestDragDataReceived :: ListStore row -&gt; TreePath -&gt; SelectionDataM Bool
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#treeDragDestDragDataReceived"><span class="hs-identifier hs-var">treeDragDestDragDataReceived</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643775"><span class="annot"><span class="annottext">ListStore row
+</span><a href="#local-6989586621679643775"><span class="hs-identifier hs-var">model</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679643776"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643776"><span class="hs-identifier hs-var">dest</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">TreePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-167"></span><span>      </span><span id="local-6989586621679643777"><span class="annot"><a href="#local-6989586621679643777"><span class="hs-identifier hs-var">mModelPath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">SelectionDataM (Maybe (TreeModel, TreePath))
+</span><a href="Graphics.UI.Gtk.ModelView.TreeDrag.html#treeGetRowDragData"><span class="hs-identifier hs-var">treeGetRowDragData</span></a></span><span>
+</span><span id="line-168"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679643777"><span class="hs-identifier hs-type">mModelPath</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-169"></span><span>        </span><span class="annot"><span class="annottext">Maybe (TreeModel, TreePath)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SelectionDataM Bool
+forall a. a -&gt; ReaderT (Ptr ()) IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-170"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679643778"><span class="annot"><span class="annottext">TreeModel
+</span><a href="#local-6989586621679643778"><span class="hs-identifier hs-var">model'</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679643779"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643779"><span class="hs-identifier hs-var">source</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">TreePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-171"></span><span>          </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ListStore row -&gt; TreeModel
+forall o. TreeModelClass o =&gt; o -&gt; TreeModel
+</span><a href="Graphics.UI.Gtk.Types.html#toTreeModel"><span class="hs-identifier hs-var">toTreeModel</span></a></span><span> </span><span class="annot"><span class="annottext">ListStore row
+</span><a href="#local-6989586621679643775"><span class="hs-identifier hs-var">model</span></a></span><span class="annot"><span class="annottext">TreeModel -&gt; TreeModel -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span class="annot"><span class="annottext">TreeModel -&gt; TreeModel
+forall o. TreeModelClass o =&gt; o -&gt; TreeModel
+</span><a href="Graphics.UI.Gtk.Types.html#toTreeModel"><span class="hs-identifier hs-var">toTreeModel</span></a></span><span> </span><span class="annot"><span class="annottext">TreeModel
+</span><a href="#local-6989586621679643778"><span class="hs-identifier hs-var">model'</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SelectionDataM Bool
+forall a. a -&gt; ReaderT (Ptr ()) IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-172"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">IO Bool -&gt; SelectionDataM Bool
+forall a. IO a -&gt; ReaderT (Ptr ()) IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO Bool -&gt; SelectionDataM Bool) -&gt; IO Bool -&gt; SelectionDataM Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-173"></span><span>            </span><span id="local-6989586621679643781"><span class="annot"><a href="#local-6989586621679643781"><span class="hs-identifier hs-var">row</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ListStore row -&gt; Int -&gt; IO row
+forall a. ListStore a -&gt; Int -&gt; IO a
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreGetValue"><span class="hs-identifier hs-var">listStoreGetValue</span></a></span><span> </span><span class="annot"><span class="annottext">ListStore row
+</span><a href="#local-6989586621679643775"><span class="hs-identifier hs-var">model</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643779"><span class="hs-identifier hs-var">source</span></a></span><span>
+</span><span id="line-174"></span><span>            </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreInsert"><span class="hs-identifier hs-type">listStoreInsert</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643775"><span class="hs-identifier hs-type">model</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643776"><span class="hs-identifier hs-type">dest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643781"><span class="hs-identifier hs-type">row</span></a></span><span>
+</span><span id="line-175"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- | Extract the value at the given index.</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--</span><span>
+</span><span id="line-180"></span><span id="local-6989586621679643519"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreGetValue"><span class="hs-identifier hs-type">listStoreGetValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643519"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679643519"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-181"></span><span id="listStoreGetValue"><span class="annot"><span class="annottext">listStoreGetValue :: forall a. ListStore a -&gt; Int -&gt; IO a
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreGetValue"><span class="hs-identifier hs-var hs-var">listStoreGetValue</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643784"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643784"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643785"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643785"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643784"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Seq a) -&gt; (Seq a -&gt; IO a) -&gt; IO a
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO a) -&gt; (Seq a -&gt; a) -&gt; Seq a -&gt; IO a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq a -&gt; Int -&gt; a
+forall a. Seq a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`Seq.index`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643785"><span class="hs-identifier hs-var">index</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- | Extract the value at the given index.</span><span>
+</span><span id="line-185"></span><span class="hs-comment">--</span><span>
+</span><span id="line-186"></span><span id="local-6989586621679643524"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreSafeGetValue"><span class="hs-identifier hs-type">listStoreSafeGetValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643524"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679643524"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-187"></span><span id="listStoreSafeGetValue"><span class="annot"><span class="annottext">listStoreSafeGetValue :: forall a. ListStore a -&gt; Int -&gt; IO (Maybe a)
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreSafeGetValue"><span class="hs-identifier hs-var hs-var">listStoreSafeGetValue</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643793"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643793"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643794"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643794"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-188"></span><span>  </span><span id="local-6989586621679643795"><span class="annot"><a href="#local-6989586621679643795"><span class="hs-identifier hs-var">seq</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643793"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679643794"><span class="hs-identifier hs-type">index</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;=</span></span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&amp;&amp;</span></span><span> </span><span class="annot"><a href="#local-6989586621679643794"><span class="hs-identifier hs-type">index</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq.length</span></span><span> </span><span class="annot"><a href="#local-6989586621679643795"><span class="hs-identifier hs-type">seq</span></a></span><span>
+</span><span id="line-190"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679643795"><span class="hs-identifier hs-type">seq</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">`Seq.index`</span></span><span> </span><span class="annot"><a href="#local-6989586621679643794"><span class="hs-identifier hs-type">index</span></a></span><span>
+</span><span id="line-191"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- | Update the value at the given index. The index must exist.</span><span>
+</span><span id="line-194"></span><span class="hs-comment">--</span><span>
+</span><span id="line-195"></span><span id="local-6989586621679643798"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreSetValue"><span class="hs-identifier hs-type">listStoreSetValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643798"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643798"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-196"></span><span id="listStoreSetValue"><span class="annot"><span class="annottext">listStoreSetValue :: forall a. ListStore a -&gt; Int -&gt; a -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreSetValue"><span class="hs-identifier hs-var hs-var">listStoreSetValue</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643807"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643807"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643808"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643808"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span id="local-6989586621679643809"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643809"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-197"></span><span>  </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; (Seq a -&gt; Seq a) -&gt; IO ()
+forall a. IORef a -&gt; (a -&gt; a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643807"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; a -&gt; Seq a -&gt; Seq a
+forall a. Int -&gt; a -&gt; Seq a -&gt; Seq a
+</span><span class="hs-identifier hs-var">Seq.update</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643808"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643809"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span>  </span><span id="local-6989586621679643812"><span class="annot"><a href="#local-6989586621679643812"><span class="hs-identifier hs-var">stamp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IO CInt
+forall private row. CustomStore private row -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetStamp"><span class="hs-identifier hs-var">customStoreGetStamp</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643807"><span class="hs-identifier hs-var">model</span></a></span><span>
+</span><span id="line-199"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModel.html#treeModelRowChanged"><span class="hs-identifier hs-type">treeModelRowChanged</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643807"><span class="hs-identifier hs-type">model</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679643808"><span class="hs-identifier hs-type">index</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643812"><span class="hs-identifier hs-type">stamp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621679643808"><span class="hs-identifier hs-type">index</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- | Extract all data from the store.</span><span>
+</span><span id="line-202"></span><span class="hs-comment">--</span><span>
+</span><span id="line-203"></span><span id="local-6989586621679643535"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreToList"><span class="hs-identifier hs-type">listStoreToList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643535"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679643535"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-204"></span><span id="listStoreToList"><span class="annot"><span class="annottext">listStoreToList :: forall a. ListStore a -&gt; IO [a]
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreToList"><span class="hs-identifier hs-var hs-var">listStoreToList</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643818"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643818"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-205"></span><span>  </span><span class="annot"><span class="annottext">(Seq a -&gt; [a]) -&gt; IO (Seq a) -&gt; IO [a]
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__&gt;=606
+</span><span>  </span><span class="annot"><span class="annottext">Seq a -&gt; [a]
+forall a. Seq a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">F.toList</span></span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="hs-identifier">Seq.toList</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="annot"><span class="annottext">(IO (Seq a) -&gt; IO [a]) -&gt; IO (Seq a) -&gt; IO [a]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643818"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span class="annot"><span class="hs-comment">-- | Query the number of elements in the store.</span></span><span>
+</span><span id="line-214"></span><span id="local-6989586621679643542"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreGetSize"><span class="hs-identifier hs-type">listStoreGetSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643542"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-215"></span><span id="listStoreGetSize"><span class="annot"><span class="annottext">listStoreGetSize :: forall a. ListStore a -&gt; IO Int
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreGetSize"><span class="hs-identifier hs-var hs-var">listStoreGetSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643821"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643821"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-216"></span><span>  </span><span class="annot"><span class="annottext">(Seq a -&gt; Int) -&gt; IO (Seq a) -&gt; IO Int
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int
+forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">(IO (Seq a) -&gt; IO Int) -&gt; IO (Seq a) -&gt; IO Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643821"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- | Insert an element in front of the given element. The element is appended</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- if the index is greater or equal to the size of the list.</span><span>
+</span><span id="line-220"></span><span id="local-6989586621679643520"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreInsert"><span class="hs-identifier hs-type">listStoreInsert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643520"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643520"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-221"></span><span id="listStoreInsert"><span class="annot"><span class="annottext">listStoreInsert :: forall a. ListStore a -&gt; Int -&gt; a -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreInsert"><span class="hs-identifier hs-var hs-var">listStoreInsert</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643834"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643834"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643835"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643835"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span id="local-6989586621679643836"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643836"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-222"></span><span>  </span><span id="local-6989586621679643837"><span class="annot"><a href="#local-6989586621679643837"><span class="hs-identifier hs-var">seq</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643834"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679643835"><span class="hs-identifier hs-type">index</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;=</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-224"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679643839"><span class="annot"><a href="#local-6989586621679643839"><span class="hs-identifier hs-var hs-var">index'</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643835"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int
+forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643837"><span class="hs-identifier hs-var">seq</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int
+forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643837"><span class="hs-identifier hs-var">seq</span></a></span><span>
+</span><span id="line-225"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643835"><span class="hs-identifier hs-var">index</span></a></span><span>
+</span><span id="line-226"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-type">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643834"><span class="hs-identifier hs-type">model</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679643842"><span class="hs-identifier hs-type">insert</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643839"><span class="hs-identifier hs-type">index'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643836"><span class="hs-identifier hs-type">value</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643837"><span class="hs-identifier hs-type">seq</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-227"></span><span>    </span><span id="local-6989586621679643843"><span class="annot"><a href="#local-6989586621679643843"><span class="hs-identifier hs-var">stamp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetStamp"><span class="hs-identifier hs-type">customStoreGetStamp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643834"><span class="hs-identifier hs-type">model</span></a></span><span>
+</span><span id="line-228"></span><span>    </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModel.html#treeModelRowInserted"><span class="hs-identifier hs-type">treeModelRowInserted</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643834"><span class="hs-identifier hs-type">model</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679643839"><span class="hs-identifier hs-type">index'</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643843"><span class="hs-identifier hs-type">stamp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621679643839"><span class="hs-identifier hs-type">index'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679643845"><span class="annot"><a href="#local-6989586621679643842"><span class="hs-identifier hs-type">insert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643845"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><a href="#local-6989586621679643845"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><a href="#local-6989586621679643845"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-231"></span><span>        </span><span id="local-6989586621679643842"><span class="annot"><span class="annottext">insert :: forall a. Int -&gt; a -&gt; Seq a -&gt; Seq a
+</span><a href="#local-6989586621679643842"><span class="hs-identifier hs-var hs-var">insert</span></a></span></span><span> </span><span id="local-6989586621679643846"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643846"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679643847"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643847"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679643848"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643848"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643849"><span class="hs-identifier hs-var">front</span></a></span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Seq a -&gt; Seq a
+forall a. Seq a -&gt; Seq a -&gt; Seq a
+</span><span class="hs-operator hs-var">Seq.&gt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643847"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Seq a -&gt; Seq a
+forall a. a -&gt; Seq a -&gt; Seq a
+</span><span class="hs-operator hs-var">Seq.&lt;|</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643852"><span class="hs-identifier hs-var">back</span></a></span><span>
+</span><span id="line-232"></span><span>          </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679643849"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643849"><span class="hs-identifier hs-var">front</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679643852"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643852"><span class="hs-identifier hs-var">back</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Seq a -&gt; (Seq a, Seq a)
+forall a. Int -&gt; Seq a -&gt; (Seq a, Seq a)
+</span><span class="hs-identifier hs-var">Seq.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643846"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643848"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="annot"><span class="hs-comment">-- | Prepend the element to the store.</span></span><span>
+</span><span id="line-235"></span><span id="local-6989586621679643551"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStorePrepend"><span class="hs-identifier hs-type">listStorePrepend</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643551"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643551"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-236"></span><span id="listStorePrepend"><span class="annot"><span class="annottext">listStorePrepend :: forall a. ListStore a -&gt; a -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStorePrepend"><span class="hs-identifier hs-var hs-var">listStorePrepend</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643860"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643860"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643861"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643861"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-237"></span><span>  </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; (Seq a -&gt; Seq a) -&gt; IO ()
+forall a. IORef a -&gt; (a -&gt; a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643860"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>              </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679643862"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643862"><span class="hs-identifier hs-var">seq</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643861"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Seq a -&gt; Seq a
+forall a. a -&gt; Seq a -&gt; Seq a
+</span><span class="hs-operator hs-var">Seq.&lt;|</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643862"><span class="hs-identifier hs-var">seq</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>  </span><span id="local-6989586621679643863"><span class="annot"><a href="#local-6989586621679643863"><span class="hs-identifier hs-var">stamp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IO CInt
+forall private row. CustomStore private row -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetStamp"><span class="hs-identifier hs-var">customStoreGetStamp</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643860"><span class="hs-identifier hs-var">model</span></a></span><span>
+</span><span id="line-240"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModel.html#treeModelRowInserted"><span class="hs-identifier hs-type">treeModelRowInserted</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643860"><span class="hs-identifier hs-type">model</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643863"><span class="hs-identifier hs-type">stamp</span></a></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-241"></span><span>
+</span><span id="line-242"></span><span class="hs-comment">---- | Prepend a list to the store. Not implemented yet.</span><span>
+</span><span id="line-243"></span><span class="hs-comment">--listStorePrependList :: ListStore a -&gt; [a] -&gt; IO ()</span><span>
+</span><span id="line-244"></span><span class="hs-comment">--listStorePrependList store list =</span><span>
+</span><span id="line-245"></span><span class="hs-comment">--  mapM_ (listStoreInsert store 0) (reverse list)</span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- | Append an element to the store. Returns the index of the inserted</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- element.</span><span>
+</span><span id="line-249"></span><span id="local-6989586621679643553"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreAppend"><span class="hs-identifier hs-type">listStoreAppend</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643553"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643553"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-250"></span><span id="listStoreAppend"><span class="annot"><span class="annottext">listStoreAppend :: forall a. ListStore a -&gt; a -&gt; IO Int
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreAppend"><span class="hs-identifier hs-var hs-var">listStoreAppend</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643873"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643873"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643874"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643874"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-251"></span><span>  </span><span id="local-6989586621679643875"><span class="annot"><a href="#local-6989586621679643875"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; (Seq a -&gt; (Seq a, Int)) -&gt; IO Int
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643873"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-252"></span><span>                             </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679643877"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643877"><span class="hs-identifier hs-var">seq</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643877"><span class="hs-identifier hs-var">seq</span></a></span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; a -&gt; Seq a
+forall a. Seq a -&gt; a -&gt; Seq a
+</span><span class="hs-operator hs-var">Seq.|&gt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679643874"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Int
+forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643877"><span class="hs-identifier hs-var">seq</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-253"></span><span>  </span><span id="local-6989586621679643879"><span class="annot"><a href="#local-6989586621679643879"><span class="hs-identifier hs-var">stamp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetStamp"><span class="hs-identifier hs-type">customStoreGetStamp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643873"><span class="hs-identifier hs-type">model</span></a></span><span>
+</span><span id="line-254"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModel.html#treeModelRowInserted"><span class="hs-identifier hs-type">treeModelRowInserted</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643873"><span class="hs-identifier hs-type">model</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679643875"><span class="hs-identifier hs-type">index</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643879"><span class="hs-identifier hs-type">stamp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621679643875"><span class="hs-identifier hs-type">index</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-255"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679643875"><span class="hs-identifier hs-type">index</span></a></span><span>
+</span><span id="line-256"></span><span>
+</span><span id="line-257"></span><span class="hs-comment">{-
+listStoreAppendList :: ListStore a -&gt; [a] -&gt; IO ()
+listStoreAppendList (ListStore model) values = do
+  seq &lt;- readIORef (customStoreGetPrivate model)
+  let seq' = Seq.fromList values
+      startIndex = Seq.length seq
+      endIndex = startIndex + Seq.length seq' - 1
+  writeIORef (customStoreGetPrivate model) (seq Seq.&gt;&lt; seq')
+  stamp &lt;- customStoreGetStamp model
+  flip mapM [startIndex..endIndex] $ \index -&gt;
+    treeModelRowInserted model [index] (TreeIter stamp (fromIntegral index) 0 0)
+-}</span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- | Remove the element at the given index.</span><span>
+</span><span id="line-271"></span><span class="hs-comment">--</span><span>
+</span><span id="line-272"></span><span id="local-6989586621679643509"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreRemove"><span class="hs-identifier hs-type">listStoreRemove</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643509"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-273"></span><span id="listStoreRemove"><span class="annot"><span class="annottext">listStoreRemove :: forall a. ListStore a -&gt; Int -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreRemove"><span class="hs-identifier hs-var hs-var">listStoreRemove</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643887"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643887"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643888"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643888"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-274"></span><span>  </span><span id="local-6989586621679643889"><span class="annot"><a href="#local-6989586621679643889"><span class="hs-identifier hs-var">seq</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643887"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-275"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679643888"><span class="hs-identifier hs-type">index</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;=</span></span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&amp;&amp;</span></span><span> </span><span class="annot"><a href="#local-6989586621679643888"><span class="hs-identifier hs-type">index</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq.length</span></span><span> </span><span class="annot"><a href="#local-6989586621679643889"><span class="hs-identifier hs-type">seq</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-276"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-type">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643887"><span class="hs-identifier hs-type">model</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679643890"><span class="hs-identifier hs-type">delete</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643888"><span class="hs-identifier hs-type">index</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643889"><span class="hs-identifier hs-type">seq</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-277"></span><span>    </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModel.html#treeModelRowDeleted"><span class="hs-identifier hs-type">treeModelRowDeleted</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643887"><span class="hs-identifier hs-type">model</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679643888"><span class="hs-identifier hs-type">index</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-278"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679643559"><span class="annot"><a href="#local-6989586621679643890"><span class="hs-identifier hs-type">delete</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><a href="#local-6989586621679643559"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><a href="#local-6989586621679643559"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-279"></span><span>        </span><span id="local-6989586621679643890"><span class="annot"><span class="annottext">delete :: forall a. Int -&gt; Seq a -&gt; Seq a
+</span><a href="#local-6989586621679643890"><span class="hs-identifier hs-var hs-var">delete</span></a></span></span><span> </span><span id="local-6989586621679643892"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643892"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679643893"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643893"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643894"><span class="hs-identifier hs-var">front</span></a></span><span> </span><span class="annot"><span class="annottext">Seq a -&gt; Seq a -&gt; Seq a
+forall a. Seq a -&gt; Seq a -&gt; Seq a
+</span><span class="hs-operator hs-var">Seq.&gt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Seq a -&gt; Seq a
+forall a. Int -&gt; Seq a -&gt; Seq a
+</span><span class="hs-identifier hs-var">Seq.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643896"><span class="hs-identifier hs-var">back</span></a></span><span>
+</span><span id="line-280"></span><span>          </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679643894"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643894"><span class="hs-identifier hs-var">front</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679643896"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643896"><span class="hs-identifier hs-var">back</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Seq a -&gt; (Seq a, Seq a)
+forall a. Int -&gt; Seq a -&gt; (Seq a, Seq a)
+</span><span class="hs-identifier hs-var">Seq.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643892"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643893"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span class="annot"><span class="hs-comment">-- | Empty the store.</span></span><span>
+</span><span id="line-283"></span><span id="local-6989586621679643562"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreClear"><span class="hs-identifier hs-type">listStoreClear</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643562"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-284"></span><span id="listStoreClear"><span class="annot"><span class="annottext">listStoreClear :: forall a. ListStore a -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.ListStore.html#listStoreClear"><span class="hs-identifier hs-var hs-var">listStoreClear</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.ListStore.html#ListStore"><span class="hs-identifier hs-type">ListStore</span></a></span><span> </span><span id="local-6989586621679643900"><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643900"><span class="hs-identifier hs-var">model</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-285"></span><span>
+</span><span id="line-286"></span><span>  </span><span class="hs-comment">-- Since deleting rows can cause callbacks (eg due to selection changes)</span><span>
+</span><span id="line-287"></span><span>  </span><span class="hs-comment">-- we have to make sure the model is consistent with the view at each</span><span>
+</span><span id="line-288"></span><span>  </span><span class="hs-comment">-- intermediate step of clearing the store. Otherwise at some intermediate</span><span>
+</span><span id="line-289"></span><span>  </span><span class="hs-comment">-- stage when the view has only been informed about some deletions, the</span><span>
+</span><span id="line-290"></span><span>  </span><span class="hs-comment">-- user might query the model expecting to find the remaining rows are there</span><span>
+</span><span id="line-291"></span><span>  </span><span class="hs-comment">-- but find them deleted. That'd be bad.</span><span>
+</span><span id="line-292"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-293"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679643911"><span class="annot"><span class="annottext">loop :: Int -&gt; ViewR a -&gt; IO ()
+</span><a href="#local-6989586621679643911"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ViewR a
+</span><span class="hs-identifier hs-var">Seq.EmptyR</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span>      </span><span class="annot"><a href="#local-6989586621679643911"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span id="local-6989586621679643913"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643913"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679643914"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643914"><span class="hs-identifier hs-var">seq</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Seq.:&gt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-295"></span><span>        </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; Seq a -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643900"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643914"><span class="hs-identifier hs-var">seq</span></a></span><span>
+</span><span id="line-296"></span><span>        </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; TreePath -&gt; IO ()
+forall self. TreeModelClass self =&gt; self -&gt; TreePath -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModel.html#treeModelRowDeleted"><span class="hs-identifier hs-var">treeModelRowDeleted</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643900"><span class="hs-identifier hs-var">model</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643913"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-297"></span><span>        </span><span class="annot"><span class="annottext">Int -&gt; ViewR a -&gt; IO ()
+</span><a href="#local-6989586621679643911"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679643913"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq a -&gt; ViewR a
+forall a. Seq a -&gt; ViewR a
+</span><span class="hs-identifier hs-var">Seq.viewr</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679643914"><span class="hs-identifier hs-var">seq</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-298"></span><span>
+</span><span id="line-299"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679643917"><span class="annot"><a href="#local-6989586621679643917"><span class="hs-identifier hs-var">seq</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (Seq a) -&gt; IO (Seq a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a -&gt; IORef (Seq a)
+forall private row. CustomStore private row -&gt; private
+</span><a href="Graphics.UI.Gtk.ModelView.CustomStore.html#customStoreGetPrivate"><span class="hs-identifier hs-var">customStoreGetPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">CustomStore (IORef (Seq a)) a
+</span><a href="#local-6989586621679643900"><span class="hs-identifier hs-var">model</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-300"></span><span>         </span><span class="annot"><a href="#local-6989586621679643911"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Seq.length</span></span><span> </span><span class="annot"><a href="#local-6989586621679643917"><span class="hs-identifier hs-type">seq</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Seq.viewr</span></span><span> </span><span class="annot"><a href="#local-6989586621679643917"><span class="hs-identifier hs-type">seq</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-301"></span><span>
+</span><span id="line-302"></span><span class="hs-comment">---- | Permute the rows of the store. Not yet implemented.</span><span>
+</span><span id="line-303"></span><span class="hs-comment">--listStoreReorder :: ListStore a -&gt; [Int] -&gt; IO ()</span><span>
+</span><span id="line-304"></span><span class="hs-comment">--listStoreReorder store = undefined</span><span>
+</span><span id="line-305"></span><span class="hs-comment">--</span><span>
+</span><span id="line-306"></span><span class="hs-comment">---- | Swap two rows of the store. Not yet implemented.</span><span>
+</span><span id="line-307"></span><span class="hs-comment">--listStoreSwap :: ListStore a -&gt; Int -&gt; Int -&gt; IO ()</span><span>
+</span><span id="line-308"></span><span class="hs-comment">--listStoreSwap store = undefined</span><span>
+</span><span id="line-309"></span><span class="hs-comment">--</span><span>
+</span><span id="line-310"></span><span class="hs-comment">---- | Move the element at the first index in front of the element denoted by</span><span>
+</span><span id="line-311"></span><span class="hs-comment">---- the second index. Not yet implemented.</span><span>
+</span><span id="line-312"></span><span class="hs-comment">--listStoreMoveBefore :: ListStore a -&gt; Int -&gt; Int -&gt; IO ()</span><span>
+</span><span id="line-313"></span><span class="hs-comment">--listStoreMoveBefore store = undefined</span><span>
+</span><span id="line-314"></span><span class="hs-comment">--</span><span>
+</span><span id="line-315"></span><span class="hs-comment">---- | Move the element at the first index past the element denoted by the</span><span>
+</span><span id="line-316"></span><span class="hs-comment">---- second index. Not yet implemented.</span><span>
+</span><span id="line-317"></span><span class="hs-comment">--listStoreMoveAfter :: ListStore a -&gt; Int -&gt; Int -&gt; IO ()</span><span>
+</span><span id="line-318"></span><span class="hs-comment">--listStoreMoveAfter store = undefined</span><span>
+</span><span id="line-319"></span><span>
+</span><span id="line-320"></span></pre></body></html>

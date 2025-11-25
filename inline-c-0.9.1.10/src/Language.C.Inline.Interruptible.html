@@ -1,0 +1,157 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | @interruptible@ variants of the &quot;Language.C.Inline&quot; quasi-quoters, to call</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- interruptible C code. See &lt;https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/ffi-chap.html#interruptible-foreign-calls&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- for more information.</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- This module is intended to be imported qualified:</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- import qualified &quot;Language.C.Inline.Interruptible&quot; as CI</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.C.Inline.Interruptible.html"><span class="hs-identifier">Language.C.Inline.Interruptible</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Language.C.Inline.Interruptible.html#exp"><span class="hs-identifier">exp</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Interruptible.html#pure"><span class="hs-identifier">pure</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Interruptible.html#block"><span class="hs-identifier">block</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Prelude</span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">exp</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">exp</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">pure</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH.Quote</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TH</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH.Syntax</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TH</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.C.Inline.Context.html"><span class="hs-identifier">Language.C.Inline.Context</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.C.Inline.Internal.html"><span class="hs-identifier">Language.C.Inline.Internal</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><span class="hs-comment">-- | C expressions.</span></span><span>
+</span><span id="line-32"></span><span class="annot"><a href="Language.C.Inline.Interruptible.html#exp"><span class="hs-identifier hs-type">exp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.QuasiQuoter</span></span><span>
+</span><span id="line-33"></span><span id="exp"><span class="annot"><span class="annottext">exp :: QuasiQuoter
+</span><a href="Language.C.Inline.Interruptible.html#exp"><span class="hs-identifier hs-var hs-var">exp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Purity
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; String
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+</span><a href="Language.C.Inline.Internal.html#genericQuote"><span class="hs-identifier hs-var">genericQuote</span></a></span><span> </span><span class="annot"><span class="annottext">Purity
+</span><a href="Language.C.Inline.Context.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((Loc
+  -&gt; TypeQ
+  -&gt; Type CIdentifier
+  -&gt; [(CIdentifier, Type CIdentifier)]
+  -&gt; String
+  -&gt; ExpQ)
+ -&gt; QuasiQuoter)
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; String
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Safety
+-&gt; Loc
+-&gt; TypeQ
+-&gt; Type CIdentifier
+-&gt; [(CIdentifier, Type CIdentifier)]
+-&gt; String
+-&gt; ExpQ
+</span><a href="Language.C.Inline.Internal.html#inlineExp"><span class="hs-identifier hs-var">inlineExp</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><span class="hs-identifier hs-var">TH.Interruptible</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- | Variant of 'exp', for use with expressions known to have no side effects.</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- __BEWARE__: Use this function with caution, only when you know what you are</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- doing. If an expression does in fact have side-effects, then indiscriminate</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- use of 'pure' may endanger referential transparency, and in principle even</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- type safety. Also note that the function may run more than once and that it</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- may run in parallel with itself, given that</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- 'System.IO.Unsafe.unsafeDupablePerformIO' is used to call the provided C</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- code [to ensure good performance using the threaded</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- runtime](https://github.com/fpco/inline-c/issues/115).  Please refer to the</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- documentation for 'System.IO.Unsafe.unsafeDupablePerformIO' for more</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- details.</span><span>
+</span><span id="line-47"></span><span class="annot"><a href="Language.C.Inline.Interruptible.html#pure"><span class="hs-identifier hs-type">pure</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.QuasiQuoter</span></span><span>
+</span><span id="line-48"></span><span id="pure"><span class="annot"><span class="annottext">pure :: QuasiQuoter
+</span><a href="Language.C.Inline.Interruptible.html#pure"><span class="hs-identifier hs-var hs-var">pure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Purity
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; String
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+</span><a href="Language.C.Inline.Internal.html#genericQuote"><span class="hs-identifier hs-var">genericQuote</span></a></span><span> </span><span class="annot"><span class="annottext">Purity
+</span><a href="Language.C.Inline.Context.html#Pure"><span class="hs-identifier hs-var">Pure</span></a></span><span> </span><span class="annot"><span class="annottext">((Loc
+  -&gt; TypeQ
+  -&gt; Type CIdentifier
+  -&gt; [(CIdentifier, Type CIdentifier)]
+  -&gt; String
+  -&gt; ExpQ)
+ -&gt; QuasiQuoter)
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; String
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Safety
+-&gt; Loc
+-&gt; TypeQ
+-&gt; Type CIdentifier
+-&gt; [(CIdentifier, Type CIdentifier)]
+-&gt; String
+-&gt; ExpQ
+</span><a href="Language.C.Inline.Internal.html#inlineExp"><span class="hs-identifier hs-var">inlineExp</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><span class="hs-identifier hs-var">TH.Interruptible</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><span class="hs-comment">-- | C code blocks (i.e. statements).</span></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Language.C.Inline.Interruptible.html#block"><span class="hs-identifier hs-type">block</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.QuasiQuoter</span></span><span>
+</span><span id="line-52"></span><span id="block"><span class="annot"><span class="annottext">block :: QuasiQuoter
+</span><a href="Language.C.Inline.Interruptible.html#block"><span class="hs-identifier hs-var hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Purity
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; String
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+</span><a href="Language.C.Inline.Internal.html#genericQuote"><span class="hs-identifier hs-var">genericQuote</span></a></span><span> </span><span class="annot"><span class="annottext">Purity
+</span><a href="Language.C.Inline.Context.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((Loc
+  -&gt; TypeQ
+  -&gt; Type CIdentifier
+  -&gt; [(CIdentifier, Type CIdentifier)]
+  -&gt; String
+  -&gt; ExpQ)
+ -&gt; QuasiQuoter)
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; String
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Safety
+-&gt; Bool
+-&gt; Maybe String
+-&gt; Loc
+-&gt; TypeQ
+-&gt; Type CIdentifier
+-&gt; [(CIdentifier, Type CIdentifier)]
+-&gt; String
+-&gt; ExpQ
+</span><a href="Language.C.Inline.Internal.html#inlineItems"><span class="hs-identifier hs-var">inlineItems</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><span class="hs-identifier hs-var">TH.Interruptible</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Maybe String
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-53"></span></pre></body></html>

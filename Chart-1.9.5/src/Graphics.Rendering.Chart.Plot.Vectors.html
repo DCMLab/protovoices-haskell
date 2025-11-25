@@ -1,0 +1,676 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module      :  Graphics.Rendering.Chart.Plot.Vectors</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright   :  (c) Anton Vorontsov &lt;anton@enomsg.org&gt; 2014</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     :  BSD-style (see chart/COPYRIGHT)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Vector plots</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html"><span class="hs-identifier">Graphics.Rendering.Chart.Plot.Vectors</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#PlotVectors"><span class="hs-identifier">PlotVectors</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#VectorStyle"><span class="hs-identifier">VectorStyle</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plotVectorField"><span class="hs-identifier">plotVectorField</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plot_vectors_mapf"><span class="hs-identifier">plot_vectors_mapf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plot_vectors_grid"><span class="hs-identifier">plot_vectors_grid</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plot_vectors_title"><span class="hs-identifier">plot_vectors_title</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plot_vectors_style"><span class="hs-identifier">plot_vectors_style</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plot_vectors_scale"><span class="hs-identifier">plot_vectors_scale</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plot_vectors_values"><span class="hs-identifier">plot_vectors_values</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#vector_line_style"><span class="hs-identifier">vector_line_style</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#vector_head_style"><span class="hs-identifier">vector_head_style</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span class="hs-cpp">
+#if !MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Applicative</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tuple</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">over</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour.Names</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Default.Class</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.html"><span class="hs-identifier">Graphics.Rendering.Chart.Axis</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Drawing.html"><span class="hs-identifier">Graphics.Rendering.Chart.Drawing</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html"><span class="hs-identifier">Graphics.Rendering.Chart.Geometry</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Types.html"><span class="hs-identifier">Graphics.Rendering.Chart.Plot.Types</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">data</span><span> </span><span id="VectorStyle"><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#VectorStyle"><span class="hs-identifier hs-var">VectorStyle</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="VectorStyle"><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#VectorStyle"><span class="hs-identifier hs-var">VectorStyle</span></a></span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="_vector_line_style"><span class="annot"><span class="annottext">VectorStyle -&gt; LineStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_vector_line_style"><span class="hs-identifier hs-var hs-var">_vector_line_style</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Types.html#LineStyle"><span class="hs-identifier hs-type">LineStyle</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="_vector_head_style"><span class="annot"><span class="annottext">VectorStyle -&gt; PointStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_vector_head_style"><span class="hs-identifier hs-var hs-var">_vector_head_style</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Drawing.html#PointStyle"><span class="hs-identifier hs-type">PointStyle</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-special">$</span><span id="vector_line_style"><span id="vector_head_style"><span class="hs-special">(</span><span> </span><span class="hs-identifier">makeLenses</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">VectorStyle</span><span> </span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">data</span><span> </span><span id="PlotVectors"><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#PlotVectors"><span class="hs-identifier hs-var">PlotVectors</span></a></span></span><span> </span><span id="local-6989586621679431499"><span class="annot"><a href="#local-6989586621679431499"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span id="local-6989586621679431500"><span class="annot"><a href="#local-6989586621679431500"><span class="hs-identifier hs-type">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PlotVectors"><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#PlotVectors"><span class="hs-identifier hs-var">PlotVectors</span></a></span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="_plot_vectors_title"><span class="annot"><span class="annottext">forall x y. PlotVectors x y -&gt; String
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_title"><span class="hs-identifier hs-var hs-var">_plot_vectors_title</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="_plot_vectors_style"><span class="annot"><span class="annottext">forall x y. PlotVectors x y -&gt; VectorStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_style"><span class="hs-identifier hs-var hs-var">_plot_vectors_style</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#VectorStyle"><span class="hs-identifier hs-type">VectorStyle</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-comment">-- | Set to 1 (default) to normalize the length of vectors to a space</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-comment">--   between them (so that the vectors never overlap on the graph).</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-comment">--   Set to 0 to disable any scaling.</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-comment">--   Values in between 0 and 1 are also permitted to adjust scaling.</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="_plot_vectors_scale"><span class="annot"><span class="annottext">forall x y. PlotVectors x y -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_scale"><span class="hs-identifier hs-var hs-var">_plot_vectors_scale</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="hs-comment">-- | Provide a square-tiled regular grid.</span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="_plot_vectors_grid"><span class="annot"><span class="annottext">forall x y. PlotVectors x y -&gt; [(x, y)]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_grid"><span class="hs-identifier hs-var hs-var">_plot_vectors_grid</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431499"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431500"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="hs-comment">-- | Provide a vector field (R^2 -&gt; R^2) function.</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="_plot_vectors_mapf"><span class="annot"><span class="annottext">forall x y. PlotVectors x y -&gt; (x, y) -&gt; (x, y)
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_mapf"><span class="hs-identifier hs-var hs-var">_plot_vectors_mapf</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431499"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431500"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431499"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431500"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>    </span><span class="annot"><span class="hs-comment">-- | Provide a prepared list of (start,vector) pairs.</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="_plot_vectors_values"><span class="annot"><span class="annottext">forall x y. PlotVectors x y -&gt; [((x, y), (x, y))]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_values"><span class="hs-identifier hs-var hs-var">_plot_vectors_values</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431499"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431500"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431499"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431500"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-special">$</span><span id="local-6989586621679431499"><span id="local-6989586621679431500"><span id="plot_vectors_mapf"><span id="plot_vectors_grid"><span id="plot_vectors_title"><span id="plot_vectors_style"><span id="plot_vectors_scale"><span id="plot_vectors_values"><span class="hs-special">(</span><span> </span><span class="hs-identifier">makeLenses</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">PlotVectors</span><span> </span><span class="hs-special">)</span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span id="local-6989586621679431533"><span id="local-6989586621679431535"><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#mapGrid"><span class="hs-identifier hs-type">mapGrid</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.Types.html#PlotValue"><span class="hs-identifier hs-type">PlotValue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431533"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.Types.html#PlotValue"><span class="hs-identifier hs-type">PlotValue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431535"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>        </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431535"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431533"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431535"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431533"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431535"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431533"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431535"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431533"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679431535"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679431533"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-67"></span><span id="mapGrid"><span class="annot"><span class="annottext">mapGrid :: forall y x.
+(PlotValue y, PlotValue x) =&gt;
+[(x, y)] -&gt; ((x, y) -&gt; (x, y)) -&gt; [((x, y), (x, y))]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#mapGrid"><span class="hs-identifier hs-var hs-var">mapGrid</span></a></span></span><span> </span><span id="local-6989586621679431776"><span class="annot"><span class="annottext">[(x, y)]
+</span><a href="#local-6989586621679431776"><span class="hs-identifier hs-var">grid</span></a></span></span><span> </span><span id="local-6989586621679431777"><span class="annot"><span class="annottext">(x, y) -&gt; (x, y)
+</span><a href="#local-6989586621679431777"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(x, y)] -&gt; [(x, y)] -&gt; [((x, y), (x, y))]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="annot"><span class="annottext">[(x, y)]
+</span><a href="#local-6989586621679431776"><span class="hs-identifier hs-var">grid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(x, y) -&gt; (x, y)
+</span><a href="#local-6989586621679431777"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">((x, y) -&gt; (x, y)) -&gt; [(x, y)] -&gt; [(x, y)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(x, y)]
+</span><a href="#local-6989586621679431776"><span class="hs-identifier hs-var">grid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span id="local-6989586621679431543"><span id="local-6989586621679431544"><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plotVectorField"><span class="hs-identifier hs-type">plotVectorField</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.Types.html#PlotValue"><span class="hs-identifier hs-type">PlotValue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431543"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.Types.html#PlotValue"><span class="hs-identifier hs-type">PlotValue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431544"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#PlotVectors"><span class="hs-identifier hs-type">PlotVectors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431543"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431544"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Types.html#Plot"><span class="hs-identifier hs-type">Plot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431543"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431544"><span class="hs-identifier hs-type">y</span></a></span></span></span><span>
+</span><span id="line-70"></span><span id="plotVectorField"><span class="annot"><span class="annottext">plotVectorField :: forall x y.
+(PlotValue x, PlotValue y) =&gt;
+PlotVectors x y -&gt; Plot x y
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plotVectorField"><span class="hs-identifier hs-var hs-var">plotVectorField</span></a></span></span><span> </span><span id="local-6989586621679431791"><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431791"><span class="hs-identifier hs-var">pv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Types.html#Plot"><span class="hs-identifier hs-type">Plot</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">_plot_render :: PointMapFn x y -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Plot.Types.html#_plot_render"><span class="hs-identifier hs-var">_plot_render</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PlotVectors x y -&gt; PointMapFn x y -&gt; BackendProgram ()
+forall x y.
+(PlotValue x, PlotValue y) =&gt;
+PlotVectors x y -&gt; PointMapFn x y -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#renderPlotVectors"><span class="hs-identifier hs-var">renderPlotVectors</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431791"><span class="hs-identifier hs-var">pv</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_plot_legend :: [(String, Rect -&gt; BackendProgram ())]
+</span><a href="Graphics.Rendering.Chart.Plot.Types.html#_plot_legend"><span class="hs-identifier hs-var">_plot_legend</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">PlotVectors x y -&gt; String
+forall x y. PlotVectors x y -&gt; String
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_title"><span class="hs-identifier hs-var">_plot_vectors_title</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431791"><span class="hs-identifier hs-var">pv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PlotVectors x y -&gt; Rect -&gt; BackendProgram ()
+forall x y.
+(PlotValue x, PlotValue y) =&gt;
+PlotVectors x y -&gt; Rect -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#renderPlotLegendVectors"><span class="hs-identifier hs-var">renderPlotLegendVectors</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431791"><span class="hs-identifier hs-var">pv</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_plot_all_points :: ([x], [y])
+</span><a href="Graphics.Rendering.Chart.Plot.Types.html#_plot_all_points"><span class="hs-identifier hs-var">_plot_all_points</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((x, y) -&gt; x) -&gt; [(x, y)] -&gt; [x]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(x, y) -&gt; x
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">[(x, y)]
+</span><a href="#local-6989586621679431799"><span class="hs-identifier hs-var">pts</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">((x, y) -&gt; y) -&gt; [(x, y)] -&gt; [y]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(x, y) -&gt; y
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">[(x, y)]
+</span><a href="#local-6989586621679431799"><span class="hs-identifier hs-var">pts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679431801"><span class="annot"><span class="annottext">pvals :: [((x, y), (x, y))]
+</span><a href="#local-6989586621679431801"><span class="hs-identifier hs-var hs-var">pvals</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PlotVectors x y -&gt; [((x, y), (x, y))]
+forall x y. PlotVectors x y -&gt; [((x, y), (x, y))]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_values"><span class="hs-identifier hs-var">_plot_vectors_values</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431791"><span class="hs-identifier hs-var">pv</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679431808"><span class="annot"><span class="annottext">mvals :: [((x, y), (x, y))]
+</span><a href="#local-6989586621679431808"><span class="hs-identifier hs-var hs-var">mvals</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(x, y)] -&gt; ((x, y) -&gt; (x, y)) -&gt; [((x, y), (x, y))]
+forall y x.
+(PlotValue y, PlotValue x) =&gt;
+[(x, y)] -&gt; ((x, y) -&gt; (x, y)) -&gt; [((x, y), (x, y))]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#mapGrid"><span class="hs-identifier hs-var">mapGrid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PlotVectors x y -&gt; [(x, y)]
+forall x y. PlotVectors x y -&gt; [(x, y)]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_grid"><span class="hs-identifier hs-var">_plot_vectors_grid</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431791"><span class="hs-identifier hs-var">pv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PlotVectors x y -&gt; (x, y) -&gt; (x, y)
+forall x y. PlotVectors x y -&gt; (x, y) -&gt; (x, y)
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_mapf"><span class="hs-identifier hs-var">_plot_vectors_mapf</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431791"><span class="hs-identifier hs-var">pv</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621679431799"><span class="annot"><span class="annottext">pts :: [(x, y)]
+</span><a href="#local-6989586621679431799"><span class="hs-identifier hs-var hs-var">pts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(((x, y), (x, y)) -&gt; [(x, y)]) -&gt; [((x, y), (x, y))] -&gt; [(x, y)]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679431812"><span class="annot"><span class="annottext">(x, y)
+</span><a href="#local-6989586621679431812"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679431813"><span class="annot"><span class="annottext">(x, y)
+</span><a href="#local-6989586621679431813"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">(x, y)
+</span><a href="#local-6989586621679431812"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">(x, y)
+</span><a href="#local-6989586621679431813"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[((x, y), (x, y))]
+</span><a href="#local-6989586621679431801"><span class="hs-identifier hs-var">pvals</span></a></span><span> </span><span class="annot"><span class="annottext">[((x, y), (x, y))] -&gt; [((x, y), (x, y))] -&gt; [((x, y), (x, y))]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[((x, y), (x, y))]
+</span><a href="#local-6989586621679431808"><span class="hs-identifier hs-var">mvals</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span id="local-6989586621679431553"><span id="local-6989586621679431554"><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#renderPlotVectors"><span class="hs-identifier hs-type">renderPlotVectors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.Types.html#PlotValue"><span class="hs-identifier hs-type">PlotValue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431553"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.Types.html#PlotValue"><span class="hs-identifier hs-type">PlotValue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431554"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>                  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#PlotVectors"><span class="hs-identifier hs-type">PlotVectors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431553"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431554"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#PointMapFn"><span class="hs-identifier hs-type">PointMapFn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431553"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431554"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Impl.html#BackendProgram"><span class="hs-identifier hs-type">BackendProgram</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-82"></span><span id="renderPlotVectors"><span class="annot"><span class="annottext">renderPlotVectors :: forall x y.
+(PlotValue x, PlotValue y) =&gt;
+PlotVectors x y -&gt; PointMapFn x y -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#renderPlotVectors"><span class="hs-identifier hs-var hs-var">renderPlotVectors</span></a></span></span><span> </span><span id="local-6989586621679431828"><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431828"><span class="hs-identifier hs-var">pv</span></a></span></span><span> </span><span id="local-6989586621679431829"><span class="annot"><span class="annottext">PointMapFn x y
+</span><a href="#local-6989586621679431829"><span class="hs-identifier hs-var">pmap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679431830"><span class="annot"><span class="annottext">pvals :: [((x, y), (x, y))]
+</span><a href="#local-6989586621679431830"><span class="hs-identifier hs-var hs-var hs-var">pvals</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PlotVectors x y -&gt; [((x, y), (x, y))]
+forall x y. PlotVectors x y -&gt; [((x, y), (x, y))]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_values"><span class="hs-identifier hs-var">_plot_vectors_values</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431828"><span class="hs-identifier hs-var">pv</span></a></span><span>
+</span><span id="line-84"></span><span>        </span><span id="local-6989586621679431837"><span class="annot"><span class="annottext">mvals :: [((x, y), (x, y))]
+</span><a href="#local-6989586621679431837"><span class="hs-identifier hs-var hs-var hs-var">mvals</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(x, y)] -&gt; ((x, y) -&gt; (x, y)) -&gt; [((x, y), (x, y))]
+forall y x.
+(PlotValue y, PlotValue x) =&gt;
+[(x, y)] -&gt; ((x, y) -&gt; (x, y)) -&gt; [((x, y), (x, y))]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#mapGrid"><span class="hs-identifier hs-var">mapGrid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PlotVectors x y -&gt; [(x, y)]
+forall x y. PlotVectors x y -&gt; [(x, y)]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_grid"><span class="hs-identifier hs-var">_plot_vectors_grid</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431828"><span class="hs-identifier hs-var">pv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PlotVectors x y -&gt; (x, y) -&gt; (x, y)
+forall x y. PlotVectors x y -&gt; (x, y) -&gt; (x, y)
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_mapf"><span class="hs-identifier hs-var">_plot_vectors_mapf</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431828"><span class="hs-identifier hs-var">pv</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>        </span><span id="local-6989586621679431853"><span class="annot"><span class="annottext">trans :: [((x, y), (x, y))]
+</span><a href="#local-6989586621679431853"><span class="hs-identifier hs-var hs-var hs-var">trans</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((x, y), (x, y)) -&gt; ((x, y), (x, y))
+forall {a} {a} {a} {b} {a} {a}.
+(PlotValue a, PlotValue a, PlotValue a, PlotValue b, PlotValue a,
+ PlotValue a) =&gt;
+((a, a), (a, a)) -&gt; ((a, a), (a, b))
+</span><a href="#local-6989586621679431854"><span class="hs-identifier hs-var">translateToStart</span></a></span><span> </span><span class="annot"><span class="annottext">(((x, y), (x, y)) -&gt; ((x, y), (x, y)))
+-&gt; [((x, y), (x, y))] -&gt; [((x, y), (x, y))]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[((x, y), (x, y))]
+</span><a href="#local-6989586621679431830"><span class="hs-identifier hs-var">pvals</span></a></span><span> </span><span class="annot"><span class="annottext">[((x, y), (x, y))] -&gt; [((x, y), (x, y))] -&gt; [((x, y), (x, y))]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[((x, y), (x, y))]
+</span><a href="#local-6989586621679431837"><span class="hs-identifier hs-var">mvals</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>        </span><span id="local-6989586621679431864"><span class="annot"><span class="annottext">pvecs :: [(Point, Point)]
+</span><a href="#local-6989586621679431864"><span class="hs-identifier hs-var hs-var hs-var">pvecs</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Point, Point) -&gt; Bool) -&gt; [(Point, Point)] -&gt; [(Point, Point)]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679431865"><span class="annot"><span class="annottext">(Point, Point)
+</span><a href="#local-6989586621679431865"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; Double
+</span><a href="#local-6989586621679431866"><span class="hs-identifier hs-var">vlen'</span></a></span><span> </span><span class="annot"><span class="annottext">(Point, Point)
+</span><a href="#local-6989586621679431865"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([(Point, Point)] -&gt; [(Point, Point)])
+-&gt; [(Point, Point)] -&gt; [(Point, Point)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ASetter ((x, y), (x, y)) (Point, Point) (x, y) Point
+-&gt; ((x, y) -&gt; Point) -&gt; ((x, y), (x, y)) -&gt; (Point, Point)
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="annot"><span class="annottext">ASetter ((x, y), (x, y)) (Point, Point) (x, y) Point
+Traversal ((x, y), (x, y)) (Point, Point) (x, y) Point
+forall (r :: * -&gt; * -&gt; *) a b.
+Bitraversable r =&gt;
+Traversal (r a a) (r b b) a b
+</span><span class="hs-identifier hs-var">both</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PointMapFn x y -&gt; (x, y) -&gt; Point
+forall x y. PointMapFn x y -&gt; (x, y) -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Plot.Types.html#mapXY"><span class="hs-identifier hs-var">mapXY</span></a></span><span> </span><span class="annot"><span class="annottext">PointMapFn x y
+</span><a href="#local-6989586621679431829"><span class="hs-identifier hs-var">pmap</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(((x, y), (x, y)) -&gt; (Point, Point))
+-&gt; [((x, y), (x, y))] -&gt; [(Point, Point)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[((x, y), (x, y))]
+</span><a href="#local-6989586621679431853"><span class="hs-identifier hs-var">trans</span></a></span><span>
+</span><span id="line-87"></span><span>        </span><span id="local-6989586621679431872"><span class="annot"><span class="annottext">mgrid :: [Point]
+</span><a href="#local-6989586621679431872"><span class="hs-identifier hs-var hs-var hs-var">mgrid</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Point] -&gt; [Point]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">([Point] -&gt; [Point]) -&gt; [Point] -&gt; [Point]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; Point
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">((Point, Point) -&gt; Point) -&gt; [(Point, Point)] -&gt; [Point]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(Point, Point)]
+</span><a href="#local-6989586621679431864"><span class="hs-identifier hs-var">pvecs</span></a></span><span>
+</span><span id="line-88"></span><span>        </span><span id="local-6989586621679431877"><span class="annot"><span class="annottext">maxLen :: Double
+</span><a href="#local-6989586621679431877"><span class="hs-identifier hs-var hs-var hs-var">maxLen</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Double] -&gt; Double
+forall a. Ord a =&gt; [a] -&gt; a
+forall (t :: * -&gt; *) a. (Foldable t, Ord a) =&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">maximum</span></span><span> </span><span class="annot"><span class="annottext">([Double] -&gt; Double) -&gt; [Double] -&gt; Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; Double
+</span><a href="#local-6989586621679431866"><span class="hs-identifier hs-var">vlen'</span></a></span><span> </span><span class="annot"><span class="annottext">((Point, Point) -&gt; Double) -&gt; [(Point, Point)] -&gt; [Double]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(Point, Point)]
+</span><a href="#local-6989586621679431864"><span class="hs-identifier hs-var">pvecs</span></a></span><span>
+</span><span id="line-89"></span><span>        </span><span id="local-6989586621679431884"><span class="annot"><span class="annottext">spacing :: Double
+</span><a href="#local-6989586621679431884"><span class="hs-identifier hs-var hs-var hs-var">spacing</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Double] -&gt; Int -&gt; Double
+forall a. HasCallStack =&gt; [a] -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">!!</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Double] -&gt; Double) -&gt; [Double] -&gt; Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#vlen"><span class="hs-identifier hs-var">vlen</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector -&gt; Double) -&gt; [Vector] -&gt; [Double]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Point -&gt; Point -&gt; Vector) -&gt; [Point] -&gt; [Point] -&gt; [Vector]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Point -&gt; Vector
+</span><a href="Graphics.Rendering.Chart.Geometry.html#psub"><span class="hs-identifier hs-var">psub</span></a></span><span> </span><span class="annot"><span class="annottext">[Point]
+</span><a href="#local-6989586621679431872"><span class="hs-identifier hs-var">mgrid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Point] -&gt; [Point]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[Point]
+</span><a href="#local-6989586621679431872"><span class="hs-identifier hs-var">mgrid</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Double] -&gt; [Double] -&gt; [Double]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431877"><span class="hs-identifier hs-var">maxLen</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-90"></span><span>        </span><span id="local-6989586621679431892"><span class="annot"><span class="annottext">sfactor :: Double
+</span><a href="#local-6989586621679431892"><span class="hs-identifier hs-var hs-var hs-var">sfactor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431884"><span class="hs-identifier hs-var">spacing</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431877"><span class="hs-identifier hs-var">maxLen</span></a></span><span>                  </span><span class="hs-comment">-- Non-adjusted scale factor</span><span>
+</span><span id="line-91"></span><span>        </span><span id="local-6989586621679431900"><span class="annot"><span class="annottext">afactor :: Double
+</span><a href="#local-6989586621679431900"><span class="hs-identifier hs-var hs-var hs-var">afactor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431892"><span class="hs-identifier hs-var">sfactor</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431892"><span class="hs-identifier hs-var">sfactor</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y -&gt; Double
+forall x y. PlotVectors x y -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_scale"><span class="hs-identifier hs-var">_plot_vectors_scale</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431828"><span class="hs-identifier hs-var">pv</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>        </span><span id="local-6989586621679431904"><span class="annot"><span class="annottext">tails :: [(Point, Point)]
+</span><a href="#local-6989586621679431904"><span class="hs-identifier hs-var hs-var hs-var">tails</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; (Point, Point) -&gt; (Point, Point)
+</span><a href="#local-6989586621679431905"><span class="hs-identifier hs-var">pscale</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431900"><span class="hs-identifier hs-var">afactor</span></a></span><span> </span><span class="annot"><span class="annottext">((Point, Point) -&gt; (Point, Point))
+-&gt; [(Point, Point)] -&gt; [(Point, Point)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(Point, Point)]
+</span><a href="#local-6989586621679431864"><span class="hs-identifier hs-var">pvecs</span></a></span><span>          </span><span class="hs-comment">-- Paths of arrows' tails</span><span>
+</span><span id="line-93"></span><span>        </span><span id="local-6989586621679431907"><span class="annot"><span class="annottext">angles :: [Double]
+</span><a href="#local-6989586621679431907"><span class="hs-identifier hs-var hs-var hs-var">angles</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#vangle"><span class="hs-identifier hs-var">vangle</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector -&gt; Double)
+-&gt; ((Point, Point) -&gt; Vector) -&gt; (Point, Point) -&gt; Double
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; Vector
+</span><a href="#local-6989586621679431910"><span class="hs-identifier hs-var">psub'</span></a></span><span> </span><span class="annot"><span class="annottext">((Point, Point) -&gt; Vector)
+-&gt; ((Point, Point) -&gt; (Point, Point)) -&gt; (Point, Point) -&gt; Vector
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; (Point, Point)
+forall a b. (a, b) -&gt; (b, a)
+</span><span class="hs-identifier hs-var">swap</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Point, Point) -&gt; Double) -&gt; [(Point, Point)] -&gt; [Double]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(Point, Point)]
+</span><a href="#local-6989586621679431864"><span class="hs-identifier hs-var">pvecs</span></a></span><span> </span><span class="hs-comment">-- Angles of the arrows</span><span>
+</span><span id="line-94"></span><span>        </span><span id="local-6989586621679431913"><span class="annot"><span class="annottext">centers :: [Point]
+</span><a href="#local-6989586621679431913"><span class="hs-identifier hs-var hs-var hs-var">centers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; Point
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">((Point, Point) -&gt; Point) -&gt; [(Point, Point)] -&gt; [Point]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(Point, Point)]
+</span><a href="#local-6989586621679431904"><span class="hs-identifier hs-var">tails</span></a></span><span>                     </span><span class="hs-comment">-- Where to draw arrow heads</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="annottext">((Point, Point) -&gt; BackendProgram ())
+-&gt; [(Point, Point)] -&gt; BackendProgram ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; (Point, Point) -&gt; BackendProgram ()
+</span><a href="#local-6989586621679431915"><span class="hs-identifier hs-var">drawTail</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431916"><span class="hs-identifier hs-var">radius</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(Point, Point)]
+</span><a href="#local-6989586621679431904"><span class="hs-identifier hs-var">tails</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="annottext">(Point -&gt; Double -&gt; BackendProgram ())
+-&gt; [Point] -&gt; [Double] -&gt; BackendProgram ()
+forall (m :: * -&gt; *) a b c.
+Applicative m =&gt;
+(a -&gt; b -&gt; m c) -&gt; [a] -&gt; [b] -&gt; m ()
+</span><span class="hs-identifier hs-var">zipWithM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Point -&gt; Double -&gt; BackendProgram ()
+</span><a href="#local-6989586621679431918"><span class="hs-identifier hs-var">drawArrowHead</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431916"><span class="hs-identifier hs-var">radius</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Point]
+</span><a href="#local-6989586621679431913"><span class="hs-identifier hs-var">centers</span></a></span><span> </span><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679431907"><span class="hs-identifier hs-var">angles</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621679431910"><span class="annot"><span class="annottext">psub' :: (Point, Point) -&gt; Vector
+</span><a href="#local-6989586621679431910"><span class="hs-identifier hs-var hs-var">psub'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Point -&gt; Point -&gt; Vector) -&gt; (Point, Point) -&gt; Vector
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Point -&gt; Vector
+</span><a href="Graphics.Rendering.Chart.Geometry.html#psub"><span class="hs-identifier hs-var">psub</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span id="local-6989586621679431866"><span class="annot"><span class="annottext">vlen' :: (Point, Point) -&gt; Double
+</span><a href="#local-6989586621679431866"><span class="hs-identifier hs-var hs-var">vlen'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#vlen"><span class="hs-identifier hs-var">vlen</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector -&gt; Double)
+-&gt; ((Point, Point) -&gt; Vector) -&gt; (Point, Point) -&gt; Double
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; Vector
+</span><a href="#local-6989586621679431910"><span class="hs-identifier hs-var">psub'</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679431920"><span class="annot"><span class="annottext">pvs :: VectorStyle
+</span><a href="#local-6989586621679431920"><span class="hs-identifier hs-var hs-var">pvs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PlotVectors x y -&gt; VectorStyle
+forall x y. PlotVectors x y -&gt; VectorStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_style"><span class="hs-identifier hs-var">_plot_vectors_style</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679431828"><span class="hs-identifier hs-var">pv</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span id="local-6989586621679431916"><span class="annot"><span class="annottext">radius :: Double
+</span><a href="#local-6989586621679431916"><span class="hs-identifier hs-var hs-var">radius</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PointStyle -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Drawing.html#_point_radius"><span class="hs-identifier hs-var">_point_radius</span></a></span><span> </span><span class="annot"><span class="annottext">(PointStyle -&gt; Double) -&gt; PointStyle -&gt; Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">VectorStyle -&gt; PointStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_vector_head_style"><span class="hs-identifier hs-var">_vector_head_style</span></a></span><span> </span><span class="annot"><span class="annottext">VectorStyle
+</span><a href="#local-6989586621679431920"><span class="hs-identifier hs-var">pvs</span></a></span><span>
+</span><span id="line-102"></span><span>    </span><span id="local-6989586621679431925"><span class="annot"><span class="annottext">hs :: Double -&gt; PointStyle
+</span><a href="#local-6989586621679431925"><span class="hs-identifier hs-var hs-var">hs</span></a></span></span><span> </span><span id="local-6989586621679431926"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431926"><span class="hs-identifier hs-var">angle</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">VectorStyle -&gt; PointStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_vector_head_style"><span class="hs-identifier hs-var">_vector_head_style</span></a></span><span> </span><span class="annot"><span class="annottext">VectorStyle
+</span><a href="#local-6989586621679431920"><span class="hs-identifier hs-var">pvs</span></a></span><span> </span><span class="annot"><span class="annottext">PointStyle -&gt; (PointStyle -&gt; PointStyle) -&gt; PointStyle
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(PointShape -&gt; Identity PointShape)
+-&gt; PointStyle -&gt; Identity PointStyle
+Lens' PointStyle PointShape
+</span><a href="Graphics.Rendering.Chart.Drawing.html#point_shape"><span class="hs-identifier hs-var">point_shape</span></a></span><span>
+</span><span id="line-103"></span><span>                  </span><span class="annot"><span class="annottext">((PointShape -&gt; Identity PointShape)
+ -&gt; PointStyle -&gt; Identity PointStyle)
+-&gt; (PointShape -&gt; PointShape) -&gt; PointStyle -&gt; PointStyle
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">%~</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Drawing.html#PointShapeArrowHead"><span class="hs-identifier hs-type">PointShapeArrowHead</span></a></span><span> </span><span id="local-6989586621679431931"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431931"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Double -&gt; PointShape
+</span><a href="Graphics.Rendering.Chart.Drawing.html#PointShapeArrowHead"><span class="hs-identifier hs-var">PointShapeArrowHead</span></a></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; PointShape) -&gt; Double -&gt; PointShape
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431931"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431926"><span class="hs-identifier hs-var">angle</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>    </span><span id="local-6989586621679431854"><span class="annot"><span class="annottext">translateToStart :: ((a, a), (a, a)) -&gt; ((a, a), (a, b))
+</span><a href="#local-6989586621679431854"><span class="hs-identifier hs-var hs-var">translateToStart</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679431968"><span class="annot"><span class="annottext">s :: (a, a)
+</span><a href="#local-6989586621679431968"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679431969"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431969"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679431970"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431970"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span class="hs-special">(</span><span id="local-6989586621679431971"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431971"><span class="hs-identifier hs-var">vx</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679431972"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431972"><span class="hs-identifier hs-var">vy</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a, a)
+</span><a href="#local-6989586621679431968"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall {a} {a} {a}.
+(PlotValue a, PlotValue a, PlotValue a) =&gt;
+a -&gt; a -&gt; a
+</span><a href="#local-6989586621679431973"><span class="hs-identifier hs-var">tr</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431969"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431971"><span class="hs-identifier hs-var">vx</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a -&gt; a -&gt; b
+forall {a} {a} {a}.
+(PlotValue a, PlotValue a, PlotValue a) =&gt;
+a -&gt; a -&gt; a
+</span><a href="#local-6989586621679431973"><span class="hs-identifier hs-var">tr</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431970"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431972"><span class="hs-identifier hs-var">vy</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679431973"><span class="annot"><span class="annottext">tr :: a -&gt; a -&gt; a
+</span><a href="#local-6989586621679431973"><span class="hs-identifier hs-var hs-var">tr</span></a></span></span><span> </span><span id="local-6989586621679431993"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431993"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679431994"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431994"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; a
+forall a. PlotValue a =&gt; Double -&gt; a
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#fromValue"><span class="hs-identifier hs-var">fromValue</span></a></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; a) -&gt; Double -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Double
+forall a. PlotValue a =&gt; a -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#toValue"><span class="hs-identifier hs-var">toValue</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431993"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Double
+forall a. PlotValue a =&gt; a -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#toValue"><span class="hs-identifier hs-var">toValue</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679431994"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679431905"><span class="annot"><span class="annottext">pscale :: Double -&gt; (Point, Point) -&gt; (Point, Point)
+</span><a href="#local-6989586621679431905"><span class="hs-identifier hs-var hs-var">pscale</span></a></span></span><span> </span><span id="local-6989586621679431997"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431997"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span id="local-6989586621679431998"><span class="annot"><span class="annottext">v :: (Point, Point)
+</span><a href="#local-6989586621679431998"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679431999"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679431999"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Point
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679431999"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Vector -&gt; Point -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#translateP"><span class="hs-identifier hs-var">translateP</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Vector -&gt; Vector
+</span><a href="Graphics.Rendering.Chart.Geometry.html#vscale"><span class="hs-identifier hs-var">vscale</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679431997"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector -&gt; Vector)
+-&gt; ((Point, Point) -&gt; Vector) -&gt; (Point, Point) -&gt; Vector
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; Vector
+</span><a href="#local-6989586621679431910"><span class="hs-identifier hs-var">psub'</span></a></span><span> </span><span class="annot"><span class="annottext">((Point, Point) -&gt; Vector) -&gt; (Point, Point) -&gt; Vector
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; (Point, Point)
+forall a b. (a, b) -&gt; (b, a)
+</span><span class="hs-identifier hs-var">swap</span></span><span> </span><span class="annot"><span class="annottext">(Point, Point)
+</span><a href="#local-6989586621679431998"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679431999"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679431915"><span class="annot"><span class="annottext">drawTail :: Double -&gt; (Point, Point) -&gt; BackendProgram ()
+</span><a href="#local-6989586621679431915"><span class="hs-identifier hs-var hs-var">drawTail</span></a></span></span><span> </span><span id="local-6989586621679432010"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432010"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679432011"><span class="annot"><span class="annottext">(Point, Point)
+</span><a href="#local-6989586621679432011"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LineStyle -&gt; BackendProgram () -&gt; BackendProgram ()
+forall a. LineStyle -&gt; BackendProgram a -&gt; BackendProgram a
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#withLineStyle"><span class="hs-identifier hs-var">withLineStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">VectorStyle -&gt; LineStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_vector_line_style"><span class="hs-identifier hs-var">_vector_line_style</span></a></span><span> </span><span class="annot"><span class="annottext">VectorStyle
+</span><a href="#local-6989586621679431920"><span class="hs-identifier hs-var">pvs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><span class="annottext">[Point] -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Drawing.html#strokePointPath"><span class="hs-identifier hs-var">strokePointPath</span></a></span><span> </span><span class="annot"><span class="annottext">([Point] -&gt; BackendProgram ()) -&gt; [Point] -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Point, Point)
+-&gt; Getting (Endo [Point]) (Point, Point) Point -&gt; [Point]
+forall s a. s -&gt; Getting (Endo [a]) s a -&gt; [a]
+</span><span class="hs-operator hs-var">^..</span></span><span class="annot"><span class="annottext">Getting (Endo [Point]) (Point, Point) Point
+forall s t a b. Each s t a b =&gt; Traversal s t a b
+Traversal (Point, Point) (Point, Point) Point Point
+</span><span class="hs-identifier hs-var">each</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Point, Point)
+</span><a href="#local-6989586621679432016"><span class="hs-identifier hs-var">v'</span></a></span><span>
+</span><span id="line-109"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>        </span><span id="local-6989586621679432016"><span class="annot"><span class="annottext">v' :: (Point, Point)
+</span><a href="#local-6989586621679432016"><span class="hs-identifier hs-var hs-var">v'</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; (Point, Point) -&gt; (Point, Point)
+</span><a href="#local-6989586621679431905"><span class="hs-identifier hs-var">pscale</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">3</span></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432010"><span class="hs-identifier hs-var">r</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432024"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Point, Point)
+</span><a href="#local-6989586621679432011"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-111"></span><span>        </span><span id="local-6989586621679432024"><span class="annot"><span class="annottext">l :: Double
+</span><a href="#local-6989586621679432024"><span class="hs-identifier hs-var hs-var">l</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Point, Point) -&gt; Double
+</span><a href="#local-6989586621679431866"><span class="hs-identifier hs-var">vlen'</span></a></span><span> </span><span class="annot"><span class="annottext">(Point, Point)
+</span><a href="#local-6989586621679432011"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span id="local-6989586621679431918"><span class="annot"><span class="annottext">drawArrowHead :: Double -&gt; Point -&gt; Double -&gt; BackendProgram ()
+</span><a href="#local-6989586621679431918"><span class="hs-identifier hs-var hs-var">drawArrowHead</span></a></span></span><span> </span><span id="local-6989586621679432032"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432032"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-type">Point</span></a></span><span> </span><span id="local-6989586621679432034"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432034"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679432035"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432035"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679432036"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432036"><span class="hs-identifier hs-var">theta</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><span class="annottext">Point -&gt; BackendProgram () -&gt; BackendProgram ()
+forall a. Point -&gt; BackendProgram a -&gt; BackendProgram a
+</span><a href="Graphics.Rendering.Chart.Drawing.html#withTranslation"><span class="hs-identifier hs-var">withTranslation</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432032"><span class="hs-identifier hs-var">r</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double -&gt; Double
+forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">cos</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432036"><span class="hs-identifier hs-var">theta</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432032"><span class="hs-identifier hs-var">r</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double -&gt; Double
+forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">sin</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432036"><span class="hs-identifier hs-var">theta</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>                        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PointStyle -&gt; Point -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Drawing.html#drawPoint"><span class="hs-identifier hs-var">drawPoint</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; PointStyle
+</span><a href="#local-6989586621679431925"><span class="hs-identifier hs-var">hs</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432036"><span class="hs-identifier hs-var">theta</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432034"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432035"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span id="local-6989586621679431555"><span id="local-6989586621679431556"><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#renderPlotLegendVectors"><span class="hs-identifier hs-type">renderPlotLegendVectors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.Types.html#PlotValue"><span class="hs-identifier hs-type">PlotValue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431555"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Axis.Types.html#PlotValue"><span class="hs-identifier hs-type">PlotValue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431556"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>                        </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#PlotVectors"><span class="hs-identifier hs-type">PlotVectors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431555"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431556"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#Rect"><span class="hs-identifier hs-type">Rect</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Impl.html#BackendProgram"><span class="hs-identifier hs-type">BackendProgram</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-118"></span><span id="renderPlotLegendVectors"><span class="annot"><span class="annottext">renderPlotLegendVectors :: forall x y.
+(PlotValue x, PlotValue y) =&gt;
+PlotVectors x y -&gt; Rect -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#renderPlotLegendVectors"><span class="hs-identifier hs-var hs-var">renderPlotLegendVectors</span></a></span></span><span> </span><span id="local-6989586621679432051"><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679432051"><span class="hs-identifier hs-var">pv</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#Rect"><span class="hs-identifier hs-type">Rect</span></a></span><span> </span><span id="local-6989586621679432053"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679432053"><span class="hs-identifier hs-var">p1</span></a></span></span><span> </span><span id="local-6989586621679432054"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679432054"><span class="hs-identifier hs-var">p2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679432058"><span class="annot"><span class="annottext">y :: Double
+</span><a href="#local-6989586621679432058"><span class="hs-identifier hs-var hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#p_y"><span class="hs-identifier hs-var">p_y</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679432053"><span class="hs-identifier hs-var">p1</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#p_y"><span class="hs-identifier hs-var">p_y</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679432054"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-120"></span><span>        </span><span id="local-6989586621679432070"><span class="annot"><span class="annottext">pv' :: PlotVectors x y
+</span><a href="#local-6989586621679432070"><span class="hs-identifier hs-var hs-var">pv'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([(x, y)] -&gt; Identity [(x, y)])
+-&gt; PlotVectors x y -&gt; Identity (PlotVectors x y)
+forall x y (f :: * -&gt; *).
+Functor f =&gt;
+([(x, y)] -&gt; f [(x, y)]) -&gt; PlotVectors x y -&gt; f (PlotVectors x y)
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plot_vectors_grid"><span class="hs-identifier hs-var">plot_vectors_grid</span></a></span><span> </span><span class="annot"><span class="annottext">(([(x, y)] -&gt; Identity [(x, y)])
+ -&gt; PlotVectors x y -&gt; Identity (PlotVectors x y))
+-&gt; [(x, y)] -&gt; PlotVectors x y -&gt; PlotVectors x y
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">.~</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-121"></span><span>            </span><span class="annot"><span class="annottext">(PlotVectors x y -&gt; PlotVectors x y)
+-&gt; PlotVectors x y -&gt; PlotVectors x y
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">([((x, y), (x, y))] -&gt; Identity [((x, y), (x, y))])
+-&gt; PlotVectors x y -&gt; Identity (PlotVectors x y)
+forall x y (f :: * -&gt; *).
+Functor f =&gt;
+([((x, y), (x, y))] -&gt; f [((x, y), (x, y))])
+-&gt; PlotVectors x y -&gt; f (PlotVectors x y)
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#plot_vectors_values"><span class="hs-identifier hs-var">plot_vectors_values</span></a></span><span> </span><span class="annot"><span class="annottext">(([((x, y), (x, y))] -&gt; Identity [((x, y), (x, y))])
+ -&gt; PlotVectors x y -&gt; Identity (PlotVectors x y))
+-&gt; [((x, y), (x, y))] -&gt; PlotVectors x y -&gt; PlotVectors x y
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">.~</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; x
+forall a. PlotValue a =&gt; Double -&gt; a
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#fromValue"><span class="hs-identifier hs-var">fromValue</span></a></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; x) -&gt; Double -&gt; x
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#p_x"><span class="hs-identifier hs-var">p_x</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679432053"><span class="hs-identifier hs-var">p1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double -&gt; y
+forall a. PlotValue a =&gt; Double -&gt; a
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#fromValue"><span class="hs-identifier hs-var">fromValue</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432058"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-122"></span><span>                                       </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; x
+forall a. PlotValue a =&gt; Double -&gt; a
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#fromValue"><span class="hs-identifier hs-var">fromValue</span></a></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; x) -&gt; Double -&gt; x
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#p_x"><span class="hs-identifier hs-var">p_x</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679432054"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double -&gt; y
+forall a. PlotValue a =&gt; Double -&gt; a
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#fromValue"><span class="hs-identifier hs-var">fromValue</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-123"></span><span>            </span><span class="annot"><span class="annottext">(PlotVectors x y -&gt; PlotVectors x y)
+-&gt; PlotVectors x y -&gt; PlotVectors x y
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679432051"><span class="hs-identifier hs-var">pv</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="annottext">PlotVectors x y -&gt; PointMapFn x y -&gt; BackendProgram ()
+forall x y.
+(PlotValue x, PlotValue y) =&gt;
+PlotVectors x y -&gt; PointMapFn x y -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#renderPlotVectors"><span class="hs-identifier hs-var">renderPlotVectors</span></a></span><span> </span><span class="annot"><span class="annottext">PlotVectors x y
+</span><a href="#local-6989586621679432070"><span class="hs-identifier hs-var">pv'</span></a></span><span> </span><span class="annot"><span class="annottext">PointMapFn x y
+forall {a} {a}.
+(PlotValue a, PlotValue a) =&gt;
+(Limit a, Limit a) -&gt; Point
+</span><a href="#local-6989586621679432073"><span class="hs-identifier hs-var">pmap</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621679432073"><span class="annot"><span class="annottext">pmap :: (Limit a, Limit a) -&gt; Point
+</span><a href="#local-6989586621679432073"><span class="hs-identifier hs-var hs-var">pmap</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#LValue"><span class="hs-identifier hs-type">LValue</span></a></span><span> </span><span id="local-6989586621679432087"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679432087"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#LValue"><span class="hs-identifier hs-type">LValue</span></a></span><span> </span><span id="local-6989586621679432088"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679432088"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Double
+forall a. PlotValue a =&gt; a -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#toValue"><span class="hs-identifier hs-var">toValue</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679432087"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Double
+forall a. PlotValue a =&gt; a -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Axis.Types.html#toValue"><span class="hs-identifier hs-var">toValue</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679432088"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><a href="#local-6989586621679432073"><span class="hs-identifier hs-var">pmap</span></a></span><span> </span><span class="annot"><span class="annottext">(Limit a, Limit a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Default</span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#VectorStyle"><span class="hs-identifier hs-type">VectorStyle</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621679432101"><span class="annot"><span class="annottext">def :: VectorStyle
+</span><a href="#local-6989586621679432101"><span class="hs-identifier hs-var hs-var hs-var">def</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#VectorStyle"><span class="hs-identifier hs-type">VectorStyle</span></a></span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">_vector_line_style :: LineStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_vector_line_style"><span class="hs-identifier hs-var">_vector_line_style</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; AlphaColour Double -&gt; LineStyle
+</span><a href="Graphics.Rendering.Chart.Drawing.html#solidLine"><span class="hs-identifier hs-var">solidLine</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432104"><span class="hs-identifier hs-var">lw</span></a></span><span> </span><span class="annot"><span class="annottext">(AlphaColour Double -&gt; LineStyle)
+-&gt; AlphaColour Double -&gt; LineStyle
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">blue</span></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>                              </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Types.html#_line_cap"><span class="hs-identifier hs-var">_line_cap</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Types.html#LineCapSquare"><span class="hs-identifier hs-type">LineCapSquare</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-133"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_vector_head_style :: PointStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_vector_head_style"><span class="hs-identifier hs-var">_vector_head_style</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlphaColour Double
+-&gt; AlphaColour Double
+-&gt; Double
+-&gt; Double
+-&gt; PointShape
+-&gt; PointStyle
+</span><a href="Graphics.Rendering.Chart.Drawing.html#PointStyle"><span class="hs-identifier hs-var">PointStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">red</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AlphaColour Double
+forall a. Num a =&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">transparent</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432104"><span class="hs-identifier hs-var">lw</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2</span></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679432104"><span class="hs-identifier hs-var">lw</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>                                      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; PointShape
+</span><a href="Graphics.Rendering.Chart.Drawing.html#PointShapeArrowHead"><span class="hs-identifier hs-var">PointShapeArrowHead</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679432104"><span class="annot"><span class="annottext">lw :: Double
+</span><a href="#local-6989586621679432104"><span class="hs-identifier hs-var hs-var">lw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679431676"><span id="local-6989586621679431677"><span class="annot"><span class="hs-identifier hs-type">Default</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#PlotVectors"><span class="hs-identifier hs-type">PlotVectors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431676"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679431677"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621679432116"><span class="annot"><span class="annottext">def :: PlotVectors x y
+</span><span class="hs-identifier hs-var hs-var hs-var">def</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Plot.Vectors.html#PlotVectors"><span class="hs-identifier hs-type">PlotVectors</span></a></span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">_plot_vectors_title :: String
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_title"><span class="hs-identifier hs-var">_plot_vectors_title</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_plot_vectors_style :: VectorStyle
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_style"><span class="hs-identifier hs-var">_plot_vectors_style</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">VectorStyle
+forall a. Default a =&gt; a
+</span><span class="hs-identifier hs-var">def</span></span><span>
+</span><span id="line-141"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_plot_vectors_scale :: Double
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_scale"><span class="hs-identifier hs-var">_plot_vectors_scale</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_plot_vectors_grid :: [(x, y)]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_grid"><span class="hs-identifier hs-var">_plot_vectors_grid</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_plot_vectors_mapf :: (x, y) -&gt; (x, y)
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_mapf"><span class="hs-identifier hs-var">_plot_vectors_mapf</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(x, y) -&gt; (x, y)
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_plot_vectors_values :: [((x, y), (x, y))]
+</span><a href="Graphics.Rendering.Chart.Plot.Vectors.html#_plot_vectors_values"><span class="hs-identifier hs-var">_plot_vectors_values</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-146"></span></pre></body></html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/Misc/Tooltips.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget Tooltips</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Axel Simon</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 23 May 2001</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 1999-2005 Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Add tips to your widgets</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html"><span class="hs-identifier">Graphics.UI.Gtk.Misc.Tooltips</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Tooltips are the messages that appear next to a widget when the mouse</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- pointer is held over it for a short amount of time. They are especially</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- helpful for adding more verbose descriptions of things such as buttons in a</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- toolbar.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- An individual tooltip belongs to a group of tooltips. A group is created</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- with a call to 'tooltipsNew'. Every tooltip in the group can then be turned</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- off with a call to 'tooltipsDisable' and enabled with 'tooltipsEnable'.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- The length of time the user must keep the mouse over a widget before the</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- tip is shown, can be altered with 'tooltipsSetDelay'. This is set on a \'per</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- group of tooltips\' basis.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- To assign a tip to a particular 'Widget', 'tooltipsSetTip' is used.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- To associate 'Tooltips' to a widget it is has to have its own 'DrawWindow'.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- Otherwise the widget must be set into an 'EventBox'.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- The default appearance of all tooltips in a program is determined by the</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- current Gtk+ theme that the user has selected.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- Information about the tooltip (if any) associated with an arbitrary</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- widget can be retrieved using 'tooltipsDataGet'.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="annot"><span class="hs-comment">-- * This module is deprecated. It is empty in Gtk3.</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | +----'Object'</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | +----Tooltips</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier">Tooltips</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TooltipsClass"><span class="hs-identifier">TooltipsClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToTooltips"><span class="hs-identifier">castToTooltips</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeTooltips"><span class="hs-identifier">gTypeTooltips</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toTooltips"><span class="hs-identifier">toTooltips</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsNew"><span class="hs-identifier">tooltipsNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsEnable"><span class="hs-identifier">tooltipsEnable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsDisable"><span class="hs-identifier">tooltipsDisable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsSetDelay"><span class="hs-identifier">tooltipsSetDelay</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsSetTip"><span class="hs-identifier">tooltipsSetTip</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsDataGet"><span class="hs-identifier">tooltipsDataGet</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.UTFString</span></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html"><span class="hs-identifier">Graphics.UI.Gtk.Abstract.Object</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier">makeNewObject</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-92"></span><span class="hs-pragma">{-# LINE 92 &quot;./Graphics/UI/Gtk/Misc/Tooltips.chs&quot; #-}</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-pragma">{-# LINE 94 &quot;./Graphics/UI/Gtk/Misc/Tooltips.chs&quot; #-}</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- | Create a new group of 'Tooltips'.</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsNew"><span class="hs-identifier hs-type">tooltipsNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span>
+</span><span id="line-101"></span><span id="tooltipsNew"><span class="annot"><span class="annottext">tooltipsNew :: IO Tooltips
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsNew"><span class="hs-identifier hs-var hs-var">tooltipsNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Tooltips -&gt; Tooltips, FinalizerPtr Tooltips)
+-&gt; IO (Ptr Tooltips) -&gt; IO Tooltips
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Tooltips -&gt; Tooltips, FinalizerPtr Tooltips)
+forall {a}. (ForeignPtr Tooltips -&gt; Tooltips, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkTooltips"><span class="hs-identifier hs-var">mkTooltips</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Tooltips) -&gt; IO Tooltips)
+-&gt; IO (Ptr Tooltips) -&gt; IO Tooltips
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr Tooltips)
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_new"><span class="hs-identifier hs-var">gtk_tooltips_new</span></a></span><span>
+</span><span id="line-104"></span><span class="hs-pragma">{-# LINE 104 &quot;./Graphics/UI/Gtk/Misc/Tooltips.chs&quot; #-}</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- | Allows the user to see your tooltips as they navigate your application.</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span id="local-6989586621679652716"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsEnable"><span class="hs-identifier hs-type">tooltipsEnable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TooltipsClass"><span class="hs-identifier hs-type">TooltipsClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679652716"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679652716"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-111"></span><span id="tooltipsEnable"><span class="annot"><span class="annottext">tooltipsEnable :: forall self. TooltipsClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsEnable"><span class="hs-identifier hs-var hs-var">tooltipsEnable</span></a></span></span><span> </span><span id="local-6989586621679652780"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679652780"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span> </span><span id="local-6989586621679652781"><span class="annot"><span class="annottext">ForeignPtr Tooltips
+</span><a href="#local-6989586621679652781"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Tooltips -&gt; (Ptr Tooltips -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Tooltips
+</span><a href="#local-6989586621679652781"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Tooltips -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr Tooltips -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679652783"><span class="annot"><span class="annottext">Ptr Tooltips
+</span><a href="#local-6989586621679652783"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Tooltips -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_enable"><span class="hs-identifier hs-var">gtk_tooltips_enable</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Tooltips
+</span><a href="#local-6989586621679652783"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span class="hs-pragma">{-# LINE 113 &quot;./Graphics/UI/Gtk/Misc/Tooltips.chs&quot; #-}</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTooltips</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- | Causes all tooltips in @tooltips@ to become inactive. Any widgets that</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- have tips associated with that group will no longer display their tips until</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- they are enabled again with 'tooltipsEnable'.</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span id="local-6989586621679652785"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsDisable"><span class="hs-identifier hs-type">tooltipsDisable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TooltipsClass"><span class="hs-identifier hs-type">TooltipsClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679652785"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679652785"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-120"></span><span id="tooltipsDisable"><span class="annot"><span class="annottext">tooltipsDisable :: forall self. TooltipsClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsDisable"><span class="hs-identifier hs-var hs-var">tooltipsDisable</span></a></span></span><span> </span><span id="local-6989586621679652788"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679652788"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span> </span><span id="local-6989586621679652789"><span class="annot"><span class="annottext">ForeignPtr Tooltips
+</span><a href="#local-6989586621679652789"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Tooltips -&gt; (Ptr Tooltips -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Tooltips
+</span><a href="#local-6989586621679652789"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Tooltips -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr Tooltips -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679652790"><span class="annot"><span class="annottext">Ptr Tooltips
+</span><a href="#local-6989586621679652790"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Tooltips -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_disable"><span class="hs-identifier hs-var">gtk_tooltips_disable</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Tooltips
+</span><a href="#local-6989586621679652790"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span class="hs-pragma">{-# LINE 122 &quot;./Graphics/UI/Gtk/Misc/Tooltips.chs&quot; #-}</span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTooltips</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- | Sets the time between the user moving the mouse over a widget and the</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- widget's tooltip appearing.</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- * Warning: this function is deprecated and should not be used in</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- newly-written code.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span id="local-6989586621679652723"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsSetDelay"><span class="hs-identifier hs-type">tooltipsSetDelay</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TooltipsClass"><span class="hs-identifier hs-type">TooltipsClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679652723"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679652723"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-132"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @delay@ - the delay in milliseconds</span></span><span>
+</span><span id="line-133"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-134"></span><span id="tooltipsSetDelay"><span class="annot"><span class="annottext">tooltipsSetDelay :: forall self. TooltipsClass self =&gt; self -&gt; Int -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsSetDelay"><span class="hs-identifier hs-var hs-var">tooltipsSetDelay</span></a></span></span><span> </span><span id="local-6989586621679652798"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679652798"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679652799"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679652799"><span class="hs-identifier hs-var">delay</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span> </span><span id="local-6989586621679652800"><span class="annot"><span class="annottext">ForeignPtr Tooltips
+</span><a href="#local-6989586621679652800"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679652801"><span class="annot"><span class="annottext">CUInt
+</span><a href="#local-6989586621679652801"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Tooltips -&gt; (Ptr Tooltips -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Tooltips
+</span><a href="#local-6989586621679652800"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Tooltips -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr Tooltips -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679652802"><span class="annot"><span class="annottext">Ptr Tooltips
+</span><a href="#local-6989586621679652802"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Tooltips -&gt; CUInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_set_delay"><span class="hs-identifier hs-var">gtk_tooltips_set_delay</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Tooltips
+</span><a href="#local-6989586621679652802"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CUInt
+</span><a href="#local-6989586621679652801"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span class="hs-pragma">{-# LINE 136 &quot;./Graphics/UI/Gtk/Misc/Tooltips.chs&quot; #-}</span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTooltips</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CUInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679652799"><span class="hs-identifier hs-var">delay</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- | Adds a tooltip containing the message @tipText@ to the specified</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- 'Widget'.</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--</span><span>
+</span><span id="line-143"></span><span id="local-6989586621679652728"><span id="local-6989586621679652729"><span id="local-6989586621679652731"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsSetTip"><span class="hs-identifier hs-type">tooltipsSetTip</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TooltipsClass"><span class="hs-identifier hs-type">TooltipsClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679652728"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#WidgetClass"><span class="hs-identifier hs-type">WidgetClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679652729"><span class="hs-identifier hs-type">widget</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679652731"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679652728"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-144"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679652729"><span class="hs-identifier hs-type">widget</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @widget@ - the 'Widget' you wish to associate the tip with.</span></span><span>
+</span><span id="line-145"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679652731"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @tipText@ - a string containing the tip itself.</span></span><span>
+</span><span id="line-146"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679652731"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-comment">-- ^ @tipPrivate@ - a string of any further information that may be</span><span>
+</span><span id="line-147"></span><span>           </span><span class="hs-comment">-- useful if the user gets stuck.</span><span>
+</span><span id="line-148"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-149"></span><span id="tooltipsSetTip"><span class="annot"><span class="annottext">tooltipsSetTip :: forall self widget string.
+(TooltipsClass self, WidgetClass widget, GlibString string) =&gt;
+self -&gt; widget -&gt; string -&gt; string -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsSetTip"><span class="hs-identifier hs-var hs-var">tooltipsSetTip</span></a></span></span><span> </span><span id="local-6989586621679652812"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679652812"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679652813"><span class="annot"><span class="annottext">widget
+</span><a href="#local-6989586621679652813"><span class="hs-identifier hs-var">widget</span></a></span></span><span> </span><span id="local-6989586621679652814"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679652814"><span class="hs-identifier hs-var">tipText</span></a></span></span><span> </span><span id="local-6989586621679652815"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679652815"><span class="hs-identifier hs-var">tipPrivate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-150"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679652815"><span class="hs-identifier hs-var">tipPrivate</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679652817"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679652817"><span class="hs-identifier hs-var">tipPrivatePtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-151"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679652814"><span class="hs-identifier hs-var">tipText</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679652818"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679652818"><span class="hs-identifier hs-var">tipTextPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span> </span><span id="local-6989586621679652819"><span class="annot"><span class="annottext">ForeignPtr Tooltips
+</span><a href="#local-6989586621679652819"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span id="local-6989586621679652820"><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679652820"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679652821"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679652821"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621679652822"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679652822"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Tooltips -&gt; (Ptr Tooltips -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Tooltips
+</span><a href="#local-6989586621679652819"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Tooltips -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr Tooltips -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679652823"><span class="annot"><span class="annottext">Ptr Tooltips
+</span><a href="#local-6989586621679652823"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Widget -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679652820"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Widget -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Widget -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679652824"><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679652824"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Tooltips -&gt; Ptr Widget -&gt; CString -&gt; CString -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_set_tip"><span class="hs-identifier hs-var">gtk_tooltips_set_tip</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Tooltips
+</span><a href="#local-6989586621679652823"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679652824"><span class="hs-identifier hs-var">argPtr2</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679652821"><span class="hs-identifier hs-var">arg3</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679652822"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span class="hs-pragma">{-# LINE 153 &quot;./Graphics/UI/Gtk/Misc/Tooltips.chs&quot; #-}</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTooltips</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">widget -&gt; Widget
+forall o. WidgetClass o =&gt; o -&gt; Widget
+</span><a href="Graphics.UI.Gtk.Types.html#toWidget"><span class="hs-identifier hs-var">toWidget</span></a></span><span> </span><span class="annot"><span class="annottext">widget
+</span><a href="#local-6989586621679652813"><span class="hs-identifier hs-var">widget</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679652818"><span class="hs-identifier hs-var">tipTextPtr</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679652817"><span class="hs-identifier hs-var">tipPrivatePtr</span></a></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- | Retrieves any 'Tooltips' previously associated with the given widget.</span><span>
+</span><span id="line-159"></span><span class="hs-comment">--</span><span>
+</span><span id="line-160"></span><span id="local-6989586621679652741"><span id="local-6989586621679652742"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsDataGet"><span class="hs-identifier hs-type">tooltipsDataGet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#WidgetClass"><span class="hs-identifier hs-type">WidgetClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679652741"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679652742"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679652741"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679652742"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679652742"><span class="hs-identifier hs-type">string</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-161"></span><span id="tooltipsDataGet"><span class="annot"><span class="annottext">tooltipsDataGet :: forall w string.
+(WidgetClass w, GlibString string) =&gt;
+w -&gt; IO (Maybe (Tooltips, string, string))
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#tooltipsDataGet"><span class="hs-identifier hs-var hs-var">tooltipsDataGet</span></a></span></span><span> </span><span id="local-6989586621679652848"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679652848"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-162"></span><span>  </span><span id="local-6989586621679652849"><span class="annot"><a href="#local-6989586621679652849"><span class="hs-identifier hs-var">tipDataPtr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span id="local-6989586621679652850"><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679652850"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Widget -&gt; (Ptr Widget -&gt; IO (Ptr ())) -&gt; IO (Ptr ())
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Widget
+</span><a href="#local-6989586621679652850"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Widget -&gt; IO (Ptr ())) -&gt; IO (Ptr ()))
+-&gt; (Ptr Widget -&gt; IO (Ptr ())) -&gt; IO (Ptr ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679652851"><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679652851"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Widget -&gt; IO (Ptr ())
+</span><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_data_get"><span class="hs-identifier hs-var">gtk_tooltips_data_get</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Widget
+</span><a href="#local-6989586621679652851"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">w -&gt; Widget
+forall o. WidgetClass o =&gt; o -&gt; Widget
+</span><a href="Graphics.UI.Gtk.Types.html#toWidget"><span class="hs-identifier hs-var">toWidget</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679652848"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679652849"><span class="hs-identifier hs-type">tipDataPtr</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">nullPtr</span></span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-comment">--next line is a hack, tooltips struct member is at offset 0</span><span>
+</span><span id="line-166"></span><span>           </span><span id="local-6989586621679652854"><span class="annot"><a href="#local-6989586621679652854"><span class="hs-identifier hs-var">tooltips</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-type">makeNewObject</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#mkTooltips"><span class="hs-identifier hs-type">mkTooltips</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">castPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621679652849"><span class="hs-identifier hs-type">tipDataPtr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>           </span><span id="local-6989586621679652856"><span class="annot"><a href="#local-6989586621679652856"><span class="hs-identifier hs-var">tipText</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679652857"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679652857"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Ptr () -&gt; Int -&gt; IO CString
+forall b. Ptr b -&gt; Int -&gt; IO CString
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679652857"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679652849"><span class="hs-identifier hs-type">tipDataPtr</span></a></span><span>
+</span><span id="line-168"></span><span>                   </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">peekUTFString</span></span><span>
+</span><span id="line-169"></span><span>           </span><span id="local-6989586621679652861"><span class="annot"><a href="#local-6989586621679652861"><span class="hs-identifier hs-var">tipPrivate</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679652862"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679652862"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Ptr () -&gt; Int -&gt; IO CString
+forall b. Ptr b -&gt; Int -&gt; IO CString
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679652862"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span> </span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679652849"><span class="hs-identifier hs-type">tipDataPtr</span></a></span><span>
+</span><span id="line-170"></span><span>                     </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">peekUTFString</span></span><span>
+</span><span id="line-171"></span><span>           </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679652854"><span class="hs-identifier hs-type">tooltips</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679652856"><span class="hs-identifier hs-type">tipText</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679652861"><span class="hs-identifier hs-type">tipPrivate</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tooltips_new&quot;</span></span><span>
+</span><span id="line-174"></span><span>  </span><span id="gtk_tooltips_new"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_new"><span class="hs-identifier hs-var">gtk_tooltips_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tooltips_enable&quot;</span></span><span>
+</span><span id="line-177"></span><span>  </span><span id="gtk_tooltips_enable"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_enable"><span class="hs-identifier hs-var">gtk_tooltips_enable</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tooltips_disable&quot;</span></span><span>
+</span><span id="line-180"></span><span>  </span><span id="gtk_tooltips_disable"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_disable"><span class="hs-identifier hs-var">gtk_tooltips_disable</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tooltips_set_delay&quot;</span></span><span>
+</span><span id="line-183"></span><span>  </span><span id="gtk_tooltips_set_delay"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_set_delay"><span class="hs-identifier hs-var">gtk_tooltips_set_delay</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CUInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tooltips_set_tip&quot;</span></span><span>
+</span><span id="line-186"></span><span>  </span><span id="gtk_tooltips_set_tip"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_set_tip"><span class="hs-identifier hs-var">gtk_tooltips_set_tip</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Tooltips"><span class="hs-identifier hs-type">Tooltips</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tooltips_data_get&quot;</span></span><span>
+</span><span id="line-189"></span><span>  </span><span id="gtk_tooltips_data_get"><span class="annot"><a href="Graphics.UI.Gtk.Misc.Tooltips.html#gtk_tooltips_data_get"><span class="hs-identifier hs-var">gtk_tooltips_data_get</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span></pre></body></html>

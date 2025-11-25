@@ -1,0 +1,1086 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679689362"><span id="local-6989586621679689363"></span></span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget Image</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Axel Simon</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 23 May 2001</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 2001-2005 Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Figure out what other functions are useful within Haskell. Maybe we should</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- support loading Pixmaps without exposing them.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Because Haskell is not the best language to modify large images directly</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- only functions are bound that allow loading images from disc or by stock</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- names.</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Another function for extracting the 'Pixbuf' is added for</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- 'CellRenderer'.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- A widget displaying an image</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html"><span class="hs-identifier">Graphics.UI.Gtk.Display.Image</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-41"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | The 'Image' widget displays an image. Various kinds of object can be</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- displayed as an image; most typically, you would load a 'Pixbuf' (\&quot;pixel</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- buffer\&quot;) from a file, and then display that. There's a convenience function</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- to do this, 'imageNewFromFile', used as follows: If the file isn't loaded</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- successfully, the image will contain a \&quot;broken image\&quot; icon similar to that</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- used in many web browsers. If you want to handle errors in loading the file</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- yourself, for example by displaying an error message, then load the image</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- with 'Graphics.UI.Gtk.Gdk.Pixbuf.pixbufNewFromFile', then create the</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- 'Image' with 'imageNewFromPixbuf'.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- &gt; image &lt;- imageNewFromFile &quot;myfile.png&quot;</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- The image file may contain an animation, if so the 'Image' will display</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- an animation ('PixbufAnimation') instead of a static image.</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- 'Image' is a subclass of 'Misc', which implies that you can align it</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- (center, left, right) and add padding to it, using 'Misc' methods.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- 'Image' is a \&quot;no window\&quot; widget (has no 'DrawWindow' of its own), so by</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- default does not receive events. If you want to receive events on the image,</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- such as button clicks, place the image inside a 'EventBox', then connect to</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- the event signals on the event box.</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- When handling events on the event box, keep in mind that coordinates in</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- the image may be different from event box coordinates due to the alignment</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- and padding settings on the image (see 'Misc'). The simplest way to solve</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- this is to set the alignment to 0.0 (left\/top), and set the padding to</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- zero. Then the origin of the image will be the same as the origin of the</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- event box.</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- Sometimes an application will want to avoid depending on external data</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- files, such as image files. Gtk+ comes with a program to avoid this, called</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- gdk-pixbuf-csource. This program allows you to convert an image into a C</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- variable declaration, which can then be loaded into a 'Pixbuf' using</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- 'Graphics.UI.Gtk.Gdk.Pixbuf.pixbufNewFromInline'.</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | +----'Object'</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | +----'Widget'</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | +----'Misc'</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- | +----Image</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier">Image</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ImageClass"><span class="hs-identifier">ImageClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToImage"><span class="hs-identifier">castToImage</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeImage"><span class="hs-identifier">gTypeImage</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toImage"><span class="hs-identifier">toImage</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageType"><span class="hs-identifier">ImageType</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromFile"><span class="hs-identifier">imageNewFromFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromPixbuf"><span class="hs-identifier">imageNewFromPixbuf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromAnimation"><span class="hs-identifier">imageNewFromAnimation</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromStock"><span class="hs-identifier">imageNewFromStock</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-101"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNew"><span class="hs-identifier">imageNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromIconName"><span class="hs-identifier">imageNewFromIconName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageGetPixbuf"><span class="hs-identifier">imageGetPixbuf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromPixbuf"><span class="hs-identifier">imageSetFromPixbuf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromAnimation"><span class="hs-identifier">imageSetFromAnimation</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromFile"><span class="hs-identifier">imageSetFromFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromStock"><span class="hs-identifier">imageSetFromStock</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromIconName"><span class="hs-identifier">imageSetFromIconName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-114"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetPixelSize"><span class="hs-identifier">imageSetPixelSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-115"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageGetPixelSize"><span class="hs-identifier">imageGetPixelSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageClear"><span class="hs-identifier">imageClear</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><span class="hs-comment">-- * Icon Sizes</span></span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html#IconSize"><span class="hs-identifier">IconSize</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><span class="hs-comment">-- * Attributes</span></span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imagePixbuf"><span class="hs-identifier">imagePixbuf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imagePixmap"><span class="hs-identifier">imagePixmap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageMask"><span class="hs-identifier">imageMask</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageAnimation"><span class="hs-identifier">imageAnimation</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-131"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageImage"><span class="hs-identifier">imageImage</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageFile"><span class="hs-identifier">imageFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageStock"><span class="hs-identifier">imageStock</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageIconSize"><span class="hs-identifier">imageIconSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imagePixelSize"><span class="hs-identifier">imagePixelSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageIconName"><span class="hs-identifier">imageIconName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageStorageType"><span class="hs-identifier">imageStorageType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-147"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.UTFString</span></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Attributes</span></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Properties</span></span><span>
+</span><span id="line-150"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html"><span class="hs-identifier">Graphics.UI.Gtk.Abstract.Object</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier">makeNewObject</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-152"></span><span class="hs-pragma">{-# LINE 152 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-152"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.General.StockItems</span><span>
+</span><span id="line-153"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html"><span class="hs-identifier">Graphics.UI.Gtk.General.Structs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html#IconSize"><span class="hs-identifier">IconSize</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-pragma">{-# LINE 156 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- Types</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- | Describes the image data representation used by a 'Image'. If you want to</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- get the image from the widget, you can only get the currently-stored</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- representation. e.g. if the 'imageStorageType' is 'ImagePixbuf',</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- then you can call 'imageGetPixbuf' but not 'imageGetStock'. For empty</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- images, you can request any storage type (call any of the &quot;get&quot; functions),</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- but they will all return @Nothing@.</span><span>
+</span><span id="line-166"></span><span class="hs-comment">--</span><span>
+</span><span id="line-167"></span><span class="hs-keyword">data</span><span> </span><span id="ImageType"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageType"><span class="hs-identifier hs-var">ImageType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ImageEmpty"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageEmpty"><span class="hs-identifier hs-var">ImageEmpty</span></a></span></span><span>
+</span><span id="line-168"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="ImagePixmap"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImagePixmap"><span class="hs-identifier hs-var">ImagePixmap</span></a></span></span><span>
+</span><span id="line-169"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="ImageImage"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageImage"><span class="hs-identifier hs-var">ImageImage</span></a></span></span><span>
+</span><span id="line-170"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="ImagePixbuf"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImagePixbuf"><span class="hs-identifier hs-var">ImagePixbuf</span></a></span></span><span>
+</span><span id="line-171"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="ImageStock"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageStock"><span class="hs-identifier hs-var">ImageStock</span></a></span></span><span>
+</span><span id="line-172"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="ImageIconSet"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageIconSet"><span class="hs-identifier hs-var">ImageIconSet</span></a></span></span><span>
+</span><span id="line-173"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="ImageAnimation"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageAnimation"><span class="hs-identifier hs-var">ImageAnimation</span></a></span></span><span>
+</span><span id="line-174"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="ImageIconName"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageIconName"><span class="hs-identifier hs-var">ImageIconName</span></a></span></span><span>
+</span><span id="line-175"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="ImageGicon"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageGicon"><span class="hs-identifier hs-var">ImageGicon</span></a></span></span><span>
+</span><span id="line-176"></span><span>               </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679689454"><span id="local-6989586621679689463"><span id="local-6989586621679689470"><span id="local-6989586621679689480"><span id="local-6989586621679689483"><span id="local-6989586621679689488"><span id="local-6989586621679689494"><span id="local-6989586621679689497"><span class="annot"><span class="annottext">Int -&gt; ImageType
+ImageType -&gt; Int
+ImageType -&gt; [ImageType]
+ImageType -&gt; ImageType
+ImageType -&gt; ImageType -&gt; [ImageType]
+ImageType -&gt; ImageType -&gt; ImageType -&gt; [ImageType]
+(ImageType -&gt; ImageType)
+-&gt; (ImageType -&gt; ImageType)
+-&gt; (Int -&gt; ImageType)
+-&gt; (ImageType -&gt; Int)
+-&gt; (ImageType -&gt; [ImageType])
+-&gt; (ImageType -&gt; ImageType -&gt; [ImageType])
+-&gt; (ImageType -&gt; ImageType -&gt; [ImageType])
+-&gt; (ImageType -&gt; ImageType -&gt; ImageType -&gt; [ImageType])
+-&gt; Enum ImageType
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: ImageType -&gt; ImageType
+succ :: ImageType -&gt; ImageType
+$cpred :: ImageType -&gt; ImageType
+pred :: ImageType -&gt; ImageType
+$ctoEnum :: Int -&gt; ImageType
+toEnum :: Int -&gt; ImageType
+$cfromEnum :: ImageType -&gt; Int
+fromEnum :: ImageType -&gt; Int
+$cenumFrom :: ImageType -&gt; [ImageType]
+enumFrom :: ImageType -&gt; [ImageType]
+$cenumFromThen :: ImageType -&gt; ImageType -&gt; [ImageType]
+enumFromThen :: ImageType -&gt; ImageType -&gt; [ImageType]
+$cenumFromTo :: ImageType -&gt; ImageType -&gt; [ImageType]
+enumFromTo :: ImageType -&gt; ImageType -&gt; [ImageType]
+$cenumFromThenTo :: ImageType -&gt; ImageType -&gt; ImageType -&gt; [ImageType]
+enumFromThenTo :: ImageType -&gt; ImageType -&gt; ImageType -&gt; [ImageType]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679689505"><span id="local-6989586621679689507"><span id="local-6989586621679689511"><span class="annot"><span class="annottext">Int -&gt; ImageType -&gt; ShowS
+[ImageType] -&gt; ShowS
+ImageType -&gt; String
+(Int -&gt; ImageType -&gt; ShowS)
+-&gt; (ImageType -&gt; String)
+-&gt; ([ImageType] -&gt; ShowS)
+-&gt; Show ImageType
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ImageType -&gt; ShowS
+showsPrec :: Int -&gt; ImageType -&gt; ShowS
+$cshow :: ImageType -&gt; String
+show :: ImageType -&gt; String
+$cshowList :: [ImageType] -&gt; ShowS
+showList :: [ImageType] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679689516"><span id="local-6989586621679689520"><span class="annot"><span class="annottext">ImageType -&gt; ImageType -&gt; Bool
+(ImageType -&gt; ImageType -&gt; Bool)
+-&gt; (ImageType -&gt; ImageType -&gt; Bool) -&gt; Eq ImageType
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ImageType -&gt; ImageType -&gt; Bool
+== :: ImageType -&gt; ImageType -&gt; Bool
+$c/= :: ImageType -&gt; ImageType -&gt; Bool
+/= :: ImageType -&gt; ImageType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-pragma">{-# LINE 168 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- | Creates a new 'Image' displaying the file @filename@. If the file isn't</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- found or can't be loaded, the resulting 'Image' will display a \&quot;broken</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- image\&quot; icon.</span><span>
+</span><span id="line-175"></span><span class="hs-comment">--</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- If the file contains an animation, the image will contain an animation.</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- If you need to detect failures to load the file, use</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- 'Graphics.UI.Gtk.Gdk.Pixbuf.pixbufNewFromFile'</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- to load the file yourself, then create the 'Image' from the pixbuf. (Or for</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- animations, use</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- 'Graphics.UI.Gtk.Gdk.Pixbuf.pixbufAnimationNewFromFile').</span><span>
+</span><span id="line-183"></span><span class="hs-comment">--</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- The storage type ('imageGetStorageType') of the returned image is not</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- defined, it will be whatever is appropriate for displaying the file.</span><span>
+</span><span id="line-186"></span><span class="hs-comment">--</span><span>
+</span><span id="line-187"></span><span id="local-6989586621679689269"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromFile"><span class="hs-identifier hs-type">imageNewFromFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibFilePath</span></span><span> </span><span class="annot"><a href="#local-6989586621679689269"><span class="hs-identifier hs-type">fp</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679689269"><span class="hs-identifier hs-type">fp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span></span><span>
+</span><span id="line-188"></span><span id="imageNewFromFile"><span class="annot"><span class="annottext">imageNewFromFile :: forall fp. GlibFilePath fp =&gt; fp -&gt; IO Image
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromFile"><span class="hs-identifier hs-var hs-var">imageNewFromFile</span></a></span></span><span> </span><span id="local-6989586621679689532"><span class="annot"><span class="annottext">fp
+</span><a href="#local-6989586621679689532"><span class="hs-identifier hs-var">filename</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+-&gt; IO (Ptr Image) -&gt; IO Image
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+forall {a}. (ForeignPtr Image -&gt; Image, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkImage"><span class="hs-identifier hs-var">mkImage</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Image) -&gt; IO Image) -&gt; IO (Ptr Image) -&gt; IO Image
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr Image) -&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr Image
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr Image))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="annot"><span class="annottext">fp -&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a. fp -&gt; (CString -&gt; IO a) -&gt; IO a
+forall fp a. GlibFilePath fp =&gt; fp -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFFilePath</span></span><span> </span><span class="annot"><span class="annottext">fp
+</span><a href="#local-6989586621679689532"><span class="hs-identifier hs-var">filename</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689536"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689536"><span class="hs-identifier hs-var">filenamePtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span>  </span><span class="annot"><span class="annottext">CString -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_file"><span class="hs-identifier hs-var">gtk_image_new_from_file</span></a></span><span>
+</span><span id="line-196"></span><span class="hs-pragma">{-# LINE 196 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689536"><span class="hs-identifier hs-var">filenamePtr</span></a></span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- | Creates a new 'Image' displaying a 'Pixbuf'.</span><span>
+</span><span id="line-200"></span><span class="hs-comment">--</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- Note that this function just creates an 'Image' from the pixbuf. The</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- 'Image' created will not react to state changes. Should you want that, you</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- should use 'imageNewFromIconSet'.</span><span>
+</span><span id="line-204"></span><span class="hs-comment">--</span><span>
+</span><span id="line-205"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromPixbuf"><span class="hs-identifier hs-type">imageNewFromPixbuf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span>
+</span><span id="line-206"></span><span id="imageNewFromPixbuf"><span class="annot"><span class="annottext">imageNewFromPixbuf :: Pixbuf -&gt; IO Image
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromPixbuf"><span class="hs-identifier hs-var hs-var">imageNewFromPixbuf</span></a></span></span><span> </span><span id="local-6989586621679689538"><span class="annot"><span class="annottext">Pixbuf
+</span><a href="#local-6989586621679689538"><span class="hs-identifier hs-var">pixbuf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+-&gt; IO (Ptr Image) -&gt; IO Image
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+forall {a}. (ForeignPtr Image -&gt; Image, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkImage"><span class="hs-identifier hs-var">mkImage</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Image) -&gt; IO Image) -&gt; IO (Ptr Image) -&gt; IO Image
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-208"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr Image) -&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr Image
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr Image))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span> </span><span id="local-6989586621679689539"><span class="annot"><span class="annottext">ForeignPtr Pixbuf
+</span><a href="#local-6989586621679689539"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Pixbuf
+-&gt; (Ptr Pixbuf -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Pixbuf
+</span><a href="#local-6989586621679689539"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Pixbuf -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (Ptr Pixbuf -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689541"><span class="annot"><span class="annottext">Ptr Pixbuf
+</span><a href="#local-6989586621679689541"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Pixbuf -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_pixbuf"><span class="hs-identifier hs-var">gtk_image_new_from_pixbuf</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Pixbuf
+</span><a href="#local-6989586621679689541"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span class="hs-pragma">{-# LINE 210 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-210"></span><span>    </span><span class="hs-identifier">pixbuf</span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span id="local-6989586621679689294"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromAnimation"><span class="hs-identifier hs-type">imageNewFromAnimation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufAnimationClass"><span class="hs-identifier hs-type">PixbufAnimationClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689294"><span class="hs-identifier hs-type">animation</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679689294"><span class="hs-identifier hs-type">animation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span></span><span>
+</span><span id="line-214"></span><span id="imageNewFromAnimation"><span class="annot"><span class="annottext">imageNewFromAnimation :: forall animation.
+PixbufAnimationClass animation =&gt;
+animation -&gt; IO Image
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromAnimation"><span class="hs-identifier hs-var hs-var">imageNewFromAnimation</span></a></span></span><span> </span><span id="local-6989586621679689547"><span class="annot"><span class="annottext">animation
+</span><a href="#local-6989586621679689547"><span class="hs-identifier hs-var">pba</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+-&gt; IO (Ptr Image) -&gt; IO Image
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+forall {a}. (ForeignPtr Image -&gt; Image, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkImage"><span class="hs-identifier hs-var">mkImage</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Image) -&gt; IO Image) -&gt; IO (Ptr Image) -&gt; IO Image
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-215"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr Image) -&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr Image
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr Image))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufAnimation"><span class="hs-identifier hs-type">PixbufAnimation</span></a></span><span> </span><span id="local-6989586621679689548"><span class="annot"><span class="annottext">ForeignPtr PixbufAnimation
+</span><a href="#local-6989586621679689548"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PixbufAnimation
+-&gt; (Ptr PixbufAnimation -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PixbufAnimation
+</span><a href="#local-6989586621679689548"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PixbufAnimation -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (Ptr PixbufAnimation -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689549"><span class="annot"><span class="annottext">Ptr PixbufAnimation
+</span><a href="#local-6989586621679689549"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PixbufAnimation -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_animation"><span class="hs-identifier hs-var">gtk_image_new_from_animation</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PixbufAnimation
+</span><a href="#local-6989586621679689549"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">animation -&gt; PixbufAnimation
+forall o. PixbufAnimationClass o =&gt; o -&gt; PixbufAnimation
+</span><a href="Graphics.UI.Gtk.Types.html#toPixbufAnimation"><span class="hs-identifier hs-var">toPixbufAnimation</span></a></span><span> </span><span class="annot"><span class="annottext">animation
+</span><a href="#local-6989586621679689547"><span class="hs-identifier hs-var">pba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- | Creates a 'Image' displaying a stock icon. If the stock icon name isn't</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- known, the image will be empty.</span><span>
+</span><span id="line-221"></span><span class="hs-comment">--</span><span>
+</span><span id="line-222"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromStock"><span class="hs-identifier hs-type">imageNewFromStock</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-223"></span><span>    </span><span class="annot"><a href="Graphics.UI.Gtk.General.StockItems.html#StockId"><span class="hs-identifier hs-type">StockId</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @stockId@ - a stock icon name</span></span><span>
+</span><span id="line-224"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html#IconSize"><span class="hs-identifier hs-type">IconSize</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @size@ - a stock icon size</span></span><span>
+</span><span id="line-225"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span>
+</span><span id="line-226"></span><span id="imageNewFromStock"><span class="annot"><span class="annottext">imageNewFromStock :: StockId -&gt; IconSize -&gt; IO Image
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromStock"><span class="hs-identifier hs-var hs-var">imageNewFromStock</span></a></span></span><span> </span><span id="local-6989586621679689552"><span class="annot"><span class="annottext">StockId
+</span><a href="#local-6989586621679689552"><span class="hs-identifier hs-var">stockId</span></a></span></span><span> </span><span id="local-6989586621679689553"><span class="annot"><span class="annottext">IconSize
+</span><a href="#local-6989586621679689553"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-227"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+-&gt; IO (Ptr Image) -&gt; IO Image
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+forall {a}. (ForeignPtr Image -&gt; Image, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkImage"><span class="hs-identifier hs-var">mkImage</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Image) -&gt; IO Image) -&gt; IO (Ptr Image) -&gt; IO Image
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-228"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr Image) -&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr Image
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr Image))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-229"></span><span>  </span><span class="annot"><span class="annottext">StockId -&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+forall a. StockId -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">StockId
+</span><a href="#local-6989586621679689552"><span class="hs-identifier hs-var">stockId</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689555"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689555"><span class="hs-identifier hs-var">stockIdPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-230"></span><span>  </span><span class="annot"><span class="annottext">CString -&gt; CInt -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_stock"><span class="hs-identifier hs-var">gtk_image_new_from_stock</span></a></span><span>
+</span><span id="line-231"></span><span class="hs-pragma">{-# LINE 231 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-231"></span><span>    </span><span class="hs-identifier">stockIdPtr</span><span>
+</span><span id="line-232"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; CInt) -&gt; (IconSize -&gt; Int) -&gt; IconSize -&gt; CInt
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IconSize -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IconSize
+</span><a href="#local-6989586621679689553"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- | Creates a new empty 'Image' widget.</span><span>
+</span><span id="line-235"></span><span class="hs-comment">--</span><span>
+</span><span id="line-236"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNew"><span class="hs-identifier hs-type">imageNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span>
+</span><span id="line-237"></span><span id="imageNew"><span class="annot"><span class="annottext">imageNew :: IO Image
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageNew"><span class="hs-identifier hs-var hs-var">imageNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-238"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+-&gt; IO (Ptr Image) -&gt; IO Image
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+forall {a}. (ForeignPtr Image -&gt; Image, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkImage"><span class="hs-identifier hs-var">mkImage</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Image) -&gt; IO Image) -&gt; IO (Ptr Image) -&gt; IO Image
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-239"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr Image) -&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr Image
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr Image))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-240"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new"><span class="hs-identifier hs-var">gtk_image_new</span></a></span><span>
+</span><span id="line-241"></span><span class="hs-pragma">{-# LINE 241 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-241"></span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- | Creates a 'Image' displaying an icon from the current icon theme. If the</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- icon name isn't known, a \&quot;broken image\&quot; icon will be displayed instead. If</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- the current icon theme is changed, the icon will be updated appropriately.</span><span>
+</span><span id="line-246"></span><span class="hs-comment">--</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- * Available since Gtk+ version 2.6</span><span>
+</span><span id="line-248"></span><span class="hs-comment">--</span><span>
+</span><span id="line-249"></span><span id="local-6989586621679689306"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromIconName"><span class="hs-identifier hs-type">imageNewFromIconName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679689306"><span class="hs-identifier hs-type">string</span></a></span><span>
+</span><span id="line-250"></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679689306"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @iconName@ - an icon name</span></span><span>
+</span><span id="line-251"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html#IconSize"><span class="hs-identifier hs-type">IconSize</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @size@ - a stock icon size</span></span><span>
+</span><span id="line-252"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span></span><span>
+</span><span id="line-253"></span><span id="imageNewFromIconName"><span class="annot"><span class="annottext">imageNewFromIconName :: forall string. GlibString string =&gt; string -&gt; IconSize -&gt; IO Image
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageNewFromIconName"><span class="hs-identifier hs-var hs-var">imageNewFromIconName</span></a></span></span><span> </span><span id="local-6989586621679689566"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679689566"><span class="hs-identifier hs-var">iconName</span></a></span></span><span> </span><span id="local-6989586621679689567"><span class="annot"><span class="annottext">IconSize
+</span><a href="#local-6989586621679689567"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-254"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+-&gt; IO (Ptr Image) -&gt; IO Image
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Image -&gt; Image, FinalizerPtr Image)
+forall {a}. (ForeignPtr Image -&gt; Image, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkImage"><span class="hs-identifier hs-var">mkImage</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Image) -&gt; IO Image) -&gt; IO (Ptr Image) -&gt; IO Image
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-255"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr Image) -&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr Image
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr Image))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr Image)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-256"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679689566"><span class="hs-identifier hs-var">iconName</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget))
+-&gt; (CString -&gt; IO (Ptr Widget)) -&gt; IO (Ptr Widget)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689568"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689568"><span class="hs-identifier hs-var">iconNamePtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-257"></span><span>  </span><span class="annot"><span class="annottext">CString -&gt; CInt -&gt; IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_icon_name"><span class="hs-identifier hs-var">gtk_image_new_from_icon_name</span></a></span><span>
+</span><span id="line-258"></span><span class="hs-pragma">{-# LINE 258 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-258"></span><span>    </span><span class="hs-identifier">iconNamePtr</span><span>
+</span><span id="line-259"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; CInt) -&gt; (IconSize -&gt; Int) -&gt; IconSize -&gt; CInt
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IconSize -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IconSize
+</span><a href="#local-6989586621679689567"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span>
+</span><span id="line-262"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- | Gets the 'Pixbuf' being displayed by the 'Image'. The storage type of the</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- image must be 'ImageEmpty' or 'ImagePixbuf' (see 'imageGetStorageType').</span><span>
+</span><span id="line-267"></span><span class="hs-comment">--</span><span>
+</span><span id="line-268"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageGetPixbuf"><span class="hs-identifier hs-type">imageGetPixbuf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span>
+</span><span id="line-269"></span><span id="imageGetPixbuf"><span class="annot"><span class="annottext">imageGetPixbuf :: Image -&gt; IO Pixbuf
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageGetPixbuf"><span class="hs-identifier hs-var hs-var">imageGetPixbuf</span></a></span></span><span> </span><span id="local-6989586621679689570"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689570"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-270"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr Pixbuf -&gt; Pixbuf, FinalizerPtr Pixbuf)
+-&gt; IO (Ptr Pixbuf) -&gt; IO Pixbuf
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Pixbuf -&gt; Pixbuf, FinalizerPtr Pixbuf)
+forall {a}. (ForeignPtr Pixbuf -&gt; Pixbuf, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkPixbuf"><span class="hs-identifier hs-var">mkPixbuf</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Pixbuf) -&gt; IO Pixbuf) -&gt; IO (Ptr Pixbuf) -&gt; IO Pixbuf
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Ptr Pixbuf -&gt; Ptr Pixbuf) -&gt; IO (Ptr Pixbuf) -&gt; IO (Ptr Pixbuf)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">Ptr Pixbuf -&gt; Ptr Pixbuf
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Pixbuf) -&gt; IO (Ptr Pixbuf))
+-&gt; IO (Ptr Pixbuf) -&gt; IO (Ptr Pixbuf)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-271"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; IO (Ptr Pixbuf) -&gt; IO (Ptr Pixbuf)
+forall a. String -&gt; IO (Ptr a) -&gt; IO (Ptr a)
+</span><span class="hs-identifier hs-var">throwIfNull</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Image.imageGetPixbuf: The image contains no Pixbuf object.&quot;</span></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Pixbuf) -&gt; IO (Ptr Pixbuf))
+-&gt; IO (Ptr Pixbuf) -&gt; IO (Ptr Pixbuf)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-272"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689574"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689574"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+-&gt; (Ptr Image -&gt; IO (Ptr Pixbuf)) -&gt; IO (Ptr Pixbuf)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689574"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO (Ptr Pixbuf)) -&gt; IO (Ptr Pixbuf))
+-&gt; (Ptr Image -&gt; IO (Ptr Pixbuf)) -&gt; IO (Ptr Pixbuf)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689575"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689575"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; IO (Ptr Pixbuf)
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_get_pixbuf"><span class="hs-identifier hs-var">gtk_image_get_pixbuf</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689575"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-273"></span><span class="hs-pragma">{-# LINE 273 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-identifier">self</span><span>
+</span><span id="line-274"></span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- | Overwrite the current content of the 'Image' with a new 'Pixbuf'.</span><span>
+</span><span id="line-276"></span><span class="hs-comment">--</span><span>
+</span><span id="line-277"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromPixbuf"><span class="hs-identifier hs-type">imageSetFromPixbuf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-278"></span><span id="imageSetFromPixbuf"><span class="annot"><span class="annottext">imageSetFromPixbuf :: Image -&gt; Pixbuf -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromPixbuf"><span class="hs-identifier hs-var hs-var">imageSetFromPixbuf</span></a></span></span><span> </span><span id="local-6989586621679689577"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689577"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679689578"><span class="annot"><span class="annottext">Pixbuf
+</span><a href="#local-6989586621679689578"><span class="hs-identifier hs-var">pixbuf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-279"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689579"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689579"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span> </span><span id="local-6989586621679689580"><span class="annot"><span class="annottext">ForeignPtr Pixbuf
+</span><a href="#local-6989586621679689580"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689579"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689581"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689581"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr Pixbuf -&gt; (Ptr Pixbuf -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Pixbuf
+</span><a href="#local-6989586621679689580"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Pixbuf -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Pixbuf -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689582"><span class="annot"><span class="annottext">Ptr Pixbuf
+</span><a href="#local-6989586621679689582"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; Ptr Pixbuf -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_pixbuf"><span class="hs-identifier hs-var">gtk_image_set_from_pixbuf</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689581"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Pixbuf
+</span><a href="#local-6989586621679689582"><span class="hs-identifier hs-var">argPtr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-280"></span><span class="hs-pragma">{-# LINE 280 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-280"></span><span>    </span><span class="hs-identifier">self</span><span>
+</span><span id="line-281"></span><span>    </span><span class="annot"><span class="annottext">Pixbuf
+</span><a href="#local-6989586621679689578"><span class="hs-identifier hs-var">pixbuf</span></a></span><span>
+</span><span id="line-282"></span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span id="local-6989586621679689311"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromAnimation"><span class="hs-identifier hs-type">imageSetFromAnimation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufAnimationClass"><span class="hs-identifier hs-type">PixbufAnimationClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689311"><span class="hs-identifier hs-type">animation</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679689311"><span class="hs-identifier hs-type">animation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-285"></span><span id="imageSetFromAnimation"><span class="annot"><span class="annottext">imageSetFromAnimation :: forall animation.
+PixbufAnimationClass animation =&gt;
+Image -&gt; animation -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromAnimation"><span class="hs-identifier hs-var hs-var">imageSetFromAnimation</span></a></span></span><span> </span><span id="local-6989586621679689586"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689586"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679689587"><span class="annot"><span class="annottext">animation
+</span><a href="#local-6989586621679689587"><span class="hs-identifier hs-var">pba</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-286"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689588"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689588"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufAnimation"><span class="hs-identifier hs-type">PixbufAnimation</span></a></span><span> </span><span id="local-6989586621679689589"><span class="annot"><span class="annottext">ForeignPtr PixbufAnimation
+</span><a href="#local-6989586621679689589"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689588"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689590"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689590"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">ForeignPtr PixbufAnimation
+-&gt; (Ptr PixbufAnimation -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PixbufAnimation
+</span><a href="#local-6989586621679689589"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PixbufAnimation -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr PixbufAnimation -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689591"><span class="annot"><span class="annottext">Ptr PixbufAnimation
+</span><a href="#local-6989586621679689591"><span class="hs-identifier hs-var">argPtr2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; Ptr PixbufAnimation -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_animation"><span class="hs-identifier hs-var">gtk_image_set_from_animation</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689590"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PixbufAnimation
+</span><a href="#local-6989586621679689591"><span class="hs-identifier hs-var">argPtr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-287"></span><span class="hs-pragma">{-# LINE 287 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-287"></span><span>    </span><span class="hs-identifier">self</span><span>
+</span><span id="line-288"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">animation -&gt; PixbufAnimation
+forall o. PixbufAnimationClass o =&gt; o -&gt; PixbufAnimation
+</span><a href="Graphics.UI.Gtk.Types.html#toPixbufAnimation"><span class="hs-identifier hs-var">toPixbufAnimation</span></a></span><span> </span><span class="annot"><span class="annottext">animation
+</span><a href="#local-6989586621679689587"><span class="hs-identifier hs-var">pba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- | See 'imageNewFromFile' for details.</span><span>
+</span><span id="line-291"></span><span class="hs-comment">--</span><span>
+</span><span id="line-292"></span><span id="local-6989586621679689313"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromFile"><span class="hs-identifier hs-type">imageSetFromFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibFilePath</span></span><span> </span><span class="annot"><a href="#local-6989586621679689313"><span class="hs-identifier hs-type">fp</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679689313"><span class="hs-identifier hs-type">fp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-293"></span><span id="imageSetFromFile"><span class="annot"><span class="annottext">imageSetFromFile :: forall fp. GlibFilePath fp =&gt; Image -&gt; fp -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromFile"><span class="hs-identifier hs-var hs-var">imageSetFromFile</span></a></span></span><span> </span><span id="local-6989586621679689598"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689598"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679689599"><span class="annot"><span class="annottext">fp
+</span><a href="#local-6989586621679689599"><span class="hs-identifier hs-var">filename</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-294"></span><span>  </span><span class="annot"><span class="annottext">fp -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. fp -&gt; (CString -&gt; IO a) -&gt; IO a
+forall fp a. GlibFilePath fp =&gt; fp -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFFilePath</span></span><span> </span><span class="annot"><span class="annottext">fp
+</span><a href="#local-6989586621679689599"><span class="hs-identifier hs-var">filename</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689600"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689600"><span class="hs-identifier hs-var">filenamePtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-295"></span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689601"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689601"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679689602"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689602"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689601"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689603"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689603"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; CString -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_file"><span class="hs-identifier hs-var">gtk_image_set_from_file</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689603"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689602"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-299"></span><span class="hs-pragma">{-# LINE 299 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-299"></span><span>
+</span><span id="line-300"></span><span>    </span><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689598"><span class="hs-identifier hs-var">self</span></a></span><span>
+</span><span id="line-301"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689600"><span class="hs-identifier hs-var">filenamePtr</span></a></span><span>
+</span><span id="line-302"></span><span>
+</span><span id="line-303"></span><span class="hs-comment">-- | See 'imageNewFromStock' for details.</span><span>
+</span><span id="line-304"></span><span class="hs-comment">--</span><span>
+</span><span id="line-305"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromStock"><span class="hs-identifier hs-type">imageSetFromStock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span>
+</span><span id="line-306"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.StockItems.html#StockId"><span class="hs-identifier hs-type">StockId</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @stockId@ - a stock icon name</span></span><span>
+</span><span id="line-307"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html#IconSize"><span class="hs-identifier hs-type">IconSize</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @size@ - a stock icon size</span></span><span>
+</span><span id="line-308"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-309"></span><span id="imageSetFromStock"><span class="annot"><span class="annottext">imageSetFromStock :: Image -&gt; StockId -&gt; IconSize -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromStock"><span class="hs-identifier hs-var hs-var">imageSetFromStock</span></a></span></span><span> </span><span id="local-6989586621679689605"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689605"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679689606"><span class="annot"><span class="annottext">StockId
+</span><a href="#local-6989586621679689606"><span class="hs-identifier hs-var">stockId</span></a></span></span><span> </span><span id="local-6989586621679689607"><span class="annot"><span class="annottext">IconSize
+</span><a href="#local-6989586621679689607"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-310"></span><span>  </span><span class="annot"><span class="annottext">StockId -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+forall a. StockId -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">StockId
+</span><a href="#local-6989586621679689606"><span class="hs-identifier hs-var">stockId</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689608"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689608"><span class="hs-identifier hs-var">stockIdPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-311"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689609"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689609"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679689610"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689610"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679689611"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679689611"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689609"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689612"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689612"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; CString -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_stock"><span class="hs-identifier hs-var">gtk_image_set_from_stock</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689612"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689610"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679689611"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-312"></span><span class="hs-pragma">{-# LINE 312 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-312"></span><span>    </span><span class="hs-identifier">self</span><span>
+</span><span id="line-313"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689608"><span class="hs-identifier hs-var">stockIdPtr</span></a></span><span>
+</span><span id="line-314"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; CInt) -&gt; (IconSize -&gt; Int) -&gt; IconSize -&gt; CInt
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IconSize -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IconSize
+</span><a href="#local-6989586621679689607"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-315"></span><span>
+</span><span id="line-316"></span><span>
+</span><span id="line-317"></span><span class="hs-comment">-- | See 'imageNewFromIconName' for details.</span><span>
+</span><span id="line-318"></span><span class="hs-comment">--</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- * Available since Gtk+ version 2.6</span><span>
+</span><span id="line-320"></span><span class="hs-comment">--</span><span>
+</span><span id="line-321"></span><span id="local-6989586621679689315"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromIconName"><span class="hs-identifier hs-type">imageSetFromIconName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679689315"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span>
+</span><span id="line-322"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679689315"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @iconName@ - an icon name</span></span><span>
+</span><span id="line-323"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html#IconSize"><span class="hs-identifier hs-type">IconSize</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @size@ - an icon size</span></span><span>
+</span><span id="line-324"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-325"></span><span id="imageSetFromIconName"><span class="annot"><span class="annottext">imageSetFromIconName :: forall string.
+GlibString string =&gt;
+Image -&gt; string -&gt; IconSize -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageSetFromIconName"><span class="hs-identifier hs-var hs-var">imageSetFromIconName</span></a></span></span><span> </span><span id="local-6989586621679689619"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689619"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679689620"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679689620"><span class="hs-identifier hs-var">iconName</span></a></span></span><span> </span><span id="local-6989586621679689621"><span class="annot"><span class="annottext">IconSize
+</span><a href="#local-6989586621679689621"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-326"></span><span>  </span><span class="annot"><span class="annottext">string -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. string -&gt; (CString -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679689620"><span class="hs-identifier hs-var">iconName</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689622"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689622"><span class="hs-identifier hs-var">iconNamePtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-327"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689623"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689623"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679689624"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689624"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679689625"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679689625"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689623"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689626"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689626"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; CString -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_icon_name"><span class="hs-identifier hs-var">gtk_image_set_from_icon_name</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689626"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689624"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679689625"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-328"></span><span class="hs-pragma">{-# LINE 328 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-328"></span><span>    </span><span class="hs-identifier">self</span><span>
+</span><span id="line-329"></span><span>    </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679689622"><span class="hs-identifier hs-var">iconNamePtr</span></a></span><span>
+</span><span id="line-330"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; CInt) -&gt; (IconSize -&gt; Int) -&gt; IconSize -&gt; CInt
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IconSize -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IconSize
+</span><a href="#local-6989586621679689621"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-331"></span><span>
+</span><span id="line-332"></span><span class="hs-comment">-- | Sets the pixel size to use for named icons. If the pixel size is set to a</span><span>
+</span><span id="line-333"></span><span class="hs-comment">-- @value \/= -1@, it is used instead of the icon size set by</span><span>
+</span><span id="line-334"></span><span class="hs-comment">-- 'imageSetFromIconName'.</span><span>
+</span><span id="line-335"></span><span class="hs-comment">--</span><span>
+</span><span id="line-336"></span><span class="hs-comment">-- * Available since Gtk+ version 2.6</span><span>
+</span><span id="line-337"></span><span class="hs-comment">--</span><span>
+</span><span id="line-338"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageSetPixelSize"><span class="hs-identifier hs-type">imageSetPixelSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span>
+</span><span id="line-339"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @pixelSize@ - the new pixel size</span></span><span>
+</span><span id="line-340"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-341"></span><span id="imageSetPixelSize"><span class="annot"><span class="annottext">imageSetPixelSize :: Image -&gt; Int -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageSetPixelSize"><span class="hs-identifier hs-var hs-var">imageSetPixelSize</span></a></span></span><span> </span><span id="local-6989586621679689628"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689628"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679689629"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679689629"><span class="hs-identifier hs-var">pixelSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-342"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689630"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689630"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679689631"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679689631"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689630"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689632"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689632"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_pixel_size"><span class="hs-identifier hs-var">gtk_image_set_pixel_size</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689632"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679689631"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-343"></span><span class="hs-pragma">{-# LINE 343 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-343"></span><span>    </span><span class="hs-identifier">self</span><span>
+</span><span id="line-344"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679689629"><span class="hs-identifier hs-var">pixelSize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-345"></span><span>
+</span><span id="line-346"></span><span class="hs-comment">-- | Gets the pixel size used for named icons.</span><span>
+</span><span id="line-347"></span><span class="hs-comment">--</span><span>
+</span><span id="line-348"></span><span class="hs-comment">-- * Available since Gtk+ version 2.6</span><span>
+</span><span id="line-349"></span><span class="hs-comment">--</span><span>
+</span><span id="line-350"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageGetPixelSize"><span class="hs-identifier hs-type">imageGetPixelSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-351"></span><span id="imageGetPixelSize"><span class="annot"><span class="annottext">imageGetPixelSize :: Image -&gt; IO Int
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageGetPixelSize"><span class="hs-identifier hs-var hs-var">imageGetPixelSize</span></a></span></span><span> </span><span id="local-6989586621679689634"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689634"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-352"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; Int) -&gt; IO CInt -&gt; IO Int
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Int) -&gt; IO CInt -&gt; IO Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-353"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689635"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689635"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image -&gt; (Ptr Image -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689635"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr Image -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689636"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689636"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_get_pixel_size"><span class="hs-identifier hs-var">gtk_image_get_pixel_size</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689636"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-354"></span><span class="hs-pragma">{-# LINE 354 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-354"></span><span>    </span><span class="hs-identifier">self</span><span>
+</span><span id="line-355"></span><span>
+</span><span id="line-356"></span><span>
+</span><span id="line-357"></span><span>
+</span><span id="line-358"></span><span class="hs-comment">-- | Resets the image to be empty.</span><span>
+</span><span id="line-359"></span><span class="hs-comment">--</span><span>
+</span><span id="line-360"></span><span class="hs-comment">-- * Available since Gtk+ version 2.8</span><span>
+</span><span id="line-361"></span><span class="hs-comment">--</span><span>
+</span><span id="line-362"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageClear"><span class="hs-identifier hs-type">imageClear</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-363"></span><span id="imageClear"><span class="annot"><span class="annottext">imageClear :: Image -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageClear"><span class="hs-identifier hs-var hs-var">imageClear</span></a></span></span><span> </span><span id="local-6989586621679689638"><span class="annot"><span class="annottext">Image
+</span><a href="#local-6989586621679689638"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-364"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621679689639"><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689639"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Image
+</span><a href="#local-6989586621679689639"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Image -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Image -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679689640"><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689640"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr Image -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_clear"><span class="hs-identifier hs-var">gtk_image_clear</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Image
+</span><a href="#local-6989586621679689640"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-365"></span><span class="hs-pragma">{-# LINE 365 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-365"></span><span>    </span><span class="hs-identifier">self</span><span>
+</span><span id="line-366"></span><span>
+</span><span id="line-367"></span><span>
+</span><span id="line-368"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-369"></span><span class="hs-comment">-- Attributes</span><span>
+</span><span id="line-370"></span><span>
+</span><span id="line-371"></span><span class="hs-comment">-- | A 'Pixbuf' to display.</span><span>
+</span><span id="line-372"></span><span class="hs-comment">--</span><span>
+</span><span id="line-373"></span><span id="local-6989586621679689317"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imagePixbuf"><span class="hs-identifier hs-type">imagePixbuf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufClass"><span class="hs-identifier hs-type">PixbufClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689317"><span class="hs-identifier hs-type">pixbuf</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadWriteAttr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689317"><span class="hs-identifier hs-type">pixbuf</span></a></span></span><span>
+</span><span id="line-374"></span><span id="imagePixbuf"><span class="annot"><span class="annottext">imagePixbuf :: forall pixbuf.
+PixbufClass pixbuf =&gt;
+ReadWriteAttr Image Pixbuf pixbuf
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imagePixbuf"><span class="hs-identifier hs-var hs-var">imagePixbuf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; GType -&gt; ReadWriteAttr Image Pixbuf pixbuf
+forall gobj gobj' gobj''.
+(GObjectClass gobj, GObjectClass gobj', GObjectClass gobj'') =&gt;
+String -&gt; GType -&gt; ReadWriteAttr gobj gobj' gobj''
+</span><span class="hs-identifier hs-var">newAttrFromObjectProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;pixbuf&quot;</span></span><span>
+</span><span id="line-375"></span><span>  </span><span class="annot"><span class="annottext">GType
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gdk_pixbuf_get_type"><span class="hs-identifier hs-var">gdk_pixbuf_get_type</span></a></span><span>
+</span><span id="line-376"></span><span class="hs-pragma">{-# LINE 376 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-376"></span><span>
+</span><span id="line-377"></span><span>
+</span><span id="line-378"></span><span id="local-6989586621679689326"><span id="local-6989586621679689327"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageAnimation"><span class="hs-identifier hs-type">imageAnimation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufClass"><span class="hs-identifier hs-type">PixbufClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689326"><span class="hs-identifier hs-type">pixbuf</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufAnimationClass"><span class="hs-identifier hs-type">PixbufAnimationClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689327"><span class="hs-identifier hs-type">animation</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadWriteAttr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689327"><span class="hs-identifier hs-type">animation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689326"><span class="hs-identifier hs-type">pixbuf</span></a></span></span></span><span>
+</span><span id="line-379"></span><span id="imageAnimation"><span class="annot"><span class="annottext">imageAnimation :: forall pixbuf animation.
+(PixbufClass pixbuf, PixbufAnimationClass animation) =&gt;
+ReadWriteAttr Image animation pixbuf
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageAnimation"><span class="hs-identifier hs-var hs-var">imageAnimation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; GType -&gt; ReadWriteAttr Image animation pixbuf
+forall gobj gobj' gobj''.
+(GObjectClass gobj, GObjectClass gobj', GObjectClass gobj'') =&gt;
+String -&gt; GType -&gt; ReadWriteAttr gobj gobj' gobj''
+</span><span class="hs-identifier hs-var">newAttrFromObjectProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;pixbuf-animation&quot;</span></span><span>
+</span><span id="line-380"></span><span>  </span><span class="annot"><span class="annottext">GType
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gdk_pixbuf_get_type"><span class="hs-identifier hs-var">gdk_pixbuf_get_type</span></a></span><span>
+</span><span id="line-381"></span><span class="hs-pragma">{-# LINE 381 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-381"></span><span>
+</span><span id="line-382"></span><span>
+</span><span id="line-383"></span><span class="hs-comment">-- | A 'Pixmap' to display.</span><span>
+</span><span id="line-384"></span><span class="hs-comment">--</span><span>
+</span><span id="line-385"></span><span id="local-6989586621679689331"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imagePixmap"><span class="hs-identifier hs-type">imagePixmap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixmapClass"><span class="hs-identifier hs-type">PixmapClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689331"><span class="hs-identifier hs-type">pixmap</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadWriteAttr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixmap"><span class="hs-identifier hs-type">Pixmap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689331"><span class="hs-identifier hs-type">pixmap</span></a></span></span><span>
+</span><span id="line-386"></span><span id="imagePixmap"><span class="annot"><span class="annottext">imagePixmap :: forall pixmap.
+PixmapClass pixmap =&gt;
+ReadWriteAttr Image Pixmap pixmap
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imagePixmap"><span class="hs-identifier hs-var hs-var">imagePixmap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; GType -&gt; ReadWriteAttr Image Pixmap pixmap
+forall gobj gobj' gobj''.
+(GObjectClass gobj, GObjectClass gobj', GObjectClass gobj'') =&gt;
+String -&gt; GType -&gt; ReadWriteAttr gobj gobj' gobj''
+</span><span class="hs-identifier hs-var">newAttrFromObjectProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;pixmap&quot;</span></span><span>
+</span><span id="line-387"></span><span>  </span><span class="annot"><span class="annottext">GType
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gdk_pixmap_get_type"><span class="hs-identifier hs-var">gdk_pixmap_get_type</span></a></span><span>
+</span><span id="line-388"></span><span class="hs-pragma">{-# LINE 388 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-388"></span><span>
+</span><span id="line-389"></span><span class="hs-comment">-- | Mask bitmap to use with 'Image' or 'Pixmap'.</span><span>
+</span><span id="line-390"></span><span class="hs-comment">--</span><span>
+</span><span id="line-391"></span><span id="local-6989586621679689669"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageMask"><span class="hs-identifier hs-type">imageMask</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixmapClass"><span class="hs-identifier hs-type">PixmapClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689669"><span class="hs-identifier hs-type">pixmap</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadWriteAttr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixmap"><span class="hs-identifier hs-type">Pixmap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689669"><span class="hs-identifier hs-type">pixmap</span></a></span></span><span>
+</span><span id="line-392"></span><span id="imageMask"><span class="annot"><span class="annottext">imageMask :: forall pixmap.
+PixmapClass pixmap =&gt;
+ReadWriteAttr Image Pixmap pixmap
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageMask"><span class="hs-identifier hs-var hs-var">imageMask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; GType -&gt; ReadWriteAttr Image Pixmap pixmap
+forall gobj gobj' gobj''.
+(GObjectClass gobj, GObjectClass gobj', GObjectClass gobj'') =&gt;
+String -&gt; GType -&gt; ReadWriteAttr gobj gobj' gobj''
+</span><span class="hs-identifier hs-var">newAttrFromObjectProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;mask&quot;</span></span><span>
+</span><span id="line-393"></span><span>  </span><span class="annot"><span class="annottext">GType
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gdk_pixmap_get_type"><span class="hs-identifier hs-var">gdk_pixmap_get_type</span></a></span><span>
+</span><span id="line-394"></span><span class="hs-pragma">{-# LINE 394 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-394"></span><span>
+</span><span id="line-395"></span><span>
+</span><span id="line-396"></span><span class="hs-comment">-- | A 'Image' to display.</span><span>
+</span><span id="line-397"></span><span class="hs-comment">--</span><span>
+</span><span id="line-398"></span><span id="local-6989586621679689339"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageImage"><span class="hs-identifier hs-type">imageImage</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#ImageClass"><span class="hs-identifier hs-type">ImageClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689339"><span class="hs-identifier hs-type">image</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadWriteAttr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689339"><span class="hs-identifier hs-type">image</span></a></span></span><span>
+</span><span id="line-399"></span><span id="imageImage"><span class="annot"><span class="annottext">imageImage :: forall image. ImageClass image =&gt; ReadWriteAttr Image Image image
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageImage"><span class="hs-identifier hs-var hs-var">imageImage</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; GType -&gt; ReadWriteAttr Image Image image
+forall gobj gobj' gobj''.
+(GObjectClass gobj, GObjectClass gobj', GObjectClass gobj'') =&gt;
+String -&gt; GType -&gt; ReadWriteAttr gobj gobj' gobj''
+</span><span class="hs-identifier hs-var">newAttrFromObjectProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;image&quot;</span></span><span>
+</span><span id="line-400"></span><span>  </span><span class="annot"><span class="annottext">GType
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_get_type"><span class="hs-identifier hs-var">gtk_image_get_type</span></a></span><span>
+</span><span id="line-401"></span><span class="hs-pragma">{-# LINE 401 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-401"></span><span>
+</span><span id="line-402"></span><span class="hs-comment">-- | Filename to load and display.</span><span>
+</span><span id="line-403"></span><span class="hs-comment">--</span><span>
+</span><span id="line-404"></span><span class="hs-comment">-- Default value: \&quot;\&quot;</span><span>
+</span><span id="line-405"></span><span class="hs-comment">--</span><span>
+</span><span id="line-406"></span><span id="local-6989586621679689348"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageFile"><span class="hs-identifier hs-type">imageFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679689348"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689348"><span class="hs-identifier hs-type">string</span></a></span></span><span>
+</span><span id="line-407"></span><span id="imageFile"><span class="annot"><span class="annottext">imageFile :: forall string. GlibString string =&gt; Attr Image string
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageFile"><span class="hs-identifier hs-var hs-var">imageFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr Image string
+forall gobj string.
+(GObjectClass gobj, GlibString string) =&gt;
+String -&gt; Attr gobj string
+</span><span class="hs-identifier hs-var">newAttrFromStringProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;file&quot;</span></span><span>
+</span><span id="line-408"></span><span>
+</span><span id="line-409"></span><span class="hs-comment">-- | Stock ID for a stock image to display.</span><span>
+</span><span id="line-410"></span><span class="hs-comment">--</span><span>
+</span><span id="line-411"></span><span class="hs-comment">-- Default value: \&quot;\&quot;</span><span>
+</span><span id="line-412"></span><span class="hs-comment">--</span><span>
+</span><span id="line-413"></span><span id="local-6989586621679689693"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageStock"><span class="hs-identifier hs-type">imageStock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679689693"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689693"><span class="hs-identifier hs-type">string</span></a></span></span><span>
+</span><span id="line-414"></span><span id="imageStock"><span class="annot"><span class="annottext">imageStock :: forall string. GlibString string =&gt; Attr Image string
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageStock"><span class="hs-identifier hs-var hs-var">imageStock</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr Image string
+forall gobj string.
+(GObjectClass gobj, GlibString string) =&gt;
+String -&gt; Attr gobj string
+</span><span class="hs-identifier hs-var">newAttrFromStringProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;stock&quot;</span></span><span>
+</span><span id="line-415"></span><span>
+</span><span id="line-416"></span><span class="hs-comment">-- | Symbolic size to use for stock icon, icon set or named icon.</span><span>
+</span><span id="line-417"></span><span class="hs-comment">--</span><span>
+</span><span id="line-418"></span><span class="hs-comment">-- Allowed values: &gt;= 0</span><span>
+</span><span id="line-419"></span><span class="hs-comment">--</span><span>
+</span><span id="line-420"></span><span class="hs-comment">-- Default value: 4</span><span>
+</span><span id="line-421"></span><span class="hs-comment">--</span><span>
+</span><span id="line-422"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageIconSize"><span class="hs-identifier hs-type">imageIconSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-423"></span><span id="imageIconSize"><span class="annot"><span class="annottext">imageIconSize :: Attr Image Int
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageIconSize"><span class="hs-identifier hs-var hs-var">imageIconSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr Image Int
+forall gobj. GObjectClass gobj =&gt; String -&gt; Attr gobj Int
+</span><span class="hs-identifier hs-var">newAttrFromIntProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;icon-size&quot;</span></span><span>
+</span><span id="line-424"></span><span>
+</span><span id="line-425"></span><span>
+</span><span id="line-426"></span><span class="hs-comment">-- | The pixel-size property can be used to specify a fixed size overriding</span><span>
+</span><span id="line-427"></span><span class="hs-comment">-- the icon-size property for images of type 'ImageIconName'.</span><span>
+</span><span id="line-428"></span><span class="hs-comment">--</span><span>
+</span><span id="line-429"></span><span class="hs-comment">-- Allowed values: &gt;= -1</span><span>
+</span><span id="line-430"></span><span class="hs-comment">--</span><span>
+</span><span id="line-431"></span><span class="hs-comment">-- Default value: -1</span><span>
+</span><span id="line-432"></span><span class="hs-comment">--</span><span>
+</span><span id="line-433"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imagePixelSize"><span class="hs-identifier hs-type">imagePixelSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-434"></span><span id="imagePixelSize"><span class="annot"><span class="annottext">imagePixelSize :: Attr Image Int
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imagePixelSize"><span class="hs-identifier hs-var hs-var">imagePixelSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Image -&gt; IO Int) -&gt; (Image -&gt; Int -&gt; IO ()) -&gt; Attr Image Int
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-435"></span><span>  </span><span class="annot"><span class="annottext">Image -&gt; IO Int
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageGetPixelSize"><span class="hs-identifier hs-var">imageGetPixelSize</span></a></span><span>
+</span><span id="line-436"></span><span>  </span><span class="annot"><span class="annottext">Image -&gt; Int -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageSetPixelSize"><span class="hs-identifier hs-var">imageSetPixelSize</span></a></span><span>
+</span><span id="line-437"></span><span>
+</span><span id="line-438"></span><span>
+</span><span id="line-439"></span><span>
+</span><span id="line-440"></span><span class="hs-comment">-- | The name of the icon in the icon theme. If the icon theme is changed, the</span><span>
+</span><span id="line-441"></span><span class="hs-comment">-- image will be updated automatically.</span><span>
+</span><span id="line-442"></span><span class="hs-comment">--</span><span>
+</span><span id="line-443"></span><span class="hs-comment">-- Default value: \&quot;\&quot;</span><span>
+</span><span id="line-444"></span><span class="hs-comment">--</span><span>
+</span><span id="line-445"></span><span id="local-6989586621679689699"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageIconName"><span class="hs-identifier hs-type">imageIconName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679689699"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679689699"><span class="hs-identifier hs-type">string</span></a></span></span><span>
+</span><span id="line-446"></span><span id="imageIconName"><span class="annot"><span class="annottext">imageIconName :: forall string. GlibString string =&gt; Attr Image string
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageIconName"><span class="hs-identifier hs-var hs-var">imageIconName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr Image string
+forall gobj string.
+(GObjectClass gobj, GlibString string) =&gt;
+String -&gt; Attr gobj string
+</span><span class="hs-identifier hs-var">newAttrFromStringProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;icon-name&quot;</span></span><span>
+</span><span id="line-447"></span><span>
+</span><span id="line-448"></span><span>
+</span><span id="line-449"></span><span class="hs-comment">-- | The representation being used for image data.</span><span>
+</span><span id="line-450"></span><span class="hs-comment">--</span><span>
+</span><span id="line-451"></span><span class="hs-comment">-- Default value: 'ImageEmpty'</span><span>
+</span><span id="line-452"></span><span class="hs-comment">--</span><span>
+</span><span id="line-453"></span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#imageStorageType"><span class="hs-identifier hs-type">imageStorageType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadAttr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#ImageType"><span class="hs-identifier hs-type">ImageType</span></a></span><span>
+</span><span id="line-454"></span><span id="imageStorageType"><span class="annot"><span class="annottext">imageStorageType :: ReadAttr Image ImageType
+</span><a href="Graphics.UI.Gtk.Display.Image.html#imageStorageType"><span class="hs-identifier hs-var hs-var">imageStorageType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; GType -&gt; ReadAttr Image ImageType
+forall gobj enum.
+(GObjectClass gobj, Enum enum) =&gt;
+String -&gt; GType -&gt; ReadAttr gobj enum
+</span><span class="hs-identifier hs-var">readAttrFromEnumProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;storage-type&quot;</span></span><span>
+</span><span id="line-455"></span><span>  </span><span class="annot"><span class="annottext">GType
+</span><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_type_get_type"><span class="hs-identifier hs-var">gtk_image_type_get_type</span></a></span><span>
+</span><span id="line-456"></span><span class="hs-pragma">{-# LINE 456 &quot;./Graphics/UI/Gtk/Display/Image.chs&quot; #-}</span><span>
+</span><span id="line-456"></span><span>
+</span><span id="line-457"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_new_from_file&quot;</span></span><span>
+</span><span id="line-458"></span><span>  </span><span id="gtk_image_new_from_file"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_file"><span class="hs-identifier hs-var">gtk_image_new_from_file</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-459"></span><span>
+</span><span id="line-460"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_new_from_pixbuf&quot;</span></span><span>
+</span><span id="line-461"></span><span>  </span><span id="gtk_image_new_from_pixbuf"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_pixbuf"><span class="hs-identifier hs-var">gtk_image_new_from_pixbuf</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-462"></span><span>
+</span><span id="line-463"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_new_from_animation&quot;</span></span><span>
+</span><span id="line-464"></span><span>  </span><span id="gtk_image_new_from_animation"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_animation"><span class="hs-identifier hs-var">gtk_image_new_from_animation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufAnimation"><span class="hs-identifier hs-type">PixbufAnimation</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-465"></span><span>
+</span><span id="line-466"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_new_from_stock&quot;</span></span><span>
+</span><span id="line-467"></span><span>  </span><span id="gtk_image_new_from_stock"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_stock"><span class="hs-identifier hs-var">gtk_image_new_from_stock</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-468"></span><span>
+</span><span id="line-469"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_new&quot;</span></span><span>
+</span><span id="line-470"></span><span>  </span><span id="gtk_image_new"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new"><span class="hs-identifier hs-var">gtk_image_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-471"></span><span>
+</span><span id="line-472"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_new_from_icon_name&quot;</span></span><span>
+</span><span id="line-473"></span><span>  </span><span id="gtk_image_new_from_icon_name"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_new_from_icon_name"><span class="hs-identifier hs-var">gtk_image_new_from_icon_name</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-474"></span><span>
+</span><span id="line-475"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_get_pixbuf&quot;</span></span><span>
+</span><span id="line-476"></span><span>  </span><span id="gtk_image_get_pixbuf"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_get_pixbuf"><span class="hs-identifier hs-var">gtk_image_get_pixbuf</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-477"></span><span>
+</span><span id="line-478"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_set_from_pixbuf&quot;</span></span><span>
+</span><span id="line-479"></span><span>  </span><span id="gtk_image_set_from_pixbuf"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_pixbuf"><span class="hs-identifier hs-var">gtk_image_set_from_pixbuf</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-480"></span><span>
+</span><span id="line-481"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_set_from_animation&quot;</span></span><span>
+</span><span id="line-482"></span><span>  </span><span id="gtk_image_set_from_animation"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_animation"><span class="hs-identifier hs-var">gtk_image_set_from_animation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PixbufAnimation"><span class="hs-identifier hs-type">PixbufAnimation</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-483"></span><span>
+</span><span id="line-484"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_set_from_file&quot;</span></span><span>
+</span><span id="line-485"></span><span>  </span><span id="gtk_image_set_from_file"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_file"><span class="hs-identifier hs-var">gtk_image_set_from_file</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-486"></span><span>
+</span><span id="line-487"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_set_from_stock&quot;</span></span><span>
+</span><span id="line-488"></span><span>  </span><span id="gtk_image_set_from_stock"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_stock"><span class="hs-identifier hs-var">gtk_image_set_from_stock</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-489"></span><span>
+</span><span id="line-490"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_set_from_icon_name&quot;</span></span><span>
+</span><span id="line-491"></span><span>  </span><span id="gtk_image_set_from_icon_name"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_from_icon_name"><span class="hs-identifier hs-var">gtk_image_set_from_icon_name</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-492"></span><span>
+</span><span id="line-493"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_set_pixel_size&quot;</span></span><span>
+</span><span id="line-494"></span><span>  </span><span id="gtk_image_set_pixel_size"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_set_pixel_size"><span class="hs-identifier hs-var">gtk_image_set_pixel_size</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-495"></span><span>
+</span><span id="line-496"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_get_pixel_size&quot;</span></span><span>
+</span><span id="line-497"></span><span>  </span><span id="gtk_image_get_pixel_size"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_get_pixel_size"><span class="hs-identifier hs-var">gtk_image_get_pixel_size</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-498"></span><span>
+</span><span id="line-499"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_clear&quot;</span></span><span>
+</span><span id="line-500"></span><span>  </span><span id="gtk_image_clear"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_clear"><span class="hs-identifier hs-var">gtk_image_clear</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-501"></span><span>
+</span><span id="line-502"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gdk_pixbuf_get_type&quot;</span></span><span>
+</span><span id="line-503"></span><span>  </span><span id="gdk_pixbuf_get_type"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gdk_pixbuf_get_type"><span class="hs-identifier hs-var">gdk_pixbuf_get_type</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CULong</span></span><span>
+</span><span id="line-504"></span><span>
+</span><span id="line-505"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gdk_pixmap_get_type&quot;</span></span><span>
+</span><span id="line-506"></span><span>  </span><span id="gdk_pixmap_get_type"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gdk_pixmap_get_type"><span class="hs-identifier hs-var">gdk_pixmap_get_type</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CULong</span></span><span>
+</span><span id="line-507"></span><span>
+</span><span id="line-508"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_get_type&quot;</span></span><span>
+</span><span id="line-509"></span><span>  </span><span id="gtk_image_get_type"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_get_type"><span class="hs-identifier hs-var">gtk_image_get_type</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CULong</span></span><span>
+</span><span id="line-510"></span><span>
+</span><span id="line-511"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_image_type_get_type&quot;</span></span><span>
+</span><span id="line-512"></span><span>  </span><span id="gtk_image_type_get_type"><span class="annot"><a href="Graphics.UI.Gtk.Display.Image.html#gtk_image_type_get_type"><span class="hs-identifier hs-var">gtk_image_type_get_type</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CULong</span></span><span>
+</span><span id="line-513"></span></pre></body></html>

@@ -19,7 +19,7 @@ data Lazy s a
 -- | Run a lazy computation. The final answer is given in the form of a
 --   promise to be fulfilled. If the promises is unfulfilled then an user
 --   supplied default value will be returned.
-runLazy :: (forall s. Promise s a -> Lazy s b) -> a -> a
+runLazy :: (forall s. () => Promise s a -> Lazy s b) -> a -> a
 
 -- | Run a lazy computation. The final answer is given in the form of a
 --   promise to be fulfilled. If the promises is unfulfilled then an
@@ -28,13 +28,13 @@ runLazy :: (forall s. Promise s a -> Lazy s b) -> a -> a
 --   <pre>
 --   <a>runLazy_</a> k ≡ <a>runLazy</a> k (<a>throw</a> <a>BrokenPromise</a>)
 --   </pre>
-runLazy_ :: (forall s. Promise s a -> Lazy s b) -> a
-runLazyIO :: (forall s. Promise s a -> Lazy s b) -> a -> IO a
-runLazyIO_ :: (forall s. Promise s a -> Lazy s b) -> IO a
+runLazy_ :: (forall s. () => Promise s a -> Lazy s b) -> a
+runLazyIO :: (forall s. () => Promise s a -> Lazy s b) -> a -> IO a
+runLazyIO_ :: (forall s. () => Promise s a -> Lazy s b) -> IO a
 
 -- | A lazy I-Var.
 data Promise s a
-[Promise] :: MVar a -> a -> Promise s a
+[Promise] :: forall a s. MVar a -> a -> Promise s a
 
 -- | Promise that by the end of the computation we'll provide a "real"
 --   answer, or we'll fall back and give you this answer
@@ -79,11 +79,11 @@ demand :: Promise s a -> a
 -- | Thrown when the answer for an unfulfillable promise is demanded.
 data BrokenPromise
 BrokenPromise :: BrokenPromise
-instance GHC.Show.Show Data.Promise.BrokenPromise
-instance GHC.Base.Functor (Data.Promise.Lazy s)
-instance GHC.Base.Applicative (Data.Promise.Lazy s)
-instance GHC.Base.Monad (Data.Promise.Lazy s)
+instance GHC.Internal.Base.Applicative (Data.Promise.Lazy s)
+instance GHC.Internal.Exception.Type.Exception Data.Promise.BrokenPromise
+instance GHC.Internal.Base.Functor (Data.Promise.K s)
+instance GHC.Internal.Base.Functor (Data.Promise.Lazy s)
+instance GHC.Internal.Control.Monad.Fix.MonadFix (Data.Promise.Lazy s)
+instance GHC.Internal.Base.Monad (Data.Promise.Lazy s)
 instance Control.Monad.Primitive.PrimMonad (Data.Promise.Lazy s)
-instance Control.Monad.Fix.MonadFix (Data.Promise.Lazy s)
-instance GHC.Base.Functor (Data.Promise.K s)
-instance GHC.Exception.Type.Exception Data.Promise.BrokenPromise
+instance GHC.Internal.Show.Show Data.Promise.BrokenPromise

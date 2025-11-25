@@ -1,0 +1,158 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/Misc/DrawingArea.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget DrawingArea</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Axel Simon</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 22 September 2002</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 1999-2005 Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- A widget for custom user interface elements</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.DrawingArea.html"><span class="hs-identifier">Graphics.UI.Gtk.Misc.DrawingArea</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | The 'DrawingArea' widget is used for creating custom user interface</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- elements. It's essentially a blank widget; you can draw on</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- the 'Drawable' returned by 'drawingAreaGetDrawWindow'.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- After creating a drawing area, the application may want to connect to:</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- * Mouse and button press signals to respond to input from the user.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- * The 'realize' signal to take any necessary actions when the widget is</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- instantiated on a particular display. (Create GDK resources in response to</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- this signal.)</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- * The 'configureEvent' signal to take any necessary actions when the</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- widget changes size.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- * The 'exposeEvent' signal to handle redrawing the contents of the</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- widget.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- Expose events are normally delivered when a drawing area first comes</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- onscreen, or when it's covered by another window and then uncovered</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- (exposed). You can also force an expose event by adding to the \&quot;damage</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- region\&quot; of the drawing area's window; 'widgetQueueDrawArea' and</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- 'windowInvalidateRect' are equally good ways to do this. You\'ll then get an</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- expose event for the invalid region.</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- The available routines for drawing are documented on the GDK Drawing</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- Primitives page.</span><span>
+</span><span id="line-58"></span><span class="hs-comment">--</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- To receive mouse events on a drawing area, you will need to enable them</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- with 'widgetAddEvents'. To receive keyboard events, you will need to set the</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- 'widgetCanFocus' attribute on the drawing area, and should probably draw some</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- user-visible indication that the drawing area is focused.</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | +----'Object'</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | +----'Widget'</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- | +----DrawingArea</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawingArea"><span class="hs-identifier">DrawingArea</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawingAreaClass"><span class="hs-identifier">DrawingAreaClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToDrawingArea"><span class="hs-identifier">castToDrawingArea</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeDrawingArea"><span class="hs-identifier">gTypeDrawingArea</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toDrawingArea"><span class="hs-identifier">toDrawingArea</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaNew"><span class="hs-identifier">drawingAreaNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaGetDrawWindow"><span class="hs-identifier">drawingAreaGetDrawWindow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaGetSize"><span class="hs-identifier">drawingAreaGetSize</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html"><span class="hs-identifier">Graphics.UI.Gtk.Abstract.Object</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier">makeNewObject</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-94"></span><span class="hs-pragma">{-# LINE 94 &quot;./Graphics/UI/Gtk/Misc/DrawingArea.chs&quot; #-}</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html"><span class="hs-identifier">Graphics.UI.Gtk.General.Structs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html#widgetGetDrawWindow"><span class="hs-identifier">widgetGetDrawWindow</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.Structs.html#widgetGetSize"><span class="hs-identifier">widgetGetSize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-pragma">{-# LINE 99 &quot;./Graphics/UI/Gtk/Misc/DrawingArea.chs&quot; #-}</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- | Creates a new drawing area.</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span class="annot"><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaNew"><span class="hs-identifier hs-type">drawingAreaNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawingArea"><span class="hs-identifier hs-type">DrawingArea</span></a></span><span>
+</span><span id="line-106"></span><span id="drawingAreaNew"><span class="annot"><span class="annottext">drawingAreaNew :: IO DrawingArea
+</span><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaNew"><span class="hs-identifier hs-var hs-var">drawingAreaNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr DrawingArea -&gt; DrawingArea, FinalizerPtr DrawingArea)
+-&gt; IO (Ptr DrawingArea) -&gt; IO DrawingArea
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr DrawingArea -&gt; DrawingArea, FinalizerPtr DrawingArea)
+forall {a}. (ForeignPtr DrawingArea -&gt; DrawingArea, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkDrawingArea"><span class="hs-identifier hs-var">mkDrawingArea</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr DrawingArea) -&gt; IO DrawingArea)
+-&gt; IO (Ptr DrawingArea) -&gt; IO DrawingArea
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr DrawingArea)
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr DrawingArea)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr DrawingArea
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawingArea"><span class="hs-identifier hs-type">DrawingArea</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr DrawingArea))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr DrawingArea)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#gtk_drawing_area_new"><span class="hs-identifier hs-var">gtk_drawing_area_new</span></a></span><span>
+</span><span id="line-110"></span><span class="hs-pragma">{-# LINE 110 &quot;./Graphics/UI/Gtk/Misc/DrawingArea.chs&quot; #-}</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | See 'widgetGetDrawWindow'</span><span>
+</span><span id="line-113"></span><span class="hs-comment">--</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- Removed in Gtk3.</span><span>
+</span><span id="line-115"></span><span class="annot"><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaGetDrawWindow"><span class="hs-identifier hs-type">drawingAreaGetDrawWindow</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawingArea"><span class="hs-identifier hs-type">DrawingArea</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawWindow"><span class="hs-identifier hs-type">DrawWindow</span></a></span><span>
+</span><span id="line-116"></span><span id="drawingAreaGetDrawWindow"><span class="annot"><span class="annottext">drawingAreaGetDrawWindow :: DrawingArea -&gt; IO DrawWindow
+</span><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaGetDrawWindow"><span class="hs-identifier hs-var hs-var">drawingAreaGetDrawWindow</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DrawingArea -&gt; IO DrawWindow
+forall widget. WidgetClass widget =&gt; widget -&gt; IO DrawWindow
+</span><a href="Graphics.UI.Gtk.General.Structs.html#widgetGetDrawWindow"><span class="hs-identifier hs-var">widgetGetDrawWindow</span></a></span><span>
+</span><span id="line-117"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">drawingAreaGetDrawWindow</span><span> </span><span class="hs-pragma">&quot;use widgetGetDrawWindow instead&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- | See 'widgetGetSize'</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- Removed in Gtk3.</span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaGetSize"><span class="hs-identifier hs-type">drawingAreaGetSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#DrawingArea"><span class="hs-identifier hs-type">DrawingArea</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span id="drawingAreaGetSize"><span class="annot"><span class="annottext">drawingAreaGetSize :: DrawingArea -&gt; IO (Int, Int)
+</span><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#drawingAreaGetSize"><span class="hs-identifier hs-var hs-var">drawingAreaGetSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DrawingArea -&gt; IO (Int, Int)
+forall widget. WidgetClass widget =&gt; widget -&gt; IO (Int, Int)
+</span><a href="Graphics.UI.Gtk.General.Structs.html#widgetGetSize"><span class="hs-identifier hs-var">widgetGetSize</span></a></span><span>
+</span><span id="line-124"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">drawingAreaGetSize</span><span> </span><span class="hs-pragma">&quot;use widgetGetSize instead&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_drawing_area_new&quot;</span></span><span>
+</span><span id="line-127"></span><span>  </span><span id="gtk_drawing_area_new"><span class="annot"><a href="Graphics.UI.Gtk.Misc.DrawingArea.html#gtk_drawing_area_new"><span class="hs-identifier hs-var">gtk_drawing_area_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span></pre></body></html>

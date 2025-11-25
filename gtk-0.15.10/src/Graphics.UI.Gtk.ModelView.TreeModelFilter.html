@@ -1,0 +1,777 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget TreeModelFilter</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Axel Simon</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 14 January 2008</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 2008 Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- A 'TreeModel' which hides parts of an underlying tree model</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- * Module available since Gtk+ version 2.4</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html"><span class="hs-identifier">Graphics.UI.Gtk.ModelView.TreeModelFilter</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | A 'TreeModelFilter' is a tree model which wraps another tree model, and</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- can do the following things:</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- * Filter specific rows, based on a function that examines each row</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- indicating whether the row should be shown or not, or</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- based on the return value of a visibility function, which is passed</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- the 'TreeIter' of the row and returns a Boolean indicating whether the row should</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- be shown or not.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- * Set a different root node, also known as a \&quot;virtual root\&quot;. You can</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- pass in a 'TreePath' indicating the root node for the filter at construction</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- time.</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | +----TreeModelFilter</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- | +----TypedTreeModelFilter</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier">TreeModelFilter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelFilter"><span class="hs-identifier">TypedTreeModelFilter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier">TreeModelFilterClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToTreeModelFilter"><span class="hs-identifier">castToTreeModelFilter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeTreeModelFilter"><span class="hs-identifier">gTypeTreeModelFilter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toTreeModelFilter"><span class="hs-identifier">toTreeModelFilter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterNew"><span class="hs-identifier">treeModelFilterNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterSetVisibleFunc"><span class="hs-identifier">treeModelFilterSetVisibleFunc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterSetVisibleColumn"><span class="hs-identifier">treeModelFilterSetVisibleColumn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterGetModel"><span class="hs-identifier">treeModelFilterGetModel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertChildIterToIter"><span class="hs-identifier">treeModelFilterConvertChildIterToIter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertIterToChildIter"><span class="hs-identifier">treeModelFilterConvertIterToChildIter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertChildPathToPath"><span class="hs-identifier">treeModelFilterConvertChildPathToPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertPathToChildPath"><span class="hs-identifier">treeModelFilterConvertPathToChildPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterRefilter"><span class="hs-identifier">treeModelFilterRefilter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterClearCache"><span class="hs-identifier">treeModelFilterClearCache</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="annot"><span class="hs-comment">-- * Attributes</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterChildModel"><span class="hs-identifier">treeModelFilterChildModel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterVirtualRoot"><span class="hs-identifier">treeModelFilterVirtualRoot</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Attributes</span></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Properties</span></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-90"></span><span class="hs-pragma">{-# LINE 90 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.ModelView.TreeModel</span><span>
+</span><span id="line-91"></span><span class="hs-pragma">{-# LINE 91 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-91"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.ModelView.Types</span><span>
+</span><span id="line-92"></span><span class="hs-pragma">{-# LINE 92 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-pragma">{-# LINE 94 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- Interfaces</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643137"><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelClass"><span class="hs-identifier hs-type">TreeModelClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelFilter"><span class="hs-identifier hs-type">TypedTreeModelFilter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643137"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643141"><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelFilter"><span class="hs-identifier hs-type">TypedTreeModelFilter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643141"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643260"><span class="annot"><span class="hs-identifier hs-type">GObjectClass</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelFilter"><span class="hs-identifier hs-type">TypedTreeModelFilter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643260"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>  </span><span id="local-6989586621679643264"><span class="annot"><span class="annottext">toGObject :: TypedTreeModelFilter a -&gt; GObject
+</span><a href="#local-6989586621679643264"><span class="hs-identifier hs-var hs-var hs-var">toGObject</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelFilter"><span class="hs-identifier hs-type">TypedTreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643267"><span class="annot"><span class="annottext">ForeignPtr (TypedTreeModelFilter a)
+</span><a href="#local-6989586621679643267"><span class="hs-identifier hs-var">tm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ForeignPtr GObject -&gt; GObject
+</span><span class="hs-identifier hs-var">GObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ForeignPtr (TypedTreeModelFilter a) -&gt; ForeignPtr GObject
+forall a b. ForeignPtr a -&gt; ForeignPtr b
+</span><span class="hs-identifier hs-var">castForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr (TypedTreeModelFilter a)
+</span><a href="#local-6989586621679643267"><span class="hs-identifier hs-var">tm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679643269"><span class="annot"><span class="annottext">unsafeCastGObject :: GObject -&gt; TypedTreeModelFilter a
+</span><a href="#local-6989586621679643269"><span class="hs-identifier hs-var hs-var hs-var">unsafeCastGObject</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ForeignPtr (TypedTreeModelFilter a) -&gt; TypedTreeModelFilter a
+forall row.
+ForeignPtr (TypedTreeModelFilter row) -&gt; TypedTreeModelFilter row
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelFilter"><span class="hs-identifier hs-var">TypedTreeModelFilter</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr (TypedTreeModelFilter a) -&gt; TypedTreeModelFilter a)
+-&gt; (GObject -&gt; ForeignPtr (TypedTreeModelFilter a))
+-&gt; GObject
+-&gt; TypedTreeModelFilter a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr GObject -&gt; ForeignPtr (TypedTreeModelFilter a)
+forall a b. ForeignPtr a -&gt; ForeignPtr b
+</span><span class="hs-identifier hs-var">castForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr GObject -&gt; ForeignPtr (TypedTreeModelFilter a))
+-&gt; (GObject -&gt; ForeignPtr GObject)
+-&gt; GObject
+-&gt; ForeignPtr (TypedTreeModelFilter a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">GObject -&gt; ForeignPtr GObject
+</span><span class="hs-identifier hs-var">unGObject</span></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- %hash c:81e3 d:42cf</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | Creates a new 'TreeModel', with @childModel@ as the child model and</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- @root@ as the virtual root.</span><span>
+</span><span id="line-111"></span><span class="hs-comment">--</span><span>
+</span><span id="line-112"></span><span id="local-6989586621679643152"><span id="local-6989586621679643153"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterNew"><span class="hs-identifier hs-type">treeModelFilterNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelClass"><span class="hs-identifier hs-type">TreeModelClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679643152"><span class="hs-identifier hs-type">childModel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643153"><span class="hs-identifier hs-type">row</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>                       </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelClass"><span class="hs-identifier hs-type">TypedTreeModelClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643152"><span class="hs-identifier hs-type">childModel</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><a href="#local-6989586621679643152"><span class="hs-identifier hs-type">childModel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643153"><span class="hs-identifier hs-type">row</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @childModel@ - A 'TreeModel'.</span></span><span>
+</span><span id="line-115"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @root@ - A 'TreePath' or @[]@.</span></span><span>
+</span><span id="line-116"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelFilter"><span class="hs-identifier hs-type">TypedTreeModelFilter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643153"><span class="hs-identifier hs-type">row</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-117"></span><span id="treeModelFilterNew"><span class="annot"><span class="annottext">treeModelFilterNew :: forall (childModel :: * -&gt; *) row.
+(TreeModelClass (childModel row),
+ TypedTreeModelClass childModel) =&gt;
+childModel row -&gt; TreePath -&gt; IO (TypedTreeModelFilter row)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterNew"><span class="hs-identifier hs-var hs-var">treeModelFilterNew</span></a></span></span><span> </span><span id="local-6989586621679643285"><span class="annot"><span class="annottext">childModel row
+</span><a href="#local-6989586621679643285"><span class="hs-identifier hs-var">childModel</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><span class="annottext">(TreeModelFilter -&gt; TypedTreeModelFilter row)
+-&gt; IO TreeModelFilter -&gt; IO (TypedTreeModelFilter row)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">TreeModelFilter -&gt; TypedTreeModelFilter row
+forall row. TreeModelFilter -&gt; TypedTreeModelFilter row
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#unsafeTreeModelFilterToGeneric"><span class="hs-identifier hs-var">unsafeTreeModelFilterToGeneric</span></a></span><span> </span><span class="annot"><span class="annottext">(IO TreeModelFilter -&gt; IO (TypedTreeModelFilter row))
+-&gt; IO TreeModelFilter -&gt; IO (TypedTreeModelFilter row)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr TreeModelFilter -&gt; TreeModelFilter,
+ FinalizerPtr TreeModelFilter)
+-&gt; IO (Ptr TreeModelFilter) -&gt; IO TreeModelFilter
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">wrapNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr TreeModelFilter -&gt; TreeModelFilter,
+ FinalizerPtr TreeModelFilter)
+forall {a}.
+(ForeignPtr TreeModelFilter -&gt; TreeModelFilter, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkTreeModelFilter"><span class="hs-identifier hs-var">mkTreeModelFilter</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr TreeModelFilter) -&gt; IO TreeModelFilter)
+-&gt; IO (Ptr TreeModelFilter) -&gt; IO TreeModelFilter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><span class="annottext">(Ptr TreeModel -&gt; Ptr TreeModelFilter)
+-&gt; IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelFilter)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr TreeModel -&gt; Ptr TreeModelFilter
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelFilter))
+-&gt; IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelFilter)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span> </span><span id="local-6989586621679643290"><span class="annot"><span class="annottext">ForeignPtr TreeModel
+</span><a href="#local-6989586621679643290"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span> </span><span id="local-6989586621679643292"><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643292"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModel
+-&gt; (Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModel
+</span><a href="#local-6989586621679643290"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel))
+-&gt; (Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643294"><span class="annot"><span class="annottext">Ptr TreeModel
+</span><a href="#local-6989586621679643294"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModel -&gt; Ptr NativeTreePath -&gt; IO (Ptr TreeModel)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_new"><span class="hs-identifier hs-var">gtk_tree_model_filter_new</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModel
+</span><a href="#local-6989586621679643294"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643292"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span class="hs-pragma">{-# LINE 122 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModel</span><span> </span><span class="hs-identifier">childModel</span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr NativeTreePath -&gt; NativeTreePath
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-var">NativeTreePath</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath
+forall a. Ptr a
+</span><span class="hs-identifier hs-var">nullPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterNew"><span class="hs-identifier hs-var">treeModelFilterNew</span></a></span><span> </span><span id="local-6989586621679643298"><span class="annot"><span class="annottext">childModel row
+</span><a href="#local-6989586621679643298"><span class="hs-identifier hs-var">childModel</span></a></span></span><span> </span><span id="local-6989586621679643299"><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643299"><span class="hs-identifier hs-var">root</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><span class="annottext">(TreeModelFilter -&gt; TypedTreeModelFilter row)
+-&gt; IO TreeModelFilter -&gt; IO (TypedTreeModelFilter row)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">TreeModelFilter -&gt; TypedTreeModelFilter row
+forall row. TreeModelFilter -&gt; TypedTreeModelFilter row
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#unsafeTreeModelFilterToGeneric"><span class="hs-identifier hs-var">unsafeTreeModelFilterToGeneric</span></a></span><span> </span><span class="annot"><span class="annottext">(IO TreeModelFilter -&gt; IO (TypedTreeModelFilter row))
+-&gt; IO TreeModelFilter -&gt; IO (TypedTreeModelFilter row)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-126"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr TreeModelFilter -&gt; TreeModelFilter,
+ FinalizerPtr TreeModelFilter)
+-&gt; IO (Ptr TreeModelFilter) -&gt; IO TreeModelFilter
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">wrapNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr TreeModelFilter -&gt; TreeModelFilter,
+ FinalizerPtr TreeModelFilter)
+forall {a}.
+(ForeignPtr TreeModelFilter -&gt; TreeModelFilter, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkTreeModelFilter"><span class="hs-identifier hs-var">mkTreeModelFilter</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr TreeModelFilter) -&gt; IO TreeModelFilter)
+-&gt; IO (Ptr TreeModelFilter) -&gt; IO TreeModelFilter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><span class="annottext">(Ptr TreeModel -&gt; Ptr TreeModelFilter)
+-&gt; IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelFilter)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr TreeModel -&gt; Ptr TreeModelFilter
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelFilter))
+-&gt; IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelFilter)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><span class="annottext">TreePath
+-&gt; (NativeTreePath -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a. TreePath -&gt; (NativeTreePath -&gt; IO a) -&gt; IO a
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#withTreePath"><span class="hs-identifier hs-var">withTreePath</span></a></span><span> </span><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643299"><span class="hs-identifier hs-var">root</span></a></span><span> </span><span class="annot"><span class="annottext">((NativeTreePath -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel))
+-&gt; (NativeTreePath -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643301"><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643301"><span class="hs-identifier hs-var">root</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span> </span><span id="local-6989586621679643302"><span class="annot"><span class="annottext">ForeignPtr TreeModel
+</span><a href="#local-6989586621679643302"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span> </span><span id="local-6989586621679643303"><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643303"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModel
+-&gt; (Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModel
+</span><a href="#local-6989586621679643302"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel))
+-&gt; (Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643304"><span class="annot"><span class="annottext">Ptr TreeModel
+</span><a href="#local-6989586621679643304"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModel -&gt; Ptr NativeTreePath -&gt; IO (Ptr TreeModel)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_new"><span class="hs-identifier hs-var">gtk_tree_model_filter_new</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModel
+</span><a href="#local-6989586621679643304"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643303"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span class="hs-pragma">{-# LINE 130 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModel</span><span> </span><span class="hs-identifier">childModel</span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643301"><span class="hs-identifier hs-var">root</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- %hash c:2349 d:864a</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | Sets the visible function used when filtering the rows to be @func@.</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- The function should return @True@ if the given row should be visible and</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- @False@ otherwise. The passed-in iterator is an iterator of the child</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- model, not of the 'TreeModelFilter' model that is passed in as the first</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- argument to this function.</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- If the condition calculated by the function changes over time (e.g.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- because it depends on some global parameters), you must call</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- 'treeModelFilterRefilter' to keep the visibility information of the model</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- up to date.</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--</span><span>
+</span><span id="line-150"></span><span id="local-6989586621679643179"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterSetVisibleFunc"><span class="hs-identifier hs-type">treeModelFilterSetVisibleFunc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643179"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643179"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-151"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ @func@ - The visible function</span></span><span>
+</span><span id="line-152"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-153"></span><span id="treeModelFilterSetVisibleFunc"><span class="annot"><span class="annottext">treeModelFilterSetVisibleFunc :: forall self.
+TreeModelFilterClass self =&gt;
+self -&gt; (TreeIter -&gt; IO Bool) -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterSetVisibleFunc"><span class="hs-identifier hs-var hs-var">treeModelFilterSetVisibleFunc</span></a></span></span><span> </span><span id="local-6989586621679643312"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643312"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643313"><span class="annot"><span class="annottext">TreeIter -&gt; IO Bool
+</span><a href="#local-6989586621679643313"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-154"></span><span>  </span><span id="local-6989586621679643314"><span class="annot"><a href="#local-6989586621679643314"><span class="hs-identifier hs-var">funcPtr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Ptr TreeModel -&gt; Ptr TreeIter -&gt; Ptr () -&gt; IO CInt)
+-&gt; IO TreeModelFilterVisibleFunc
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#mkTreeModelFilterVisibleFunc"><span class="hs-identifier hs-var">mkTreeModelFilterVisibleFunc</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModel -&gt; Ptr TreeIter -&gt; Ptr () -&gt; IO CInt)
+ -&gt; IO TreeModelFilterVisibleFunc)
+-&gt; (Ptr TreeModel -&gt; Ptr TreeIter -&gt; Ptr () -&gt; IO CInt)
+-&gt; IO TreeModelFilterVisibleFunc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Ptr TreeModel
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679643316"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643316"><span class="hs-identifier hs-var">tiPtr</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-155"></span><span>    </span><span id="local-6989586621679643317"><span class="annot"><a href="#local-6989586621679643317"><span class="hs-identifier hs-var">ti</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter -&gt; IO TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#peekTreeIter"><span class="hs-identifier hs-var">peekTreeIter</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643316"><span class="hs-identifier hs-var">tiPtr</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">liftM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">fromBool</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679643313"><span class="hs-identifier hs-type">func</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643317"><span class="hs-identifier hs-type">ti</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643320"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643320"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643321"><span class="annot"><span class="annottext">TreeModelFilterVisibleFunc
+</span><a href="#local-6989586621679643321"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679643322"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679643322"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621679643323"><span class="annot"><span class="annottext">FunPtr (Ptr () -&gt; IO ())
+</span><a href="#local-6989586621679643323"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643320"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643324"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643324"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+-&gt; TreeModelFilterVisibleFunc
+-&gt; Ptr ()
+-&gt; FunPtr (Ptr () -&gt; IO ())
+-&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_set_visible_func"><span class="hs-identifier hs-var">gtk_tree_model_filter_set_visible_func</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643324"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">TreeModelFilterVisibleFunc
+</span><a href="#local-6989586621679643321"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679643322"><span class="hs-identifier hs-var">arg3</span></a></span><span> </span><span class="annot"><span class="annottext">FunPtr (Ptr () -&gt; IO ())
+</span><a href="#local-6989586621679643323"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span class="hs-pragma">{-# LINE 158 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-158"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679643314"><span class="hs-identifier hs-type">funcPtr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">castFunPtrToPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621679643314"><span class="hs-identifier hs-type">funcPtr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">destroyFunPtr</span></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-keyword">type</span><span> </span><span id="TreeModelFilterVisibleFunc"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#TreeModelFilterVisibleFunc"><span class="hs-identifier hs-var">TreeModelFilterVisibleFunc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span class="hs-pragma">{-# LINE 161 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-string">&quot;wrapper&quot;</span></span><span> </span><span id="mkTreeModelFilterVisibleFunc"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#mkTreeModelFilterVisibleFunc"><span class="hs-identifier hs-var">mkTreeModelFilterVisibleFunc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#TreeModelFilterVisibleFunc"><span class="hs-identifier hs-type">TreeModelFilterVisibleFunc</span></a></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- %hash c:a56d d:b42e</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- | Sets @column@ of the child model to be the column where the filter model</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- should look for visibility information. A row containing @True@ means</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- that this row should be shown.</span><span>
+</span><span id="line-170"></span><span class="hs-comment">--</span><span>
+</span><span id="line-171"></span><span id="local-6989586621679643188"><span id="local-6989586621679643189"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterSetVisibleColumn"><span class="hs-identifier hs-type">treeModelFilterSetVisibleColumn</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-172"></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679643188"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643189"><span class="hs-identifier hs-type">row</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelClass"><span class="hs-identifier hs-type">TypedTreeModelClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643188"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643188"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643189"><span class="hs-identifier hs-type">row</span></a></span><span>
+</span><span id="line-175"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#ColumnId"><span class="hs-identifier hs-type">ColumnId</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643189"><span class="hs-identifier hs-type">row</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ @column@ - A column of Booleans that determines</span><span>
+</span><span id="line-176"></span><span>                      </span><span class="hs-comment">-- if a row is visible</span><span>
+</span><span id="line-177"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-178"></span><span id="treeModelFilterSetVisibleColumn"><span class="annot"><span class="annottext">treeModelFilterSetVisibleColumn :: forall (self :: * -&gt; *) row.
+(TreeModelFilterClass (self row), TypedTreeModelClass self) =&gt;
+self row -&gt; ColumnId row Bool -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterSetVisibleColumn"><span class="hs-identifier hs-var hs-var">treeModelFilterSetVisibleColumn</span></a></span></span><span> </span><span id="local-6989586621679643334"><span class="annot"><span class="annottext">self row
+</span><a href="#local-6989586621679643334"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643335"><span class="annot"><span class="annottext">ColumnId row Bool
+</span><a href="#local-6989586621679643335"><span class="hs-identifier hs-var">col</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643336"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643336"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643337"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679643337"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643336"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643338"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643338"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter -&gt; CInt -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_set_visible_column"><span class="hs-identifier hs-var">gtk_tree_model_filter_set_visible_column</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643338"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679643337"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span class="hs-pragma">{-# LINE 180 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; CInt)
+-&gt; (ColumnId row Bool -&gt; Int) -&gt; ColumnId row Bool -&gt; CInt
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ColumnId row Bool -&gt; Int
+forall row ty. ColumnId row ty -&gt; Int
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModel.html#columnIdToNumber"><span class="hs-identifier hs-var">columnIdToNumber</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ColumnId row Bool
+</span><a href="#local-6989586621679643335"><span class="hs-identifier hs-var">col</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- %hash c:85fb d:a36</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- | Returns a pointer to the child model of @filter@.</span><span>
+</span><span id="line-185"></span><span class="hs-comment">--</span><span>
+</span><span id="line-186"></span><span id="local-6989586621679643197"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterGetModel"><span class="hs-identifier hs-type">treeModelFilterGetModel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643197"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643197"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-187"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns a 'TreeModel'.</span></span><span>
+</span><span id="line-188"></span><span id="treeModelFilterGetModel"><span class="annot"><span class="annottext">treeModelFilterGetModel :: forall self.
+TreeModelFilterClass self =&gt;
+self -&gt; IO (Maybe TreeModel)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterGetModel"><span class="hs-identifier hs-var hs-var">treeModelFilterGetModel</span></a></span></span><span> </span><span id="local-6989586621679643345"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643345"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><span class="annottext">(IO (Ptr TreeModel) -&gt; IO TreeModel)
+-&gt; IO (Ptr TreeModel) -&gt; IO (Maybe TreeModel)
+forall a. (IO (Ptr a) -&gt; IO a) -&gt; IO (Ptr a) -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">maybeNull</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ForeignPtr TreeModel -&gt; TreeModel, FinalizerPtr TreeModel)
+-&gt; IO (Ptr TreeModel) -&gt; IO TreeModel
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr TreeModel -&gt; TreeModel, FinalizerPtr TreeModel)
+forall {a}. (ForeignPtr TreeModel -&gt; TreeModel, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkTreeModel"><span class="hs-identifier hs-var">mkTreeModel</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr TreeModel) -&gt; IO (Maybe TreeModel))
+-&gt; IO (Ptr TreeModel) -&gt; IO (Maybe TreeModel)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643349"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643349"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO (Ptr TreeModel))
+-&gt; IO (Ptr TreeModel)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643349"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel))
+-&gt; (Ptr TreeModelFilter -&gt; IO (Ptr TreeModel))
+-&gt; IO (Ptr TreeModel)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643350"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643350"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter -&gt; IO (Ptr TreeModel)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_get_model"><span class="hs-identifier hs-var">gtk_tree_model_filter_get_model</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643350"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-191"></span><span class="hs-pragma">{-# LINE 191 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-191"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- %hash c:1b93 d:5689</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- | Return an iterator in the sorted model that points to the row pointed to</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- by the given iter from the unfiltered model.</span><span>
+</span><span id="line-196"></span><span class="hs-comment">--</span><span>
+</span><span id="line-197"></span><span id="local-6989586621679643201"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertChildIterToIter"><span class="hs-identifier hs-type">treeModelFilterConvertChildIterToIter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643201"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643201"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-198"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span>
+</span><span id="line-199"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span></span><span>
+</span><span id="line-200"></span><span id="treeModelFilterConvertChildIterToIter"><span class="annot"><span class="annottext">treeModelFilterConvertChildIterToIter :: forall self.
+TreeModelFilterClass self =&gt;
+self -&gt; TreeIter -&gt; IO TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertChildIterToIter"><span class="hs-identifier hs-var hs-var">treeModelFilterConvertChildIterToIter</span></a></span></span><span> </span><span id="local-6989586621679643359"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643359"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643360"><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643360"><span class="hs-identifier hs-var">childIter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-201"></span><span>  </span><span class="annot"><span class="annottext">TreeIter -&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. Storable a =&gt; a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">with</span></span><span> </span><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643360"><span class="hs-identifier hs-var">childIter</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter)
+-&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643362"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643362"><span class="hs-identifier hs-var">childIterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-202"></span><span>  </span><span class="annot"><span class="annottext">(Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter)
+-&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643364"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643364"><span class="hs-identifier hs-var">filterIterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-203"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643365"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643365"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643366"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643366"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679643367"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643367"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643365"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr TreeModelFilter -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643368"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643368"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter -&gt; Ptr TreeIter -&gt; Ptr TreeIter -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_convert_child_iter_to_iter"><span class="hs-identifier hs-var">gtk_tree_model_filter_convert_child_iter_to_iter</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643368"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643366"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643367"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span class="hs-pragma">{-# LINE 204 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-204"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643364"><span class="hs-identifier hs-var">filterIterPtr</span></a></span><span>
+</span><span id="line-206"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643362"><span class="hs-identifier hs-var">childIterPtr</span></a></span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="annottext">Ptr TreeIter -&gt; IO TreeIter
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643364"><span class="hs-identifier hs-var">filterIterPtr</span></a></span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- %hash c:c754 d:c058</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- | Return an iterator in the unfiltered model that points to the row pointed to</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- by the given iter from the filtered model.</span><span>
+</span><span id="line-212"></span><span class="hs-comment">--</span><span>
+</span><span id="line-213"></span><span id="local-6989586621679643371"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertIterToChildIter"><span class="hs-identifier hs-type">treeModelFilterConvertIterToChildIter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643371"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643371"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-214"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span>
+</span><span id="line-215"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span></span><span>
+</span><span id="line-216"></span><span id="treeModelFilterConvertIterToChildIter"><span class="annot"><span class="annottext">treeModelFilterConvertIterToChildIter :: forall self.
+TreeModelFilterClass self =&gt;
+self -&gt; TreeIter -&gt; IO TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertIterToChildIter"><span class="hs-identifier hs-var hs-var">treeModelFilterConvertIterToChildIter</span></a></span></span><span> </span><span id="local-6989586621679643378"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643378"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643379"><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643379"><span class="hs-identifier hs-var">filteredIter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-217"></span><span>  </span><span class="annot"><span class="annottext">TreeIter -&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. Storable a =&gt; a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">with</span></span><span> </span><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643379"><span class="hs-identifier hs-var">filteredIter</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter)
+-&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643380"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643380"><span class="hs-identifier hs-var">filteredIterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-218"></span><span>  </span><span class="annot"><span class="annottext">(Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter)
+-&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643381"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643381"><span class="hs-identifier hs-var">childIterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-219"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643382"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643382"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643383"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643383"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679643384"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643384"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643382"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643385"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643385"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter -&gt; Ptr TreeIter -&gt; Ptr TreeIter -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_convert_iter_to_child_iter"><span class="hs-identifier hs-var">gtk_tree_model_filter_convert_iter_to_child_iter</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643385"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643383"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643384"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span class="hs-pragma">{-# LINE 220 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-220"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643381"><span class="hs-identifier hs-var">childIterPtr</span></a></span><span>
+</span><span id="line-222"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643380"><span class="hs-identifier hs-var">filteredIterPtr</span></a></span><span>
+</span><span id="line-223"></span><span>  </span><span class="annot"><span class="annottext">Ptr TreeIter -&gt; IO TreeIter
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643381"><span class="hs-identifier hs-var">childIterPtr</span></a></span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- %hash c:e4e3 d:57be</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- | Converts the given path to a path relative to the given filtered model.</span><span>
+</span><span id="line-227"></span><span class="hs-comment">--</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- * The given path points to a row in the child model. The returned path will</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- point to the same row in the filtered model.</span><span>
+</span><span id="line-230"></span><span class="hs-comment">--</span><span>
+</span><span id="line-231"></span><span id="local-6989586621679643210"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertChildPathToPath"><span class="hs-identifier hs-type">treeModelFilterConvertChildPathToPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643210"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643210"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-232"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span><span>
+</span><span id="line-233"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span></span><span>
+</span><span id="line-234"></span><span id="treeModelFilterConvertChildPathToPath"><span class="annot"><span class="annottext">treeModelFilterConvertChildPathToPath :: forall self.
+TreeModelFilterClass self =&gt;
+self -&gt; TreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertChildPathToPath"><span class="hs-identifier hs-var hs-var">treeModelFilterConvertChildPathToPath</span></a></span></span><span> </span><span id="local-6989586621679643391"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643391"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TreePath -&gt; IO TreePath
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-235"></span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertChildPathToPath"><span class="hs-identifier hs-var">treeModelFilterConvertChildPathToPath</span></a></span><span> </span><span id="local-6989586621679643392"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643392"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643393"><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643393"><span class="hs-identifier hs-var">childPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-236"></span><span>  </span><span class="annot"><span class="annottext">TreePath -&gt; (NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a. TreePath -&gt; (NativeTreePath -&gt; IO a) -&gt; IO a
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#withTreePath"><span class="hs-identifier hs-var">withTreePath</span></a></span><span> </span><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643393"><span class="hs-identifier hs-var">childPath</span></a></span><span> </span><span class="annot"><span class="annottext">((NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath)
+-&gt; (NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643394"><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643394"><span class="hs-identifier hs-var">childPath</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-237"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643395"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643395"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span> </span><span id="local-6989586621679643396"><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643396"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO (Ptr NativeTreePath))
+-&gt; IO (Ptr NativeTreePath)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643395"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO (Ptr NativeTreePath))
+ -&gt; IO (Ptr NativeTreePath))
+-&gt; (Ptr TreeModelFilter -&gt; IO (Ptr NativeTreePath))
+-&gt; IO (Ptr NativeTreePath)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643397"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643397"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+-&gt; Ptr NativeTreePath -&gt; IO (Ptr NativeTreePath)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_convert_child_path_to_path"><span class="hs-identifier hs-var">gtk_tree_model_filter_convert_child_path_to_path</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643397"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643396"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span class="hs-pragma">{-# LINE 238 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-238"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>    </span><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643394"><span class="hs-identifier hs-var">childPath</span></a></span><span>
+</span><span id="line-240"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr NativeTreePath)
+-&gt; (Ptr NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#fromTreePath"><span class="hs-identifier hs-var">fromTreePath</span></a></span><span>
+</span><span id="line-241"></span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- %hash c:446d d:db70</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- | Converts path in the filtered model to a path on the unfiltered model on which</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- the given 'TreeModelFilter' is based. That is, the given path points to a</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- location in the given 'TreeModelFilter'. The returned path will point to the</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- same location in the underlying unfiltered model.</span><span>
+</span><span id="line-247"></span><span class="hs-comment">--</span><span>
+</span><span id="line-248"></span><span id="local-6989586621679643400"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertPathToChildPath"><span class="hs-identifier hs-type">treeModelFilterConvertPathToChildPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643400"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643400"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-249"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span><span>
+</span><span id="line-250"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span></span><span>
+</span><span id="line-251"></span><span id="treeModelFilterConvertPathToChildPath"><span class="annot"><span class="annottext">treeModelFilterConvertPathToChildPath :: forall self.
+TreeModelFilterClass self =&gt;
+self -&gt; TreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertPathToChildPath"><span class="hs-identifier hs-var hs-var">treeModelFilterConvertPathToChildPath</span></a></span></span><span> </span><span id="local-6989586621679643405"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643405"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TreePath -&gt; IO TreePath
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-252"></span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterConvertPathToChildPath"><span class="hs-identifier hs-var">treeModelFilterConvertPathToChildPath</span></a></span><span> </span><span id="local-6989586621679643406"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643406"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643407"><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643407"><span class="hs-identifier hs-var">filteredPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-253"></span><span>  </span><span class="annot"><span class="annottext">TreePath -&gt; (NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a. TreePath -&gt; (NativeTreePath -&gt; IO a) -&gt; IO a
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#withTreePath"><span class="hs-identifier hs-var">withTreePath</span></a></span><span> </span><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643407"><span class="hs-identifier hs-var">filteredPath</span></a></span><span> </span><span class="annot"><span class="annottext">((NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath)
+-&gt; (NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643408"><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643408"><span class="hs-identifier hs-var">filteredPath</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-254"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643409"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643409"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span> </span><span id="local-6989586621679643410"><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643410"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO (Ptr NativeTreePath))
+-&gt; IO (Ptr NativeTreePath)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643409"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO (Ptr NativeTreePath))
+ -&gt; IO (Ptr NativeTreePath))
+-&gt; (Ptr TreeModelFilter -&gt; IO (Ptr NativeTreePath))
+-&gt; IO (Ptr NativeTreePath)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643411"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643411"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+-&gt; Ptr NativeTreePath -&gt; IO (Ptr NativeTreePath)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_convert_path_to_child_path"><span class="hs-identifier hs-var">gtk_tree_model_filter_convert_path_to_child_path</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643411"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643410"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-255"></span><span class="hs-pragma">{-# LINE 255 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-255"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-256"></span><span>    </span><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643408"><span class="hs-identifier hs-var">filteredPath</span></a></span><span>
+</span><span id="line-257"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr NativeTreePath)
+-&gt; (Ptr NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#fromTreePath"><span class="hs-identifier hs-var">fromTreePath</span></a></span><span>
+</span><span id="line-258"></span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- %hash c:ed0b d:1a19</span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- | Emits 'rowChanged' for each row in the child model, which causes the</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- filter to re-evaluate whether a row is visible or not.</span><span>
+</span><span id="line-262"></span><span class="hs-comment">--</span><span>
+</span><span id="line-263"></span><span id="local-6989586621679643218"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterRefilter"><span class="hs-identifier hs-type">treeModelFilterRefilter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643218"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643218"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-264"></span><span id="treeModelFilterRefilter"><span class="annot"><span class="annottext">treeModelFilterRefilter :: forall self. TreeModelFilterClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterRefilter"><span class="hs-identifier hs-var hs-var">treeModelFilterRefilter</span></a></span></span><span> </span><span id="local-6989586621679643416"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643416"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-265"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643417"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643417"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643417"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643418"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643418"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_refilter"><span class="hs-identifier hs-var">gtk_tree_model_filter_refilter</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643418"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-266"></span><span class="hs-pragma">{-# LINE 266 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-266"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- %hash c:ae64 d:a3b3</span><span>
+</span><span id="line-269"></span><span class="hs-comment">-- | This function should almost never be called. It clears the @filter@ of</span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- any cached iterators that haven't been reffed with 'treeModelRefNode'. This</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- might be useful if the child model being filtered is static (and doesn't</span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- change often) and there has been a lot of unreffed access to nodes. As a</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- side effect of this function, all unreffed iters will be invalid.</span><span>
+</span><span id="line-274"></span><span class="hs-comment">--</span><span>
+</span><span id="line-275"></span><span id="local-6989586621679643421"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterClearCache"><span class="hs-identifier hs-type">treeModelFilterClearCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643421"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-276"></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643421"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @filter@ - the filter model</span></span><span>
+</span><span id="line-277"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-278"></span><span id="treeModelFilterClearCache"><span class="annot"><span class="annottext">treeModelFilterClearCache :: forall self. TreeModelFilterClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterClearCache"><span class="hs-identifier hs-var hs-var">treeModelFilterClearCache</span></a></span></span><span> </span><span id="local-6989586621679643424"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643424"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-279"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span> </span><span id="local-6989586621679643425"><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643425"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelFilter
+</span><a href="#local-6989586621679643425"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr TreeModelFilter -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643426"><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643426"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelFilter -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_clear_cache"><span class="hs-identifier hs-var">gtk_tree_model_filter_clear_cache</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelFilter
+</span><a href="#local-6989586621679643426"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-280"></span><span class="hs-pragma">{-# LINE 280 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-280"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelFilter</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- Attributes</span><span>
+</span><span id="line-284"></span><span>
+</span><span id="line-285"></span><span class="hs-comment">-- %hash c:8630 d:81a7</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- | The model for the filtermodel to filter.</span><span>
+</span><span id="line-287"></span><span class="hs-comment">--</span><span>
+</span><span id="line-288"></span><span id="local-6989586621679643221"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterChildModel"><span class="hs-identifier hs-type">treeModelFilterChildModel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643221"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadAttr</span></span><span> </span><span class="annot"><a href="#local-6989586621679643221"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span></span><span>
+</span><span id="line-289"></span><span id="treeModelFilterChildModel"><span class="annot"><span class="annottext">treeModelFilterChildModel :: forall self. TreeModelFilterClass self =&gt; ReadAttr self TreeModel
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterChildModel"><span class="hs-identifier hs-var hs-var">treeModelFilterChildModel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; GType -&gt; ReadAttr self TreeModel
+forall gobj gobj'.
+(GObjectClass gobj, GObjectClass gobj') =&gt;
+String -&gt; GType -&gt; ReadAttr gobj gobj'
+</span><span class="hs-identifier hs-var">readAttrFromObjectProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;child-model&quot;</span></span><span>
+</span><span id="line-290"></span><span>                              </span><span class="annot"><span class="annottext">GType
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_get_type"><span class="hs-identifier hs-var">gtk_tree_model_get_type</span></a></span><span>
+</span><span id="line-291"></span><span class="hs-pragma">{-# LINE 291 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-291"></span><span>
+</span><span id="line-292"></span><span class="hs-comment">-- %hash c:263d d:2dd5</span><span>
+</span><span id="line-293"></span><span class="hs-comment">-- | The virtual root (relative to the child model) for this filtermodel.</span><span>
+</span><span id="line-294"></span><span class="hs-comment">--</span><span>
+</span><span id="line-295"></span><span id="local-6989586621679643227"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterVirtualRoot"><span class="hs-identifier hs-type">treeModelFilterVirtualRoot</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilterClass"><span class="hs-identifier hs-type">TreeModelFilterClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643227"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadAttr</span></span><span> </span><span class="annot"><a href="#local-6989586621679643227"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span></span><span>
+</span><span id="line-296"></span><span id="treeModelFilterVirtualRoot"><span class="annot"><span class="annottext">treeModelFilterVirtualRoot :: forall self. TreeModelFilterClass self =&gt; ReadAttr self TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#treeModelFilterVirtualRoot"><span class="hs-identifier hs-var hs-var">treeModelFilterVirtualRoot</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Ptr TreePath -&gt; IO TreePath)
+-&gt; String -&gt; GType -&gt; ReadAttr self TreePath
+forall gobj boxed.
+GObjectClass gobj =&gt;
+(Ptr boxed -&gt; IO boxed) -&gt; String -&gt; GType -&gt; ReadAttr gobj boxed
+</span><span class="hs-identifier hs-var">readAttrFromBoxedOpaqueProperty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr NativeTreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#peekTreePath"><span class="hs-identifier hs-var">peekTreePath</span></a></span><span> </span><span class="annot"><span class="annottext">(Ptr NativeTreePath -&gt; IO TreePath)
+-&gt; (Ptr TreePath -&gt; Ptr NativeTreePath)
+-&gt; Ptr TreePath
+-&gt; IO TreePath
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Ptr TreePath -&gt; Ptr NativeTreePath
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-297"></span><span>                             </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;virtual-root&quot;</span></span><span>
+</span><span id="line-298"></span><span>                             </span><span class="annot"><span class="annottext">GType
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_path_get_type"><span class="hs-identifier hs-var">gtk_tree_path_get_type</span></a></span><span>
+</span><span id="line-299"></span><span class="hs-pragma">{-# LINE 299 &quot;./Graphics/UI/Gtk/ModelView/TreeModelFilter.chs&quot; #-}</span><span>
+</span><span id="line-299"></span><span>
+</span><span id="line-300"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_new&quot;</span></span><span>
+</span><span id="line-301"></span><span>  </span><span id="gtk_tree_model_filter_new"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_new"><span class="hs-identifier hs-var">gtk_tree_model_filter_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-302"></span><span>
+</span><span id="line-303"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_set_visible_func&quot;</span></span><span>
+</span><span id="line-304"></span><span>  </span><span id="gtk_tree_model_filter_set_visible_func"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_set_visible_func"><span class="hs-identifier hs-var">gtk_tree_model_filter_set_visible_func</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-305"></span><span>
+</span><span id="line-306"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_set_visible_column&quot;</span></span><span>
+</span><span id="line-307"></span><span>  </span><span id="gtk_tree_model_filter_set_visible_column"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_set_visible_column"><span class="hs-identifier hs-var">gtk_tree_model_filter_set_visible_column</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-308"></span><span>
+</span><span id="line-309"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_get_model&quot;</span></span><span>
+</span><span id="line-310"></span><span>  </span><span id="gtk_tree_model_filter_get_model"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_get_model"><span class="hs-identifier hs-var">gtk_tree_model_filter_get_model</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-311"></span><span>
+</span><span id="line-312"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_convert_child_iter_to_iter&quot;</span></span><span>
+</span><span id="line-313"></span><span>  </span><span id="gtk_tree_model_filter_convert_child_iter_to_iter"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_convert_child_iter_to_iter"><span class="hs-identifier hs-var">gtk_tree_model_filter_convert_child_iter_to_iter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-314"></span><span>
+</span><span id="line-315"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_convert_iter_to_child_iter&quot;</span></span><span>
+</span><span id="line-316"></span><span>  </span><span id="gtk_tree_model_filter_convert_iter_to_child_iter"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_convert_iter_to_child_iter"><span class="hs-identifier hs-var">gtk_tree_model_filter_convert_iter_to_child_iter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-317"></span><span>
+</span><span id="line-318"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_convert_child_path_to_path&quot;</span></span><span>
+</span><span id="line-319"></span><span>  </span><span id="gtk_tree_model_filter_convert_child_path_to_path"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_convert_child_path_to_path"><span class="hs-identifier hs-var">gtk_tree_model_filter_convert_child_path_to_path</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-320"></span><span>
+</span><span id="line-321"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_convert_path_to_child_path&quot;</span></span><span>
+</span><span id="line-322"></span><span>  </span><span id="gtk_tree_model_filter_convert_path_to_child_path"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_convert_path_to_child_path"><span class="hs-identifier hs-var">gtk_tree_model_filter_convert_path_to_child_path</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-323"></span><span>
+</span><span id="line-324"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_refilter&quot;</span></span><span>
+</span><span id="line-325"></span><span>  </span><span id="gtk_tree_model_filter_refilter"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_refilter"><span class="hs-identifier hs-var">gtk_tree_model_filter_refilter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-326"></span><span>
+</span><span id="line-327"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_filter_clear_cache&quot;</span></span><span>
+</span><span id="line-328"></span><span>  </span><span id="gtk_tree_model_filter_clear_cache"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_filter_clear_cache"><span class="hs-identifier hs-var">gtk_tree_model_filter_clear_cache</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelFilter"><span class="hs-identifier hs-type">TreeModelFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-329"></span><span>
+</span><span id="line-330"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_get_type&quot;</span></span><span>
+</span><span id="line-331"></span><span>  </span><span id="gtk_tree_model_get_type"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_model_get_type"><span class="hs-identifier hs-var">gtk_tree_model_get_type</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CULong</span></span><span>
+</span><span id="line-332"></span><span>
+</span><span id="line-333"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_path_get_type&quot;</span></span><span>
+</span><span id="line-334"></span><span>  </span><span id="gtk_tree_path_get_type"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelFilter.html#gtk_tree_path_get_type"><span class="hs-identifier hs-var">gtk_tree_path_get_type</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CULong</span></span><span>
+</span><span id="line-335"></span></pre></body></html>

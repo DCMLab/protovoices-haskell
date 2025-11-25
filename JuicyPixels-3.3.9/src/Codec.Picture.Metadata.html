@@ -1,0 +1,852 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ExistentialQuantification #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- | This module expose a common &quot;metadata&quot; storage for various image</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- type. Different format can generate different metadatas, and write</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- only a part of them.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Since version 3.2.5</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html"><span class="hs-identifier">Codec.Picture.Metadata</span></a></span><span class="hs-special">(</span><span> </span><span class="hs-comment">-- * Types</span><span>
+</span><span id="line-15"></span><span>                               </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier">Metadatas</span></a></span><span>
+</span><span id="line-16"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier">Keys</span></a></span><span class="hs-special">(</span><span> </span><span class="hs-glyph">..</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Value"><span class="hs-identifier">Value</span></a></span><span class="hs-special">(</span><span> </span><span class="hs-glyph">..</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Elem"><span class="hs-identifier">Elem</span></a></span><span class="hs-special">(</span><span> </span><span class="hs-glyph">..</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#SourceFormat"><span class="hs-identifier">SourceFormat</span></a></span><span class="hs-special">(</span><span> </span><span class="hs-glyph">..</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#ColorSpace"><span class="hs-identifier">ColorSpace</span></a></span><span class="hs-special">(</span><span> </span><span class="hs-glyph">..</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span>                               </span><span class="hs-comment">-- * Functions</span><span>
+</span><span id="line-23"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#lookup"><span class="hs-identifier">Codec.Picture.Metadata.lookup</span></a></span><span>
+</span><span id="line-24"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#empty"><span class="hs-identifier">empty</span></a></span><span>
+</span><span id="line-25"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#insert"><span class="hs-identifier">insert</span></a></span><span>
+</span><span id="line-26"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#delete"><span class="hs-identifier">delete</span></a></span><span>
+</span><span id="line-27"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#singleton"><span class="hs-identifier">singleton</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>                               </span><span class="hs-comment">-- * Folding</span><span>
+</span><span id="line-30"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#foldl%27"><span class="hs-identifier">foldl'</span></a></span><span>
+</span><span id="line-31"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#foldMap"><span class="hs-identifier">Codec.Picture.Metadata.foldMap</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>                              </span><span class="hs-comment">-- * Helper functions</span><span>
+</span><span id="line-34"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#mkDpiMetadata"><span class="hs-identifier">mkDpiMetadata</span></a></span><span>
+</span><span id="line-35"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#mkSizeMetadata"><span class="hs-identifier">mkSizeMetadata</span></a></span><span>
+</span><span id="line-36"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#basicMetadata"><span class="hs-identifier">basicMetadata</span></a></span><span>
+</span><span id="line-37"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#simpleMetadata"><span class="hs-identifier">simpleMetadata</span></a></span><span>
+</span><span id="line-38"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#extractExifMetas"><span class="hs-identifier">extractExifMetas</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>                               </span><span class="hs-comment">-- * Conversion functions</span><span>
+</span><span id="line-41"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#dotsPerMeterToDotPerInch"><span class="hs-identifier">dotsPerMeterToDotPerInch</span></a></span><span>
+</span><span id="line-42"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#dotPerInchToDotsPerMeter"><span class="hs-identifier">dotPerInchToDotsPerMeter</span></a></span><span> </span><span>
+</span><span id="line-43"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#dotsPerCentiMeterToDotPerInch"><span class="hs-identifier">dotsPerCentiMeterToDotPerInch</span></a></span><span>
+</span><span id="line-44"></span><span>                             </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Foldable</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if !MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Monoid</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Monoid</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mempty</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Word</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Word</span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">(</span><span> </span><span class="hs-glyph">..</span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">F</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.Exif.html"><span class="hs-identifier">Codec.Picture.Metadata.Exif</span></a></span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,7,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-operator">(:~:)</span></span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Refl</span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">type</span><span> </span><span id="Equiv"><span class="annot"><a href="Codec.Picture.Metadata.html#Equiv"><span class="hs-identifier hs-var">Equiv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-operator hs-type">(:~:)</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">Equiv</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-identifier">Refl</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Equiv</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">a</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Type describing the original file format of the file.</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">data</span><span> </span><span id="SourceFormat"><span class="annot"><a href="Codec.Picture.Metadata.html#SourceFormat"><span class="hs-identifier hs-var">SourceFormat</span></a></span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="SourceJpeg"><span class="annot"><a href="Codec.Picture.Metadata.html#SourceJpeg"><span class="hs-identifier hs-var">SourceJpeg</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SourceGif"><span class="annot"><a href="Codec.Picture.Metadata.html#SourceGif"><span class="hs-identifier hs-var">SourceGif</span></a></span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SourceBitmap"><span class="annot"><a href="Codec.Picture.Metadata.html#SourceBitmap"><span class="hs-identifier hs-var">SourceBitmap</span></a></span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SourceTiff"><span class="annot"><a href="Codec.Picture.Metadata.html#SourceTiff"><span class="hs-identifier hs-var">SourceTiff</span></a></span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SourcePng"><span class="annot"><a href="Codec.Picture.Metadata.html#SourcePng"><span class="hs-identifier hs-var">SourcePng</span></a></span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SourceHDR"><span class="annot"><a href="Codec.Picture.Metadata.html#SourceHDR"><span class="hs-identifier hs-var">SourceHDR</span></a></span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SourceTGA"><span class="annot"><a href="Codec.Picture.Metadata.html#SourceTGA"><span class="hs-identifier hs-var">SourceTGA</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679222027"><span id="local-6989586621679222032"><span class="annot"><span class="annottext">SourceFormat -&gt; SourceFormat -&gt; Bool
+(SourceFormat -&gt; SourceFormat -&gt; Bool)
+-&gt; (SourceFormat -&gt; SourceFormat -&gt; Bool) -&gt; Eq SourceFormat
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SourceFormat -&gt; SourceFormat -&gt; Bool
+== :: SourceFormat -&gt; SourceFormat -&gt; Bool
+$c/= :: SourceFormat -&gt; SourceFormat -&gt; Bool
+/= :: SourceFormat -&gt; SourceFormat -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679222037"><span id="local-6989586621679222039"><span id="local-6989586621679222043"><span class="annot"><span class="annottext">Int -&gt; SourceFormat -&gt; ShowS
+[SourceFormat] -&gt; ShowS
+SourceFormat -&gt; String
+(Int -&gt; SourceFormat -&gt; ShowS)
+-&gt; (SourceFormat -&gt; String)
+-&gt; ([SourceFormat] -&gt; ShowS)
+-&gt; Show SourceFormat
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SourceFormat -&gt; ShowS
+showsPrec :: Int -&gt; SourceFormat -&gt; ShowS
+$cshow :: SourceFormat -&gt; String
+show :: SourceFormat -&gt; String
+$cshowList :: [SourceFormat] -&gt; ShowS
+showList :: [SourceFormat] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#SourceFormat"><span class="hs-identifier hs-type">SourceFormat</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621679222050"><span class="annot"><span class="annottext">rnf :: SourceFormat -&gt; ()
+</span><a href="#local-6989586621679222050"><span class="hs-identifier hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span id="local-6989586621679222052"><span class="annot"><span class="annottext">SourceFormat
+</span><a href="#local-6989586621679222052"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SourceFormat
+</span><a href="#local-6989586621679222052"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">SourceFormat -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | The same color values may result in slightly different colors on different</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- devices. To get consistent colors accross multiple devices we need a way of</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- mapping color values from a source device into their equivalents on the</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- target device.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- The solution is essentially to define, for each device, a family of mappings</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- that convert between device colors and standard CIEXYZ or CIELAB colors. The</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- collection of mappings for a device is known as the 'color-profile' of that</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- device, and each color-profile can be thought of as describing a</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- 'color-space'.</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- If we know the color-space of the input pixels, and the color space of the</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- output device, then we can convert the colors in the image to their</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- equivalents on the output device.</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- JuicyPixels does not parse color-profiles or attempt to perform color</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- correction.</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- The following color space types are recognised:</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--   * sRGB: Standard RGB color space.</span><span>
+</span><span id="line-103"></span><span class="hs-comment">--   * Windows BMP color space: Color space information embedded within a V4</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--         Windows BMP file.</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--   * ICC profile: An ICC color profile.</span><span>
+</span><span id="line-106"></span><span class="hs-keyword">data</span><span> </span><span id="ColorSpace"><span class="annot"><a href="Codec.Picture.Metadata.html#ColorSpace"><span class="hs-identifier hs-var">ColorSpace</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SRGB"><span class="annot"><a href="Codec.Picture.Metadata.html#SRGB"><span class="hs-identifier hs-var">SRGB</span></a></span></span><span>
+</span><span id="line-107"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="WindowsBitmapColorSpace"><span class="annot"><a href="Codec.Picture.Metadata.html#WindowsBitmapColorSpace"><span class="hs-identifier hs-var">WindowsBitmapColorSpace</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-108"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="ICCProfile"><span class="annot"><a href="Codec.Picture.Metadata.html#ICCProfile"><span class="hs-identifier hs-var">ICCProfile</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-109"></span><span>                </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679222057"><span id="local-6989586621679222064"><span class="annot"><span class="annottext">ColorSpace -&gt; ColorSpace -&gt; Bool
+(ColorSpace -&gt; ColorSpace -&gt; Bool)
+-&gt; (ColorSpace -&gt; ColorSpace -&gt; Bool) -&gt; Eq ColorSpace
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ColorSpace -&gt; ColorSpace -&gt; Bool
+== :: ColorSpace -&gt; ColorSpace -&gt; Bool
+$c/= :: ColorSpace -&gt; ColorSpace -&gt; Bool
+/= :: ColorSpace -&gt; ColorSpace -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679222068"><span id="local-6989586621679222075"><span id="local-6989586621679222079"><span class="annot"><span class="annottext">Int -&gt; ColorSpace -&gt; ShowS
+[ColorSpace] -&gt; ShowS
+ColorSpace -&gt; String
+(Int -&gt; ColorSpace -&gt; ShowS)
+-&gt; (ColorSpace -&gt; String)
+-&gt; ([ColorSpace] -&gt; ShowS)
+-&gt; Show ColorSpace
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ColorSpace -&gt; ShowS
+showsPrec :: Int -&gt; ColorSpace -&gt; ShowS
+$cshow :: ColorSpace -&gt; String
+show :: ColorSpace -&gt; String
+$cshowList :: [ColorSpace] -&gt; ShowS
+showList :: [ColorSpace] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#ColorSpace"><span class="hs-identifier hs-type">ColorSpace</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>  </span><span id="local-6989586621679222083"><span class="annot"><span class="annottext">rnf :: ColorSpace -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var">rnf</span></span></span><span> </span><span id="local-6989586621679222084"><span class="annot"><span class="annottext">ColorSpace
+</span><a href="#local-6989586621679222084"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ColorSpace
+</span><a href="#local-6989586621679222084"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">ColorSpace -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- | Store various additional information about an image. If</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- something is not recognized, it can be stored in an unknown tag.</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--   * 'DpiX' Dot per inch on this x axis.</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span class="hs-comment">--   * 'DpiY' Dot per inch on this y axis.</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--   * 'Width' Image width in pixel. Relying on the metadata for this</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--          information can avoid the full decompression of the image.</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--          Ignored for image writing.</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--   * 'Height' Image height in pixels. Relying on the metadata for this</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--          information can void the full decompression of the image.</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--          Ignored for image writing.</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--   * 'ColorProfile' An unparsed ICC color profile. Currently only supported by</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--          the Bitmap format.</span><span>
+</span><span id="line-131"></span><span class="hs-comment">--</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--   * 'Unknown' unlikely to be decoded, but usefull for metadata writing</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--   * 'Exif' Exif tag and associated data.</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span class="hs-keyword">data</span><span> </span><span id="Keys"><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-var">Keys</span></a></span></span><span> </span><span id="local-6989586621679222091"><span class="annot"><a href="#local-6989586621679222091"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-137"></span><span>  </span><span id="Gamma"><span class="annot"><a href="Codec.Picture.Metadata.html#Gamma"><span class="hs-identifier hs-var">Gamma</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-138"></span><span>  </span><span id="ColorSpace"><span class="annot"><a href="Codec.Picture.Metadata.html#ColorSpace"><span class="hs-identifier hs-var">ColorSpace</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#ColorSpace"><span class="hs-identifier hs-type">ColorSpace</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span id="Format"><span class="annot"><a href="Codec.Picture.Metadata.html#Format"><span class="hs-identifier hs-var">Format</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#SourceFormat"><span class="hs-identifier hs-type">SourceFormat</span></a></span><span>
+</span><span id="line-140"></span><span>  </span><span id="DpiX"><span class="annot"><a href="Codec.Picture.Metadata.html#DpiX"><span class="hs-identifier hs-var">DpiX</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-141"></span><span>  </span><span id="DpiY"><span class="annot"><a href="Codec.Picture.Metadata.html#DpiY"><span class="hs-identifier hs-var">DpiY</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-142"></span><span>  </span><span id="Width"><span class="annot"><a href="Codec.Picture.Metadata.html#Width"><span class="hs-identifier hs-var">Width</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-143"></span><span>  </span><span id="Height"><span class="annot"><a href="Codec.Picture.Metadata.html#Height"><span class="hs-identifier hs-var">Height</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-144"></span><span>  </span><span id="Title"><span class="annot"><a href="Codec.Picture.Metadata.html#Title"><span class="hs-identifier hs-var">Title</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-145"></span><span>  </span><span id="Description"><span class="annot"><a href="Codec.Picture.Metadata.html#Description"><span class="hs-identifier hs-var">Description</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-146"></span><span>  </span><span id="Author"><span class="annot"><a href="Codec.Picture.Metadata.html#Author"><span class="hs-identifier hs-var">Author</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-147"></span><span>  </span><span id="Copyright"><span class="annot"><a href="Codec.Picture.Metadata.html#Copyright"><span class="hs-identifier hs-var">Copyright</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-148"></span><span>  </span><span id="Software"><span class="annot"><a href="Codec.Picture.Metadata.html#Software"><span class="hs-identifier hs-var">Software</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-149"></span><span>  </span><span id="Comment"><span class="annot"><a href="Codec.Picture.Metadata.html#Comment"><span class="hs-identifier hs-var">Comment</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-150"></span><span>  </span><span id="Disclaimer"><span class="annot"><a href="Codec.Picture.Metadata.html#Disclaimer"><span class="hs-identifier hs-var">Disclaimer</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-151"></span><span>  </span><span id="Source"><span class="annot"><a href="Codec.Picture.Metadata.html#Source"><span class="hs-identifier hs-var">Source</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-152"></span><span>  </span><span id="Warning"><span class="annot"><a href="Codec.Picture.Metadata.html#Warning"><span class="hs-identifier hs-var">Warning</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-153"></span><span>  </span><span id="Exif"><span class="annot"><a href="Codec.Picture.Metadata.html#Exif"><span class="hs-identifier hs-var">Exif</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Codec.Picture.Metadata.Exif.html#ExifTag"><span class="hs-identifier hs-type">ExifTag</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.Exif.html#ExifData"><span class="hs-identifier hs-type">ExifData</span></a></span><span>
+</span><span id="line-154"></span><span>  </span><span id="Unknown"><span class="annot"><a href="Codec.Picture.Metadata.html#Unknown"><span class="hs-identifier hs-var">Unknown</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span id="local-6989586621679221876"><span id="local-6989586621679222105"><span id="local-6989586621679222107"><span id="local-6989586621679222110"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221876"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-157"></span><span id="local-6989586621679221877"><span id="local-6989586621679222113"><span id="local-6989586621679222117"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221877"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-158"></span><span class="hs-comment">{-deriving instance Ord (Keys a)-}</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- | Encode values for unknown information</span><span>
+</span><span id="line-161"></span><span class="hs-keyword">data</span><span> </span><span id="Value"><span class="annot"><a href="Codec.Picture.Metadata.html#Value"><span class="hs-identifier hs-var">Value</span></a></span></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Int"><span class="annot"><a href="Codec.Picture.Metadata.html#Int"><span class="hs-identifier hs-var">Int</span></a></span></span><span>    </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Double"><span class="annot"><a href="Codec.Picture.Metadata.html#Double"><span class="hs-identifier hs-var">Double</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="String"><span class="annot"><a href="Codec.Picture.Metadata.html#String"><span class="hs-identifier hs-var">String</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679222124"><span id="local-6989586621679222134"><span class="annot"><span class="annottext">Value -&gt; Value -&gt; Bool
+(Value -&gt; Value -&gt; Bool) -&gt; (Value -&gt; Value -&gt; Bool) -&gt; Eq Value
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Value -&gt; Value -&gt; Bool
+== :: Value -&gt; Value -&gt; Bool
+$c/= :: Value -&gt; Value -&gt; Bool
+/= :: Value -&gt; Value -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679222138"><span id="local-6989586621679222149"><span id="local-6989586621679222153"><span class="annot"><span class="annottext">Int -&gt; Value -&gt; ShowS
+[Value] -&gt; ShowS
+Value -&gt; String
+(Int -&gt; Value -&gt; ShowS)
+-&gt; (Value -&gt; String) -&gt; ([Value] -&gt; ShowS) -&gt; Show Value
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Value -&gt; ShowS
+showsPrec :: Int -&gt; Value -&gt; ShowS
+$cshow :: Value -&gt; String
+show :: Value -&gt; String
+$cshowList :: [Value] -&gt; ShowS
+showList :: [Value] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>  </span><span id="local-6989586621679222157"><span class="annot"><span class="annottext">rnf :: Value -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var">rnf</span></span></span><span> </span><span id="local-6989586621679222158"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679222158"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679222158"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Value -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- everything is strict, so it's OK</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | Element describing a metadata and it's (typed) associated</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- value.</span><span>
+</span><span id="line-172"></span><span class="hs-keyword">data</span><span> </span><span id="Elem"><span class="annot"><a href="Codec.Picture.Metadata.html#Elem"><span class="hs-identifier hs-var">Elem</span></a></span></span><span> </span><span id="local-6989586621679221921"><span class="annot"><a href="#local-6989586621679221921"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679222159"><span class="annot"><a href="#local-6989586621679222159"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679222159"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679222159"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679221921"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222159"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span id="%3A%3D%3E"><span class="annot"><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679222159"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span id="local-6989586621679222162"><span id="local-6989586621679222164"><span id="local-6989586621679222168"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.html#Elem"><span class="hs-identifier hs-type">Elem</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.html#Elem"><span class="hs-identifier hs-type">Elem</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-178"></span><span>  </span><span id="local-6989586621679222172"><span class="annot"><span class="annottext">rnf :: Elem Keys -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var">rnf</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-type">:=&gt;</span></a></span><span> </span><span id="local-6989586621679222176"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679222176"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><span class="hs-identifier hs-var">rnf</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679222176"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span id="local-6989586621679221881"><span id="local-6989586621679221882"><span class="annot"><a href="Codec.Picture.Metadata.html#keyEq"><span class="hs-identifier hs-type">keyEq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221881"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221882"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.html#Equiv"><span class="hs-identifier hs-type">Equiv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221881"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221882"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-181"></span><span id="keyEq"><span class="annot"><span class="annottext">keyEq :: forall a b. Keys a -&gt; Keys b -&gt; Maybe (Equiv a b)
+</span><a href="Codec.Picture.Metadata.html#keyEq"><span class="hs-identifier hs-var hs-var">keyEq</span></a></span></span><span> </span><span id="local-6989586621679222178"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222178"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679222179"><span class="annot"><span class="annottext">Keys b
+</span><a href="#local-6989586621679222179"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222178"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="#local-6989586621679222179"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Gamma"><span class="hs-identifier hs-var">Gamma</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Gamma"><span class="hs-identifier hs-var">Gamma</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-183"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#ColorSpace"><span class="hs-identifier hs-var">ColorSpace</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#ColorSpace"><span class="hs-identifier hs-var">ColorSpace</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#DpiX"><span class="hs-identifier hs-var">DpiX</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#DpiX"><span class="hs-identifier hs-var">DpiX</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#DpiY"><span class="hs-identifier hs-var">DpiY</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#DpiY"><span class="hs-identifier hs-var">DpiY</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Width"><span class="hs-identifier hs-var">Width</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Width"><span class="hs-identifier hs-var">Width</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Height"><span class="hs-identifier hs-var">Height</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Height"><span class="hs-identifier hs-var">Height</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Title"><span class="hs-identifier hs-var">Title</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Title"><span class="hs-identifier hs-var">Title</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Description"><span class="hs-identifier hs-var">Description</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Description"><span class="hs-identifier hs-var">Description</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Author"><span class="hs-identifier hs-var">Author</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Author"><span class="hs-identifier hs-var">Author</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Copyright"><span class="hs-identifier hs-var">Copyright</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Copyright"><span class="hs-identifier hs-var">Copyright</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Software"><span class="hs-identifier hs-var">Software</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Software"><span class="hs-identifier hs-var">Software</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Comment"><span class="hs-identifier hs-var">Comment</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Comment"><span class="hs-identifier hs-var">Comment</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Disclaimer"><span class="hs-identifier hs-var">Disclaimer</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Disclaimer"><span class="hs-identifier hs-var">Disclaimer</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Source"><span class="hs-identifier hs-var">Source</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Source"><span class="hs-identifier hs-var">Source</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Warning"><span class="hs-identifier hs-var">Warning</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Warning"><span class="hs-identifier hs-var">Warning</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-197"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="Codec.Picture.Metadata.html#Format"><span class="hs-identifier hs-var">Format</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys b
+</span><a href="Codec.Picture.Metadata.html#Format"><span class="hs-identifier hs-var">Format</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-198"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.html#Unknown"><span class="hs-identifier hs-type">Unknown</span></a></span><span> </span><span id="local-6989586621679222213"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679222213"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Unknown"><span class="hs-identifier hs-type">Unknown</span></a></span><span> </span><span id="local-6989586621679222217"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679222217"><span class="hs-identifier hs-var">v2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679222213"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679222217"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.html#Exif"><span class="hs-identifier hs-type">Exif</span></a></span><span> </span><span id="local-6989586621679222219"><span class="annot"><span class="annottext">ExifTag
+</span><a href="#local-6989586621679222219"><span class="hs-identifier hs-var">t1</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Exif"><span class="hs-identifier hs-type">Exif</span></a></span><span> </span><span id="local-6989586621679222222"><span class="annot"><span class="annottext">ExifTag
+</span><a href="#local-6989586621679222222"><span class="hs-identifier hs-var">t2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ExifTag
+</span><a href="#local-6989586621679222219"><span class="hs-identifier hs-var">t1</span></a></span><span> </span><span class="annot"><span class="annottext">ExifTag -&gt; ExifTag -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ExifTag
+</span><a href="#local-6989586621679222222"><span class="hs-identifier hs-var">t2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Equiv a b -&gt; Maybe (Equiv a b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+Equiv a b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><span class="annottext">(Keys a, Keys b)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Equiv a b)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- | Dependent storage used for metadatas.</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- All metadatas of a given kind are unique within</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- this container.</span><span>
+</span><span id="line-205"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- The current data structure is based on list,</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- so bad performances can be expected.</span><span>
+</span><span id="line-208"></span><span class="hs-keyword">newtype</span><span> </span><span id="Metadatas"><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Metadatas"><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="getMetadatas"><span class="annot"><span class="annottext">Metadatas -&gt; [Elem Keys]
+</span><a href="Codec.Picture.Metadata.html#getMetadatas"><span class="hs-identifier hs-var hs-var">getMetadatas</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Codec.Picture.Metadata.html#Elem"><span class="hs-identifier hs-type">Elem</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679222226"><span id="local-6989586621679222231"><span id="local-6989586621679222235"><span class="annot"><span class="annottext">Int -&gt; Metadatas -&gt; ShowS
+[Metadatas] -&gt; ShowS
+Metadatas -&gt; String
+(Int -&gt; Metadatas -&gt; ShowS)
+-&gt; (Metadatas -&gt; String)
+-&gt; ([Metadatas] -&gt; ShowS)
+-&gt; Show Metadatas
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Metadatas -&gt; ShowS
+showsPrec :: Int -&gt; Metadatas -&gt; ShowS
+$cshow :: Metadatas -&gt; String
+show :: Metadatas -&gt; String
+$cshowList :: [Metadatas] -&gt; ShowS
+showList :: [Metadatas] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679222238"><span class="annot"><span class="annottext">Metadatas -&gt; ()
+(Metadatas -&gt; ()) -&gt; NFData Metadatas
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: Metadatas -&gt; ()
+rnf :: Metadatas -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679222249"><span id="local-6989586621679222253"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-214"></span><span>  </span><span id="local-6989586621679222256"><span class="annot"><span class="annottext">mempty :: Metadatas
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Metadatas
+</span><a href="Codec.Picture.Metadata.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span class="hs-cpp">
+#if !MIN_VERSION_base(4,11,0)
+</span><span>  </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">union</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679222259"><span id="local-6989586621679222262"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-219"></span><span>  </span><span id="local-6989586621679222267"><span class="annot"><span class="annottext">&lt;&gt; :: Metadatas -&gt; Metadatas -&gt; Metadatas
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; Metadatas -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#union"><span class="hs-identifier hs-var">union</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- | Right based union</span><span>
+</span><span id="line-223"></span><span class="annot"><a href="Codec.Picture.Metadata.html#union"><span class="hs-identifier hs-type">union</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span>
+</span><span id="line-224"></span><span id="union"><span class="annot"><span class="annottext">union :: Metadatas -&gt; Metadatas -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#union"><span class="hs-identifier hs-var hs-var">union</span></a></span></span><span> </span><span id="local-6989586621679222269"><span class="annot"><span class="annottext">Metadatas
+</span><a href="#local-6989586621679222269"><span class="hs-identifier hs-var">m1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Metadatas -&gt; Elem Keys -&gt; Metadatas)
+-&gt; Metadatas -&gt; [Elem Keys] -&gt; Metadatas
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">F.foldl'</span></span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; Elem Keys -&gt; Metadatas
+</span><a href="#local-6989586621679222271"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Metadatas
+</span><a href="#local-6989586621679222269"><span class="hs-identifier hs-var">m1</span></a></span><span> </span><span class="annot"><span class="annottext">([Elem Keys] -&gt; Metadatas)
+-&gt; (Metadatas -&gt; [Elem Keys]) -&gt; Metadatas -&gt; Metadatas
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; [Elem Keys]
+</span><a href="Codec.Picture.Metadata.html#getMetadatas"><span class="hs-identifier hs-var">getMetadatas</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-225"></span><span>  </span><span id="local-6989586621679222271"><span class="annot"><span class="annottext">go :: Metadatas -&gt; Elem Keys -&gt; Metadatas
+</span><a href="#local-6989586621679222271"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679222273"><span class="annot"><span class="annottext">Metadatas
+</span><a href="#local-6989586621679222273"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679222274"><span class="annot"><span class="annottext">el :: Elem Keys
+</span><a href="#local-6989586621679222274"><span class="hs-identifier hs-var">el</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679222277"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222277"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-type">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="annot"><span class="annottext">([Elem Keys] -&gt; Metadatas) -&gt; [Elem Keys] -&gt; Metadatas
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Elem Keys
+</span><a href="#local-6989586621679222274"><span class="hs-identifier hs-var">el</span></a></span><span> </span><span class="annot"><span class="annottext">Elem Keys -&gt; [Elem Keys] -&gt; [Elem Keys]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; [Elem Keys]
+</span><a href="Codec.Picture.Metadata.html#getMetadatas"><span class="hs-identifier hs-var">getMetadatas</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a -&gt; Metadatas -&gt; Metadatas
+forall a. Keys a -&gt; Metadatas -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#delete"><span class="hs-identifier hs-var">delete</span></a></span><span> </span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222277"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Metadatas
+</span><a href="#local-6989586621679222273"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- | Strict left fold of the metadatas</span><span>
+</span><span id="line-228"></span><span id="local-6989586621679221908"><span class="annot"><a href="Codec.Picture.Metadata.html#foldl%27"><span class="hs-identifier hs-type">foldl'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679221908"><span class="hs-identifier hs-type">acc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Elem"><span class="hs-identifier hs-type">Elem</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221908"><span class="hs-identifier hs-type">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221908"><span class="hs-identifier hs-type">acc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221908"><span class="hs-identifier hs-type">acc</span></a></span></span><span>
+</span><span id="line-229"></span><span id="foldl%27"><span class="annot"><span class="annottext">foldl' :: forall acc. (acc -&gt; Elem Keys -&gt; acc) -&gt; acc -&gt; Metadatas -&gt; acc
+</span><a href="Codec.Picture.Metadata.html#foldl%27"><span class="hs-identifier hs-var hs-var">foldl'</span></a></span></span><span> </span><span id="local-6989586621679222279"><span class="annot"><span class="annottext">acc -&gt; Elem Keys -&gt; acc
+</span><a href="#local-6989586621679222279"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679222280"><span class="annot"><span class="annottext">acc
+</span><a href="#local-6989586621679222280"><span class="hs-identifier hs-var">initAcc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(acc -&gt; Elem Keys -&gt; acc) -&gt; acc -&gt; [Elem Keys] -&gt; acc
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">F.foldl'</span></span><span> </span><span class="annot"><span class="annottext">acc -&gt; Elem Keys -&gt; acc
+</span><a href="#local-6989586621679222279"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">acc
+</span><a href="#local-6989586621679222280"><span class="hs-identifier hs-var">initAcc</span></a></span><span> </span><span class="annot"><span class="annottext">([Elem Keys] -&gt; acc)
+-&gt; (Metadatas -&gt; [Elem Keys]) -&gt; Metadatas -&gt; acc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; [Elem Keys]
+</span><a href="Codec.Picture.Metadata.html#getMetadatas"><span class="hs-identifier hs-var">getMetadatas</span></a></span><span>
+</span><span id="line-230"></span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- | foldMap equivalent for metadatas.</span><span>
+</span><span id="line-232"></span><span id="local-6989586621679221910"><span class="annot"><a href="Codec.Picture.Metadata.html#foldMap"><span class="hs-identifier hs-type">foldMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679221910"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.html#Elem"><span class="hs-identifier hs-type">Elem</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221910"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221910"><span class="hs-identifier hs-type">m</span></a></span></span><span>
+</span><span id="line-233"></span><span id="foldMap"><span class="annot"><span class="annottext">foldMap :: forall m. Monoid m =&gt; (Elem Keys -&gt; m) -&gt; Metadatas -&gt; m
+</span><a href="Codec.Picture.Metadata.html#foldMap"><span class="hs-identifier hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679222284"><span class="annot"><span class="annottext">Elem Keys -&gt; m
+</span><a href="#local-6989586621679222284"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m -&gt; Elem Keys -&gt; m) -&gt; m -&gt; Metadatas -&gt; m
+forall acc. (acc -&gt; Elem Keys -&gt; acc) -&gt; acc -&gt; Metadatas -&gt; acc
+</span><a href="Codec.Picture.Metadata.html#foldl%27"><span class="hs-identifier hs-var">foldl'</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679222285"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679222285"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679222286"><span class="annot"><span class="annottext">Elem Keys
+</span><a href="#local-6989586621679222286"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679222285"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">m -&gt; m -&gt; m
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">Elem Keys -&gt; m
+</span><a href="#local-6989586621679222284"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Elem Keys
+</span><a href="#local-6989586621679222286"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- | Remove an element of the given keys from the metadatas.</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- If not present does nothing.</span><span>
+</span><span id="line-237"></span><span id="local-6989586621679221907"><span class="annot"><a href="Codec.Picture.Metadata.html#delete"><span class="hs-identifier hs-type">delete</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221907"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span></span><span>
+</span><span id="line-238"></span><span id="delete"><span class="annot"><span class="annottext">delete :: forall a. Keys a -&gt; Metadatas -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#delete"><span class="hs-identifier hs-var hs-var">delete</span></a></span></span><span> </span><span id="local-6989586621679222287"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222287"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="annot"><span class="annottext">([Elem Keys] -&gt; Metadatas)
+-&gt; (Metadatas -&gt; [Elem Keys]) -&gt; Metadatas -&gt; Metadatas
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; [Elem Keys]
+</span><a href="#local-6989586621679222288"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">([Elem Keys] -&gt; [Elem Keys])
+-&gt; (Metadatas -&gt; [Elem Keys]) -&gt; Metadatas -&gt; [Elem Keys]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; [Elem Keys]
+</span><a href="Codec.Picture.Metadata.html#getMetadatas"><span class="hs-identifier hs-var">getMetadatas</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-239"></span><span>  </span><span id="local-6989586621679222288"><span class="annot"><span class="annottext">go :: [Elem Keys] -&gt; [Elem Keys]
+</span><a href="#local-6989586621679222288"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-240"></span><span>  </span><span class="annot"><a href="#local-6989586621679222288"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679222289"><span class="annot"><span class="annottext">el :: Elem Keys
+</span><a href="#local-6989586621679222289"><span class="hs-identifier hs-var">el</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679222292"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222292"><span class="hs-identifier hs-var">k2</span></a></span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-type">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679222293"><span class="annot"><span class="annottext">[Elem Keys]
+</span><a href="#local-6989586621679222293"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Keys a -&gt; Keys a -&gt; Maybe (Equiv a a)
+forall a b. Keys a -&gt; Keys b -&gt; Maybe (Equiv a b)
+</span><a href="Codec.Picture.Metadata.html#keyEq"><span class="hs-identifier hs-var">keyEq</span></a></span><span> </span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222287"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222292"><span class="hs-identifier hs-var">k2</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-241"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Equiv a a)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Elem Keys
+</span><a href="#local-6989586621679222289"><span class="hs-identifier hs-var">el</span></a></span><span> </span><span class="annot"><span class="annottext">Elem Keys -&gt; [Elem Keys] -&gt; [Elem Keys]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; [Elem Keys]
+</span><a href="#local-6989586621679222288"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Elem Keys]
+</span><a href="#local-6989586621679222293"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-242"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Equiv a a
+</span><span class="hs-identifier hs-var">Refl</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Elem Keys]
+</span><a href="#local-6989586621679222293"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-243"></span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- | Extract all Exif specific metadatas</span><span>
+</span><span id="line-245"></span><span class="annot"><a href="Codec.Picture.Metadata.html#extractExifMetas"><span class="hs-identifier hs-type">extractExifMetas</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.Exif.html#ExifTag"><span class="hs-identifier hs-type">ExifTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.Exif.html#ExifData"><span class="hs-identifier hs-type">ExifData</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-246"></span><span id="extractExifMetas"><span class="annot"><span class="annottext">extractExifMetas :: Metadatas -&gt; [(ExifTag, ExifData)]
+</span><a href="Codec.Picture.Metadata.html#extractExifMetas"><span class="hs-identifier hs-var hs-var">extractExifMetas</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; [(ExifTag, ExifData)]
+</span><a href="#local-6989586621679222295"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">([Elem Keys] -&gt; [(ExifTag, ExifData)])
+-&gt; (Metadatas -&gt; [Elem Keys]) -&gt; Metadatas -&gt; [(ExifTag, ExifData)]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; [Elem Keys]
+</span><a href="Codec.Picture.Metadata.html#getMetadatas"><span class="hs-identifier hs-var">getMetadatas</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-247"></span><span>  </span><span class="annot"><a href="#local-6989586621679222295"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Codec.Picture.Metadata.html#Elem"><span class="hs-identifier hs-type">Elem</span></a></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Codec.Picture.Metadata.Exif.html#ExifTag"><span class="hs-identifier hs-type">ExifTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.Exif.html#ExifData"><span class="hs-identifier hs-type">ExifData</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-248"></span><span>  </span><span id="local-6989586621679222295"><span class="annot"><span class="annottext">go :: [Elem Keys] -&gt; [(ExifTag, ExifData)]
+</span><a href="#local-6989586621679222295"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-249"></span><span>  </span><span class="annot"><a href="#local-6989586621679222295"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679222298"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222298"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-type">:=&gt;</span></a></span><span> </span><span id="local-6989586621679222299"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679222299"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679222300"><span class="annot"><span class="annottext">[Elem Keys]
+</span><a href="#local-6989586621679222300"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-250"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222298"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-251"></span><span>      </span><span class="annot"><a href="Codec.Picture.Metadata.html#Exif"><span class="hs-identifier hs-type">Exif</span></a></span><span> </span><span id="local-6989586621679222302"><span class="annot"><span class="annottext">ExifTag
+</span><a href="#local-6989586621679222302"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExifTag
+</span><a href="#local-6989586621679222302"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+ExifData
+</span><a href="#local-6989586621679222299"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ExifTag, ExifData)
+-&gt; [(ExifTag, ExifData)] -&gt; [(ExifTag, ExifData)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; [(ExifTag, ExifData)]
+</span><a href="#local-6989586621679222295"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Elem Keys]
+</span><a href="#local-6989586621679222300"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-252"></span><span>      </span><span class="annot"><span class="annottext">Keys a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; [(ExifTag, ExifData)]
+</span><a href="#local-6989586621679222295"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Elem Keys]
+</span><a href="#local-6989586621679222300"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-253"></span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- | Search a metadata with the given key.</span><span>
+</span><span id="line-255"></span><span id="local-6989586621679221915"><span class="annot"><a href="Codec.Picture.Metadata.html#lookup"><span class="hs-identifier hs-type">lookup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221915"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679221915"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-256"></span><span id="lookup"><span class="annot"><span class="annottext">lookup :: forall a. Keys a -&gt; Metadatas -&gt; Maybe a
+</span><a href="Codec.Picture.Metadata.html#lookup"><span class="hs-identifier hs-var hs-var">lookup</span></a></span></span><span> </span><span id="local-6989586621679222303"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222303"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Maybe a
+</span><a href="#local-6989586621679222304"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">([Elem Keys] -&gt; Maybe a)
+-&gt; (Metadatas -&gt; [Elem Keys]) -&gt; Metadatas -&gt; Maybe a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; [Elem Keys]
+</span><a href="Codec.Picture.Metadata.html#getMetadatas"><span class="hs-identifier hs-var">getMetadatas</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-257"></span><span>  </span><span id="local-6989586621679222304"><span class="annot"><span class="annottext">go :: [Elem Keys] -&gt; Maybe a
+</span><a href="#local-6989586621679222304"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-258"></span><span>  </span><span class="annot"><a href="#local-6989586621679222304"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679222307"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222307"><span class="hs-identifier hs-var">k2</span></a></span></span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-type">:=&gt;</span></a></span><span> </span><span id="local-6989586621679222308"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679222308"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679222309"><span class="annot"><span class="annottext">[Elem Keys]
+</span><a href="#local-6989586621679222309"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Keys a -&gt; Keys a -&gt; Maybe (Equiv a a)
+forall a b. Keys a -&gt; Keys b -&gt; Maybe (Equiv a b)
+</span><a href="Codec.Picture.Metadata.html#keyEq"><span class="hs-identifier hs-var">keyEq</span></a></span><span> </span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222303"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222307"><span class="hs-identifier hs-var">k2</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-259"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Equiv a a)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Maybe a
+</span><a href="#local-6989586621679222304"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Elem Keys]
+</span><a href="#local-6989586621679222309"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-260"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Equiv a a
+</span><span class="hs-identifier hs-var">Refl</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+a
+</span><a href="#local-6989586621679222308"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-261"></span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- | Insert an element in the metadatas, if an element with</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- the same key is present, it is overwritten.</span><span>
+</span><span id="line-264"></span><span id="local-6989586621679221918"><span class="annot"><a href="Codec.Picture.Metadata.html#insert"><span class="hs-identifier hs-type">insert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679221918"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679221918"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221918"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221918"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span></span><span>
+</span><span id="line-265"></span><span id="insert"><span class="annot"><span class="annottext">insert :: forall a.
+(Show a, NFData a) =&gt;
+Keys a -&gt; a -&gt; Metadatas -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#insert"><span class="hs-identifier hs-var hs-var">insert</span></a></span></span><span> </span><span id="local-6989586621679222315"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222315"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679222316"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679222316"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span id="local-6989586621679222317"><span class="annot"><span class="annottext">Metadatas
+</span><a href="#local-6989586621679222317"><span class="hs-identifier hs-var">metas</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-266"></span><span>  </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="annot"><span class="annottext">([Elem Keys] -&gt; Metadatas) -&gt; [Elem Keys] -&gt; Metadatas
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222315"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Keys a -&gt; a -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679222316"><span class="hs-identifier hs-var">val</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Elem Keys -&gt; [Elem Keys] -&gt; [Elem Keys]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Metadatas -&gt; [Elem Keys]
+</span><a href="Codec.Picture.Metadata.html#getMetadatas"><span class="hs-identifier hs-var">getMetadatas</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Keys a -&gt; Metadatas -&gt; Metadatas
+forall a. Keys a -&gt; Metadatas -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#delete"><span class="hs-identifier hs-var">delete</span></a></span><span> </span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222315"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Metadatas
+</span><a href="#local-6989586621679222317"><span class="hs-identifier hs-var">metas</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- | Create metadatas with a single element.</span><span>
+</span><span id="line-269"></span><span id="local-6989586621679221922"><span class="annot"><a href="Codec.Picture.Metadata.html#singleton"><span class="hs-identifier hs-type">singleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679221922"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679221922"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Keys"><span class="hs-identifier hs-type">Keys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679221922"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221922"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span></span><span>
+</span><span id="line-270"></span><span id="singleton"><span class="annot"><span class="annottext">singleton :: forall a. (Show a, NFData a) =&gt; Keys a -&gt; a -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#singleton"><span class="hs-identifier hs-var hs-var">singleton</span></a></span></span><span> </span><span id="local-6989586621679222322"><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222322"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679222323"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679222323"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Keys a
+</span><a href="#local-6989586621679222322"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Keys a -&gt; a -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679222323"><span class="hs-identifier hs-var">val</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- | Empty metadatas. Favor 'mempty'</span><span>
+</span><span id="line-273"></span><span class="annot"><a href="Codec.Picture.Metadata.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span>
+</span><span id="line-274"></span><span id="empty"><span class="annot"><span class="annottext">empty :: Metadatas
+</span><a href="Codec.Picture.Metadata.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="annot"><span class="annottext">[Elem Keys]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- | Conversion from dpm to dpi</span><span>
+</span><span id="line-277"></span><span class="annot"><a href="Codec.Picture.Metadata.html#dotsPerMeterToDotPerInch"><span class="hs-identifier hs-type">dotsPerMeterToDotPerInch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-278"></span><span id="dotsPerMeterToDotPerInch"><span class="annot"><span class="annottext">dotsPerMeterToDotPerInch :: Word -&gt; Word
+</span><a href="Codec.Picture.Metadata.html#dotsPerMeterToDotPerInch"><span class="hs-identifier hs-var hs-var">dotsPerMeterToDotPerInch</span></a></span></span><span> </span><span id="local-6989586621679222324"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222324"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222324"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">254</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">10000</span></span><span>
+</span><span id="line-279"></span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- | Conversion from dpi to dpm</span><span>
+</span><span id="line-281"></span><span class="annot"><a href="Codec.Picture.Metadata.html#dotPerInchToDotsPerMeter"><span class="hs-identifier hs-type">dotPerInchToDotsPerMeter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-282"></span><span id="dotPerInchToDotsPerMeter"><span class="annot"><span class="annottext">dotPerInchToDotsPerMeter :: Word -&gt; Word
+</span><a href="Codec.Picture.Metadata.html#dotPerInchToDotsPerMeter"><span class="hs-identifier hs-var hs-var">dotPerInchToDotsPerMeter</span></a></span></span><span> </span><span id="local-6989586621679222327"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222327"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222327"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">10000</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">254</span></span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- | Conversion dpcm -&gt; dpi</span><span>
+</span><span id="line-285"></span><span class="annot"><a href="Codec.Picture.Metadata.html#dotsPerCentiMeterToDotPerInch"><span class="hs-identifier hs-type">dotsPerCentiMeterToDotPerInch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-286"></span><span id="dotsPerCentiMeterToDotPerInch"><span class="annot"><span class="annottext">dotsPerCentiMeterToDotPerInch :: Word -&gt; Word
+</span><a href="Codec.Picture.Metadata.html#dotsPerCentiMeterToDotPerInch"><span class="hs-identifier hs-var hs-var">dotsPerCentiMeterToDotPerInch</span></a></span></span><span> </span><span id="local-6989586621679222328"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222328"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222328"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">254</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">100</span></span><span>
+</span><span id="line-287"></span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- | Create metadatas indicating the resolution, with DpiX == DpiY</span><span>
+</span><span id="line-289"></span><span class="annot"><a href="Codec.Picture.Metadata.html#mkDpiMetadata"><span class="hs-identifier hs-type">mkDpiMetadata</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span><span>
+</span><span id="line-290"></span><span id="mkDpiMetadata"><span class="annot"><span class="annottext">mkDpiMetadata :: Word -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#mkDpiMetadata"><span class="hs-identifier hs-var hs-var">mkDpiMetadata</span></a></span></span><span> </span><span id="local-6989586621679222329"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222329"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-291"></span><span>  </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#DpiY"><span class="hs-identifier hs-var">DpiY</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222329"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#DpiX"><span class="hs-identifier hs-var">DpiX</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679222329"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-292"></span><span>
+</span><span id="line-293"></span><span class="hs-comment">-- | Create metadatas holding width and height information.</span><span>
+</span><span id="line-294"></span><span id="local-6989586621679221926"><span class="annot"><a href="Codec.Picture.Metadata.html#mkSizeMetadata"><span class="hs-identifier hs-type">mkSizeMetadata</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679221926"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221926"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221926"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span></span><span>
+</span><span id="line-295"></span><span id="mkSizeMetadata"><span class="annot"><span class="annottext">mkSizeMetadata :: forall n. Integral n =&gt; n -&gt; n -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#mkSizeMetadata"><span class="hs-identifier hs-var hs-var">mkSizeMetadata</span></a></span></span><span> </span><span id="local-6989586621679222339"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679222339"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span id="local-6989586621679222340"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679222340"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-296"></span><span>  </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#Width"><span class="hs-identifier hs-var">Width</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">n -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679222339"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#Height"><span class="hs-identifier hs-var">Height</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">n -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679222340"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span class="hs-comment">-- | Create simple metadatas with Format, Width &amp; Height</span><span>
+</span><span id="line-299"></span><span id="local-6989586621679221930"><span class="annot"><a href="Codec.Picture.Metadata.html#basicMetadata"><span class="hs-identifier hs-type">basicMetadata</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679221930"><span class="hs-identifier hs-type">nSize</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#SourceFormat"><span class="hs-identifier hs-type">SourceFormat</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221930"><span class="hs-identifier hs-type">nSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221930"><span class="hs-identifier hs-type">nSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span></span><span>
+</span><span id="line-300"></span><span id="basicMetadata"><span class="annot"><span class="annottext">basicMetadata :: forall nSize.
+Integral nSize =&gt;
+SourceFormat -&gt; nSize -&gt; nSize -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#basicMetadata"><span class="hs-identifier hs-var hs-var">basicMetadata</span></a></span></span><span> </span><span id="local-6989586621679222352"><span class="annot"><span class="annottext">SourceFormat
+</span><a href="#local-6989586621679222352"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679222353"><span class="annot"><span class="annottext">nSize
+</span><a href="#local-6989586621679222353"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span id="local-6989586621679222354"><span class="annot"><span class="annottext">nSize
+</span><a href="#local-6989586621679222354"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-301"></span><span>  </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Keys SourceFormat
+</span><a href="Codec.Picture.Metadata.html#Format"><span class="hs-identifier hs-var">Format</span></a></span><span> </span><span class="annot"><span class="annottext">Keys SourceFormat -&gt; SourceFormat -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SourceFormat
+</span><a href="#local-6989586621679222352"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-302"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#Width"><span class="hs-identifier hs-var">Width</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">nSize -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">nSize
+</span><a href="#local-6989586621679222353"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-303"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#Height"><span class="hs-identifier hs-var">Height</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">nSize -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">nSize
+</span><a href="#local-6989586621679222354"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-304"></span><span>            </span><span class="hs-special">]</span><span>
+</span><span id="line-305"></span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- | Create simple metadatas with Format, Width, Height, DpiX &amp; DpiY</span><span>
+</span><span id="line-307"></span><span id="local-6989586621679221932"><span id="local-6989586621679221933"><span class="annot"><a href="Codec.Picture.Metadata.html#simpleMetadata"><span class="hs-identifier hs-type">simpleMetadata</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679221932"><span class="hs-identifier hs-type">nSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679221933"><span class="hs-identifier hs-type">nDpi</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-308"></span><span>               </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#SourceFormat"><span class="hs-identifier hs-type">SourceFormat</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221932"><span class="hs-identifier hs-type">nSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221932"><span class="hs-identifier hs-type">nSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221933"><span class="hs-identifier hs-type">nDpi</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679221933"><span class="hs-identifier hs-type">nDpi</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-type">Metadatas</span></a></span></span></span><span>
+</span><span id="line-309"></span><span id="simpleMetadata"><span class="annot"><span class="annottext">simpleMetadata :: forall nSize nDpi.
+(Integral nSize, Integral nDpi) =&gt;
+SourceFormat -&gt; nSize -&gt; nSize -&gt; nDpi -&gt; nDpi -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#simpleMetadata"><span class="hs-identifier hs-var hs-var">simpleMetadata</span></a></span></span><span> </span><span id="local-6989586621679222375"><span class="annot"><span class="annottext">SourceFormat
+</span><a href="#local-6989586621679222375"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679222376"><span class="annot"><span class="annottext">nSize
+</span><a href="#local-6989586621679222376"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span id="local-6989586621679222377"><span class="annot"><span class="annottext">nSize
+</span><a href="#local-6989586621679222377"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679222378"><span class="annot"><span class="annottext">nDpi
+</span><a href="#local-6989586621679222378"><span class="hs-identifier hs-var">dpiX</span></a></span></span><span> </span><span id="local-6989586621679222379"><span class="annot"><span class="annottext">nDpi
+</span><a href="#local-6989586621679222379"><span class="hs-identifier hs-var">dpiY</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-310"></span><span>  </span><span class="annot"><span class="annottext">[Elem Keys] -&gt; Metadatas
+</span><a href="Codec.Picture.Metadata.html#Metadatas"><span class="hs-identifier hs-var">Metadatas</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Keys SourceFormat
+</span><a href="Codec.Picture.Metadata.html#Format"><span class="hs-identifier hs-var">Format</span></a></span><span> </span><span class="annot"><span class="annottext">Keys SourceFormat -&gt; SourceFormat -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SourceFormat
+</span><a href="#local-6989586621679222375"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-311"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#Width"><span class="hs-identifier hs-var">Width</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">nSize -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">nSize
+</span><a href="#local-6989586621679222376"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-312"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#Height"><span class="hs-identifier hs-var">Height</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">nSize -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">nSize
+</span><a href="#local-6989586621679222377"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-313"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#DpiX"><span class="hs-identifier hs-var">DpiX</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">nDpi -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">nDpi
+</span><a href="#local-6989586621679222378"><span class="hs-identifier hs-var">dpiX</span></a></span><span>
+</span><span id="line-314"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Keys Word
+</span><a href="Codec.Picture.Metadata.html#DpiY"><span class="hs-identifier hs-var">DpiY</span></a></span><span> </span><span class="annot"><span class="annottext">Keys Word -&gt; Word -&gt; Elem Keys
+forall (k :: * -&gt; *) a. (Show a, NFData a) =&gt; k a -&gt; a -&gt; Elem k
+</span><a href="Codec.Picture.Metadata.html#%3A%3D%3E"><span class="hs-operator hs-var">:=&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">nDpi -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">nDpi
+</span><a href="#local-6989586621679222379"><span class="hs-identifier hs-var">dpiY</span></a></span><span>
+</span><span id="line-315"></span><span>            </span><span class="hs-special">]</span><span>
+</span><span id="line-316"></span><span>
+</span><span id="line-317"></span></pre></body></html>

@@ -1,0 +1,450 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables,DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LINE 2 &quot;./System/Glib/GError.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) GError API</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Duncan Coutts</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 2 July 2004</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 2004 Duncan Coutts</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- parts derived from Structs.hsc Copyright (c) 1999..2002 Axel Simon</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- Error Reporting, glib's system for reporting errors.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- 'GError's are used by glib to report recoverable runtime errors.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- This module provides functions for checking glib\/gtk functions that report</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- 'GError's. It also provides functions for throwing and catching 'GError's as</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- Haskell exceptions.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Glib.GError.html"><span class="hs-identifier">System.Glib.GError</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Data types</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier">GError</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#GErrorDomain"><span class="hs-identifier">GErrorDomain</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#GErrorCode"><span class="hs-identifier">GErrorCode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#GErrorMessage"><span class="hs-identifier">GErrorMessage</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Catching GError exceptions</span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-comment">-- | To catch GError exceptions thrown by Gtk2Hs functions use the</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-comment">-- catchGError* or handleGError* functions. They work in a similar way to</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-comment">-- the standard 'Control.Exception.catch' and 'Control.Exception.handle'</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-comment">-- functions.</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-comment">-- 'catchGError' \/ 'handleGError' catches all GError exceptions, you provide</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-comment">-- a handler function that gets given the GError if an exception was thrown.</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-comment">-- This is the most general but is probably not what you want most of the</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-comment">-- time. It just gives you the raw error code rather than a Haskell</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-comment">-- enumeration of the error codes. Most of the time you will only want to</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-comment">-- catch a specific error or any error from a specific error domain. To</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-comment">-- catch just a single specific error use</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-comment">-- 'catchGErrorJust' \/ 'handleGErrorJust'. To catch any error in a</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-comment">-- particular error domain use 'catchGErrorJustDomain' \/</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-comment">-- 'handleGErrorJustDomain'</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#catchGErrorJust"><span class="hs-identifier">catchGErrorJust</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#catchGErrorJustDomain"><span class="hs-identifier">catchGErrorJustDomain</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#handleGErrorJust"><span class="hs-identifier">handleGErrorJust</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#handleGErrorJustDomain"><span class="hs-identifier">handleGErrorJustDomain</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Deprecated</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#catchGError"><span class="hs-identifier">catchGError</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#handleGError"><span class="hs-identifier">handleGError</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#failOnGError"><span class="hs-identifier">failOnGError</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#throwGError"><span class="hs-identifier">throwGError</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Checking for GErrors returned by glib\/gtk functions</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-comment">-- | * Note, these functions are only useful to implementors</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-comment">-- If you are wrapping a new API that reports 'GError's you should probably</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- use 'propagateGError' to convert the GError into an exception. You should</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-comment">-- also note in the documentation for the function that it throws GError</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-comment">-- exceptions and the Haskell enumeration for the expected glib GError</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-comment">-- domain(s), so that users know what exceptions they might want to catch.</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-comment">-- If you think it is more appropriate to use an alternate return value (eg</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-comment">-- Either\/Maybe) then you should use 'checkGError'.</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#GErrorClass"><span class="hs-identifier">GErrorClass</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#propagateGError"><span class="hs-identifier">propagateGError</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="System.Glib.GError.html#checkGError"><span class="hs-identifier">checkGError</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign</span></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C</span></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Glib.UTFString.html"><span class="hs-identifier">System.Glib.UTFString</span></a></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unpack</span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">catch</span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="annot"><span class="hs-comment">-- | A GError consists of a domain, code and a human readable message.</span></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">data</span><span> </span><span id="GError"><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-var">GError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GError"><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-var">GError</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Glib.GError.html#GErrorDomain"><span class="hs-identifier hs-type">GErrorDomain</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Glib.GError.html#GErrorCode"><span class="hs-identifier hs-type">GErrorCode</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Glib.GError.html#GErrorMessage"><span class="hs-identifier hs-type">GErrorMessage</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679082710"><span id="local-6989586621679082715"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>  </span><span id="local-6989586621679082718"><span class="annot"><span class="annottext">show :: GError -&gt; String
+</span><a href="#local-6989586621679082718"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span class="annot"><span class="annottext">GErrorDomain
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679082720"><span class="annot"><span class="annottext">GErrorMessage
+</span><a href="#local-6989586621679082720"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GErrorMessage -&gt; String
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="annot"><span class="annottext">GErrorMessage
+</span><a href="#local-6989586621679082720"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679082726"><span id="local-6989586621679082730"><span id="local-6989586621679082733"><span id="local-6989586621679082736"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span></span></span></span></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">type</span><span> </span><span id="GQuark"><span class="annot"><a href="System.Glib.GError.html#GQuark"><span class="hs-identifier hs-var">GQuark</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CUInt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span class="hs-pragma">{-# LINE 110 &quot;./System/Glib/GError.chs&quot; #-}</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- | A code used to identify the \'namespace\' of the error. Within each error</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- domain all the error codes are defined in an enumeration. Each gtk\/gnome</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- module that uses GErrors has its own error domain. The rationale behind</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- using error domains is so that each module can organise its own error codes</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- without having to coordinate on a global error code list.</span><span>
+</span><span id="line-116"></span><span class="hs-keyword">type</span><span> </span><span id="GErrorDomain"><span class="annot"><a href="System.Glib.GError.html#GErrorDomain"><span class="hs-identifier hs-var">GErrorDomain</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GQuark"><span class="hs-identifier hs-type">GQuark</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- | A code to identify a specific error within a given 'GErrorDomain'. Most of</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- time you will not need to deal with this raw code since there is an</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- enumeration type for each error domain. Of course which enumeraton to use</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- depends on the error domain, but if you use 'catchGErrorJustDomain' or</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- 'handleGErrorJustDomain', this is worked out for you automatically.</span><span>
+</span><span id="line-123"></span><span class="hs-keyword">type</span><span> </span><span id="GErrorCode"><span class="annot"><a href="System.Glib.GError.html#GErrorCode"><span class="hs-identifier hs-var">GErrorCode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="annot"><span class="hs-comment">-- | A human readable error message.</span></span><span>
+</span><span id="line-126"></span><span class="hs-keyword">type</span><span> </span><span id="GErrorMessage"><span class="annot"><a href="System.Glib.GError.html#GErrorMessage"><span class="hs-identifier hs-var">GErrorMessage</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679082744"><span id="local-6989586621679082748"><span id="local-6989586621679082751"><span id="local-6989586621679082754"><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>  </span><span id="local-6989586621679082759"><span class="annot"><span class="annottext">sizeOf :: GError -&gt; Int
+</span><a href="#local-6989586621679082759"><span class="hs-identifier hs-var hs-var hs-var">sizeOf</span></a></span></span><span> </span><span class="annot"><span class="annottext">GError
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-130"></span><span class="hs-pragma">{-# LINE 130 &quot;./System/Glib/GError.chs&quot; #-}</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">undefined</span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">GQuark</span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621679082789"><span class="annot"><span class="annottext">peek :: Ptr GError -&gt; IO GError
+</span><a href="#local-6989586621679082789"><span class="hs-identifier hs-var hs-var hs-var">peek</span></a></span></span><span> </span><span id="local-6989586621679082791"><span class="annot"><span class="annottext">Ptr GError
+</span><a href="#local-6989586621679082791"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679082792"><span class="annot"><a href="#local-6989586621679082792"><span class="hs-identifier hs-var">domain</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier">GQuark</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679082793"><span class="annot"><span class="annottext">Ptr GError
+</span><a href="#local-6989586621679082793"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Ptr GError -&gt; Int -&gt; IO GErrorDomain
+forall b. Ptr b -&gt; Int -&gt; IO GErrorDomain
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr GError
+</span><a href="#local-6989586621679082793"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CUInt</span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr GError
+</span><a href="#local-6989586621679082791"><span class="hs-identifier hs-var">ptr</span></a></span><span>
+</span><span id="line-133"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679082795"><span class="annot"><a href="#local-6989586621679082795"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679082796"><span class="annot"><span class="annottext">Ptr GError
+</span><a href="#local-6989586621679082796"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Ptr GError -&gt; Int -&gt; IO CInt
+forall b. Ptr b -&gt; Int -&gt; IO CInt
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr GError
+</span><a href="#local-6989586621679082796"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679082791"><span class="hs-identifier hs-type">ptr</span></a></span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679082797"><span class="annot"><a href="#local-6989586621679082797"><span class="hs-identifier hs-var">msgPtr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier">CString</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679082799"><span class="annot"><span class="annottext">Ptr GError
+</span><a href="#local-6989586621679082799"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Ptr GError -&gt; Int -&gt; IO (Ptr CChar)
+forall b. Ptr b -&gt; Int -&gt; IO (Ptr CChar)
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr GError
+</span><a href="#local-6989586621679082799"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679082791"><span class="hs-identifier hs-type">ptr</span></a></span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621679082800"><span class="annot"><a href="#local-6989586621679082800"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="System.Glib.UTFString.html#peekUTFString"><span class="hs-identifier hs-type">peekUTFString</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679082797"><span class="hs-identifier hs-type">msgPtr</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621679082792"><span class="hs-identifier hs-type">domain</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621679082795"><span class="hs-identifier hs-type">code</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679082800"><span class="hs-identifier hs-type">msg</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span id="local-6989586621679082804"><span class="annot"><span class="annottext">poke :: Ptr GError -&gt; GError -&gt; IO ()
+</span><a href="#local-6989586621679082804"><span class="hs-identifier hs-var hs-var hs-var">poke</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ptr GError
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; GError -&gt; IO ()
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;GError::poke: not implemented&quot;</span></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | Each error domain's error enumeration type should be an instance of this</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- class. This class helps to hide the raw error and domain codes from the</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- user. This interface should be implemented by calling the approrpiate</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- @{error_domain}_error_quark@. It is safe to use a pure FFI call for this.</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- Example for 'Graphics.UI.Gtk.Gdk.Pixbuf.PixbufError':</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- &gt; instance GErrorClass PixbufError where</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- &gt; gerrorDomain _ = {#call pure unsafe pixbuf_error_quark#}</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--</span><span>
+</span><span id="line-149"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621679082643"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="GErrorClass"><span class="annot"><a href="System.Glib.GError.html#GErrorClass"><span class="hs-identifier hs-var">GErrorClass</span></a></span></span><span> </span><span id="local-6989586621679082643"><span class="annot"><a href="#local-6989586621679082643"><span class="hs-identifier hs-type">err</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>  </span><span id="gerrorDomain"><span class="annot"><a href="System.Glib.GError.html#gerrorDomain"><span class="hs-identifier hs-type">gerrorDomain</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679082643"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GErrorDomain"><span class="hs-identifier hs-type">GErrorDomain</span></a></span><span> </span><span class="hs-comment">-- ^ This must not use the value of its</span><span>
+</span><span id="line-151"></span><span>                                      </span><span class="hs-comment">-- parameter so that it is safe to pass</span><span>
+</span><span id="line-152"></span><span>                                      </span><span class="hs-comment">-- 'undefined'.</span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- | Glib functions which report 'GError's take as a parameter a @GError</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- **error@. Use this function to supply such a parameter. It checks if an</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- error was reported and if so throws it as a Haskell exception.</span><span>
+</span><span id="line-157"></span><span class="hs-comment">--</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- Example of use:</span><span>
+</span><span id="line-159"></span><span class="hs-comment">--</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- &gt; propagateGError $ \gerrorPtr -&gt;</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- &gt; {# call g_some_function_that_might_return_an_error #} a b gerrorPtr</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--</span><span>
+</span><span id="line-163"></span><span id="local-6989586621679082645"><span class="annot"><a href="System.Glib.GError.html#propagateGError"><span class="hs-identifier hs-type">propagateGError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082645"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082645"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-164"></span><span id="propagateGError"><span class="annot"><span class="annottext">propagateGError :: forall a. (Ptr (Ptr ()) -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#propagateGError"><span class="hs-identifier hs-var hs-var">propagateGError</span></a></span></span><span> </span><span id="local-6989586621679082809"><span class="annot"><span class="annottext">Ptr (Ptr ()) -&gt; IO a
+</span><a href="#local-6989586621679082809"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Ptr (Ptr ()) -&gt; IO a) -&gt; (GError -&gt; IO a) -&gt; IO a
+forall a. (Ptr (Ptr ()) -&gt; IO a) -&gt; (GError -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#checkGError"><span class="hs-identifier hs-var">checkGError</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ()) -&gt; IO a
+</span><a href="#local-6989586621679082809"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">GError -&gt; IO a
+forall a. GError -&gt; IO a
+</span><a href="System.Glib.GError.html#throwGError"><span class="hs-identifier hs-var">throwGError</span></a></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- | Like 'propagateGError' but instead of throwing the GError as an exception</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- handles the error immediately using the supplied error handler.</span><span>
+</span><span id="line-168"></span><span class="hs-comment">--</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- Example of use:</span><span>
+</span><span id="line-170"></span><span class="hs-comment">--</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- &gt; checkGError</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- &gt; (\gerrorPtr -&gt; {# call g_some_function_that_might_return_an_error #} a b gerrorPtr)</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- &gt; (\(GError domain code msg) -&gt; ...)</span><span>
+</span><span id="line-174"></span><span class="hs-comment">--</span><span>
+</span><span id="line-175"></span><span id="local-6989586621679082647"><span class="annot"><a href="System.Glib.GError.html#checkGError"><span class="hs-identifier hs-type">checkGError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082647"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082647"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082647"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-176"></span><span id="checkGError"><span class="annot"><span class="annottext">checkGError :: forall a. (Ptr (Ptr ()) -&gt; IO a) -&gt; (GError -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#checkGError"><span class="hs-identifier hs-var hs-var">checkGError</span></a></span></span><span> </span><span id="local-6989586621679082822"><span class="annot"><span class="annottext">Ptr (Ptr ()) -&gt; IO a
+</span><a href="#local-6989586621679082822"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679082823"><span class="annot"><span class="annottext">GError -&gt; IO a
+</span><a href="#local-6989586621679082823"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-177"></span><span>  </span><span class="annot"><span class="annottext">(Ptr (Ptr GError) -&gt; IO a) -&gt; IO a
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr (Ptr GError) -&gt; IO a) -&gt; IO a)
+-&gt; (Ptr (Ptr GError) -&gt; IO a) -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679082825"><span class="annot"><span class="annottext">Ptr (Ptr GError)
+</span><a href="#local-6989586621679082825"><span class="hs-identifier hs-var">errPtrPtr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-178"></span><span>  </span><span class="annot"><span class="annottext">Ptr (Ptr GError) -&gt; Ptr GError -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">poke</span></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr GError)
+</span><a href="#local-6989586621679082825"><span class="hs-identifier hs-var">errPtrPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr GError
+forall a. Ptr a
+</span><span class="hs-identifier hs-var">nullPtr</span></span><span>
+</span><span id="line-179"></span><span>  </span><span id="local-6989586621679082827"><span class="annot"><a href="#local-6989586621679082827"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ()) -&gt; IO a
+</span><a href="#local-6989586621679082822"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr (Ptr GError) -&gt; Ptr (Ptr ())
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr GError)
+</span><a href="#local-6989586621679082825"><span class="hs-identifier hs-var">errPtrPtr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>  </span><span id="local-6989586621679082829"><span class="annot"><a href="#local-6989586621679082829"><span class="hs-identifier hs-var">errPtr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">peek</span></span><span> </span><span class="annot"><a href="#local-6989586621679082825"><span class="hs-identifier hs-type">errPtrPtr</span></a></span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679082829"><span class="hs-identifier hs-type">errPtr</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">nullPtr</span></span><span>
+</span><span id="line-182"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679082827"><span class="hs-identifier hs-type">result</span></a></span><span>
+</span><span id="line-183"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679082830"><span class="annot"><a href="#local-6989586621679082830"><span class="hs-identifier hs-var">gerror</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">peek</span></span><span> </span><span class="annot"><a href="#local-6989586621679082829"><span class="hs-identifier hs-type">errPtr</span></a></span><span>
+</span><span id="line-184"></span><span>            </span><span class="annot"><a href="System.Glib.GError.html#g_error_free"><span class="hs-identifier hs-type">g_error_free</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">castPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621679082829"><span class="hs-identifier hs-type">errPtr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>            </span><span class="annot"><a href="#local-6989586621679082823"><span class="hs-identifier hs-type">handler</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679082830"><span class="hs-identifier hs-type">gerror</span></a></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- | Use this if you need to explicitly throw a GError or re-throw an existing</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- GError that you do not wish to handle.</span><span>
+</span><span id="line-189"></span><span id="local-6989586621679082648"><span class="annot"><a href="System.Glib.GError.html#throwGError"><span class="hs-identifier hs-type">throwGError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082648"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-190"></span><span id="throwGError"><span class="annot"><span class="annottext">throwGError :: forall a. GError -&gt; IO a
+</span><a href="System.Glib.GError.html#throwGError"><span class="hs-identifier hs-var hs-var">throwGError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GError -&gt; IO a
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span>
+</span><span id="line-191"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">throwGError</span><span> </span><span class="hs-pragma">&quot;Use ordinary Control.Exception.throw&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- | This will catch any GError exception. The handler function will receive the</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- raw GError. This is probably only useful when you want to take some action</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- that does not depend on which GError exception has occurred, otherwise it</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- would be better to use either 'catchGErrorJust' or 'catchGErrorJustDomain'.</span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- For example:</span><span>
+</span><span id="line-198"></span><span class="hs-comment">--</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- &gt; catchGError</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- &gt; (do ...</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- &gt; ...)</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- &gt; (\(GError dom code msg) -&gt; fail msg)</span><span>
+</span><span id="line-203"></span><span class="hs-comment">--</span><span>
+</span><span id="line-204"></span><span id="local-6989586621679082661"><span class="annot"><a href="System.Glib.GError.html#catchGError"><span class="hs-identifier hs-type">catchGError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082661"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ The computation to run</span></span><span>
+</span><span id="line-205"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082661"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Handler to invoke if an exception is raised</span></span><span>
+</span><span id="line-206"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082661"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-207"></span><span id="catchGError"><span class="annot"><span class="annottext">catchGError :: forall a. IO a -&gt; (GError -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#catchGError"><span class="hs-identifier hs-var hs-var">catchGError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; (GError -&gt; IO a) -&gt; IO a
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">catch</span></span><span>
+</span><span id="line-208"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">catchGError</span><span> </span><span class="hs-pragma">&quot;Use ordinary Control.Exception.catch&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- | This will catch just a specific GError exception. If you need to catch a</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- range of related errors, 'catchGErrorJustDomain' is probably more</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- appropriate. Example:</span><span>
+</span><span id="line-213"></span><span class="hs-comment">--</span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- &gt; do image &lt;- catchGErrorJust PixbufErrorCorruptImage</span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- &gt; loadImage</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- &gt; (\errorMessage -&gt; do log errorMessage</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- &gt; return missingImagePlaceholder)</span><span>
+</span><span id="line-218"></span><span class="hs-comment">--</span><span>
+</span><span id="line-219"></span><span id="local-6989586621679082665"><span id="local-6989586621679082666"><span class="annot"><a href="System.Glib.GError.html#catchGErrorJust"><span class="hs-identifier hs-type">catchGErrorJust</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GErrorClass"><span class="hs-identifier hs-type">GErrorClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679082665"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679082665"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ The error to catch</span></span><span>
+</span><span id="line-220"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082666"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ The computation to run</span></span><span>
+</span><span id="line-221"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GErrorMessage"><span class="hs-identifier hs-type">GErrorMessage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082666"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Handler to invoke if an exception is raised</span></span><span>
+</span><span id="line-222"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082666"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-223"></span><span id="catchGErrorJust"><span class="annot"><span class="annottext">catchGErrorJust :: forall err a.
+GErrorClass err =&gt;
+err -&gt; IO a -&gt; (GErrorMessage -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#catchGErrorJust"><span class="hs-identifier hs-var hs-var">catchGErrorJust</span></a></span></span><span> </span><span id="local-6989586621679082840"><span class="annot"><span class="annottext">err
+</span><a href="#local-6989586621679082840"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span id="local-6989586621679082841"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679082841"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679082842"><span class="annot"><span class="annottext">GErrorMessage -&gt; IO a
+</span><a href="#local-6989586621679082842"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; (GError -&gt; IO a) -&gt; IO a
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">catch</span></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679082841"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">GError -&gt; IO a
+</span><a href="#local-6989586621679082843"><span class="hs-identifier hs-var">handler'</span></a></span><span>
+</span><span id="line-224"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679082843"><span class="annot"><span class="annottext">handler' :: GError -&gt; IO a
+</span><a href="#local-6989586621679082843"><span class="hs-identifier hs-var hs-var">handler'</span></a></span></span><span> </span><span id="local-6989586621679082856"><span class="annot"><span class="annottext">gerror :: GError
+</span><a href="#local-6989586621679082856"><span class="hs-identifier hs-var">gerror</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span id="local-6989586621679082857"><span class="annot"><span class="annottext">GErrorDomain
+</span><a href="#local-6989586621679082857"><span class="hs-identifier hs-var">domain</span></a></span></span><span> </span><span id="local-6989586621679082858"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679082858"><span class="hs-identifier hs-var">code'</span></a></span></span><span> </span><span id="local-6989586621679082859"><span class="annot"><span class="annottext">GErrorMessage
+</span><a href="#local-6989586621679082859"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">GErrorDomain -&gt; GErrorDomain
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">GErrorDomain
+</span><a href="#local-6989586621679082857"><span class="hs-identifier hs-var">domain</span></a></span><span> </span><span class="annot"><span class="annottext">GErrorDomain -&gt; GErrorDomain -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">err -&gt; GErrorDomain
+forall err. GErrorClass err =&gt; err -&gt; GErrorDomain
+</span><a href="System.Glib.GError.html#gerrorDomain"><span class="hs-identifier hs-var">gerrorDomain</span></a></span><span> </span><span class="annot"><span class="annottext">err
+</span><a href="#local-6989586621679082840"><span class="hs-identifier hs-var">code</span></a></span><span>
+</span><span id="line-226"></span><span>           </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679082858"><span class="hs-identifier hs-var">code'</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">err -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">err
+</span><a href="#local-6989586621679082840"><span class="hs-identifier hs-var">code</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GErrorMessage -&gt; IO a
+</span><a href="#local-6989586621679082842"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">GErrorMessage
+</span><a href="#local-6989586621679082859"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-227"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GError -&gt; IO a
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">GError
+</span><a href="#local-6989586621679082856"><span class="hs-identifier hs-var">gerror</span></a></span><span>
+</span><span id="line-228"></span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- | Catch all GErrors from a particular error domain. The handler function</span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- should just deal with one error enumeration type. If you need to catch</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- errors from more than one error domain, use this function twice with an</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- appropriate handler functions for each.</span><span>
+</span><span id="line-233"></span><span class="hs-comment">--</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- &gt; catchGErrorJustDomain</span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- &gt; loadImage</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- &gt; (\err message -&gt; case err of</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- &gt; PixbufErrorCorruptImage -&gt; ...</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- &gt; PixbufErrorInsufficientMemory -&gt; ...</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- &gt; PixbufErrorUnknownType -&gt; ...</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- &gt; _ -&gt; ...)</span><span>
+</span><span id="line-241"></span><span class="hs-comment">--</span><span>
+</span><span id="line-242"></span><span id="local-6989586621679082670"><span id="local-6989586621679082671"><span class="annot"><a href="System.Glib.GError.html#catchGErrorJustDomain"><span class="hs-identifier hs-type">catchGErrorJustDomain</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GErrorClass"><span class="hs-identifier hs-type">GErrorClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679082670"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082671"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ The computation to run</span></span><span>
+</span><span id="line-243"></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679082670"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GErrorMessage"><span class="hs-identifier hs-type">GErrorMessage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082671"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Handler to invoke if an exception is raised</span></span><span>
+</span><span id="line-244"></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082671"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-245"></span><span id="catchGErrorJustDomain"><span class="annot"><span class="annottext">catchGErrorJustDomain :: forall err a.
+GErrorClass err =&gt;
+IO a -&gt; (err -&gt; GErrorMessage -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#catchGErrorJustDomain"><span class="hs-identifier hs-var hs-var">catchGErrorJustDomain</span></a></span></span><span> </span><span id="local-6989586621679082865"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679082865"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679082866"><span id="local-6989586621679082867"><span id="local-6989586621679082868"><span class="annot"><span class="annottext">err -&gt; GErrorMessage -&gt; IO a
+</span><a href="#local-6989586621679082868"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679082866"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GErrorMessage"><span class="hs-identifier hs-type">GErrorMessage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082867"><span class="hs-identifier hs-type">a</span></a></span></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-246"></span><span>    </span><span class="annot"><span class="annottext">IO a -&gt; (GError -&gt; IO a) -&gt; IO a
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">catch</span></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679082865"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">GError -&gt; IO a
+</span><a href="#local-6989586621679082869"><span class="hs-identifier hs-var">handler'</span></a></span><span>
+</span><span id="line-247"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679082869"><span class="annot"><span class="annottext">handler' :: GError -&gt; IO a
+</span><a href="#local-6989586621679082869"><span class="hs-identifier hs-var hs-var">handler'</span></a></span></span><span> </span><span id="local-6989586621679082878"><span class="annot"><span class="annottext">gerror :: GError
+</span><a href="#local-6989586621679082878"><span class="hs-identifier hs-var">gerror</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span id="local-6989586621679082879"><span class="annot"><span class="annottext">GErrorDomain
+</span><a href="#local-6989586621679082879"><span class="hs-identifier hs-var">domain</span></a></span></span><span> </span><span id="local-6989586621679082880"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679082880"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span id="local-6989586621679082881"><span class="annot"><span class="annottext">GErrorMessage
+</span><a href="#local-6989586621679082881"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-248"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">GErrorDomain -&gt; GErrorDomain
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">GErrorDomain
+</span><a href="#local-6989586621679082879"><span class="hs-identifier hs-var">domain</span></a></span><span> </span><span class="annot"><span class="annottext">GErrorDomain -&gt; GErrorDomain -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">err -&gt; GErrorDomain
+forall err. GErrorClass err =&gt; err -&gt; GErrorDomain
+</span><a href="System.Glib.GError.html#gerrorDomain"><span class="hs-identifier hs-var">gerrorDomain</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">err
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span class="hs-glyph">::</span><span class="annot"><a href="#local-6989586621679082866"><span class="hs-identifier hs-type">err</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">err -&gt; GErrorMessage -&gt; IO a
+</span><a href="#local-6989586621679082868"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; err
+forall a. Enum a =&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">toEnum</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679082880"><span class="hs-identifier hs-var">code</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">GErrorMessage
+</span><a href="#local-6989586621679082881"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-249"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GError -&gt; IO a
+forall a. GError -&gt; IO a
+</span><a href="System.Glib.GError.html#throwGError"><span class="hs-identifier hs-var">throwGError</span></a></span><span> </span><span class="annot"><span class="annottext">GError
+</span><a href="#local-6989586621679082878"><span class="hs-identifier hs-var">gerror</span></a></span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- | A version of 'catchGError' with the arguments swapped around.</span><span>
+</span><span id="line-252"></span><span class="hs-comment">--</span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- &gt; handleGError (\(GError dom code msg) -&gt; ...) $</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- &gt; ...</span><span>
+</span><span id="line-255"></span><span class="hs-comment">--</span><span>
+</span><span id="line-256"></span><span id="local-6989586621679082674"><span class="annot"><a href="System.Glib.GError.html#handleGError"><span class="hs-identifier hs-type">handleGError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082674"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082674"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082674"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-257"></span><span id="handleGError"><span class="annot"><span class="annottext">handleGError :: forall a. (GError -&gt; IO a) -&gt; IO a -&gt; IO a
+</span><a href="System.Glib.GError.html#handleGError"><span class="hs-identifier hs-var hs-var">handleGError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(GError -&gt; IO a) -&gt; IO a -&gt; IO a
+forall e a. Exception e =&gt; (e -&gt; IO a) -&gt; IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">handle</span></span><span>
+</span><span id="line-258"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">handleGError</span><span> </span><span class="hs-pragma">&quot;Use ordinary Control.Exception.handle&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span class="annot"><span class="hs-comment">-- | A version of 'handleGErrorJust' with the arguments swapped around.</span></span><span>
+</span><span id="line-261"></span><span id="local-6989586621679082678"><span id="local-6989586621679082679"><span class="annot"><a href="System.Glib.GError.html#handleGErrorJust"><span class="hs-identifier hs-type">handleGErrorJust</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GErrorClass"><span class="hs-identifier hs-type">GErrorClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679082678"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679082678"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GErrorMessage"><span class="hs-identifier hs-type">GErrorMessage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082679"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082679"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082679"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-262"></span><span id="handleGErrorJust"><span class="annot"><span class="annottext">handleGErrorJust :: forall err a.
+GErrorClass err =&gt;
+err -&gt; (GErrorMessage -&gt; IO a) -&gt; IO a -&gt; IO a
+</span><a href="System.Glib.GError.html#handleGErrorJust"><span class="hs-identifier hs-var hs-var">handleGErrorJust</span></a></span></span><span> </span><span id="local-6989586621679082886"><span class="annot"><span class="annottext">err
+</span><a href="#local-6989586621679082886"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; (GErrorMessage -&gt; IO a) -&gt; IO a)
+-&gt; (GErrorMessage -&gt; IO a) -&gt; IO a -&gt; IO a
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">err -&gt; IO a -&gt; (GErrorMessage -&gt; IO a) -&gt; IO a
+forall err a.
+GErrorClass err =&gt;
+err -&gt; IO a -&gt; (GErrorMessage -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#catchGErrorJust"><span class="hs-identifier hs-var">catchGErrorJust</span></a></span><span> </span><span class="annot"><span class="annottext">err
+</span><a href="#local-6989586621679082886"><span class="hs-identifier hs-var">code</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-263"></span><span>
+</span><span id="line-264"></span><span class="annot"><span class="hs-comment">-- | A version of 'catchGErrorJustDomain' with the arguments swapped around.</span></span><span>
+</span><span id="line-265"></span><span id="local-6989586621679082685"><span id="local-6989586621679082686"><span class="annot"><a href="System.Glib.GError.html#handleGErrorJustDomain"><span class="hs-identifier hs-type">handleGErrorJustDomain</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GErrorClass"><span class="hs-identifier hs-type">GErrorClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679082685"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679082685"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Glib.GError.html#GErrorMessage"><span class="hs-identifier hs-type">GErrorMessage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082686"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082686"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082686"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-266"></span><span id="handleGErrorJustDomain"><span class="annot"><span class="annottext">handleGErrorJustDomain :: forall err a.
+GErrorClass err =&gt;
+(err -&gt; GErrorMessage -&gt; IO a) -&gt; IO a -&gt; IO a
+</span><a href="System.Glib.GError.html#handleGErrorJustDomain"><span class="hs-identifier hs-var hs-var">handleGErrorJustDomain</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; (err -&gt; GErrorMessage -&gt; IO a) -&gt; IO a)
+-&gt; (err -&gt; GErrorMessage -&gt; IO a) -&gt; IO a -&gt; IO a
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; (err -&gt; GErrorMessage -&gt; IO a) -&gt; IO a
+forall err a.
+GErrorClass err =&gt;
+IO a -&gt; (err -&gt; GErrorMessage -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#catchGErrorJustDomain"><span class="hs-identifier hs-var">catchGErrorJustDomain</span></a></span><span>
+</span><span id="line-267"></span><span>
+</span><span id="line-268"></span><span class="annot"><span class="hs-comment">-- | Catch all GError exceptions and convert them into a general failure.</span></span><span>
+</span><span id="line-269"></span><span id="local-6989586621679082689"><span class="annot"><a href="System.Glib.GError.html#failOnGError"><span class="hs-identifier hs-type">failOnGError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082689"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679082689"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-270"></span><span id="failOnGError"><span class="annot"><span class="annottext">failOnGError :: forall a. IO a -&gt; IO a
+</span><a href="System.Glib.GError.html#failOnGError"><span class="hs-identifier hs-var hs-var">failOnGError</span></a></span></span><span> </span><span id="local-6989586621679082892"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679082892"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; (GError -&gt; IO a) -&gt; IO a
+forall a. IO a -&gt; (GError -&gt; IO a) -&gt; IO a
+</span><a href="System.Glib.GError.html#catchGError"><span class="hs-identifier hs-var">catchGError</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679082892"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="System.Glib.GError.html#GError"><span class="hs-identifier hs-type">GError</span></a></span><span> </span><span id="local-6989586621679082893"><span class="annot"><span class="annottext">GErrorDomain
+</span><a href="#local-6989586621679082893"><span class="hs-identifier hs-var">dom</span></a></span></span><span> </span><span id="local-6989586621679082894"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679082894"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span id="local-6989586621679082895"><span class="annot"><span class="annottext">GErrorMessage
+</span><a href="#local-6989586621679082895"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO a
+forall a. String -&gt; IO a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GErrorMessage -&gt; String
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="annot"><span class="annottext">GErrorMessage
+</span><a href="#local-6989586621679082895"><span class="hs-identifier hs-var">msg</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;g_error_free&quot;</span></span><span>
+</span><span id="line-273"></span><span>  </span><span id="g_error_free"><span class="annot"><a href="System.Glib.GError.html#g_error_free"><span class="hs-identifier hs-var">g_error_free</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-274"></span></pre></body></html>

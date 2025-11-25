@@ -1,0 +1,294 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="RL.ReplayBuffer.html"><span class="hs-identifier">RL.ReplayBuffer</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Common</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GreedyParser</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="RL.Encoding.html"><span class="hs-identifier">RL.Encoding</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="RL.ModelTypes.html"><span class="hs-identifier">RL.ModelTypes</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Random</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">RandomGen</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getStdRandom</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Random.Shuffle</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">shuffle'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Random.Stateful</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Rand</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">StatefulGen</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">UniformRange</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">uniformRM</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">split</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- States and Actions</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- ------------------</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">newtype</span><span> </span><span id="RPState"><span class="annot"><a href="RL.ReplayBuffer.html#RPState"><span class="hs-identifier hs-var">RPState</span></a></span></span><span> </span><span id="local-6989586621679370022"><span class="annot"><a href="#local-6989586621679370022"><span class="hs-identifier hs-type">tr</span></a></span></span><span> </span><span id="local-6989586621679370023"><span class="annot"><a href="#local-6989586621679370023"><span class="hs-identifier hs-type">tr'</span></a></span></span><span> </span><span id="local-6989586621679370024"><span class="annot"><a href="#local-6989586621679370024"><span class="hs-identifier hs-type">slc</span></a></span></span><span> </span><span id="local-6989586621679370025"><span class="annot"><a href="#local-6989586621679370025"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679370026"><span class="annot"><a href="#local-6989586621679370026"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679370027"><span class="annot"><a href="#local-6989586621679370027"><span class="hs-identifier hs-type">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RPState"><span class="annot"><a href="RL.ReplayBuffer.html#RPState"><span class="hs-identifier hs-var">RPState</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">GreedyState</span></span><span> </span><span class="annot"><a href="#local-6989586621679370022"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370023"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370024"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Leftmost</span></span><span> </span><span class="annot"><a href="#local-6989586621679370025"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370026"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370027"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679370036"><span id="local-6989586621679370043"><span id="local-6989586621679370047"><span class="annot"><span class="annottext">Int -&gt; RPState tr tr' slc s f h -&gt; ShowS
+[RPState tr tr' slc s f h] -&gt; ShowS
+RPState tr tr' slc s f h -&gt; String
+(Int -&gt; RPState tr tr' slc s f h -&gt; ShowS)
+-&gt; (RPState tr tr' slc s f h -&gt; String)
+-&gt; ([RPState tr tr' slc s f h] -&gt; ShowS)
+-&gt; Show (RPState tr tr' slc s f h)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall tr tr' slc s f h.
+(Show tr, Show tr', Show slc, Show s, Show f, Show h) =&gt;
+Int -&gt; RPState tr tr' slc s f h -&gt; ShowS
+forall tr tr' slc s f h.
+(Show tr, Show tr', Show slc, Show s, Show f, Show h) =&gt;
+[RPState tr tr' slc s f h] -&gt; ShowS
+forall tr tr' slc s f h.
+(Show tr, Show tr', Show slc, Show s, Show f, Show h) =&gt;
+RPState tr tr' slc s f h -&gt; String
+$cshowsPrec :: forall tr tr' slc s f h.
+(Show tr, Show tr', Show slc, Show s, Show f, Show h) =&gt;
+Int -&gt; RPState tr tr' slc s f h -&gt; ShowS
+showsPrec :: Int -&gt; RPState tr tr' slc s f h -&gt; ShowS
+$cshow :: forall tr tr' slc s f h.
+(Show tr, Show tr', Show slc, Show s, Show f, Show h) =&gt;
+RPState tr tr' slc s f h -&gt; String
+show :: RPState tr tr' slc s f h -&gt; String
+$cshowList :: forall tr tr' slc s f h.
+(Show tr, Show tr', Show slc, Show s, Show f, Show h) =&gt;
+[RPState tr tr' slc s f h] -&gt; ShowS
+showList :: [RPState tr tr' slc s f h] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">newtype</span><span> </span><span id="RPAction"><span class="annot"><a href="RL.ReplayBuffer.html#RPAction"><span class="hs-identifier hs-var">RPAction</span></a></span></span><span> </span><span id="local-6989586621679370052"><span class="annot"><a href="#local-6989586621679370052"><span class="hs-identifier hs-type">slc</span></a></span></span><span> </span><span id="local-6989586621679370053"><span class="annot"><a href="#local-6989586621679370053"><span class="hs-identifier hs-type">tr</span></a></span></span><span> </span><span id="local-6989586621679370054"><span class="annot"><a href="#local-6989586621679370054"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679370055"><span class="annot"><a href="#local-6989586621679370055"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679370056"><span class="annot"><a href="#local-6989586621679370056"><span class="hs-identifier hs-type">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RPAction"><span class="annot"><a href="RL.ReplayBuffer.html#RPAction"><span class="hs-identifier hs-var">RPAction</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Action</span></span><span> </span><span class="annot"><a href="#local-6989586621679370052"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370053"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370054"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370055"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370056"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679370064"><span id="local-6989586621679370071"><span id="local-6989586621679370075"><span class="annot"><span class="annottext">Int -&gt; RPAction slc tr s f h -&gt; ShowS
+[RPAction slc tr s f h] -&gt; ShowS
+RPAction slc tr s f h -&gt; String
+(Int -&gt; RPAction slc tr s f h -&gt; ShowS)
+-&gt; (RPAction slc tr s f h -&gt; String)
+-&gt; ([RPAction slc tr s f h] -&gt; ShowS)
+-&gt; Show (RPAction slc tr s f h)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall slc tr s f h.
+(Show slc, Show tr, Show s, Show f, Show h) =&gt;
+Int -&gt; RPAction slc tr s f h -&gt; ShowS
+forall slc tr s f h.
+(Show slc, Show tr, Show s, Show f, Show h) =&gt;
+[RPAction slc tr s f h] -&gt; ShowS
+forall slc tr s f h.
+(Show slc, Show tr, Show s, Show f, Show h) =&gt;
+RPAction slc tr s f h -&gt; String
+$cshowsPrec :: forall slc tr s f h.
+(Show slc, Show tr, Show s, Show f, Show h) =&gt;
+Int -&gt; RPAction slc tr s f h -&gt; ShowS
+showsPrec :: Int -&gt; RPAction slc tr s f h -&gt; ShowS
+$cshow :: forall slc tr s f h.
+(Show slc, Show tr, Show s, Show f, Show h) =&gt;
+RPAction slc tr s f h -&gt; String
+show :: RPAction slc tr s f h -&gt; String
+$cshowList :: forall slc tr s f h.
+(Show slc, Show tr, Show s, Show f, Show h) =&gt;
+[RPAction slc tr s f h] -&gt; ShowS
+showList :: [RPAction slc tr s f h] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Replay Buffer</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- -------------</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="ReplayStep"><span class="annot"><a href="RL.ReplayBuffer.html#ReplayStep"><span class="hs-identifier hs-var">ReplayStep</span></a></span></span><span> </span><span id="local-6989586621679369848"><span class="annot"><a href="#local-6989586621679369848"><span class="hs-identifier hs-type">dev</span></a></span></span><span> </span><span id="local-6989586621679369849"><span class="annot"><a href="#local-6989586621679369849"><span class="hs-identifier hs-type">tr</span></a></span></span><span> </span><span id="local-6989586621679369850"><span class="annot"><a href="#local-6989586621679369850"><span class="hs-identifier hs-type">tr'</span></a></span></span><span> </span><span id="local-6989586621679369851"><span class="annot"><a href="#local-6989586621679369851"><span class="hs-identifier hs-type">slc</span></a></span></span><span> </span><span id="local-6989586621679369852"><span class="annot"><a href="#local-6989586621679369852"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679369853"><span class="annot"><a href="#local-6989586621679369853"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679369854"><span class="annot"><a href="#local-6989586621679369854"><span class="hs-identifier hs-type">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ReplayStep"><span class="annot"><a href="RL.ReplayBuffer.html#ReplayStep"><span class="hs-identifier hs-var">ReplayStep</span></a></span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="replayState"><span class="annot"><span class="annottext">forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+ReplayStep dev tr tr' slc s f h -&gt; RPState tr tr' slc s f h
+</span><a href="RL.ReplayBuffer.html#replayState"><span class="hs-identifier hs-var hs-var">replayState</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="RL.ReplayBuffer.html#RPState"><span class="hs-identifier hs-type">RPState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369849"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369850"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369851"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369852"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369853"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369854"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="replayAction"><span class="annot"><span class="annottext">forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+ReplayStep dev tr tr' slc s f h -&gt; RPAction slc tr s f h
+</span><a href="RL.ReplayBuffer.html#replayAction"><span class="hs-identifier hs-var hs-var">replayAction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="RL.ReplayBuffer.html#RPAction"><span class="hs-identifier hs-type">RPAction</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369851"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369849"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369852"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369853"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369854"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="replayStep"><span class="annot"><span class="annottext">forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+ReplayStep dev tr tr' slc s f h -&gt; QEncoding dev '[]
+</span><a href="RL.ReplayBuffer.html#replayStep"><span class="hs-identifier hs-var hs-var">replayStep</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="RL.Encoding.html#QEncoding"><span class="hs-identifier hs-type">QEncoding</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369848"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="replayNextState"><span class="annot"><span class="annottext">forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+ReplayStep dev tr tr' slc s f h -&gt; Maybe (RPState tr tr' slc s f h)
+</span><a href="RL.ReplayBuffer.html#replayNextState"><span class="hs-identifier hs-var hs-var">replayNextState</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ReplayBuffer.html#RPState"><span class="hs-identifier hs-type">RPState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369849"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369850"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369851"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369852"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369853"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369854"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="replayNextSteps"><span class="annot"><span class="annottext">forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+ReplayStep dev tr tr' slc s f h -&gt; [QEncoding dev '[]]
+</span><a href="RL.ReplayBuffer.html#replayNextSteps"><span class="hs-identifier hs-var hs-var">replayNextSteps</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="annot"><a href="RL.Encoding.html#QEncoding"><span class="hs-identifier hs-type">QEncoding</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369848"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="replayReward"><span class="annot"><span class="annottext">forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+ReplayStep dev tr tr' slc s f h -&gt; QType
+</span><a href="RL.ReplayBuffer.html#replayReward"><span class="hs-identifier hs-var hs-var">replayReward</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="RL.ModelTypes.html#QType"><span class="hs-identifier hs-type">QType</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679369907"><span id="local-6989586621679369908"><span id="local-6989586621679369909"><span id="local-6989586621679369910"><span id="local-6989586621679369911"><span id="local-6989586621679369912"><span id="local-6989586621679369913"><span id="local-6989586621679370093"><span id="local-6989586621679370098"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679369907"><span class="hs-identifier hs-type">slc</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679369908"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679369909"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679369910"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679369911"><span class="hs-identifier hs-type">tr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679369912"><span class="hs-identifier hs-type">tr'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayStep"><span class="hs-identifier hs-type">ReplayStep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369913"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369911"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369912"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369907"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369908"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369909"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369910"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679370112"><span class="annot"><span class="annottext">show :: ReplayStep dev tr tr' slc s f h -&gt; String
+</span><a href="#local-6989586621679370112"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayStep"><span class="hs-identifier hs-type">ReplayStep</span></a></span><span> </span><span id="local-6989586621679370114"><span class="annot"><span class="annottext">RPState tr tr' slc s f h
+</span><a href="#local-6989586621679370114"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ReplayBuffer.html#RPAction"><span class="hs-identifier hs-type">RPAction</span></a></span><span> </span><span id="local-6989586621679370115"><span class="annot"><span class="annottext">Action slc tr s f h
+</span><a href="#local-6989586621679370115"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">QEncoding dev '[]
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679370116"><span class="annot"><span class="annottext">Maybe (RPState tr tr' slc s f h)
+</span><a href="#local-6989586621679370116"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="annot"><span class="annottext">[QEncoding dev '[]]
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679370117"><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679370117"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><span class="annottext">RPState tr tr' slc s f h -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">RPState tr tr' slc s f h
+</span><a href="#local-6989586621679370114"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; -&gt; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe (RPState tr tr' slc s f h) -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Maybe (RPState tr tr' slc s f h)
+</span><a href="#local-6989586621679370116"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">QType -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">QType
+</span><a href="#local-6989586621679370117"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n  &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679370118"><span class="hs-identifier hs-var">act</span></a></span><span>
+</span><span id="line-37"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621679370118"><span class="annot"><span class="annottext">act :: String
+</span><a href="#local-6989586621679370118"><span class="hs-identifier hs-var hs-var">act</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Action slc tr s f h
+</span><a href="#local-6989586621679370115"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ActionSingle</span></span><span> </span><span class="annot"><span class="annottext">SingleParent slc tr
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679370127"><span class="annot"><span class="annottext">LeftmostSingle s f
+</span><a href="#local-6989586621679370127"><span class="hs-identifier hs-var">op</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LeftmostSingle s f -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">LeftmostSingle s f
+</span><a href="#local-6989586621679370127"><span class="hs-identifier hs-var">op</span></a></span><span>
+</span><span id="line-40"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ActionDouble</span></span><span> </span><span class="annot"><span class="annottext">DoubleParent slc tr
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679370129"><span class="annot"><span class="annottext">LeftmostDouble s f h
+</span><a href="#local-6989586621679370129"><span class="hs-identifier hs-var">op</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LeftmostDouble s f h -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">LeftmostDouble s f h
+</span><a href="#local-6989586621679370129"><span class="hs-identifier hs-var">op</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">data</span><span> </span><span id="ReplayBuffer"><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-var">ReplayBuffer</span></a></span></span><span> </span><span id="local-6989586621679369956"><span class="annot"><a href="#local-6989586621679369956"><span class="hs-identifier hs-type">dev</span></a></span></span><span> </span><span id="local-6989586621679369957"><span class="annot"><a href="#local-6989586621679369957"><span class="hs-identifier hs-type">tr</span></a></span></span><span> </span><span id="local-6989586621679369958"><span class="annot"><a href="#local-6989586621679369958"><span class="hs-identifier hs-type">tr'</span></a></span></span><span> </span><span id="local-6989586621679369959"><span class="annot"><a href="#local-6989586621679369959"><span class="hs-identifier hs-type">slc</span></a></span></span><span> </span><span id="local-6989586621679369960"><span class="annot"><a href="#local-6989586621679369960"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679369961"><span class="annot"><a href="#local-6989586621679369961"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679369962"><span class="annot"><a href="#local-6989586621679369962"><span class="hs-identifier hs-type">h</span></a></span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ReplayBuffer"><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-var">ReplayBuffer</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayStep"><span class="hs-identifier hs-type">ReplayStep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369956"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369957"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369958"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369959"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369960"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369961"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369962"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679370138"><span id="local-6989586621679370146"><span id="local-6989586621679370150"><span class="annot"><span class="annottext">Int -&gt; ReplayBuffer dev tr tr' slc s f h -&gt; ShowS
+[ReplayBuffer dev tr tr' slc s f h] -&gt; ShowS
+ReplayBuffer dev tr tr' slc s f h -&gt; String
+(Int -&gt; ReplayBuffer dev tr tr' slc s f h -&gt; ShowS)
+-&gt; (ReplayBuffer dev tr tr' slc s f h -&gt; String)
+-&gt; ([ReplayBuffer dev tr tr' slc s f h] -&gt; ShowS)
+-&gt; Show (ReplayBuffer dev tr tr' slc s f h)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+(Show slc, Show s, Show f, Show h, Show tr, Show tr') =&gt;
+Int -&gt; ReplayBuffer dev tr tr' slc s f h -&gt; ShowS
+forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+(Show slc, Show s, Show f, Show h, Show tr, Show tr') =&gt;
+[ReplayBuffer dev tr tr' slc s f h] -&gt; ShowS
+forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+(Show slc, Show s, Show f, Show h, Show tr, Show tr') =&gt;
+ReplayBuffer dev tr tr' slc s f h -&gt; String
+$cshowsPrec :: forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+(Show slc, Show s, Show f, Show h, Show tr, Show tr') =&gt;
+Int -&gt; ReplayBuffer dev tr tr' slc s f h -&gt; ShowS
+showsPrec :: Int -&gt; ReplayBuffer dev tr tr' slc s f h -&gt; ShowS
+$cshow :: forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+(Show slc, Show s, Show f, Show h, Show tr, Show tr') =&gt;
+ReplayBuffer dev tr tr' slc s f h -&gt; String
+show :: ReplayBuffer dev tr tr' slc s f h -&gt; String
+$cshowList :: forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+(Show slc, Show s, Show f, Show h, Show tr, Show tr') =&gt;
+[ReplayBuffer dev tr tr' slc s f h] -&gt; ShowS
+showList :: [ReplayBuffer dev tr tr' slc s f h] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span id="local-6989586621679369942"><span id="local-6989586621679369943"><span id="local-6989586621679369944"><span id="local-6989586621679369945"><span id="local-6989586621679369946"><span id="local-6989586621679369947"><span id="local-6989586621679369948"><span class="annot"><a href="RL.ReplayBuffer.html#mkReplayBuffer"><span class="hs-identifier hs-type">mkReplayBuffer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-type">ReplayBuffer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369942"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369943"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369944"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369945"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369946"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369947"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369948"><span class="hs-identifier hs-type">h</span></a></span></span></span></span></span></span></span></span><span>
+</span><span id="line-47"></span><span id="mkReplayBuffer"><span class="annot"><span class="annottext">mkReplayBuffer :: forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+Int -&gt; ReplayBuffer dev tr tr' slc s f h
+</span><a href="RL.ReplayBuffer.html#mkReplayBuffer"><span class="hs-identifier hs-var hs-var">mkReplayBuffer</span></a></span></span><span> </span><span id="local-6989586621679370153"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370153"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+</span><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-var">ReplayBuffer</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370153"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span id="local-6989586621679370154"><span id="local-6989586621679370155"><span id="local-6989586621679370156"><span id="local-6989586621679370157"><span id="local-6989586621679370158"><span id="local-6989586621679370159"><span id="local-6989586621679370160"><span class="annot"><a href="RL.ReplayBuffer.html#seedReplayBuffer"><span class="hs-identifier hs-type">seedReplayBuffer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayStep"><span class="hs-identifier hs-type">ReplayStep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370154"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370155"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370156"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370157"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370158"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370159"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370160"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-type">ReplayBuffer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370154"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370155"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370156"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370157"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370158"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370159"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370160"><span class="hs-identifier hs-type">h</span></a></span></span></span></span></span></span></span></span><span>
+</span><span id="line-50"></span><span id="seedReplayBuffer"><span class="annot"><span class="annottext">seedReplayBuffer :: forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+</span><a href="RL.ReplayBuffer.html#seedReplayBuffer"><span class="hs-identifier hs-var hs-var">seedReplayBuffer</span></a></span></span><span> </span><span id="local-6989586621679370162"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370162"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679370163"><span class="annot"><span class="annottext">[ReplayStep dev tr tr' slc s f h]
+</span><a href="#local-6989586621679370163"><span class="hs-identifier hs-var">steps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+</span><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-var">ReplayBuffer</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370162"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">([ReplayStep dev tr tr' slc s f h]
+ -&gt; ReplayBuffer dev tr tr' slc s f h)
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; [ReplayStep dev tr tr' slc s f h]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370162"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[ReplayStep dev tr tr' slc s f h]
+</span><a href="#local-6989586621679370163"><span class="hs-identifier hs-var">steps</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span id="local-6989586621679369976"><span id="local-6989586621679369977"><span id="local-6989586621679369978"><span id="local-6989586621679369979"><span id="local-6989586621679369980"><span id="local-6989586621679369981"><span id="local-6989586621679369982"><span class="annot"><a href="RL.ReplayBuffer.html#pushStep"><span class="hs-identifier hs-type">pushStep</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-type">ReplayBuffer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369976"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369977"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369978"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369979"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369980"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369981"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369982"><span class="hs-identifier hs-type">h</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayStep"><span class="hs-identifier hs-type">ReplayStep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369976"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369977"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369978"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369979"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369980"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369981"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369982"><span class="hs-identifier hs-type">h</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-type">ReplayBuffer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369976"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369977"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369978"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369979"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369980"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369981"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369982"><span class="hs-identifier hs-type">h</span></a></span></span></span></span></span></span></span></span><span>
+</span><span id="line-56"></span><span id="pushStep"><span class="annot"><span class="annottext">pushStep :: forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+ReplayBuffer dev tr tr' slc s f h
+-&gt; ReplayStep dev tr tr' slc s f h
+-&gt; ReplayBuffer dev tr tr' slc s f h
+</span><a href="RL.ReplayBuffer.html#pushStep"><span class="hs-identifier hs-var hs-var">pushStep</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-type">ReplayBuffer</span></a></span><span> </span><span id="local-6989586621679370166"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370166"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679370167"><span class="annot"><span class="annottext">[ReplayStep dev tr tr' slc s f h]
+</span><a href="#local-6989586621679370167"><span class="hs-identifier hs-var">queue</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679370168"><span class="annot"><span class="annottext">ReplayStep dev tr tr' slc s f h
+</span><a href="#local-6989586621679370168"><span class="hs-identifier hs-var">trans</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+</span><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-var">ReplayBuffer</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370166"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">([ReplayStep dev tr tr' slc s f h]
+ -&gt; ReplayBuffer dev tr tr' slc s f h)
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; ReplayBuffer dev tr tr' slc s f h
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; [ReplayStep dev tr tr' slc s f h]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370166"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">([ReplayStep dev tr tr' slc s f h]
+ -&gt; [ReplayStep dev tr tr' slc s f h])
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; [ReplayStep dev tr tr' slc s f h]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ReplayStep dev tr tr' slc s f h
+</span><a href="#local-6989586621679370168"><span class="hs-identifier hs-var">trans</span></a></span><span> </span><span class="annot"><span class="annottext">ReplayStep dev tr tr' slc s f h
+-&gt; [ReplayStep dev tr tr' slc s f h]
+-&gt; [ReplayStep dev tr tr' slc s f h]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[ReplayStep dev tr tr' slc s f h]
+</span><a href="#local-6989586621679370167"><span class="hs-identifier hs-var">queue</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621679369990"><span id="local-6989586621679369991"><span id="local-6989586621679369992"><span id="local-6989586621679369993"><span id="local-6989586621679369994"><span id="local-6989586621679369995"><span id="local-6989586621679369996"><span class="annot"><a href="RL.ReplayBuffer.html#sampleSteps"><span class="hs-identifier hs-type">sampleSteps</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-type">ReplayBuffer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369990"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369991"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369992"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369993"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369994"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369995"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369996"><span class="hs-identifier hs-type">h</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayStep"><span class="hs-identifier hs-type">ReplayStep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369990"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369991"><span class="hs-identifier hs-type">tr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369992"><span class="hs-identifier hs-type">tr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369993"><span class="hs-identifier hs-type">slc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369994"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369995"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679369996"><span class="hs-identifier hs-type">h</span></a></span><span class="hs-special">]</span></span></span></span></span></span></span></span><span>
+</span><span id="line-62"></span><span id="sampleSteps"><span class="annot"><span class="annottext">sampleSteps :: forall (dev :: (DeviceType, Nat)) tr tr' slc s f h.
+ReplayBuffer dev tr tr' slc s f h
+-&gt; Int -&gt; IO [ReplayStep dev tr tr' slc s f h]
+</span><a href="RL.ReplayBuffer.html#sampleSteps"><span class="hs-identifier hs-var hs-var">sampleSteps</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.ReplayBuffer.html#ReplayBuffer"><span class="hs-identifier hs-type">ReplayBuffer</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679370181"><span class="annot"><span class="annottext">[ReplayStep dev tr tr' slc s f h]
+</span><a href="#local-6989586621679370181"><span class="hs-identifier hs-var">queue</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679370182"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679370182"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-comment">-- not great, but shuffle' doesn't integrated with StatefulGen</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679370183"><span class="annot"><a href="#local-6989586621679370183"><span class="hs-identifier hs-var">gen</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(StdGen -&gt; (StdGen, StdGen)) -&gt; IO StdGen
+forall (m :: * -&gt; *) a. MonadIO m =&gt; (StdGen -&gt; (a, StdGen)) -&gt; m a
+</span><span class="hs-identifier hs-var">getStdRandom</span></span><span> </span><span class="annot"><span class="annottext">StdGen -&gt; (StdGen, StdGen)
+forall g. RandomGen g =&gt; g -&gt; (g, g)
+</span><span class="hs-identifier hs-var">Rand.split</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">take</span></span><span> </span><span class="annot"><a href="#local-6989586621679370182"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">shuffle'</span></span><span> </span><span class="annot"><a href="#local-6989586621679370181"><span class="hs-identifier hs-type">queue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">length</span></span><span> </span><span class="annot"><a href="#local-6989586621679370181"><span class="hs-identifier hs-type">queue</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679370183"><span class="hs-identifier hs-type">gen</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span></pre></body></html>

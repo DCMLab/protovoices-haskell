@@ -1,0 +1,1039 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="annot"><span class="hs-comment">-- | The backend to render charts with cairo.</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html"><span class="hs-identifier">Graphics.Rendering.Chart.Backend.Cairo</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileFormat"><span class="hs-identifier">FileFormat</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileOptions"><span class="hs-identifier">FileOptions</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend"><span class="hs-identifier">runBackend</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#renderableToFile"><span class="hs-identifier">renderableToFile</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#toFile"><span class="hs-identifier">toFile</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#defaultEnv"><span class="hs-identifier">defaultEnv</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#fo_size"><span class="hs-identifier">fo_size</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#fo_format"><span class="hs-identifier">fo_format</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cBackendToFile"><span class="hs-identifier">cBackendToFile</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Default.Class</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour.Names</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour.SRGB</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unfoldr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">makeLenses</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Operational</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Cairo</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Cairo.Matrix</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CM</span></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Chart.Backend</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">G</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Chart.Backend.Impl</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Chart.Backend.Types</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Chart.Drawing</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Chart.Geometry</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">G</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Chart.Renderable</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Chart.SparkLine</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Graphics.Rendering.Chart.State</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">EC</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">execEC</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-----------------------------------------------------------------------</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- Rendering Backend Environment</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-----------------------------------------------------------------------</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><span class="hs-comment">-- | The environment we need to track when rendering to cairo</span></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">data</span><span> </span><span id="CEnv"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-var">CEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CEnv"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-var">CEnv</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="ceAlignmentFns"><span class="annot"><span class="annottext">CEnv -&gt; AlignmentFns
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceAlignmentFns"><span class="hs-identifier hs-var hs-var">ceAlignmentFns</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AlignmentFns</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="ceFontColor"><span class="annot"><span class="annottext">CEnv -&gt; AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceFontColor"><span class="hs-identifier hs-var hs-var">ceFontColor</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AlphaColour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="cePathColor"><span class="annot"><span class="annottext">CEnv -&gt; AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cePathColor"><span class="hs-identifier hs-var hs-var">cePathColor</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AlphaColour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="ceFillColor"><span class="annot"><span class="annottext">CEnv -&gt; AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceFillColor"><span class="hs-identifier hs-var hs-var">ceFillColor</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AlphaColour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-55"></span><span class="hs-special">}</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Produce a environment with no transformation and clipping. </span><span>
+</span><span id="line-58"></span><span class="hs-comment">--   It will use the default styles.</span><span>
+</span><span id="line-59"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#defaultEnv"><span class="hs-identifier hs-type">defaultEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AlignmentFns</span></span><span>
+</span><span id="line-60"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span>
+</span><span id="line-61"></span><span id="defaultEnv"><span class="annot"><span class="annottext">defaultEnv :: AlignmentFns -&gt; CEnv
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#defaultEnv"><span class="hs-identifier hs-var hs-var">defaultEnv</span></a></span></span><span> </span><span id="local-6989586621679105360"><span class="annot"><span class="annottext">AlignmentFns
+</span><a href="#local-6989586621679105360"><span class="hs-identifier hs-var">alignFns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ceAlignmentFns :: AlignmentFns
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceAlignmentFns"><span class="hs-identifier hs-var">ceAlignmentFns</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlignmentFns
+</span><a href="#local-6989586621679105360"><span class="hs-identifier hs-var">alignFns</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ceFontColor :: AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceFontColor"><span class="hs-identifier hs-var">ceFontColor</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. Num a =&gt; Colour a
+</span><span class="hs-identifier hs-var">black</span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cePathColor :: AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cePathColor"><span class="hs-identifier hs-var">cePathColor</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. Num a =&gt; Colour a
+</span><span class="hs-identifier hs-var">black</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ceFillColor :: AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceFillColor"><span class="hs-identifier hs-var">ceFillColor</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">white</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- -----------------------------------------------------------------------</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- Backend and Monad</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- -----------------------------------------------------------------------</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- | Run this backends renderer.</span></span><span>
+</span><span id="line-73"></span><span id="local-6989586621679105184"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend"><span class="hs-identifier hs-type">runBackend</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Environment to start rendering with.</span></span><span>
+</span><span id="line-74"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105184"><span class="hs-identifier hs-type">a</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Chart render code.</span></span><span>
+</span><span id="line-75"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105184"><span class="hs-identifier hs-type">a</span></a></span></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Cairo render code.</span></span><span>
+</span><span id="line-76"></span><span id="runBackend"><span class="annot"><span class="annottext">runBackend :: forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend"><span class="hs-identifier hs-var hs-var">runBackend</span></a></span></span><span> </span><span id="local-6989586621679105364"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105364"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105365"><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105365"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-var">runBackend'</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105364"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BackendProgram a -&gt; BackendProgram a
+forall a. BackendProgram a -&gt; BackendProgram a
+</span><span class="hs-identifier hs-var">withDefaultStyle</span></span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105365"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span id="local-6989586621679105368"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-type">runBackend'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105368"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105368"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-79"></span><span id="runBackend%27"><span class="annot"><span class="annottext">runBackend' :: forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-var hs-var">runBackend'</span></a></span></span><span> </span><span id="local-6989586621679105369"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105369"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105370"><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105370"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; ProgramView ChartBackendInstr a -&gt; Render a
+forall a. CEnv -&gt; ProgramView ChartBackendInstr a -&gt; Render a
+</span><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105369"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BackendProgram a -&gt; ProgramView ChartBackendInstr a
+forall (instr :: * -&gt; *) a. Program instr a -&gt; ProgramView instr a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105370"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679105191"><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-type">eval</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProgramView</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ChartBackendInstr</span></span><span> </span><span class="annot"><a href="#local-6989586621679105191"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105191"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679105371"><span class="annot"><span class="annottext">eval :: forall a. CEnv -&gt; ProgramView ChartBackendInstr a -&gt; Render a
+</span><a href="#local-6989586621679105371"><span class="hs-identifier hs-var hs-var">eval</span></a></span></span><span> </span><span id="local-6989586621679105374"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105374"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Return</span></span><span> </span><span id="local-6989586621679105376"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679105376"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Render a
+forall a. a -&gt; Render a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679105376"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105377"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105377"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StrokePath</span></span><span> </span><span id="local-6989586621679105381"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105381"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105383"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105383"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cStrokePath"><span class="hs-identifier hs-var">cStrokePath</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105377"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105381"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; (() -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (() -&gt; ProgramT ChartBackendInstr Identity a) -&gt; () -&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105377"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+() -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105383"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105386"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105386"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FillPath</span></span><span> </span><span id="local-6989586621679105390"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105390"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105391"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105391"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cFillPath"><span class="hs-identifier hs-var">cFillPath</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105386"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105390"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; (() -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (() -&gt; ProgramT ChartBackendInstr Identity a) -&gt; () -&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105386"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+() -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105391"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105393"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105393"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">GetTextSize</span></span><span> </span><span id="local-6989586621679105397"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105397"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105398"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105398"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Render TextSize
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cTextSize"><span class="hs-identifier hs-var">cTextSize</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105397"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Render TextSize -&gt; (TextSize -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (TextSize -&gt; ProgramT ChartBackendInstr Identity a)
+-&gt; TextSize
+-&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105393"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+TextSize -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105398"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105400"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105400"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DrawText</span></span><span> </span><span id="local-6989586621679105404"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105404"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679105405"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105405"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105406"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105406"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; Point -&gt; String -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cDrawText"><span class="hs-identifier hs-var">cDrawText</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105400"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105404"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105405"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; (() -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (() -&gt; ProgramT ChartBackendInstr Identity a) -&gt; () -&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105400"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+() -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105406"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105408"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105408"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ChartBackendInstr b
+</span><span class="hs-identifier hs-var">GetAlignments</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105413"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105413"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlignmentFns -&gt; Render AlignmentFns
+forall a. a -&gt; Render a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CEnv -&gt; AlignmentFns
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceAlignmentFns"><span class="hs-identifier hs-var">ceAlignmentFns</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105408"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Render AlignmentFns -&gt; (AlignmentFns -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (AlignmentFns -&gt; ProgramT ChartBackendInstr Identity a)
+-&gt; AlignmentFns
+-&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105408"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+AlignmentFns -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105413"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105414"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105414"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WithTransform</span></span><span> </span><span id="local-6989586621679105417"><span class="annot"><span class="annottext">Matrix
+</span><a href="#local-6989586621679105417"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679105418"><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105418"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105419"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105419"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; Matrix -&gt; Program ChartBackendInstr b -&gt; Render b
+forall a. CEnv -&gt; Matrix -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithTransform"><span class="hs-identifier hs-var">cWithTransform</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105414"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Matrix
+</span><a href="#local-6989586621679105417"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105418"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render b -&gt; (b -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (b -&gt; ProgramT ChartBackendInstr Identity a) -&gt; b -&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105414"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105419"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105421"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105421"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WithFontStyle</span></span><span> </span><span id="local-6989586621679105424"><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679105424"><span class="hs-identifier hs-var">font</span></a></span></span><span> </span><span id="local-6989586621679105425"><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105425"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105426"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105426"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; FontStyle -&gt; Program ChartBackendInstr b -&gt; Render b
+forall a. CEnv -&gt; FontStyle -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithFontStyle"><span class="hs-identifier hs-var">cWithFontStyle</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105421"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679105424"><span class="hs-identifier hs-var">font</span></a></span><span> </span><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105425"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render b -&gt; (b -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (b -&gt; ProgramT ChartBackendInstr Identity a) -&gt; b -&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105421"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105426"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105428"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105428"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WithFillStyle</span></span><span> </span><span id="local-6989586621679105431"><span class="annot"><span class="annottext">FillStyle
+</span><a href="#local-6989586621679105431"><span class="hs-identifier hs-var">fs</span></a></span></span><span> </span><span id="local-6989586621679105432"><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105432"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105433"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105433"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; FillStyle -&gt; Program ChartBackendInstr b -&gt; Render b
+forall a. CEnv -&gt; FillStyle -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithFillStyle"><span class="hs-identifier hs-var">cWithFillStyle</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105428"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">FillStyle
+</span><a href="#local-6989586621679105431"><span class="hs-identifier hs-var">fs</span></a></span><span> </span><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105432"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render b -&gt; (b -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (b -&gt; ProgramT ChartBackendInstr Identity a) -&gt; b -&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105428"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105433"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105435"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105435"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WithLineStyle</span></span><span> </span><span id="local-6989586621679105438"><span class="annot"><span class="annottext">LineStyle
+</span><a href="#local-6989586621679105438"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span id="local-6989586621679105439"><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105439"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105440"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105440"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; LineStyle -&gt; Program ChartBackendInstr b -&gt; Render b
+forall a. CEnv -&gt; LineStyle -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithLineStyle"><span class="hs-identifier hs-var">cWithLineStyle</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105435"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">LineStyle
+</span><a href="#local-6989586621679105438"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105439"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render b -&gt; (b -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (b -&gt; ProgramT ChartBackendInstr Identity a) -&gt; b -&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105435"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105440"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><a href="#local-6989586621679105371"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span id="local-6989586621679105442"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105442"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WithClipRegion</span></span><span> </span><span id="local-6989586621679105445"><span class="annot"><span class="annottext">Rect
+</span><a href="#local-6989586621679105445"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679105446"><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105446"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;&gt;=</span></span><span> </span><span id="local-6989586621679105447"><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105447"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; Rect -&gt; Program ChartBackendInstr b -&gt; Render b
+forall a. CEnv -&gt; Rect -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithClipRegion"><span class="hs-identifier hs-var">cWithClipRegion</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105442"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Rect
+</span><a href="#local-6989586621679105445"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Program ChartBackendInstr b
+</span><a href="#local-6989586621679105446"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render b -&gt; (b -&gt; Render a) -&gt; Render a
+forall a b. Render a -&gt; (a -&gt; Render b) -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CEnv
+-&gt; (b -&gt; ProgramT ChartBackendInstr Identity a) -&gt; b -&gt; Render a
+forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105442"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT ChartBackendInstr Identity a
+</span><a href="#local-6989586621679105447"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679105205"><span id="local-6989586621679105206"><span class="annot"><a href="#local-6989586621679105385"><span class="hs-identifier hs-type">step</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679105205"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105206"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679105205"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105206"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621679105385"><span class="annot"><span class="annottext">step :: forall v a. CEnv -&gt; (v -&gt; BackendProgram a) -&gt; v -&gt; Render a
+</span><a href="#local-6989586621679105385"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679105449"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105449"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105450"><span class="annot"><span class="annottext">v -&gt; BackendProgram a
+</span><a href="#local-6989586621679105450"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="hs-glyph">\</span><span id="local-6989586621679105451"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679105451"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-var">runBackend'</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105449"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; BackendProgram a
+</span><a href="#local-6989586621679105450"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679105451"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>    </span><span>
+</span><span id="line-97"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-type">walkPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span id="walkPath"><span class="annot"><span class="annottext">walkPath :: Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var hs-var">walkPath</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MoveTo</span></span><span> </span><span id="local-6989586621679105454"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105454"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679105455"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105455"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.moveTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105454"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105454"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render () -&gt; Render ()
+forall a b. Render a -&gt; Render b -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105455"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-99"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LineTo</span></span><span> </span><span id="local-6989586621679105460"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105460"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679105461"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105461"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.lineTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105460"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105460"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render () -&gt; Render ()
+forall a b. Render a -&gt; Render b -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105461"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-100"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Arc</span></span><span> </span><span id="local-6989586621679105464"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105464"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679105465"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105465"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679105466"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105466"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span id="local-6989586621679105467"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105467"><span class="hs-identifier hs-var">a2</span></a></span></span><span> </span><span id="local-6989586621679105468"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105468"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.arc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105464"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105464"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105465"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105466"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105467"><span class="hs-identifier hs-var">a2</span></a></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render () -&gt; Render ()
+forall a b. Render a -&gt; Render b -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105468"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-101"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ArcNeg</span></span><span> </span><span id="local-6989586621679105471"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105471"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679105472"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105472"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679105473"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105473"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span id="local-6989586621679105474"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105474"><span class="hs-identifier hs-var">a2</span></a></span></span><span> </span><span id="local-6989586621679105475"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105475"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.arcNegative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105471"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105471"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105472"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105473"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105474"><span class="hs-identifier hs-var">a2</span></a></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render () -&gt; Render ()
+forall a b. Render a -&gt; Render b -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105475"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-102"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><span class="hs-identifier hs-var">End</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; Render ()
+forall a. a -&gt; Render a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><span class="hs-identifier hs-var">Close</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Render ()
+</span><span class="hs-identifier hs-var">C.closePath</span></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cStrokePath"><span class="hs-identifier hs-type">cStrokePath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span id="cStrokePath"><span class="annot"><span class="annottext">cStrokePath :: CEnv -&gt; Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cStrokePath"><span class="hs-identifier hs-var hs-var">cStrokePath</span></a></span></span><span> </span><span id="local-6989586621679105480"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105480"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105481"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105481"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render ()
+forall a. Render a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-var">preserveCState0</span></a></span><span> </span><span class="annot"><span class="annottext">(Render () -&gt; Render ()) -&gt; Render () -&gt; Render ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><span class="annottext">AlphaColour Double -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#setSourceColor"><span class="hs-identifier hs-var">setSourceColor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CEnv -&gt; AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cePathColor"><span class="hs-identifier hs-var">cePathColor</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105480"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><span class="annottext">Render ()
+</span><span class="hs-identifier hs-var">C.newPath</span></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render () -&gt; Render ()
+forall a b. Render a -&gt; Render b -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105481"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render () -&gt; Render ()
+forall a b. Render a -&gt; Render b -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Render ()
+</span><span class="hs-identifier hs-var">C.stroke</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cFillPath"><span class="hs-identifier hs-type">cFillPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span id="cFillPath"><span class="annot"><span class="annottext">cFillPath :: CEnv -&gt; Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cFillPath"><span class="hs-identifier hs-var hs-var">cFillPath</span></a></span></span><span> </span><span id="local-6989586621679105486"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105486"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105487"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105487"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render ()
+forall a. Render a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-var">preserveCState0</span></a></span><span> </span><span class="annot"><span class="annottext">(Render () -&gt; Render ()) -&gt; Render () -&gt; Render ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><span class="annottext">AlphaColour Double -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#setSourceColor"><span class="hs-identifier hs-var">setSourceColor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CEnv -&gt; AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceFillColor"><span class="hs-identifier hs-var">ceFillColor</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105486"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="annottext">Render ()
+</span><span class="hs-identifier hs-var">C.newPath</span></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render () -&gt; Render ()
+forall a b. Render a -&gt; Render b -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#walkPath"><span class="hs-identifier hs-var">walkPath</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679105487"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render () -&gt; Render ()
+forall a b. Render a -&gt; Render b -&gt; Render b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Render ()
+</span><span class="hs-identifier hs-var">C.fill</span></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cTextSize"><span class="hs-identifier hs-type">cTextSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextSize</span></span><span>
+</span><span id="line-116"></span><span id="cTextSize"><span class="annot"><span class="annottext">cTextSize :: String -&gt; Render TextSize
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cTextSize"><span class="hs-identifier hs-var hs-var">cTextSize</span></a></span></span><span> </span><span id="local-6989586621679105489"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105489"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-117"></span><span>  </span><span id="local-6989586621679105490"><span class="annot"><a href="#local-6989586621679105490"><span class="hs-identifier hs-var">te</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; Render TextExtents
+forall string. CairoString string =&gt; string -&gt; Render TextExtents
+</span><span class="hs-identifier hs-var">C.textExtents</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105489"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-118"></span><span>  </span><span id="local-6989586621679105492"><span class="annot"><a href="#local-6989586621679105492"><span class="hs-identifier hs-var">fe</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.fontExtents</span></span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextSize</span></span><span> </span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">textSizeWidth</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-var">C.textExtentsWidth</span></span><span> </span><span class="annot"><a href="#local-6989586621679105490"><span class="hs-identifier hs-type">te</span></a></span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-var">textSizeAscent</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-var">C.fontExtentsAscent</span></span><span> </span><span class="annot"><a href="#local-6989586621679105492"><span class="hs-identifier hs-type">fe</span></a></span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-var">textSizeDescent</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-var">C.fontExtentsDescent</span></span><span> </span><span class="annot"><a href="#local-6989586621679105492"><span class="hs-identifier hs-type">fe</span></a></span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-var">textSizeYBearing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-var">C.textExtentsYbearing</span></span><span> </span><span class="annot"><a href="#local-6989586621679105490"><span class="hs-identifier hs-type">te</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-var">textSizeHeight</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-var">C.fontExtentsHeight</span></span><span> </span><span class="annot"><a href="#local-6989586621679105492"><span class="hs-identifier hs-type">fe</span></a></span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cDrawText"><span class="hs-identifier hs-type">cDrawText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Point</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span id="cDrawText"><span class="annot"><span class="annottext">cDrawText :: CEnv -&gt; Point -&gt; String -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cDrawText"><span class="hs-identifier hs-var hs-var">cDrawText</span></a></span></span><span> </span><span id="local-6989586621679105505"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105505"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105506"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105506"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679105507"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105507"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Render () -&gt; Render ()
+forall a. Render a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-var">preserveCState0</span></a></span><span> </span><span class="annot"><span class="annottext">(Render () -&gt; Render ()) -&gt; Render () -&gt; Render ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-129"></span><span>  </span><span class="annot"><span class="annottext">AlphaColour Double -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#setSourceColor"><span class="hs-identifier hs-var">setSourceColor</span></a></span><span> </span><span class="annot"><span class="annottext">(AlphaColour Double -&gt; Render ())
+-&gt; AlphaColour Double -&gt; Render ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CEnv -&gt; AlphaColour Double
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceFontColor"><span class="hs-identifier hs-var">ceFontColor</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105505"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>  </span><span class="annot"><span class="annottext">Point -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cTranslate"><span class="hs-identifier hs-var">cTranslate</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105506"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.moveTo</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; Render ()
+forall string. CairoString string =&gt; string -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.showText</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105507"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span id="local-6989586621679105215"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithTransform"><span class="hs-identifier hs-type">cWithTransform</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Matrix</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105215"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105215"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-135"></span><span id="cWithTransform"><span class="annot"><span class="annottext">cWithTransform :: forall a. CEnv -&gt; Matrix -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithTransform"><span class="hs-identifier hs-var hs-var">cWithTransform</span></a></span></span><span> </span><span id="local-6989586621679105511"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105511"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105512"><span class="annot"><span class="annottext">Matrix
+</span><a href="#local-6989586621679105512"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679105513"><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105513"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Render a -&gt; Render a
+forall a. Render a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-var">preserveCState0</span></a></span><span> </span><span class="annot"><span class="annottext">(Render a -&gt; Render a) -&gt; Render a -&gt; Render a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-136"></span><span>  </span><span class="annot"><span class="annottext">Matrix -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.transform</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Matrix -&gt; Matrix
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertMatrix"><span class="hs-identifier hs-var">convertMatrix</span></a></span><span> </span><span class="annot"><span class="annottext">Matrix
+</span><a href="#local-6989586621679105512"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-var">runBackend'</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105511"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105513"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span id="local-6989586621679105218"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithFontStyle"><span class="hs-identifier hs-type">cWithFontStyle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FontStyle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105218"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105218"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-140"></span><span id="cWithFontStyle"><span class="annot"><span class="annottext">cWithFontStyle :: forall a. CEnv -&gt; FontStyle -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithFontStyle"><span class="hs-identifier hs-var hs-var">cWithFontStyle</span></a></span></span><span> </span><span id="local-6989586621679105519"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105519"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105520"><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679105520"><span class="hs-identifier hs-var">font</span></a></span></span><span> </span><span id="local-6989586621679105521"><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105521"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Render a -&gt; Render a
+forall a. Render a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-var">preserveCState0</span></a></span><span> </span><span class="annot"><span class="annottext">(Render a -&gt; Render a) -&gt; Render a -&gt; Render a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; FontSlant -&gt; FontWeight -&gt; Render ()
+forall string.
+CairoString string =&gt;
+string -&gt; FontSlant -&gt; FontWeight -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.selectFontFace</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FontStyle -&gt; String
+</span><span class="hs-identifier hs-var">G._font_name</span></span><span> </span><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679105520"><span class="hs-identifier hs-var">font</span></a></span><span class="hs-special">)</span><span> </span><span>
+</span><span id="line-142"></span><span>                   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FontSlant -&gt; FontSlant
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertFontSlant"><span class="hs-identifier hs-var">convertFontSlant</span></a></span><span> </span><span class="annot"><span class="annottext">(FontSlant -&gt; FontSlant) -&gt; FontSlant -&gt; FontSlant
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FontStyle -&gt; FontSlant
+</span><span class="hs-identifier hs-var">G._font_slant</span></span><span> </span><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679105520"><span class="hs-identifier hs-var">font</span></a></span><span class="hs-special">)</span><span> </span><span>
+</span><span id="line-143"></span><span>                   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FontWeight -&gt; FontWeight
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertFontWeight"><span class="hs-identifier hs-var">convertFontWeight</span></a></span><span> </span><span class="annot"><span class="annottext">(FontWeight -&gt; FontWeight) -&gt; FontWeight -&gt; FontWeight
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FontStyle -&gt; FontWeight
+</span><span class="hs-identifier hs-var">G._font_weight</span></span><span> </span><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679105520"><span class="hs-identifier hs-var">font</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>  </span><span class="annot"><span class="annottext">Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.setFontSize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FontStyle -&gt; Double
+</span><span class="hs-identifier hs-var">G._font_size</span></span><span> </span><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679105520"><span class="hs-identifier hs-var">font</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>  </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-var">runBackend'</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105519"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceFontColor"><span class="hs-identifier hs-var">ceFontColor</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="hs-identifier hs-var">G._font_color</span></span><span> </span><span class="annot"><a href="#local-6989586621679105520"><span class="hs-identifier hs-type">font</span></a></span><span class="hs-special">}</span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105521"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span id="local-6989586621679105221"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithFillStyle"><span class="hs-identifier hs-type">cWithFillStyle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FillStyle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105221"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105221"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-148"></span><span id="cWithFillStyle"><span class="annot"><span class="annottext">cWithFillStyle :: forall a. CEnv -&gt; FillStyle -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithFillStyle"><span class="hs-identifier hs-var hs-var">cWithFillStyle</span></a></span></span><span> </span><span id="local-6989586621679105531"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105531"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105532"><span class="annot"><span class="annottext">FillStyle
+</span><a href="#local-6989586621679105532"><span class="hs-identifier hs-var">fs</span></a></span></span><span> </span><span id="local-6989586621679105533"><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105533"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-var">runBackend'</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105531"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#ceFillColor"><span class="hs-identifier hs-var">ceFillColor</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="hs-identifier hs-var">G._fill_color</span></span><span> </span><span class="annot"><a href="#local-6989586621679105532"><span class="hs-identifier hs-type">fs</span></a></span><span class="hs-special">}</span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105533"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span id="local-6989586621679105224"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithLineStyle"><span class="hs-identifier hs-type">cWithLineStyle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LineStyle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105224"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105224"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-152"></span><span id="cWithLineStyle"><span class="annot"><span class="annottext">cWithLineStyle :: forall a. CEnv -&gt; LineStyle -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithLineStyle"><span class="hs-identifier hs-var hs-var">cWithLineStyle</span></a></span></span><span> </span><span id="local-6989586621679105539"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105539"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105540"><span class="annot"><span class="annottext">LineStyle
+</span><a href="#local-6989586621679105540"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span id="local-6989586621679105541"><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105541"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Render a -&gt; Render a
+forall a. Render a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-var">preserveCState0</span></a></span><span> </span><span class="annot"><span class="annottext">(Render a -&gt; Render a) -&gt; Render a -&gt; Render a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><span class="annottext">Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.setLineWidth</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LineStyle -&gt; Double
+</span><span class="hs-identifier hs-var">G._line_width</span></span><span> </span><span class="annot"><span class="annottext">LineStyle
+</span><a href="#local-6989586621679105540"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><span class="annottext">LineCap -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.setLineCap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LineCap -&gt; LineCap
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertLineCap"><span class="hs-identifier hs-var">convertLineCap</span></a></span><span> </span><span class="annot"><span class="annottext">(LineCap -&gt; LineCap) -&gt; LineCap -&gt; LineCap
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">LineStyle -&gt; LineCap
+</span><span class="hs-identifier hs-var">G._line_cap</span></span><span> </span><span class="annot"><span class="annottext">LineStyle
+</span><a href="#local-6989586621679105540"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>  </span><span class="annot"><span class="annottext">LineJoin -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.setLineJoin</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LineJoin -&gt; LineJoin
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertLineJoin"><span class="hs-identifier hs-var">convertLineJoin</span></a></span><span> </span><span class="annot"><span class="annottext">(LineJoin -&gt; LineJoin) -&gt; LineJoin -&gt; LineJoin
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">LineStyle -&gt; LineJoin
+</span><span class="hs-identifier hs-var">G._line_join</span></span><span> </span><span class="annot"><span class="annottext">LineStyle
+</span><a href="#local-6989586621679105540"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><span class="annottext">[Double] -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.setDash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LineStyle -&gt; [Double]
+</span><span class="hs-identifier hs-var">G._line_dashes</span></span><span> </span><span class="annot"><span class="annottext">LineStyle
+</span><a href="#local-6989586621679105540"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-var">runBackend'</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105539"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cePathColor"><span class="hs-identifier hs-var">cePathColor</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="hs-identifier hs-var">G._line_color</span></span><span> </span><span class="annot"><a href="#local-6989586621679105540"><span class="hs-identifier hs-type">ls</span></a></span><span class="hs-special">}</span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105541"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span id="local-6989586621679105227"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithClipRegion"><span class="hs-identifier hs-type">cWithClipRegion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#CEnv"><span class="hs-identifier hs-type">CEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Rect</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105227"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105227"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-160"></span><span id="cWithClipRegion"><span class="annot"><span class="annottext">cWithClipRegion :: forall a. CEnv -&gt; Rect -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cWithClipRegion"><span class="hs-identifier hs-var hs-var">cWithClipRegion</span></a></span></span><span> </span><span id="local-6989586621679105554"><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105554"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679105555"><span class="annot"><span class="annottext">Rect
+</span><a href="#local-6989586621679105555"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679105556"><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105556"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Render a -&gt; Render a
+forall a. Render a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-var">preserveCState0</span></a></span><span> </span><span class="annot"><span class="annottext">(Render a -&gt; Render a) -&gt; Render a -&gt; Render a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="annottext">Rect -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#setClipRegion"><span class="hs-identifier hs-var">setClipRegion</span></a></span><span> </span><span class="annot"><span class="annottext">Rect
+</span><a href="#local-6989586621679105555"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend%27"><span class="hs-identifier hs-var">runBackend'</span></a></span><span> </span><span class="annot"><span class="annottext">CEnv
+</span><a href="#local-6989586621679105554"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105556"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- -----------------------------------------------------------------------</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- Output rendering functions</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- -----------------------------------------------------------------------</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-keyword">data</span><span> </span><span id="FileFormat"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileFormat"><span class="hs-identifier hs-var">FileFormat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PNG"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#PNG"><span class="hs-identifier hs-var">PNG</span></a></span></span><span>
+</span><span id="line-169"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="SVG"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#SVG"><span class="hs-identifier hs-var">SVG</span></a></span></span><span>
+</span><span id="line-170"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="PS"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#PS"><span class="hs-identifier hs-var">PS</span></a></span></span><span>
+</span><span id="line-171"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="PDF"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#PDF"><span class="hs-identifier hs-var">PDF</span></a></span></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-keyword">data</span><span> </span><span id="FileOptions"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileOptions"><span class="hs-identifier hs-var">FileOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FileOptions"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileOptions"><span class="hs-identifier hs-var">FileOptions</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-174"></span><span>  </span><span id="_fo_size"><span class="annot"><span class="annottext">FileOptions -&gt; (Int, Int)
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#_fo_size"><span class="hs-identifier hs-var hs-var">_fo_size</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-175"></span><span>  </span><span id="_fo_format"><span class="annot"><span class="annottext">FileOptions -&gt; FileFormat
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#_fo_format"><span class="hs-identifier hs-var hs-var">_fo_format</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileFormat"><span class="hs-identifier hs-type">FileFormat</span></a></span><span>
+</span><span id="line-176"></span><span class="hs-special">}</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Default</span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileOptions"><span class="hs-identifier hs-type">FileOptions</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-179"></span><span>  </span><span id="local-6989586621679105568"><span class="annot"><span class="annottext">def :: FileOptions
+</span><a href="#local-6989586621679105568"><span class="hs-identifier hs-var hs-var hs-var">def</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">(Int, Int) -&gt; FileFormat -&gt; FileOptions
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileOptions"><span class="hs-identifier hs-var">FileOptions</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">800</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">600</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FileFormat
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#PNG"><span class="hs-identifier hs-var">PNG</span></a></span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- | Generate an image file for the given renderable, at the specified path. Size and</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- format are set through the `FileOptions` parameter.</span><span>
+</span><span id="line-183"></span><span id="local-6989586621679105260"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#renderableToFile"><span class="hs-identifier hs-type">renderableToFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileOptions"><span class="hs-identifier hs-type">FileOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Renderable</span></span><span> </span><span class="annot"><a href="#local-6989586621679105260"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PickFn</span></span><span> </span><span class="annot"><a href="#local-6989586621679105260"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-184"></span><span id="renderableToFile"><span class="annot"><span class="annottext">renderableToFile :: forall a. FileOptions -&gt; String -&gt; Renderable a -&gt; IO (PickFn a)
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#renderableToFile"><span class="hs-identifier hs-var hs-var">renderableToFile</span></a></span></span><span> </span><span id="local-6989586621679105576"><span class="annot"><span class="annottext">FileOptions
+</span><a href="#local-6989586621679105576"><span class="hs-identifier hs-var">fo</span></a></span></span><span> </span><span id="local-6989586621679105577"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105577"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679105578"><span class="annot"><span class="annottext">Renderable a
+</span><a href="#local-6989586621679105578"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FileOptions -&gt; BackendProgram (PickFn a) -&gt; String -&gt; IO (PickFn a)
+forall a. FileOptions -&gt; BackendProgram a -&gt; String -&gt; IO a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cBackendToFile"><span class="hs-identifier hs-var">cBackendToFile</span></a></span><span> </span><span class="annot"><span class="annottext">FileOptions
+</span><a href="#local-6989586621679105576"><span class="hs-identifier hs-var">fo</span></a></span><span> </span><span class="annot"><span class="annottext">BackendProgram (PickFn a)
+</span><a href="#local-6989586621679105579"><span class="hs-identifier hs-var">cr</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105577"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-186"></span><span>    </span><span id="local-6989586621679105579"><span class="annot"><span class="annottext">cr :: BackendProgram (PickFn a)
+</span><a href="#local-6989586621679105579"><span class="hs-identifier hs-var hs-var">cr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Renderable a -&gt; RectSize -&gt; BackendProgram (PickFn a)
+forall a. Renderable a -&gt; RectSize -&gt; BackendProgram (PickFn a)
+</span><span class="hs-identifier hs-var">render</span></span><span> </span><span class="annot"><span class="annottext">Renderable a
+</span><a href="#local-6989586621679105578"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105581"><span class="hs-identifier hs-var">width</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105582"><span class="hs-identifier hs-var">height</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679105581"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105581"><span class="hs-identifier hs-var">width</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679105582"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105582"><span class="hs-identifier hs-var">height</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FileOptions -&gt; (Int, Int)
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#_fo_size"><span class="hs-identifier hs-var">_fo_size</span></a></span><span> </span><span class="annot"><span class="annottext">FileOptions
+</span><a href="#local-6989586621679105576"><span class="hs-identifier hs-var">fo</span></a></span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- | Generate an image file from from the state content of an EC</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- computation. The state may have any type that is an instance of</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- `ToRenderable`</span><span>
+</span><span id="line-192"></span><span id="local-6989586621679105269"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#toFile"><span class="hs-identifier hs-type">toFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Default</span></span><span> </span><span class="annot"><a href="#local-6989586621679105269"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToRenderable</span></span><span> </span><span class="annot"><a href="#local-6989586621679105269"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileOptions"><span class="hs-identifier hs-type">FileOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">EC</span></span><span> </span><span class="annot"><a href="#local-6989586621679105269"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-193"></span><span id="toFile"><span class="annot"><span class="annottext">toFile :: forall r.
+(Default r, ToRenderable r) =&gt;
+FileOptions -&gt; String -&gt; EC r () -&gt; IO ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#toFile"><span class="hs-identifier hs-var hs-var">toFile</span></a></span></span><span> </span><span id="local-6989586621679105589"><span class="annot"><span class="annottext">FileOptions
+</span><a href="#local-6989586621679105589"><span class="hs-identifier hs-var">fo</span></a></span></span><span> </span><span id="local-6989586621679105590"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105590"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679105591"><span class="annot"><span class="annottext">EC r ()
+</span><a href="#local-6989586621679105591"><span class="hs-identifier hs-var">ec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (PickFn ()) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO (PickFn ()) -&gt; IO ()) -&gt; IO (PickFn ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FileOptions -&gt; String -&gt; Renderable () -&gt; IO (PickFn ())
+forall a. FileOptions -&gt; String -&gt; Renderable a -&gt; IO (PickFn a)
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#renderableToFile"><span class="hs-identifier hs-var">renderableToFile</span></a></span><span> </span><span class="annot"><span class="annottext">FileOptions
+</span><a href="#local-6989586621679105589"><span class="hs-identifier hs-var">fo</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105590"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; Renderable ()
+forall a. ToRenderable a =&gt; a -&gt; Renderable ()
+</span><span class="hs-identifier hs-var">toRenderable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">EC r () -&gt; r
+forall l a. Default l =&gt; EC l a -&gt; l
+</span><span class="hs-identifier hs-var">execEC</span></span><span> </span><span class="annot"><span class="annottext">EC r ()
+</span><a href="#local-6989586621679105591"><span class="hs-identifier hs-var">ec</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- | Generate an image file for the given drawing instructions, at the specified path. Size and</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- format are set through the `FileOptions` parameter.</span><span>
+</span><span id="line-197"></span><span id="local-6989586621679105264"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cBackendToFile"><span class="hs-identifier hs-type">cBackendToFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#FileOptions"><span class="hs-identifier hs-type">FileOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BackendProgram</span></span><span> </span><span class="annot"><a href="#local-6989586621679105264"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679105264"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-198"></span><span id="cBackendToFile"><span class="annot"><span class="annottext">cBackendToFile :: forall a. FileOptions -&gt; BackendProgram a -&gt; String -&gt; IO a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cBackendToFile"><span class="hs-identifier hs-var hs-var">cBackendToFile</span></a></span></span><span> </span><span id="local-6989586621679105612"><span class="annot"><span class="annottext">FileOptions
+</span><a href="#local-6989586621679105612"><span class="hs-identifier hs-var">fo</span></a></span></span><span> </span><span id="local-6989586621679105613"><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105613"><span class="hs-identifier hs-var">cr</span></a></span></span><span> </span><span id="local-6989586621679105614"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105614"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-199"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FileOptions -&gt; FileFormat
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#_fo_format"><span class="hs-identifier hs-var">_fo_format</span></a></span><span> </span><span class="annot"><span class="annottext">FileOptions
+</span><a href="#local-6989586621679105612"><span class="hs-identifier hs-var">fo</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-200"></span><span>      </span><span class="annot"><span class="annottext">FileFormat
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#PS"><span class="hs-identifier hs-var">PS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a) -&gt; IO a
+</span><a href="#local-6989586621679105615"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a
+forall a. String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">C.withPSSurface</span></span><span>
+</span><span id="line-201"></span><span>      </span><span class="annot"><span class="annottext">FileFormat
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#PDF"><span class="hs-identifier hs-var">PDF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a) -&gt; IO a
+</span><a href="#local-6989586621679105615"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a
+forall a. String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">C.withPDFSurface</span></span><span>
+</span><span id="line-202"></span><span>      </span><span class="annot"><span class="annottext">FileFormat
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#SVG"><span class="hs-identifier hs-var">SVG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a) -&gt; IO a
+</span><a href="#local-6989586621679105615"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a
+forall a. String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">C.withSVGSurface</span></span><span>
+</span><span id="line-203"></span><span>      </span><span class="annot"><span class="annottext">FileFormat
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#PNG"><span class="hs-identifier hs-var">PNG</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679105619"><span class="hs-identifier hs-var">writePNG</span></a></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-205"></span><span>    </span><span id="local-6989586621679105615"><span class="annot"><span class="annottext">write :: (String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a) -&gt; IO a
+</span><a href="#local-6989586621679105615"><span class="hs-identifier hs-var hs-var">write</span></a></span></span><span> </span><span id="local-6989586621679105620"><span class="annot"><span class="annottext">String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a
+</span><a href="#local-6989586621679105620"><span class="hs-identifier hs-var">withSurface</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-206"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; Double -&gt; (Surface -&gt; IO a) -&gt; IO a
+</span><a href="#local-6989586621679105620"><span class="hs-identifier hs-var">withSurface</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679105614"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105621"><span class="hs-identifier hs-var">width</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105622"><span class="hs-identifier hs-var">height</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Surface -&gt; IO a) -&gt; IO a) -&gt; (Surface -&gt; IO a) -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679105623"><span class="annot"><span class="annottext">Surface
+</span><a href="#local-6989586621679105623"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-207"></span><span>      </span><span id="local-6989586621679105624"><span class="annot"><a href="#local-6989586621679105624"><span class="hs-identifier hs-var">pf</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Surface -&gt; Render a -&gt; IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; Surface -&gt; Render a -&gt; m a
+</span><span class="hs-identifier hs-var">C.renderWith</span></span><span> </span><span class="annot"><span class="annottext">Surface
+</span><a href="#local-6989586621679105623"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="annot"><span class="annottext">(Render a -&gt; IO a) -&gt; Render a -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-208"></span><span>        </span><span id="local-6989586621679105626"><span class="annot"><a href="#local-6989586621679105626"><span class="hs-identifier hs-var">pf</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend"><span class="hs-identifier hs-var">runBackend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlignmentFns -&gt; CEnv
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#defaultEnv"><span class="hs-identifier hs-var">defaultEnv</span></a></span><span> </span><span class="annot"><span class="annottext">AlignmentFns
+</span><span class="hs-identifier hs-var">vectorAlignmentFns</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105613"><span class="hs-identifier hs-var">cr</span></a></span><span>
+</span><span id="line-209"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">C.showPage</span></span><span>
+</span><span id="line-210"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679105626"><span class="hs-identifier hs-type">pf</span></a></span><span>
+</span><span id="line-211"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">C.surfaceFinish</span></span><span> </span><span class="annot"><a href="#local-6989586621679105623"><span class="hs-identifier hs-type">result</span></a></span><span>
+</span><span id="line-212"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679105624"><span class="hs-identifier hs-type">pf</span></a></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span>    </span><span id="local-6989586621679105619"><span class="annot"><span class="annottext">writePNG :: IO a
+</span><a href="#local-6989586621679105619"><span class="hs-identifier hs-var hs-var">writePNG</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Format -&gt; Int -&gt; Int -&gt; (Surface -&gt; IO a) -&gt; IO a
+forall a. Format -&gt; Int -&gt; Int -&gt; (Surface -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">C.withImageSurface</span></span><span> </span><span class="annot"><span class="annottext">Format
+</span><span class="hs-identifier hs-var">C.FormatARGB32</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105621"><span class="hs-identifier hs-var">width</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105622"><span class="hs-identifier hs-var">height</span></a></span><span> </span><span class="annot"><span class="annottext">((Surface -&gt; IO a) -&gt; IO a) -&gt; (Surface -&gt; IO a) -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679105632"><span class="annot"><span class="annottext">Surface
+</span><a href="#local-6989586621679105632"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-215"></span><span>      </span><span id="local-6989586621679105633"><span class="annot"><a href="#local-6989586621679105633"><span class="hs-identifier hs-var">pf</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Surface -&gt; Render a -&gt; IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; Surface -&gt; Render a -&gt; m a
+</span><span class="hs-identifier hs-var">C.renderWith</span></span><span> </span><span class="annot"><span class="annottext">Surface
+</span><a href="#local-6989586621679105632"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="annot"><span class="annottext">(Render a -&gt; IO a) -&gt; Render a -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CEnv -&gt; BackendProgram a -&gt; Render a
+forall a. CEnv -&gt; BackendProgram a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#runBackend"><span class="hs-identifier hs-var">runBackend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlignmentFns -&gt; CEnv
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#defaultEnv"><span class="hs-identifier hs-var">defaultEnv</span></a></span><span> </span><span class="annot"><span class="annottext">AlignmentFns
+</span><span class="hs-identifier hs-var">bitmapAlignmentFns</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">BackendProgram a
+</span><a href="#local-6989586621679105613"><span class="hs-identifier hs-var">cr</span></a></span><span>
+</span><span id="line-216"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">C.surfaceWriteToPNG</span></span><span> </span><span class="annot"><a href="#local-6989586621679105632"><span class="hs-identifier hs-type">result</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679105614"><span class="hs-identifier hs-type">path</span></a></span><span>
+</span><span id="line-217"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679105633"><span class="hs-identifier hs-type">pf</span></a></span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679105621"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105621"><span class="hs-identifier hs-var">width</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679105622"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105622"><span class="hs-identifier hs-var">height</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FileOptions -&gt; (Int, Int)
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#_fo_size"><span class="hs-identifier hs-var">_fo_size</span></a></span><span> </span><span class="annot"><span class="annottext">FileOptions
+</span><a href="#local-6989586621679105612"><span class="hs-identifier hs-var">fo</span></a></span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- -----------------------------------------------------------------------</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- Type Conversions: Chart -&gt; Cairo</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- -----------------------------------------------------------------------</span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="annot"><span class="hs-comment">-- | Convert a charts line join to a cairo line join.</span></span><span>
+</span><span id="line-226"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertLineJoin"><span class="hs-identifier hs-type">convertLineJoin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.LineJoin</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.LineJoin</span></span><span>
+</span><span id="line-227"></span><span id="convertLineJoin"><span class="annot"><span class="annottext">convertLineJoin :: LineJoin -&gt; LineJoin
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertLineJoin"><span class="hs-identifier hs-var hs-var">convertLineJoin</span></a></span></span><span> </span><span id="local-6989586621679105636"><span class="annot"><span class="annottext">LineJoin
+</span><a href="#local-6989586621679105636"><span class="hs-identifier hs-var">lj</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">LineJoin
+</span><a href="#local-6989586621679105636"><span class="hs-identifier hs-var">lj</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-228"></span><span>  </span><span class="annot"><span class="annottext">LineJoin
+</span><span class="hs-identifier hs-var">G.LineJoinMiter</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LineJoin
+</span><span class="hs-identifier hs-var">C.LineJoinMiter</span></span><span>
+</span><span id="line-229"></span><span>  </span><span class="annot"><span class="annottext">LineJoin
+</span><span class="hs-identifier hs-var">G.LineJoinRound</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LineJoin
+</span><span class="hs-identifier hs-var">C.LineJoinRound</span></span><span>
+</span><span id="line-230"></span><span>  </span><span class="annot"><span class="annottext">LineJoin
+</span><span class="hs-identifier hs-var">G.LineJoinBevel</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LineJoin
+</span><span class="hs-identifier hs-var">C.LineJoinBevel</span></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="annot"><span class="hs-comment">-- | Convert a charts line cap to a cairo line cap.</span></span><span>
+</span><span id="line-233"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertLineCap"><span class="hs-identifier hs-type">convertLineCap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.LineCap</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.LineCap</span></span><span>
+</span><span id="line-234"></span><span id="convertLineCap"><span class="annot"><span class="annottext">convertLineCap :: LineCap -&gt; LineCap
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertLineCap"><span class="hs-identifier hs-var hs-var">convertLineCap</span></a></span></span><span> </span><span id="local-6989586621679105643"><span class="annot"><span class="annottext">LineCap
+</span><a href="#local-6989586621679105643"><span class="hs-identifier hs-var">lc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">LineCap
+</span><a href="#local-6989586621679105643"><span class="hs-identifier hs-var">lc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-235"></span><span>  </span><span class="annot"><span class="annottext">LineCap
+</span><span class="hs-identifier hs-var">G.LineCapRound</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LineCap
+</span><span class="hs-identifier hs-var">C.LineCapRound</span></span><span>
+</span><span id="line-236"></span><span>  </span><span class="annot"><span class="annottext">LineCap
+</span><span class="hs-identifier hs-var">G.LineCapButt</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LineCap
+</span><span class="hs-identifier hs-var">C.LineCapButt</span></span><span>
+</span><span id="line-237"></span><span>  </span><span class="annot"><span class="annottext">LineCap
+</span><span class="hs-identifier hs-var">G.LineCapSquare</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LineCap
+</span><span class="hs-identifier hs-var">C.LineCapSquare</span></span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertFontSlant"><span class="hs-identifier hs-type">convertFontSlant</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.FontSlant</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.FontSlant</span></span><span>
+</span><span id="line-240"></span><span id="convertFontSlant"><span class="annot"><span class="annottext">convertFontSlant :: FontSlant -&gt; FontSlant
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertFontSlant"><span class="hs-identifier hs-var hs-var">convertFontSlant</span></a></span></span><span> </span><span id="local-6989586621679105650"><span class="annot"><span class="annottext">FontSlant
+</span><a href="#local-6989586621679105650"><span class="hs-identifier hs-var">fs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FontSlant
+</span><a href="#local-6989586621679105650"><span class="hs-identifier hs-var">fs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-241"></span><span>  </span><span class="annot"><span class="annottext">FontSlant
+</span><span class="hs-identifier hs-var">G.FontSlantItalic</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FontSlant
+</span><span class="hs-identifier hs-var">C.FontSlantItalic</span></span><span>
+</span><span id="line-242"></span><span>  </span><span class="annot"><span class="annottext">FontSlant
+</span><span class="hs-identifier hs-var">G.FontSlantNormal</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FontSlant
+</span><span class="hs-identifier hs-var">C.FontSlantNormal</span></span><span>
+</span><span id="line-243"></span><span>  </span><span class="annot"><span class="annottext">FontSlant
+</span><span class="hs-identifier hs-var">G.FontSlantOblique</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FontSlant
+</span><span class="hs-identifier hs-var">C.FontSlantOblique</span></span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertFontWeight"><span class="hs-identifier hs-type">convertFontWeight</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.FontWeight</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.FontWeight</span></span><span>
+</span><span id="line-246"></span><span id="convertFontWeight"><span class="annot"><span class="annottext">convertFontWeight :: FontWeight -&gt; FontWeight
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertFontWeight"><span class="hs-identifier hs-var hs-var">convertFontWeight</span></a></span></span><span> </span><span id="local-6989586621679105657"><span class="annot"><span class="annottext">FontWeight
+</span><a href="#local-6989586621679105657"><span class="hs-identifier hs-var">fw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FontWeight
+</span><a href="#local-6989586621679105657"><span class="hs-identifier hs-var">fw</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-247"></span><span>  </span><span class="annot"><span class="annottext">FontWeight
+</span><span class="hs-identifier hs-var">G.FontWeightBold</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FontWeight
+</span><span class="hs-identifier hs-var">C.FontWeightBold</span></span><span>
+</span><span id="line-248"></span><span>  </span><span class="annot"><span class="annottext">FontWeight
+</span><span class="hs-identifier hs-var">G.FontWeightNormal</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FontWeight
+</span><span class="hs-identifier hs-var">C.FontWeightNormal</span></span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertMatrix"><span class="hs-identifier hs-type">convertMatrix</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Matrix</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CM.Matrix</span></span><span>
+</span><span id="line-251"></span><span id="convertMatrix"><span class="annot"><span class="annottext">convertMatrix :: Matrix -&gt; Matrix
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#convertMatrix"><span class="hs-identifier hs-var hs-var">convertMatrix</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">G.Matrix</span></span><span> </span><span id="local-6989586621679105663"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105663"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span id="local-6989586621679105664"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105664"><span class="hs-identifier hs-var">a2</span></a></span></span><span> </span><span id="local-6989586621679105665"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105665"><span class="hs-identifier hs-var">b1</span></a></span></span><span> </span><span id="local-6989586621679105666"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105666"><span class="hs-identifier hs-var">b2</span></a></span></span><span> </span><span id="local-6989586621679105667"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105667"><span class="hs-identifier hs-var">c1</span></a></span></span><span> </span><span id="local-6989586621679105668"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105668"><span class="hs-identifier hs-var">c2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; Double -&gt; Double -&gt; Double -&gt; Matrix
+</span><span class="hs-identifier hs-var">CM.Matrix</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105663"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105664"><span class="hs-identifier hs-var">a2</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105665"><span class="hs-identifier hs-var">b1</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105666"><span class="hs-identifier hs-var">b2</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105667"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105668"><span class="hs-identifier hs-var">c2</span></a></span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- -----------------------------------------------------------------------</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- Assorted helper functions in Cairo Usage</span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- -----------------------------------------------------------------------</span><span>
+</span><span id="line-256"></span><span>
+</span><span id="line-257"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#setClipRegion"><span class="hs-identifier hs-type">setClipRegion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Rect</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-258"></span><span id="setClipRegion"><span class="annot"><span class="annottext">setClipRegion :: Rect -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#setClipRegion"><span class="hs-identifier hs-var hs-var">setClipRegion</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rect</span></span><span> </span><span id="local-6989586621679105671"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105671"><span class="hs-identifier hs-var">p2</span></a></span></span><span> </span><span id="local-6989586621679105672"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105672"><span class="hs-identifier hs-var">p3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>    </span><span>
+</span><span id="line-259"></span><span>    </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.moveTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105671"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105671"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-260"></span><span>    </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.lineTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105671"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105672"><span class="hs-identifier hs-var">p3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-261"></span><span>    </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.lineTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105672"><span class="hs-identifier hs-var">p3</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105672"><span class="hs-identifier hs-var">p3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-262"></span><span>    </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.lineTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105672"><span class="hs-identifier hs-var">p3</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105671"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-263"></span><span>    </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.lineTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105671"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105671"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-264"></span><span>    </span><span class="annot"><span class="annottext">Render ()
+</span><span class="hs-identifier hs-var">C.clip</span></span><span>
+</span><span id="line-265"></span><span>
+</span><span id="line-266"></span><span id="local-6989586621679105287"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#colourChannel"><span class="hs-identifier hs-type">colourChannel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Floating</span></span><span> </span><span class="annot"><a href="#local-6989586621679105287"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679105287"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AlphaColour</span></span><span> </span><span class="annot"><a href="#local-6989586621679105287"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Colour</span></span><span> </span><span class="annot"><a href="#local-6989586621679105287"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-267"></span><span id="colourChannel"><span class="annot"><span class="annottext">colourChannel :: forall a. (Floating a, Ord a) =&gt; AlphaColour a -&gt; Colour a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#colourChannel"><span class="hs-identifier hs-var hs-var">colourChannel</span></a></span></span><span> </span><span id="local-6989586621679105688"><span class="annot"><span class="annottext">AlphaColour a
+</span><a href="#local-6989586621679105688"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Colour a -&gt; Colour a
+forall a. Num a =&gt; a -&gt; Colour a -&gt; Colour a
+forall (f :: * -&gt; *) a. (ColourOps f, Num a) =&gt; a -&gt; f a -&gt; f a
+</span><span class="hs-identifier hs-var">darken</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Fractional a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">recip</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlphaColour a -&gt; a
+forall a. AlphaColour a -&gt; a
+</span><span class="hs-identifier hs-var">alphaChannel</span></span><span> </span><span class="annot"><span class="annottext">AlphaColour a
+</span><a href="#local-6989586621679105688"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlphaColour a
+</span><a href="#local-6989586621679105688"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">AlphaColour a -&gt; Colour a -&gt; Colour a
+forall a. Num a =&gt; AlphaColour a -&gt; Colour a -&gt; Colour a
+forall (f :: * -&gt; *) a.
+(ColourOps f, Num a) =&gt;
+AlphaColour a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">`over`</span></span><span> </span><span class="annot"><span class="annottext">Colour a
+forall a. Num a =&gt; Colour a
+</span><span class="hs-identifier hs-var">black</span></span><span class="hs-special">)</span><span>
+</span><span id="line-268"></span><span>
+</span><span id="line-269"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#setSourceColor"><span class="hs-identifier hs-type">setSourceColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AlphaColour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span id="setSourceColor"><span class="annot"><span class="annottext">setSourceColor :: AlphaColour Double -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#setSourceColor"><span class="hs-identifier hs-var hs-var">setSourceColor</span></a></span></span><span> </span><span id="local-6989586621679105693"><span class="annot"><span class="annottext">AlphaColour Double
+</span><a href="#local-6989586621679105693"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RGB</span></span><span> </span><span id="local-6989586621679105695"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105695"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679105696"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105696"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679105697"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105697"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour Double -&gt; RGB Double
+forall b. (Ord b, Floating b) =&gt; Colour b -&gt; RGB b
+</span><span class="hs-identifier hs-var">toSRGB</span></span><span> </span><span class="annot"><span class="annottext">(Colour Double -&gt; RGB Double) -&gt; Colour Double -&gt; RGB Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">AlphaColour Double -&gt; Colour Double
+forall a. (Floating a, Ord a) =&gt; AlphaColour a -&gt; Colour a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#colourChannel"><span class="hs-identifier hs-var">colourChannel</span></a></span><span> </span><span class="annot"><span class="annottext">AlphaColour Double
+</span><a href="#local-6989586621679105693"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-271"></span><span>                   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.setSourceRGBA</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105695"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105696"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105697"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlphaColour Double -&gt; Double
+forall a. AlphaColour a -&gt; a
+</span><span class="hs-identifier hs-var">alphaChannel</span></span><span> </span><span class="annot"><span class="annottext">AlphaColour Double
+</span><a href="#local-6989586621679105693"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-272"></span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- | Execute a rendering action in a saved context (ie bracketed</span><span>
+</span><span id="line-274"></span><span class="hs-comment">--   between C.save and C.restore).</span><span>
+</span><span id="line-275"></span><span id="local-6989586621679105232"><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-type">preserveCState0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105232"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="annot"><a href="#local-6989586621679105232"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-276"></span><span id="preserveCState0"><span class="annot"><span class="annottext">preserveCState0 :: forall a. Render a -&gt; Render a
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#preserveCState0"><span class="hs-identifier hs-var hs-var">preserveCState0</span></a></span></span><span> </span><span id="local-6989586621679105704"><span class="annot"><span class="annottext">Render a
+</span><a href="#local-6989586621679105704"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span>
+</span><span id="line-277"></span><span>  </span><span class="annot"><span class="annottext">Render ()
+</span><span class="hs-identifier hs-var">C.save</span></span><span>
+</span><span id="line-278"></span><span>  </span><span id="local-6989586621679105706"><span class="annot"><a href="#local-6989586621679105706"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Render a
+</span><a href="#local-6989586621679105704"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-279"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">C.restore</span></span><span>
+</span><span id="line-280"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679105706"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- -- -----------------------------------------------------------------------</span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- -- Cairo Operation Wrappers</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- -- -----------------------------------------------------------------------</span><span>
+</span><span id="line-285"></span><span>  </span><span>
+</span><span id="line-286"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cTranslate"><span class="hs-identifier hs-type">cTranslate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Point</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-287"></span><span id="cTranslate"><span class="annot"><span class="annottext">cTranslate :: Point -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cTranslate"><span class="hs-identifier hs-var hs-var">cTranslate</span></a></span></span><span> </span><span id="local-6989586621679105708"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105708"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.translate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105708"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105708"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-288"></span><span>
+</span><span id="line-289"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cLineTo"><span class="hs-identifier hs-type">cLineTo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Point</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-290"></span><span id="cLineTo"><span class="annot"><span class="annottext">cLineTo :: Point -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cLineTo"><span class="hs-identifier hs-var hs-var">cLineTo</span></a></span></span><span> </span><span id="local-6989586621679105711"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105711"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.lineTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105711"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105711"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-291"></span><span>
+</span><span id="line-292"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cMoveTo"><span class="hs-identifier hs-type">cMoveTo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Point</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-293"></span><span id="cMoveTo"><span class="annot"><span class="annottext">cMoveTo :: Point -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cMoveTo"><span class="hs-identifier hs-var hs-var">cMoveTo</span></a></span></span><span> </span><span id="local-6989586621679105713"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105713"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.moveTo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105713"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105713"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span>
+</span><span id="line-295"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cArc"><span class="hs-identifier hs-type">cArc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Point</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-296"></span><span id="cArc"><span class="annot"><span class="annottext">cArc :: Point -&gt; Double -&gt; Double -&gt; Double -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cArc"><span class="hs-identifier hs-var hs-var">cArc</span></a></span></span><span> </span><span id="local-6989586621679105715"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105715"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679105716"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105716"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679105717"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105717"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span id="local-6989586621679105718"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105718"><span class="hs-identifier hs-var">a2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.arc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105715"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105715"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105716"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105717"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105718"><span class="hs-identifier hs-var">a2</span></a></span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cArcNegative"><span class="hs-identifier hs-type">cArcNegative</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Point</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">C.Render</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-299"></span><span id="cArcNegative"><span class="annot"><span class="annottext">cArcNegative :: Point -&gt; Double -&gt; Double -&gt; Double -&gt; Render ()
+</span><a href="Graphics.Rendering.Chart.Backend.Cairo.html#cArcNegative"><span class="hs-identifier hs-var hs-var">cArcNegative</span></a></span></span><span> </span><span id="local-6989586621679105720"><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105720"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679105721"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105721"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679105722"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105722"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span id="local-6989586621679105723"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105723"><span class="hs-identifier hs-var">a2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; Double -&gt; Double -&gt; Render ()
+</span><span class="hs-identifier hs-var">C.arcNegative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_x</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105720"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><span class="hs-identifier hs-var">p_y</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679105720"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105721"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105722"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679105723"><span class="hs-identifier hs-var">a2</span></a></span><span>
+</span><span id="line-300"></span><span>
+</span><span id="line-301"></span><span class="hs-special">$</span><span id="fo_size"><span id="fo_format"><span class="hs-special">(</span><span> </span><span class="hs-identifier">makeLenses</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">FileOptions</span><span> </span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-302"></span></pre></body></html>

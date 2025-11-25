@@ -1,0 +1,678 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">--  GIMP Toolkit (GTK) Binding for Haskell: binding to gio -*-haskell-*-</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--  Author : Peter Gavin, Andy Stewart</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--  Created: 13-Oct-2008</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--  Copyright (c) 2008 Peter Gavin</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--  Copyright (c) 2010 Andy Stewart</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--  This library is free software: you can redistribute it and/or</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--  modify it under the terms of the GNU Lesser General Public License</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--  as published by the Free Software Foundation, either version 3 of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--  the License, or (at your option) any later version.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--  This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--  but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--  Lesser General Public License for more details.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--  You should have received a copy of the GNU Lesser General Public</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--  License along with this program.  If not, see</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--  &lt;http://www.gnu.org/licenses/&gt;.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--  GIO, the C library which this Haskell library depends on, is</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--  available under LGPL Version 2. The documentation included with</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--  this library is based on the original GIO documentation.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | Maintainer  : gtk2hs-devel@lists.sourceforge.net</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--   Stability   : alpha</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--   Portability : portable (depends on GHC)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.GIO.File.FileAttribute.html"><span class="hs-identifier">System.GIO.File.FileAttribute</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-37"></span><span class="annot"><span class="hs-comment">-- * Details</span></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | File attributes in GIO consist of a list of key-value pairs.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- Keys are strings that contain a key namespace and a key name, separated by a colon,</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- e.g. &quot;namespace:keyname&quot;. Namespaces are included to sort key-value pairs by namespaces for</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- relevance. Keys can be retrieved using wildcards, e.g. \&quot;standard::*\&quot; will return all of the keys in</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- the &quot;standard&quot; namespace.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- Values are stored within the list in 'FileAttributeValue' structures. Values can store different</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- types, listed in the enum 'FileAttributeType'. Upon creation of a 'FileAttributeValue', the type will</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- be set to 'FileAttributeTypeInvalid'.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- The list of possible attributes for a filesystem (pointed to by a 'File') is available as a</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- 'FileAttributeInfoList'. This list is queryable by key names as indicated earlier.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- Classes that implement 'FileIface' will create a 'FileAttributeInfoList' and install default keys and</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- values for their given file system, architecture, and other possible implementation details (e.g.,</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- on a UNIX system, a file attribute key will be registered for the user id for a given file).</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeType"><span class="hs-identifier">FileAttributeType</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeInfo"><span class="hs-identifier">FileAttributeInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- * Enums</span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><a href="System.GIO.Enums.html#FileAttributeInfoFlags"><span class="hs-identifier">FileAttributeInfoFlags</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardType"><span class="hs-identifier">fileAttributeStandardType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIsHidden"><span class="hs-identifier">fileAttributeStandardIsHidden</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIsBackup"><span class="hs-identifier">fileAttributeStandardIsBackup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIsSymlink"><span class="hs-identifier">fileAttributeStandardIsSymlink</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIsVirtual"><span class="hs-identifier">fileAttributeStandardIsVirtual</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardName"><span class="hs-identifier">fileAttributeStandardName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardDisplayName"><span class="hs-identifier">fileAttributeStandardDisplayName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardEditName"><span class="hs-identifier">fileAttributeStandardEditName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardCopyName"><span class="hs-identifier">fileAttributeStandardCopyName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIcon"><span class="hs-identifier">fileAttributeStandardIcon</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardContentType"><span class="hs-identifier">fileAttributeStandardContentType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardFastContentType"><span class="hs-identifier">fileAttributeStandardFastContentType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardSize"><span class="hs-identifier">fileAttributeStandardSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-pragma">{-# LINE 78 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-identifier">fileAttributeStandardAllocatedSize</span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-pragma">{-# LINE 80 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-identifier">fileAttributeStandardSymlinkTarget</span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardTargetURI"><span class="hs-identifier">fileAttributeStandardTargetURI</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardSortOrder"><span class="hs-identifier">fileAttributeStandardSortOrder</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeEtagValue"><span class="hs-identifier">fileAttributeEtagValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeIDFile"><span class="hs-identifier">fileAttributeIDFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeIDFilesystem"><span class="hs-identifier">fileAttributeIDFilesystem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanRead"><span class="hs-identifier">fileAttributeAccessCanRead</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanWrite"><span class="hs-identifier">fileAttributeAccessCanWrite</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanExecute"><span class="hs-identifier">fileAttributeAccessCanExecute</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanDelete"><span class="hs-identifier">fileAttributeAccessCanDelete</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanTrash"><span class="hs-identifier">fileAttributeAccessCanTrash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanRename"><span class="hs-identifier">fileAttributeAccessCanRename</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanMount"><span class="hs-identifier">fileAttributeMountableCanMount</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanUnmount"><span class="hs-identifier">fileAttributeMountableCanUnmount</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanEject"><span class="hs-identifier">fileAttributeMountableCanEject</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableUnixDevice"><span class="hs-identifier">fileAttributeMountableUnixDevice</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-pragma">{-# LINE 97 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-identifier">fileAttributeMountableUnixDeviceFile</span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanStart"><span class="hs-identifier">fileAttributeMountableCanStart</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanDegraded"><span class="hs-identifier">fileAttributeMountableCanDegraded</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanStop"><span class="hs-identifier">fileAttributeMountableCanStop</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableStartStopType"><span class="hs-identifier">fileAttributeMountableStartStopType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanPoll"><span class="hs-identifier">fileAttributeMountableCanPoll</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-pragma">{-# LINE 104 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-identifier">fileAttributeMountableHalUDI</span><span class="hs-special">,</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeModified"><span class="hs-identifier">fileAttributeTimeModified</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeModifiedUSec"><span class="hs-identifier">fileAttributeTimeModifiedUSec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeAccess"><span class="hs-identifier">fileAttributeTimeAccess</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeAccessUSec"><span class="hs-identifier">fileAttributeTimeAccessUSec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeChanged"><span class="hs-identifier">fileAttributeTimeChanged</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeChangedUSec"><span class="hs-identifier">fileAttributeTimeChangedUSec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeCreated"><span class="hs-identifier">fileAttributeTimeCreated</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeCreatedUSec"><span class="hs-identifier">fileAttributeTimeCreatedUSec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixDevice"><span class="hs-identifier">fileAttributeUnixDevice</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixInode"><span class="hs-identifier">fileAttributeUnixInode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixMode"><span class="hs-identifier">fileAttributeUnixMode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixNLink"><span class="hs-identifier">fileAttributeUnixNLink</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixUID"><span class="hs-identifier">fileAttributeUnixUID</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixGID"><span class="hs-identifier">fileAttributeUnixGID</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixRDev"><span class="hs-identifier">fileAttributeUnixRDev</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixBlockSize"><span class="hs-identifier">fileAttributeUnixBlockSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixBlocks"><span class="hs-identifier">fileAttributeUnixBlocks</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-122"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeDosIsMountpoint"><span class="hs-identifier">fileAttributeDosIsMountpoint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeDosIsArchive"><span class="hs-identifier">fileAttributeDosIsArchive</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeDosIsSystem"><span class="hs-identifier">fileAttributeDosIsSystem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeOwnerUser"><span class="hs-identifier">fileAttributeOwnerUser</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeOwnerUserReal"><span class="hs-identifier">fileAttributeOwnerUserReal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeOwnerGroup"><span class="hs-identifier">fileAttributeOwnerGroup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeThumbnailPath"><span class="hs-identifier">fileAttributeThumbnailPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeThumbnailingFailed"><span class="hs-identifier">fileAttributeThumbnailingFailed</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-pragma">{-# LINE 131 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-identifier">fileAttributePreviewIcon</span><span class="hs-special">,</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-pragma">{-# LINE 133 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-133"></span><span>    </span><span class="hs-identifier">fileAttributeFilesystemSize</span><span class="hs-special">,</span><span>
+</span><span id="line-134"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeFilesystemFree"><span class="hs-identifier">fileAttributeFilesystemFree</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-135"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeFilesystemType"><span class="hs-identifier">fileAttributeFilesystemType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeFilesystemReadonly"><span class="hs-identifier">fileAttributeFilesystemReadonly</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeGVfsBackend"><span class="hs-identifier">fileAttributeGVfsBackend</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-138"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeSELinuxContext"><span class="hs-identifier">fileAttributeSELinuxContext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-139"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTrashItemCount"><span class="hs-identifier">fileAttributeTrashItemCount</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-140"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeFilesystemUsePreview"><span class="hs-identifier">fileAttributeFilesystemUsePreview</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-141"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardDescription"><span class="hs-identifier">fileAttributeStandardDescription</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-pragma">{-# LINE 143 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-identifier">fileAttributeTrashOrigPath</span><span class="hs-special">,</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTrashDeletionDate"><span class="hs-identifier">fileAttributeTrashDeletionDate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-pragma">{-# LINE 146 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-150"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.UTFString</span></span><span>
+</span><span id="line-151"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Flags</span></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.GIO.Enums.html"><span class="hs-identifier">System.GIO.Enums</span></a></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-keyword">data</span><span> </span><span id="FileAttributeType"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeType"><span class="hs-identifier hs-var">FileAttributeType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FileAttributeTypeInvalid"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeInvalid"><span class="hs-identifier hs-var">FileAttributeTypeInvalid</span></a></span></span><span>
+</span><span id="line-156"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeString"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeString"><span class="hs-identifier hs-var">FileAttributeTypeString</span></a></span></span><span>
+</span><span id="line-157"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeByteString"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeByteString"><span class="hs-identifier hs-var">FileAttributeTypeByteString</span></a></span></span><span>
+</span><span id="line-158"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeBool"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeBool"><span class="hs-identifier hs-var">FileAttributeTypeBool</span></a></span></span><span>
+</span><span id="line-159"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeWord32"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeWord32"><span class="hs-identifier hs-var">FileAttributeTypeWord32</span></a></span></span><span>
+</span><span id="line-160"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeInt32"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeInt32"><span class="hs-identifier hs-var">FileAttributeTypeInt32</span></a></span></span><span>
+</span><span id="line-161"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeWord64"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeWord64"><span class="hs-identifier hs-var">FileAttributeTypeWord64</span></a></span></span><span>
+</span><span id="line-162"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeInt64"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeInt64"><span class="hs-identifier hs-var">FileAttributeTypeInt64</span></a></span></span><span>
+</span><span id="line-163"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeObject"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeObject"><span class="hs-identifier hs-var">FileAttributeTypeObject</span></a></span></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-pragma">{-# LINE 165 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-165"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span id="FileAttributeTypeStringList"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeStringList"><span class="hs-identifier hs-var">FileAttributeTypeStringList</span></a></span></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="hs-pragma">{-# LINE 167 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-167"></span><span>                         </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679128059"><span id="local-6989586621679128064"><span class="annot"><span class="annottext">FileAttributeType -&gt; FileAttributeType -&gt; Bool
+(FileAttributeType -&gt; FileAttributeType -&gt; Bool)
+-&gt; (FileAttributeType -&gt; FileAttributeType -&gt; Bool)
+-&gt; Eq FileAttributeType
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+== :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+$c/= :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+/= :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679128071"><span id="local-6989586621679128075"><span id="local-6989586621679128079"><span id="local-6989586621679128083"><span id="local-6989586621679128086"><span id="local-6989586621679128089"><span id="local-6989586621679128092"><span class="annot"><span class="annottext">Eq FileAttributeType
+Eq FileAttributeType =&gt;
+(FileAttributeType -&gt; FileAttributeType -&gt; Ordering)
+-&gt; (FileAttributeType -&gt; FileAttributeType -&gt; Bool)
+-&gt; (FileAttributeType -&gt; FileAttributeType -&gt; Bool)
+-&gt; (FileAttributeType -&gt; FileAttributeType -&gt; Bool)
+-&gt; (FileAttributeType -&gt; FileAttributeType -&gt; Bool)
+-&gt; (FileAttributeType -&gt; FileAttributeType -&gt; FileAttributeType)
+-&gt; (FileAttributeType -&gt; FileAttributeType -&gt; FileAttributeType)
+-&gt; Ord FileAttributeType
+FileAttributeType -&gt; FileAttributeType -&gt; Bool
+FileAttributeType -&gt; FileAttributeType -&gt; Ordering
+FileAttributeType -&gt; FileAttributeType -&gt; FileAttributeType
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: FileAttributeType -&gt; FileAttributeType -&gt; Ordering
+compare :: FileAttributeType -&gt; FileAttributeType -&gt; Ordering
+$c&lt; :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+&lt; :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+$c&lt;= :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+&lt;= :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+$c&gt; :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+&gt; :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+$c&gt;= :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+&gt;= :: FileAttributeType -&gt; FileAttributeType -&gt; Bool
+$cmax :: FileAttributeType -&gt; FileAttributeType -&gt; FileAttributeType
+max :: FileAttributeType -&gt; FileAttributeType -&gt; FileAttributeType
+$cmin :: FileAttributeType -&gt; FileAttributeType -&gt; FileAttributeType
+min :: FileAttributeType -&gt; FileAttributeType -&gt; FileAttributeType
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679128100"><span id="local-6989586621679128102"><span class="annot"><span class="annottext">FileAttributeType
+FileAttributeType -&gt; FileAttributeType -&gt; Bounded FileAttributeType
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: FileAttributeType
+minBound :: FileAttributeType
+$cmaxBound :: FileAttributeType
+maxBound :: FileAttributeType
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679128108"><span id="local-6989586621679128110"><span id="local-6989586621679128114"><span class="annot"><span class="annottext">Int -&gt; FileAttributeType -&gt; ShowS
+[FileAttributeType] -&gt; ShowS
+FileAttributeType -&gt; String
+(Int -&gt; FileAttributeType -&gt; ShowS)
+-&gt; (FileAttributeType -&gt; String)
+-&gt; ([FileAttributeType] -&gt; ShowS)
+-&gt; Show FileAttributeType
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; FileAttributeType -&gt; ShowS
+showsPrec :: Int -&gt; FileAttributeType -&gt; ShowS
+$cshow :: FileAttributeType -&gt; String
+show :: FileAttributeType -&gt; String
+$cshowList :: [FileAttributeType] -&gt; ShowS
+showList :: [FileAttributeType] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679128119"><span id="local-6989586621679128123"><span id="local-6989586621679128126"><span id="local-6989586621679128139"><span class="annot"><span class="annottext">ReadPrec [FileAttributeType]
+ReadPrec FileAttributeType
+Int -&gt; ReadS FileAttributeType
+ReadS [FileAttributeType]
+(Int -&gt; ReadS FileAttributeType)
+-&gt; ReadS [FileAttributeType]
+-&gt; ReadPrec FileAttributeType
+-&gt; ReadPrec [FileAttributeType]
+-&gt; Read FileAttributeType
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: Int -&gt; ReadS FileAttributeType
+readsPrec :: Int -&gt; ReadS FileAttributeType
+$creadList :: ReadS [FileAttributeType]
+readList :: ReadS [FileAttributeType]
+$creadPrec :: ReadPrec FileAttributeType
+readPrec :: ReadPrec FileAttributeType
+$creadListPrec :: ReadPrec [FileAttributeType]
+readListPrec :: ReadPrec [FileAttributeType]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679128146"><span id="local-6989586621679128150"><span id="local-6989586621679128155"><span id="local-6989586621679128158"><span id="local-6989586621679128161"><span id="local-6989586621679128164"><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeType"><span class="hs-identifier hs-type">FileAttributeType</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-169"></span><span>    </span><span id="local-6989586621679128189"><span class="annot"><span class="annottext">toEnum :: Int -&gt; FileAttributeType
+</span><a href="#local-6989586621679128189"><span class="hs-identifier hs-var hs-var hs-var">toEnum</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FileAttributeType
+</span><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeInvalid"><span class="hs-identifier hs-var">FileAttributeTypeInvalid</span></a></span><span>
+</span><span id="line-170"></span><span class="hs-pragma">{-# LINE 170 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">1</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeString</span><span>
+</span><span id="line-171"></span><span class="hs-pragma">{-# LINE 171 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">2</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeByteString</span><span>
+</span><span id="line-172"></span><span class="hs-pragma">{-# LINE 172 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">3</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeBool</span><span>
+</span><span id="line-173"></span><span class="hs-pragma">{-# LINE 173 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-173"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">4</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeWord32</span><span>
+</span><span id="line-174"></span><span class="hs-pragma">{-# LINE 174 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-174"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">5</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeInt32</span><span>
+</span><span id="line-175"></span><span class="hs-pragma">{-# LINE 175 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">6</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeWord64</span><span>
+</span><span id="line-176"></span><span class="hs-pragma">{-# LINE 176 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">7</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeInt64</span><span>
+</span><span id="line-177"></span><span class="hs-pragma">{-# LINE 177 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-177"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">8</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeObject</span><span>
+</span><span id="line-178"></span><span class="hs-pragma">{-# LINE 178 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="hs-pragma">{-# LINE 179 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-179"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-number">9</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FileAttributeTypeStringList</span><span>
+</span><span id="line-180"></span><span class="hs-pragma">{-# LINE 180 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span class="hs-pragma">{-# LINE 181 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span>    </span><span id="local-6989586621679128191"><span class="annot"><span class="annottext">fromEnum :: FileAttributeType -&gt; Int
+</span><a href="#local-6989586621679128191"><span class="hs-identifier hs-var hs-var hs-var">fromEnum</span></a></span></span><span> </span><span class="annot"><span class="annottext">FileAttributeType
+</span><a href="System.GIO.File.FileAttribute.html#FileAttributeTypeInvalid"><span class="hs-identifier hs-var">FileAttributeTypeInvalid</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-183"></span><span class="hs-pragma">{-# LINE 183 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-183"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeString</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">1</span><span>
+</span><span id="line-184"></span><span class="hs-pragma">{-# LINE 184 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-184"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeByteString</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">2</span><span>
+</span><span id="line-185"></span><span class="hs-pragma">{-# LINE 185 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeBool</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">3</span><span>
+</span><span id="line-186"></span><span class="hs-pragma">{-# LINE 186 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeWord32</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">4</span><span>
+</span><span id="line-187"></span><span class="hs-pragma">{-# LINE 187 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-187"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeInt32</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">5</span><span>
+</span><span id="line-188"></span><span class="hs-pragma">{-# LINE 188 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-188"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeWord64</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">6</span><span>
+</span><span id="line-189"></span><span class="hs-pragma">{-# LINE 189 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-189"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeInt64</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">7</span><span>
+</span><span id="line-190"></span><span class="hs-pragma">{-# LINE 190 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-190"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeObject</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">8</span><span>
+</span><span id="line-191"></span><span class="hs-pragma">{-# LINE 191 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="hs-pragma">{-# LINE 192 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-192"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">FileAttributeTypeStringList</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">9</span><span>
+</span><span id="line-193"></span><span class="hs-pragma">{-# LINE 193 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-pragma">{-# LINE 194 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="hs-keyword">data</span><span> </span><span id="FileAttributeInfo"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeInfo"><span class="hs-identifier hs-var">FileAttributeInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-196"></span><span>    </span><span id="FileAttributeInfo"><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeInfo"><span class="hs-identifier hs-var">FileAttributeInfo</span></a></span></span><span>
+</span><span id="line-197"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="fileAttributeInfoName"><span class="annot"><span class="annottext">FileAttributeInfo -&gt; DefaultGlibString
+</span><a href="System.GIO.File.FileAttribute.html#fileAttributeInfoName"><span class="hs-identifier hs-var hs-var">fileAttributeInfoName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefaultGlibString</span></span><span>
+</span><span id="line-198"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="fileAttributeInfoType"><span class="annot"><span class="annottext">FileAttributeInfo -&gt; FileAttributeType
+</span><a href="System.GIO.File.FileAttribute.html#fileAttributeInfoType"><span class="hs-identifier hs-var hs-var">fileAttributeInfoType</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeType"><span class="hs-identifier hs-type">FileAttributeType</span></a></span><span>
+</span><span id="line-199"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="fileAttributeInfoFlags"><span class="annot"><span class="annottext">FileAttributeInfo -&gt; [FileAttributeInfoFlags]
+</span><a href="System.GIO.File.FileAttribute.html#fileAttributeInfoFlags"><span class="hs-identifier hs-var hs-var">fileAttributeInfoFlags</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="System.GIO.Enums.html#FileAttributeInfoFlags"><span class="hs-identifier hs-type">FileAttributeInfoFlags</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-200"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679128198"><span id="local-6989586621679128206"><span class="annot"><span class="annottext">FileAttributeInfo -&gt; FileAttributeInfo -&gt; Bool
+(FileAttributeInfo -&gt; FileAttributeInfo -&gt; Bool)
+-&gt; (FileAttributeInfo -&gt; FileAttributeInfo -&gt; Bool)
+-&gt; Eq FileAttributeInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: FileAttributeInfo -&gt; FileAttributeInfo -&gt; Bool
+== :: FileAttributeInfo -&gt; FileAttributeInfo -&gt; Bool
+$c/= :: FileAttributeInfo -&gt; FileAttributeInfo -&gt; Bool
+/= :: FileAttributeInfo -&gt; FileAttributeInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679128211"><span id="local-6989586621679128215"><span id="local-6989586621679128218"><span id="local-6989586621679128235"><span class="annot"><span class="annottext">ReadPrec [FileAttributeInfo]
+ReadPrec FileAttributeInfo
+Int -&gt; ReadS FileAttributeInfo
+ReadS [FileAttributeInfo]
+(Int -&gt; ReadS FileAttributeInfo)
+-&gt; ReadS [FileAttributeInfo]
+-&gt; ReadPrec FileAttributeInfo
+-&gt; ReadPrec [FileAttributeInfo]
+-&gt; Read FileAttributeInfo
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: Int -&gt; ReadS FileAttributeInfo
+readsPrec :: Int -&gt; ReadS FileAttributeInfo
+$creadList :: ReadS [FileAttributeInfo]
+readList :: ReadS [FileAttributeInfo]
+$creadPrec :: ReadPrec FileAttributeInfo
+readPrec :: ReadPrec FileAttributeInfo
+$creadListPrec :: ReadPrec [FileAttributeInfo]
+readListPrec :: ReadPrec [FileAttributeInfo]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679128239"><span id="local-6989586621679128249"><span id="local-6989586621679128253"><span class="annot"><span class="annottext">Int -&gt; FileAttributeInfo -&gt; ShowS
+[FileAttributeInfo] -&gt; ShowS
+FileAttributeInfo -&gt; String
+(Int -&gt; FileAttributeInfo -&gt; ShowS)
+-&gt; (FileAttributeInfo -&gt; String)
+-&gt; ([FileAttributeInfo] -&gt; ShowS)
+-&gt; Show FileAttributeInfo
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; FileAttributeInfo -&gt; ShowS
+showsPrec :: Int -&gt; FileAttributeInfo -&gt; ShowS
+$cshow :: FileAttributeInfo -&gt; String
+show :: FileAttributeInfo -&gt; String
+$cshowList :: [FileAttributeInfo] -&gt; ShowS
+showList :: [FileAttributeInfo] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679128259"><span id="local-6989586621679128263"><span id="local-6989586621679128266"><span id="local-6989586621679128269"><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#FileAttributeInfo"><span class="hs-identifier hs-type">FileAttributeInfo</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-203"></span><span>    </span><span id="local-6989586621679128274"><span class="annot"><span class="annottext">sizeOf :: FileAttributeInfo -&gt; Int
+</span><a href="#local-6989586621679128274"><span class="hs-identifier hs-var hs-var hs-var">sizeOf</span></a></span></span><span> </span><span class="annot"><span class="annottext">FileAttributeInfo
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span class="hs-pragma">{-# LINE 204 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-204"></span><span>    </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">undefined</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>    </span><span id="local-6989586621679128307"><span class="annot"><span class="annottext">peek :: Ptr FileAttributeInfo -&gt; IO FileAttributeInfo
+</span><a href="#local-6989586621679128307"><span class="hs-identifier hs-var hs-var hs-var">peek</span></a></span></span><span> </span><span id="local-6989586621679128309"><span class="annot"><span class="annottext">Ptr FileAttributeInfo
+</span><a href="#local-6989586621679128309"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-206"></span><span>      </span><span id="local-6989586621679128310"><span class="annot"><a href="#local-6989586621679128310"><span class="hs-identifier hs-var">retName</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679128311"><span class="annot"><span class="annottext">Ptr FileAttributeInfo
+</span><a href="#local-6989586621679128311"><span class="hs-identifier hs-var">hsc_ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr FileAttributeInfo -&gt; Int -&gt; IO CString
+forall b. Ptr b -&gt; Int -&gt; IO CString
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr FileAttributeInfo
+</span><a href="#local-6989586621679128311"><span class="hs-identifier hs-var">hsc_ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr FileAttributeInfo
+</span><a href="#local-6989586621679128309"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">IO CString
+-&gt; (CString -&gt; IO DefaultGlibString) -&gt; IO DefaultGlibString
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CString -&gt; IO DefaultGlibString
+forall s. GlibString s =&gt; CString -&gt; IO s
+</span><span class="hs-identifier hs-var">readUTFString</span></span><span>
+</span><span id="line-207"></span><span class="hs-pragma">{-# LINE 207 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-207"></span><span>      </span><span class="hs-identifier">retType</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">8</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">ptr</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span class="hs-special">)</span><span> </span><span class="hs-operator">&gt;&gt;=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">fromIntegral</span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span class="hs-pragma">{-# LINE 208 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-208"></span><span>      </span><span class="hs-identifier">retFlags</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">12</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">ptr</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span class="hs-special">)</span><span> </span><span class="hs-operator">&gt;&gt;=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">toFlags</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">fromIntegral</span><span class="hs-special">)</span><span>
+</span><span id="line-209"></span><span class="hs-pragma">{-# LINE 209 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-209"></span><span>      </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">FileAttributeInfo</span><span>
+</span><span id="line-210"></span><span>               </span><span class="hs-special">{</span><span> </span><span class="hs-identifier">fileAttributeInfoName</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">retName</span><span>
+</span><span id="line-211"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">fileAttributeInfoType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">retType</span><span>
+</span><span id="line-212"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">fileAttributeInfoFlags</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">retFlags</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span>    </span><span id="local-6989586621679128322"><span class="annot"><span class="annottext">poke :: Ptr FileAttributeInfo -&gt; FileAttributeInfo -&gt; IO ()
+</span><a href="#local-6989586621679128322"><span class="hs-identifier hs-var hs-var hs-var">poke</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ptr FileAttributeInfo
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FileAttributeInfo -&gt; IO ()
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;not implemented&quot;</span></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardType"><span class="hs-identifier hs-type">fileAttributeStandardType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-217"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIsHidden"><span class="hs-identifier hs-type">fileAttributeStandardIsHidden</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-218"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIsBackup"><span class="hs-identifier hs-type">fileAttributeStandardIsBackup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-219"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIsSymlink"><span class="hs-identifier hs-type">fileAttributeStandardIsSymlink</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-220"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIsVirtual"><span class="hs-identifier hs-type">fileAttributeStandardIsVirtual</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-221"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardName"><span class="hs-identifier hs-type">fileAttributeStandardName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-222"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardDisplayName"><span class="hs-identifier hs-type">fileAttributeStandardDisplayName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-223"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardEditName"><span class="hs-identifier hs-type">fileAttributeStandardEditName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-224"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardCopyName"><span class="hs-identifier hs-type">fileAttributeStandardCopyName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-225"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardIcon"><span class="hs-identifier hs-type">fileAttributeStandardIcon</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-226"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardContentType"><span class="hs-identifier hs-type">fileAttributeStandardContentType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-227"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardFastContentType"><span class="hs-identifier hs-type">fileAttributeStandardFastContentType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-228"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardSize"><span class="hs-identifier hs-type">fileAttributeStandardSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-pragma">{-# LINE 230 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-230"></span><span>    </span><span class="hs-identifier">fileAttributeStandardAllocatedSize</span><span class="hs-special">,</span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="hs-pragma">{-# LINE 232 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-232"></span><span>    </span><span class="hs-identifier">fileAttributeStandardSymlinkTarget</span><span class="hs-special">,</span><span>
+</span><span id="line-233"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardTargetURI"><span class="hs-identifier hs-type">fileAttributeStandardTargetURI</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-234"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardSortOrder"><span class="hs-identifier hs-type">fileAttributeStandardSortOrder</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-235"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeEtagValue"><span class="hs-identifier hs-type">fileAttributeEtagValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-236"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeIDFile"><span class="hs-identifier hs-type">fileAttributeIDFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-237"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeIDFilesystem"><span class="hs-identifier hs-type">fileAttributeIDFilesystem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-238"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanRead"><span class="hs-identifier hs-type">fileAttributeAccessCanRead</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-239"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanWrite"><span class="hs-identifier hs-type">fileAttributeAccessCanWrite</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-240"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanExecute"><span class="hs-identifier hs-type">fileAttributeAccessCanExecute</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-241"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanDelete"><span class="hs-identifier hs-type">fileAttributeAccessCanDelete</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-242"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanTrash"><span class="hs-identifier hs-type">fileAttributeAccessCanTrash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-243"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeAccessCanRename"><span class="hs-identifier hs-type">fileAttributeAccessCanRename</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-244"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanMount"><span class="hs-identifier hs-type">fileAttributeMountableCanMount</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-245"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanUnmount"><span class="hs-identifier hs-type">fileAttributeMountableCanUnmount</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-246"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanEject"><span class="hs-identifier hs-type">fileAttributeMountableCanEject</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-247"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableUnixDevice"><span class="hs-identifier hs-type">fileAttributeMountableUnixDevice</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-248"></span><span>
+</span><span id="line-249"></span><span class="hs-pragma">{-# LINE 249 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-249"></span><span>    </span><span class="hs-identifier">fileAttributeMountableUnixDeviceFile</span><span class="hs-special">,</span><span>
+</span><span id="line-250"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanStart"><span class="hs-identifier hs-type">fileAttributeMountableCanStart</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-251"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanDegraded"><span class="hs-identifier hs-type">fileAttributeMountableCanDegraded</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-252"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanStop"><span class="hs-identifier hs-type">fileAttributeMountableCanStop</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-253"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableStartStopType"><span class="hs-identifier hs-type">fileAttributeMountableStartStopType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-254"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeMountableCanPoll"><span class="hs-identifier hs-type">fileAttributeMountableCanPoll</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-255"></span><span>
+</span><span id="line-256"></span><span class="hs-pragma">{-# LINE 256 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-256"></span><span>    </span><span class="hs-identifier">fileAttributeMountableHalUDI</span><span class="hs-special">,</span><span>
+</span><span id="line-257"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeModified"><span class="hs-identifier hs-type">fileAttributeTimeModified</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-258"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeModifiedUSec"><span class="hs-identifier hs-type">fileAttributeTimeModifiedUSec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-259"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeAccess"><span class="hs-identifier hs-type">fileAttributeTimeAccess</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-260"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeAccessUSec"><span class="hs-identifier hs-type">fileAttributeTimeAccessUSec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-261"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeChanged"><span class="hs-identifier hs-type">fileAttributeTimeChanged</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-262"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeChangedUSec"><span class="hs-identifier hs-type">fileAttributeTimeChangedUSec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-263"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeCreated"><span class="hs-identifier hs-type">fileAttributeTimeCreated</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-264"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTimeCreatedUSec"><span class="hs-identifier hs-type">fileAttributeTimeCreatedUSec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-265"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixDevice"><span class="hs-identifier hs-type">fileAttributeUnixDevice</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-266"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixInode"><span class="hs-identifier hs-type">fileAttributeUnixInode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-267"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixMode"><span class="hs-identifier hs-type">fileAttributeUnixMode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-268"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixNLink"><span class="hs-identifier hs-type">fileAttributeUnixNLink</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-269"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixUID"><span class="hs-identifier hs-type">fileAttributeUnixUID</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-270"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixGID"><span class="hs-identifier hs-type">fileAttributeUnixGID</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-271"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixRDev"><span class="hs-identifier hs-type">fileAttributeUnixRDev</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-272"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixBlockSize"><span class="hs-identifier hs-type">fileAttributeUnixBlockSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-273"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeUnixBlocks"><span class="hs-identifier hs-type">fileAttributeUnixBlocks</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-274"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeDosIsMountpoint"><span class="hs-identifier hs-type">fileAttributeDosIsMountpoint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-275"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeDosIsArchive"><span class="hs-identifier hs-type">fileAttributeDosIsArchive</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-276"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeDosIsSystem"><span class="hs-identifier hs-type">fileAttributeDosIsSystem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-277"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeOwnerUser"><span class="hs-identifier hs-type">fileAttributeOwnerUser</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-278"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeOwnerUserReal"><span class="hs-identifier hs-type">fileAttributeOwnerUserReal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-279"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeOwnerGroup"><span class="hs-identifier hs-type">fileAttributeOwnerGroup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-280"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeThumbnailPath"><span class="hs-identifier hs-type">fileAttributeThumbnailPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-281"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeThumbnailingFailed"><span class="hs-identifier hs-type">fileAttributeThumbnailingFailed</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-282"></span><span>
+</span><span id="line-283"></span><span class="hs-pragma">{-# LINE 283 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-283"></span><span>    </span><span class="hs-identifier">fileAttributePreviewIcon</span><span class="hs-special">,</span><span>
+</span><span id="line-284"></span><span>
+</span><span id="line-285"></span><span class="hs-pragma">{-# LINE 285 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-285"></span><span>    </span><span class="hs-identifier">fileAttributeFilesystemSize</span><span class="hs-special">,</span><span>
+</span><span id="line-286"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeFilesystemFree"><span class="hs-identifier hs-type">fileAttributeFilesystemFree</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-287"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeFilesystemType"><span class="hs-identifier hs-type">fileAttributeFilesystemType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-288"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeFilesystemReadonly"><span class="hs-identifier hs-type">fileAttributeFilesystemReadonly</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-289"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeGVfsBackend"><span class="hs-identifier hs-type">fileAttributeGVfsBackend</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-290"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeSELinuxContext"><span class="hs-identifier hs-type">fileAttributeSELinuxContext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-291"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTrashItemCount"><span class="hs-identifier hs-type">fileAttributeTrashItemCount</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-292"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeFilesystemUsePreview"><span class="hs-identifier hs-type">fileAttributeFilesystemUsePreview</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-293"></span><span>
+</span><span id="line-294"></span><span class="hs-pragma">{-# LINE 294 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-294"></span><span>    </span><span class="hs-identifier">fileAttributeTrashOrigPath</span><span class="hs-special">,</span><span>
+</span><span id="line-295"></span><span>    </span><span class="annot"><a href="System.GIO.File.FileAttribute.html#fileAttributeTrashDeletionDate"><span class="hs-identifier hs-type">fileAttributeTrashDeletionDate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span class="hs-pragma">{-# LINE 297 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-297"></span><span>    </span><span class="hs-identifier">fileAttributeStandardDescription</span><span>
+</span><span id="line-298"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-299"></span><span id="fileAttributeStandardType"><span class="annot"><span class="annottext">fileAttributeStandardType :: String
+</span><a href="System.GIO.File.FileAttribute.html#fileAttributeStandardType"><span class="hs-identifier hs-var hs-var">fileAttributeStandardType</span></a></span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;standard::type&quot;</span></span><span>
+</span><span id="line-300"></span><span id="fileAttributeStandardIsHidden"><span class="hs-pragma">{-# LINE 300 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-300"></span><span class="hs-identifier">fileAttributeStandardIsHidden</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::is-hidden&quot;</span><span>
+</span><span id="line-301"></span><span id="fileAttributeStandardIsBackup"><span class="hs-pragma">{-# LINE 301 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-301"></span><span class="hs-identifier">fileAttributeStandardIsBackup</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::is-backup&quot;</span><span>
+</span><span id="line-302"></span><span id="fileAttributeStandardIsSymlink"><span class="hs-pragma">{-# LINE 302 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-302"></span><span class="hs-identifier">fileAttributeStandardIsSymlink</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::is-symlink&quot;</span><span>
+</span><span id="line-303"></span><span id="fileAttributeStandardIsVirtual"><span class="hs-pragma">{-# LINE 303 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-303"></span><span class="hs-identifier">fileAttributeStandardIsVirtual</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::is-virtual&quot;</span><span>
+</span><span id="line-304"></span><span id="fileAttributeStandardName"><span class="hs-pragma">{-# LINE 304 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-304"></span><span class="hs-identifier">fileAttributeStandardName</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::name&quot;</span><span>
+</span><span id="line-305"></span><span id="fileAttributeStandardDisplayName"><span class="hs-pragma">{-# LINE 305 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-305"></span><span class="hs-identifier">fileAttributeStandardDisplayName</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::display-name&quot;</span><span>
+</span><span id="line-306"></span><span id="fileAttributeStandardEditName"><span class="hs-pragma">{-# LINE 306 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-306"></span><span class="hs-identifier">fileAttributeStandardEditName</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::edit-name&quot;</span><span>
+</span><span id="line-307"></span><span id="fileAttributeStandardCopyName"><span class="hs-pragma">{-# LINE 307 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-307"></span><span class="hs-identifier">fileAttributeStandardCopyName</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::copy-name&quot;</span><span>
+</span><span id="line-308"></span><span id="fileAttributeStandardIcon"><span class="hs-pragma">{-# LINE 308 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-308"></span><span class="hs-identifier">fileAttributeStandardIcon</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::icon&quot;</span><span>
+</span><span id="line-309"></span><span id="fileAttributeStandardContentType"><span class="hs-pragma">{-# LINE 309 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-309"></span><span class="hs-identifier">fileAttributeStandardContentType</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::content-type&quot;</span><span>
+</span><span id="line-310"></span><span id="fileAttributeStandardFastContentType"><span class="hs-pragma">{-# LINE 310 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-310"></span><span class="hs-identifier">fileAttributeStandardFastContentType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::fast-content-type&quot;</span><span>
+</span><span id="line-311"></span><span id="fileAttributeStandardSize"><span class="hs-pragma">{-# LINE 311 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-311"></span><span class="hs-identifier">fileAttributeStandardSize</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::size&quot;</span><span>
+</span><span id="line-312"></span><span class="hs-pragma">{-# LINE 312 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-312"></span><span>
+</span><span id="line-313"></span><span id="fileAttributeStandardAllocatedSize"><span class="hs-pragma">{-# LINE 313 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-313"></span><span class="hs-identifier">fileAttributeStandardAllocatedSize</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::allocated-size&quot;</span><span>
+</span><span id="line-314"></span><span class="hs-pragma">{-# LINE 314 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-314"></span><span>
+</span><span id="line-315"></span><span id="fileAttributeStandardSymlinkTarget"><span class="hs-pragma">{-# LINE 315 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-315"></span><span class="hs-identifier">fileAttributeStandardSymlinkTarget</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::symlink-target&quot;</span><span>
+</span><span id="line-316"></span><span id="fileAttributeStandardTargetURI"><span class="hs-pragma">{-# LINE 316 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-316"></span><span class="hs-identifier">fileAttributeStandardTargetURI</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::target-uri&quot;</span><span>
+</span><span id="line-317"></span><span id="fileAttributeStandardSortOrder"><span class="hs-pragma">{-# LINE 317 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-317"></span><span class="hs-identifier">fileAttributeStandardSortOrder</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::sort-order&quot;</span><span>
+</span><span id="line-318"></span><span id="fileAttributeEtagValue"><span class="hs-pragma">{-# LINE 318 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-318"></span><span class="hs-identifier">fileAttributeEtagValue</span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;etag::value&quot;</span><span>
+</span><span id="line-319"></span><span id="fileAttributeIDFile"><span class="hs-pragma">{-# LINE 319 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-319"></span><span class="hs-identifier">fileAttributeIDFile</span><span>                  </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;id::file&quot;</span><span>
+</span><span id="line-320"></span><span id="fileAttributeIDFilesystem"><span class="hs-pragma">{-# LINE 320 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-320"></span><span class="hs-identifier">fileAttributeIDFilesystem</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;id::filesystem&quot;</span><span>
+</span><span id="line-321"></span><span id="fileAttributeAccessCanRead"><span class="hs-pragma">{-# LINE 321 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-321"></span><span class="hs-identifier">fileAttributeAccessCanRead</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;access::can-read&quot;</span><span>
+</span><span id="line-322"></span><span id="fileAttributeAccessCanWrite"><span class="hs-pragma">{-# LINE 322 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-322"></span><span class="hs-identifier">fileAttributeAccessCanWrite</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;access::can-write&quot;</span><span>
+</span><span id="line-323"></span><span id="fileAttributeAccessCanExecute"><span class="hs-pragma">{-# LINE 323 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-323"></span><span class="hs-identifier">fileAttributeAccessCanExecute</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;access::can-execute&quot;</span><span>
+</span><span id="line-324"></span><span id="fileAttributeAccessCanDelete"><span class="hs-pragma">{-# LINE 324 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-324"></span><span class="hs-identifier">fileAttributeAccessCanDelete</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;access::can-delete&quot;</span><span>
+</span><span id="line-325"></span><span id="fileAttributeAccessCanTrash"><span class="hs-pragma">{-# LINE 325 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-325"></span><span class="hs-identifier">fileAttributeAccessCanTrash</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;access::can-trash&quot;</span><span>
+</span><span id="line-326"></span><span id="fileAttributeAccessCanRename"><span class="hs-pragma">{-# LINE 326 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-326"></span><span class="hs-identifier">fileAttributeAccessCanRename</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;access::can-rename&quot;</span><span>
+</span><span id="line-327"></span><span id="fileAttributeMountableCanMount"><span class="hs-pragma">{-# LINE 327 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-327"></span><span class="hs-identifier">fileAttributeMountableCanMount</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::can-mount&quot;</span><span>
+</span><span id="line-328"></span><span id="fileAttributeMountableCanUnmount"><span class="hs-pragma">{-# LINE 328 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-328"></span><span class="hs-identifier">fileAttributeMountableCanUnmount</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::can-unmount&quot;</span><span>
+</span><span id="line-329"></span><span id="fileAttributeMountableCanEject"><span class="hs-pragma">{-# LINE 329 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-329"></span><span class="hs-identifier">fileAttributeMountableCanEject</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::can-eject&quot;</span><span>
+</span><span id="line-330"></span><span id="fileAttributeMountableUnixDevice"><span class="hs-pragma">{-# LINE 330 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-330"></span><span class="hs-identifier">fileAttributeMountableUnixDevice</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::unix-device&quot;</span><span>
+</span><span id="line-331"></span><span class="hs-pragma">{-# LINE 331 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-331"></span><span>
+</span><span id="line-332"></span><span id="fileAttributeMountableUnixDeviceFile"><span class="hs-pragma">{-# LINE 332 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-332"></span><span class="hs-identifier">fileAttributeMountableUnixDeviceFile</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::unix-device-file&quot;</span><span>
+</span><span id="line-333"></span><span id="fileAttributeMountableCanStart"><span class="hs-pragma">{-# LINE 333 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-333"></span><span class="hs-identifier">fileAttributeMountableCanStart</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::can-start&quot;</span><span>
+</span><span id="line-334"></span><span id="fileAttributeMountableCanDegraded"><span class="hs-pragma">{-# LINE 334 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-334"></span><span class="hs-identifier">fileAttributeMountableCanDegraded</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::can-start-degraded&quot;</span><span>
+</span><span id="line-335"></span><span id="fileAttributeMountableCanStop"><span class="hs-pragma">{-# LINE 335 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-335"></span><span class="hs-identifier">fileAttributeMountableCanStop</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::can-stop&quot;</span><span>
+</span><span id="line-336"></span><span id="fileAttributeMountableStartStopType"><span class="hs-pragma">{-# LINE 336 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-336"></span><span class="hs-identifier">fileAttributeMountableStartStopType</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::start-stop-type&quot;</span><span>
+</span><span id="line-337"></span><span id="fileAttributeMountableCanPoll"><span class="hs-pragma">{-# LINE 337 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-337"></span><span class="hs-identifier">fileAttributeMountableCanPoll</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::can-poll&quot;</span><span>
+</span><span id="line-338"></span><span id="fileAttributeMountableIsMediaCheckAutomatic"><span class="hs-pragma">{-# LINE 338 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-338"></span><span class="hs-identifier">fileAttributeMountableIsMediaCheckAutomatic</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::is-media-check-automatic&quot;</span><span>
+</span><span id="line-339"></span><span class="hs-pragma">{-# LINE 339 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span id="fileAttributeMountableHalUDI"><span class="hs-pragma">{-# LINE 340 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-340"></span><span class="hs-identifier">fileAttributeMountableHalUDI</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;mountable::hal-udi&quot;</span><span>
+</span><span id="line-341"></span><span id="fileAttributeTimeModified"><span class="hs-pragma">{-# LINE 341 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-341"></span><span class="hs-identifier">fileAttributeTimeModified</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;time::modified&quot;</span><span>
+</span><span id="line-342"></span><span id="fileAttributeTimeModifiedUSec"><span class="hs-pragma">{-# LINE 342 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-342"></span><span class="hs-identifier">fileAttributeTimeModifiedUSec</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;time::modified-usec&quot;</span><span>
+</span><span id="line-343"></span><span id="fileAttributeTimeAccess"><span class="hs-pragma">{-# LINE 343 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-343"></span><span class="hs-identifier">fileAttributeTimeAccess</span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;time::access&quot;</span><span>
+</span><span id="line-344"></span><span id="fileAttributeTimeAccessUSec"><span class="hs-pragma">{-# LINE 344 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-344"></span><span class="hs-identifier">fileAttributeTimeAccessUSec</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;time::access-usec&quot;</span><span>
+</span><span id="line-345"></span><span id="fileAttributeTimeChanged"><span class="hs-pragma">{-# LINE 345 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-345"></span><span class="hs-identifier">fileAttributeTimeChanged</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;time::changed&quot;</span><span>
+</span><span id="line-346"></span><span id="fileAttributeTimeChangedUSec"><span class="hs-pragma">{-# LINE 346 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-346"></span><span class="hs-identifier">fileAttributeTimeChangedUSec</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;time::changed-usec&quot;</span><span>
+</span><span id="line-347"></span><span id="fileAttributeTimeCreated"><span class="hs-pragma">{-# LINE 347 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-347"></span><span class="hs-identifier">fileAttributeTimeCreated</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;time::created&quot;</span><span>
+</span><span id="line-348"></span><span id="fileAttributeTimeCreatedUSec"><span class="hs-pragma">{-# LINE 348 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-348"></span><span class="hs-identifier">fileAttributeTimeCreatedUSec</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;time::created-usec&quot;</span><span>
+</span><span id="line-349"></span><span id="fileAttributeUnixDevice"><span class="hs-pragma">{-# LINE 349 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-349"></span><span class="hs-identifier">fileAttributeUnixDevice</span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::device&quot;</span><span>
+</span><span id="line-350"></span><span id="fileAttributeUnixInode"><span class="hs-pragma">{-# LINE 350 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-350"></span><span class="hs-identifier">fileAttributeUnixInode</span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::inode&quot;</span><span>
+</span><span id="line-351"></span><span id="fileAttributeUnixMode"><span class="hs-pragma">{-# LINE 351 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-351"></span><span class="hs-identifier">fileAttributeUnixMode</span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::mode&quot;</span><span>
+</span><span id="line-352"></span><span id="fileAttributeUnixNLink"><span class="hs-pragma">{-# LINE 352 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-352"></span><span class="hs-identifier">fileAttributeUnixNLink</span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::nlink&quot;</span><span>
+</span><span id="line-353"></span><span id="fileAttributeUnixUID"><span class="hs-pragma">{-# LINE 353 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-353"></span><span class="hs-identifier">fileAttributeUnixUID</span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::uid&quot;</span><span>
+</span><span id="line-354"></span><span id="fileAttributeUnixGID"><span class="hs-pragma">{-# LINE 354 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-354"></span><span class="hs-identifier">fileAttributeUnixGID</span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::gid&quot;</span><span>
+</span><span id="line-355"></span><span id="fileAttributeUnixRDev"><span class="hs-pragma">{-# LINE 355 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-355"></span><span class="hs-identifier">fileAttributeUnixRDev</span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::rdev&quot;</span><span>
+</span><span id="line-356"></span><span id="fileAttributeUnixBlockSize"><span class="hs-pragma">{-# LINE 356 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-356"></span><span class="hs-identifier">fileAttributeUnixBlockSize</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::block-size&quot;</span><span>
+</span><span id="line-357"></span><span id="fileAttributeUnixBlocks"><span class="hs-pragma">{-# LINE 357 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-357"></span><span class="hs-identifier">fileAttributeUnixBlocks</span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::blocks&quot;</span><span>
+</span><span id="line-358"></span><span id="fileAttributeDosIsMountpoint"><span class="hs-pragma">{-# LINE 358 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-358"></span><span class="hs-identifier">fileAttributeDosIsMountpoint</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;unix::is-mountpoint&quot;</span><span>
+</span><span id="line-359"></span><span id="fileAttributeDosIsArchive"><span class="hs-pragma">{-# LINE 359 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-359"></span><span class="hs-identifier">fileAttributeDosIsArchive</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;dos::is-archive&quot;</span><span>
+</span><span id="line-360"></span><span id="fileAttributeDosIsSystem"><span class="hs-pragma">{-# LINE 360 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-360"></span><span class="hs-identifier">fileAttributeDosIsSystem</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;dos::is-system&quot;</span><span>
+</span><span id="line-361"></span><span id="fileAttributeOwnerUser"><span class="hs-pragma">{-# LINE 361 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-361"></span><span class="hs-identifier">fileAttributeOwnerUser</span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;owner::user&quot;</span><span>
+</span><span id="line-362"></span><span id="fileAttributeOwnerUserReal"><span class="hs-pragma">{-# LINE 362 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-362"></span><span class="hs-identifier">fileAttributeOwnerUserReal</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;owner::user-real&quot;</span><span>
+</span><span id="line-363"></span><span id="fileAttributeOwnerGroup"><span class="hs-pragma">{-# LINE 363 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-363"></span><span class="hs-identifier">fileAttributeOwnerGroup</span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;owner::group&quot;</span><span>
+</span><span id="line-364"></span><span id="fileAttributeThumbnailPath"><span class="hs-pragma">{-# LINE 364 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-364"></span><span class="hs-identifier">fileAttributeThumbnailPath</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;thumbnail::path&quot;</span><span>
+</span><span id="line-365"></span><span id="fileAttributeThumbnailingFailed"><span class="hs-pragma">{-# LINE 365 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-365"></span><span class="hs-identifier">fileAttributeThumbnailingFailed</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;thumbnail::failed&quot;</span><span>
+</span><span id="line-366"></span><span class="hs-pragma">{-# LINE 366 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-366"></span><span>
+</span><span id="line-367"></span><span id="fileAttributePreviewIcon"><span class="hs-pragma">{-# LINE 367 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-367"></span><span class="hs-identifier">fileAttributePreviewIcon</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;preview::icon&quot;</span><span>
+</span><span id="line-368"></span><span class="hs-pragma">{-# LINE 368 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-368"></span><span>
+</span><span id="line-369"></span><span id="fileAttributeFilesystemSize"><span class="hs-pragma">{-# LINE 369 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-369"></span><span class="hs-identifier">fileAttributeFilesystemSize</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;filesystem::size&quot;</span><span>
+</span><span id="line-370"></span><span id="fileAttributeFilesystemFree"><span class="hs-pragma">{-# LINE 370 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-370"></span><span class="hs-identifier">fileAttributeFilesystemFree</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;filesystem::free&quot;</span><span>
+</span><span id="line-371"></span><span id="fileAttributeFilesystemType"><span class="hs-pragma">{-# LINE 371 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-371"></span><span class="hs-identifier">fileAttributeFilesystemType</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;filesystem::type&quot;</span><span>
+</span><span id="line-372"></span><span id="fileAttributeFilesystemReadonly"><span class="hs-pragma">{-# LINE 372 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-372"></span><span class="hs-identifier">fileAttributeFilesystemReadonly</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;filesystem::readonly&quot;</span><span>
+</span><span id="line-373"></span><span id="fileAttributeGVfsBackend"><span class="hs-pragma">{-# LINE 373 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-373"></span><span class="hs-identifier">fileAttributeGVfsBackend</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;gvfs::backend&quot;</span><span>
+</span><span id="line-374"></span><span id="fileAttributeSELinuxContext"><span class="hs-pragma">{-# LINE 374 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-374"></span><span class="hs-identifier">fileAttributeSELinuxContext</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;selinux::context&quot;</span><span>
+</span><span id="line-375"></span><span id="fileAttributeTrashItemCount"><span class="hs-pragma">{-# LINE 375 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-375"></span><span class="hs-identifier">fileAttributeTrashItemCount</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;trash::item-count&quot;</span><span>
+</span><span id="line-376"></span><span id="fileAttributeFilesystemUsePreview"><span class="hs-pragma">{-# LINE 376 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-376"></span><span class="hs-identifier">fileAttributeFilesystemUsePreview</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;filesystem::use-preview&quot;</span><span>
+</span><span id="line-377"></span><span id="fileAttributeStandardDescription"><span class="hs-pragma">{-# LINE 377 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-377"></span><span class="hs-identifier">fileAttributeStandardDescription</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;standard::description&quot;</span><span>
+</span><span id="line-378"></span><span class="hs-pragma">{-# LINE 378 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-378"></span><span>
+</span><span id="line-379"></span><span id="fileAttributeTrashOrigPath"><span class="hs-pragma">{-# LINE 379 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-379"></span><span class="hs-identifier">fileAttributeTrashOrigPath</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;trash::orig-path&quot;</span><span>
+</span><span id="line-380"></span><span id="fileAttributeTrashDeletionDate"><span class="hs-pragma">{-# LINE 380 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span></span><span>
+</span><span id="line-380"></span><span class="hs-identifier">fileAttributeTrashDeletionDate</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;trash::deletion-date&quot;</span><span>
+</span><span id="line-381"></span><span class="hs-pragma">{-# LINE 381 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-381"></span><span>
+</span><span id="line-382"></span><span class="hs-pragma">{-# LINE 382 &quot;System/GIO/File/FileAttribute.hsc&quot; #-}</span><span>
+</span><span id="line-382"></span></pre></body></html>

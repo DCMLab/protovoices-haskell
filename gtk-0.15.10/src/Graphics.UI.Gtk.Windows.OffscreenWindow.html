@@ -1,0 +1,214 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/Windows/OffscreenWindow.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget OffscreenWindow</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Andy Stewart</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 25 Mar 2010</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 2010 Andy Stewart</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- A toplevel container widget used to manage offscreen rendering of child widgets.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- * Module available since Gtk+ version 2.20</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html"><span class="hs-identifier">Graphics.UI.Gtk.Windows.OffscreenWindow</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-31"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- | 'OffscreenWindow' is strictly intended to be used for obtaining snapshots of widgets that are not</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- part of a normal widget hierarchy. It differs from 'widgetGetSnapshot' in that the widget you</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- want to get a snapshot of need not be displayed on the user's screen as a part of a widget</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- hierarchy. However, since 'OffscreenWindow' is a toplevel widget you cannot obtain snapshots of a</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- full window with it since you cannot pack a toplevel widget in another toplevel.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- The idea is to take a widget and manually set the state of it, add it to a 'OffscreenWindow' and</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- then retrieve the snapshot as a 'Pixmap' or 'Pixbuf'.</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- 'OffscreenWindow' derives from 'Window' only as an implementation detail. Applications should not</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- use any API specific to 'Window' to operate on this object. It should be treated as a 'Bin' that</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- has no parent widget.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- When contained offscreen widgets are redrawn, 'OffscreenWindow' will emit a 'damageEvent' signal.</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | +----'Object'</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | +----'Widget'</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- | +----'Container'</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | +----'Bin'</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | +----Window</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | +----'OffscreenWindow'</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindow"><span class="hs-identifier">OffscreenWindow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindowClass"><span class="hs-identifier">OffscreenWindowClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToOffscreenWindow"><span class="hs-identifier">castToOffscreenWindow</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeOffscreenWindow"><span class="hs-identifier">gTypeOffscreenWindow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toOffscreenWindow"><span class="hs-identifier">toOffscreenWindow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowNew"><span class="hs-identifier">offscreenWindowNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowGetPixmap"><span class="hs-identifier">offscreenWindowGetPixmap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowGetPixbuf"><span class="hs-identifier">offscreenWindowGetPixbuf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html"><span class="hs-identifier">Graphics.UI.Gtk.Abstract.Object</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier">makeNewObject</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-82"></span><span class="hs-pragma">{-# LINE 82 &quot;./Graphics/UI/Gtk/Windows/OffscreenWindow.chs&quot; #-}</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-pragma">{-# LINE 84 &quot;./Graphics/UI/Gtk/Windows/OffscreenWindow.chs&quot; #-}</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- | Creates a toplevel container widget that is used to retrieve snapshots of widgets without showing</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- them on the screen. For widgets that are on the screen and part of a normal widget hierarchy,</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- 'widgetGetSnapshot' can be used instead.</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- * Available since Gtk+ version 2.20</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowNew"><span class="hs-identifier hs-type">offscreenWindowNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindow"><span class="hs-identifier hs-type">OffscreenWindow</span></a></span><span>
+</span><span id="line-93"></span><span id="offscreenWindowNew"><span class="annot"><span class="annottext">offscreenWindowNew :: IO OffscreenWindow
+</span><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowNew"><span class="hs-identifier hs-var hs-var">offscreenWindowNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr OffscreenWindow -&gt; OffscreenWindow,
+ FinalizerPtr OffscreenWindow)
+-&gt; IO (Ptr OffscreenWindow) -&gt; IO OffscreenWindow
+forall obj.
+ObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><a href="Graphics.UI.Gtk.Abstract.Object.html#makeNewObject"><span class="hs-identifier hs-var">makeNewObject</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr OffscreenWindow -&gt; OffscreenWindow,
+ FinalizerPtr OffscreenWindow)
+forall {a}.
+(ForeignPtr OffscreenWindow -&gt; OffscreenWindow, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkOffscreenWindow"><span class="hs-identifier hs-var">mkOffscreenWindow</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr OffscreenWindow) -&gt; IO OffscreenWindow)
+-&gt; IO (Ptr OffscreenWindow) -&gt; IO OffscreenWindow
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Widget -&gt; Ptr OffscreenWindow)
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr OffscreenWindow)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Widget -&gt; Ptr OffscreenWindow
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindow"><span class="hs-identifier hs-type">OffscreenWindow</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Widget) -&gt; IO (Ptr OffscreenWindow))
+-&gt; IO (Ptr Widget) -&gt; IO (Ptr OffscreenWindow)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr Widget)
+</span><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#gtk_offscreen_window_new"><span class="hs-identifier hs-var">gtk_offscreen_window_new</span></a></span><span>
+</span><span id="line-97"></span><span class="hs-pragma">{-# LINE 97 &quot;./Graphics/UI/Gtk/Windows/OffscreenWindow.chs&quot; #-}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- | Retrieves a snapshot of the contained widget in the form of a 'Pixmap'. If you need to keep this</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- around over window resizes then you should add a reference to it.</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- * Available since Gtk+ version 2.20</span><span>
+</span><span id="line-103"></span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span id="local-6989586621679707380"><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowGetPixmap"><span class="hs-identifier hs-type">offscreenWindowGetPixmap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindowClass"><span class="hs-identifier hs-type">OffscreenWindowClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679707380"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-105"></span><span>                           </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679707380"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @offscreen@ the 'OffscreenWindow' contained widget.</span></span><span>
+</span><span id="line-106"></span><span>                           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixmap"><span class="hs-identifier hs-type">Pixmap</span></a></span><span class="hs-special">)</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns A 'Pixmap' pointer to the offscreen pixmap, or 'Nothing'.</span></span><span>
+</span><span id="line-107"></span><span id="offscreenWindowGetPixmap"><span class="annot"><span class="annottext">offscreenWindowGetPixmap :: forall self. OffscreenWindowClass self =&gt; self -&gt; IO (Maybe Pixmap)
+</span><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowGetPixmap"><span class="hs-identifier hs-var hs-var">offscreenWindowGetPixmap</span></a></span></span><span> </span><span id="local-6989586621679707428"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679707428"><span class="hs-identifier hs-var">offscreen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="annottext">(IO (Ptr Pixmap) -&gt; IO Pixmap)
+-&gt; IO (Ptr Pixmap) -&gt; IO (Maybe Pixmap)
+forall a. (IO (Ptr a) -&gt; IO a) -&gt; IO (Ptr a) -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">maybeNull</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ForeignPtr Pixmap -&gt; Pixmap, FinalizerPtr Pixmap)
+-&gt; IO (Ptr Pixmap) -&gt; IO Pixmap
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Pixmap -&gt; Pixmap, FinalizerPtr Pixmap)
+forall {a}. (ForeignPtr Pixmap -&gt; Pixmap, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkPixmap"><span class="hs-identifier hs-var">mkPixmap</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Pixmap) -&gt; IO (Maybe Pixmap))
+-&gt; IO (Ptr Pixmap) -&gt; IO (Maybe Pixmap)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindow"><span class="hs-identifier hs-type">OffscreenWindow</span></a></span><span> </span><span id="local-6989586621679707432"><span class="annot"><span class="annottext">ForeignPtr OffscreenWindow
+</span><a href="#local-6989586621679707432"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr OffscreenWindow
+-&gt; (Ptr OffscreenWindow -&gt; IO (Ptr Pixmap)) -&gt; IO (Ptr Pixmap)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr OffscreenWindow
+</span><a href="#local-6989586621679707432"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr OffscreenWindow -&gt; IO (Ptr Pixmap)) -&gt; IO (Ptr Pixmap))
+-&gt; (Ptr OffscreenWindow -&gt; IO (Ptr Pixmap)) -&gt; IO (Ptr Pixmap)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679707434"><span class="annot"><span class="annottext">Ptr OffscreenWindow
+</span><a href="#local-6989586621679707434"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr OffscreenWindow -&gt; IO (Ptr Pixmap)
+</span><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#gtk_offscreen_window_get_pixmap"><span class="hs-identifier hs-var">gtk_offscreen_window_get_pixmap</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr OffscreenWindow
+</span><a href="#local-6989586621679707434"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span class="hs-pragma">{-# LINE 110 &quot;./Graphics/UI/Gtk/Windows/OffscreenWindow.chs&quot; #-}</span><span>
+</span><span id="line-110"></span><span>     </span><span class="hs-special">(</span><span class="hs-identifier">toOffscreenWindow</span><span> </span><span class="hs-identifier">offscreen</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- | Retrieves a snapshot of the contained widget in the form of a 'Pixbuf'.</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- * Available since Gtk+ version 2.20</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span id="local-6989586621679707391"><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowGetPixbuf"><span class="hs-identifier hs-type">offscreenWindowGetPixbuf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindowClass"><span class="hs-identifier hs-type">OffscreenWindowClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679707391"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-118"></span><span>                           </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679707391"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @offscreen@ the 'OffscreenWindow' contained widget.</span></span><span>
+</span><span id="line-119"></span><span>                           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span class="hs-special">)</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns A 'Pixbuf' pointer to the offscreen pixbuf, or 'Nothing'.</span></span><span>
+</span><span id="line-120"></span><span id="offscreenWindowGetPixbuf"><span class="annot"><span class="annottext">offscreenWindowGetPixbuf :: forall self. OffscreenWindowClass self =&gt; self -&gt; IO (Maybe Pixbuf)
+</span><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#offscreenWindowGetPixbuf"><span class="hs-identifier hs-var hs-var">offscreenWindowGetPixbuf</span></a></span></span><span> </span><span id="local-6989586621679707440"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679707440"><span class="hs-identifier hs-var">offscreen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><span class="annottext">(IO (Ptr Pixbuf) -&gt; IO Pixbuf)
+-&gt; IO (Ptr Pixbuf) -&gt; IO (Maybe Pixbuf)
+forall a. (IO (Ptr a) -&gt; IO a) -&gt; IO (Ptr a) -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">maybeNull</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ForeignPtr Pixbuf -&gt; Pixbuf, FinalizerPtr Pixbuf)
+-&gt; IO (Ptr Pixbuf) -&gt; IO Pixbuf
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">wrapNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr Pixbuf -&gt; Pixbuf, FinalizerPtr Pixbuf)
+forall {a}. (ForeignPtr Pixbuf -&gt; Pixbuf, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkPixbuf"><span class="hs-identifier hs-var">mkPixbuf</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Pixbuf) -&gt; IO (Maybe Pixbuf))
+-&gt; IO (Ptr Pixbuf) -&gt; IO (Maybe Pixbuf)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindow"><span class="hs-identifier hs-type">OffscreenWindow</span></a></span><span> </span><span id="local-6989586621679707443"><span class="annot"><span class="annottext">ForeignPtr OffscreenWindow
+</span><a href="#local-6989586621679707443"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr OffscreenWindow
+-&gt; (Ptr OffscreenWindow -&gt; IO (Ptr Pixbuf)) -&gt; IO (Ptr Pixbuf)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr OffscreenWindow
+</span><a href="#local-6989586621679707443"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr OffscreenWindow -&gt; IO (Ptr Pixbuf)) -&gt; IO (Ptr Pixbuf))
+-&gt; (Ptr OffscreenWindow -&gt; IO (Ptr Pixbuf)) -&gt; IO (Ptr Pixbuf)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679707444"><span class="annot"><span class="annottext">Ptr OffscreenWindow
+</span><a href="#local-6989586621679707444"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr OffscreenWindow -&gt; IO (Ptr Pixbuf)
+</span><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#gtk_offscreen_window_get_pixbuf"><span class="hs-identifier hs-var">gtk_offscreen_window_get_pixbuf</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr OffscreenWindow
+</span><a href="#local-6989586621679707444"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span class="hs-pragma">{-# LINE 123 &quot;./Graphics/UI/Gtk/Windows/OffscreenWindow.chs&quot; #-}</span><span>
+</span><span id="line-123"></span><span>     </span><span class="hs-special">(</span><span class="hs-identifier">toOffscreenWindow</span><span> </span><span class="hs-identifier">offscreen</span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_offscreen_window_new&quot;</span></span><span>
+</span><span id="line-126"></span><span>  </span><span id="gtk_offscreen_window_new"><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#gtk_offscreen_window_new"><span class="hs-identifier hs-var">gtk_offscreen_window_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Widget"><span class="hs-identifier hs-type">Widget</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_offscreen_window_get_pixmap&quot;</span></span><span>
+</span><span id="line-129"></span><span>  </span><span id="gtk_offscreen_window_get_pixmap"><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#gtk_offscreen_window_get_pixmap"><span class="hs-identifier hs-var">gtk_offscreen_window_get_pixmap</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindow"><span class="hs-identifier hs-type">OffscreenWindow</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixmap"><span class="hs-identifier hs-type">Pixmap</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_offscreen_window_get_pixbuf&quot;</span></span><span>
+</span><span id="line-132"></span><span>  </span><span id="gtk_offscreen_window_get_pixbuf"><span class="annot"><a href="Graphics.UI.Gtk.Windows.OffscreenWindow.html#gtk_offscreen_window_get_pixbuf"><span class="hs-identifier hs-var">gtk_offscreen_window_get_pixbuf</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#OffscreenWindow"><span class="hs-identifier hs-type">OffscreenWindow</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#Pixbuf"><span class="hs-identifier hs-type">Pixbuf</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span></pre></body></html>

@@ -1,0 +1,583 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE AllowAmbiguousTypes #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE PartialTypeSignatures #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-partial-type-signatures #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="RL.TorchHelpers.html"><span class="hs-identifier">RL.TorchHelpers</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Kind</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TD</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch.Internal.Cast</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ATen</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch.Internal.Managed.Native</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ATen.Managed</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch.Internal.Type</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ATen</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch.Typed</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TT</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch.Typed.Auxiliary</span></span><span> </span><span class="hs-keyword">qualified</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><span class="hs-comment">-- | Helper Type to map sumAll over a HList.</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">data</span><span> </span><span id="SumAll"><span class="annot"><a href="RL.TorchHelpers.html#SumAll"><span class="hs-identifier hs-var">SumAll</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SumAll"><span class="annot"><a href="RL.TorchHelpers.html#SumAll"><span class="hs-identifier hs-var">SumAll</span></a></span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679370200"><span id="local-6989586621679370201"><span id="local-6989586621679370202"><span id="local-6989586621679370203"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679370200"><span class="hs-identifier hs-type">dtype'</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.SumDType</span></span><span> </span><span class="annot"><a href="#local-6989586621679370201"><span class="hs-identifier hs-type">dtype</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.SumDTypeIsValid</span></span><span> </span><span class="annot"><a href="#local-6989586621679370202"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370201"><span class="hs-identifier hs-type">dtype</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="annot"><a href="RL.TorchHelpers.html#SumAll"><span class="hs-identifier hs-type">SumAll</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370202"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370201"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370203"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370202"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370200"><span class="hs-identifier hs-type">dtype'</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>  </span><span id="local-6989586621679370455"><span class="annot"><span class="annottext">apply' :: SumAll -&gt; Tensor dev dtype shape -&gt; Tensor dev dtype' '[]
+</span><a href="#local-6989586621679370455"><span class="hs-identifier hs-var hs-var hs-var">apply'</span></a></span></span><span> </span><span class="annot"><span class="annottext">SumAll
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape -&gt; Tensor dev dtype' '[]
+forall (shape :: [Nat]) (dtype' :: DType) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+(SumDTypeIsValid device dtype, dtype' ~ SumDType dtype) =&gt;
+Tensor device dtype shape -&gt; Tensor device dtype' '[]
+</span><span class="hs-identifier hs-var">TT.sumAll</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><span class="hs-comment">-- | Helper Type to fold a HList by adding the values.</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="Add"><span class="annot"><a href="RL.TorchHelpers.html#Add"><span class="hs-identifier hs-var">Add</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Add"><span class="annot"><a href="RL.TorchHelpers.html#Add"><span class="hs-identifier hs-var">Add</span></a></span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679370221"><span id="local-6989586621679370222"><span id="local-6989586621679370223"><span id="local-6989586621679370224"><span id="local-6989586621679370225"><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.BasicArithmeticDTypeIsValid</span></span><span> </span><span class="annot"><a href="#local-6989586621679370221"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370222"><span class="hs-identifier hs-type">dtype</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.CheckBroadcast</span></span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><a href="#local-6989586621679370223"><span class="hs-identifier hs-type">shape1</span></a></span><span>
+</span><span id="line-38"></span><span>      </span><span class="annot"><a href="#local-6989586621679370224"><span class="hs-identifier hs-type">shape2</span></a></span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.ComputeBroadcast</span></span><span>
+</span><span id="line-40"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.ReverseImpl</span></span><span> </span><span class="annot"><a href="#local-6989586621679370223"><span class="hs-identifier hs-type">shape1</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.ReverseImpl</span></span><span> </span><span class="annot"><a href="#local-6989586621679370224"><span class="hs-identifier hs-type">shape2</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>      </span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>      </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><a href="#local-6989586621679370225"><span class="hs-identifier hs-type">shapeOut</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="annot"><a href="RL.TorchHelpers.html#Add"><span class="hs-identifier hs-type">Add</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370221"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370222"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370223"><span class="hs-identifier hs-type">shape1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370221"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370222"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370224"><span class="hs-identifier hs-type">shape2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370221"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370222"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370225"><span class="hs-identifier hs-type">shapeOut</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679370471"><span class="annot"><span class="annottext">apply' :: Add
+-&gt; (Tensor dev dtype shape1, Tensor dev dtype shape2)
+-&gt; Tensor dev dtype shapeOut
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="annot"><span class="annottext">Add
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679370472"><span class="annot"><span class="annottext">Tensor dev dtype shape1
+</span><a href="#local-6989586621679370472"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679370473"><span class="annot"><span class="annottext">Tensor dev dtype shape2
+</span><a href="#local-6989586621679370473"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape1
+-&gt; Tensor dev dtype shape2 -&gt; Tensor dev dtype shapeOut
+forall (shape'' :: [Nat]) (shape :: [Nat]) (shape' :: [Nat])
+       (dtype :: DType) (dtype' :: DType) (dtype'' :: DType)
+       (device :: (DeviceType, Nat)).
+(dtype'' ~ DTypePromotion dtype dtype',
+ shape'' ~ Broadcast shape shape',
+ BasicArithmeticDTypeIsValid device dtype,
+ BasicArithmeticDTypeIsValid device dtype',
+ BasicArithmeticDTypeIsValid device dtype'') =&gt;
+Tensor device dtype shape
+-&gt; Tensor device dtype' shape' -&gt; Tensor device dtype'' shape''
+</span><span class="hs-identifier hs-var">TT.add</span></span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape1
+</span><a href="#local-6989586621679370472"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape2
+</span><a href="#local-6989586621679370473"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><span class="hs-comment">-- | Helper Type to multiply a HList with a scalar</span></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">newtype</span><span> </span><span id="Mul"><span class="annot"><a href="RL.TorchHelpers.html#Mul"><span class="hs-identifier hs-var">Mul</span></a></span></span><span> </span><span id="local-6989586621679370475"><span class="annot"><a href="#local-6989586621679370475"><span class="hs-identifier hs-type">num</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Mul"><span class="annot"><a href="RL.TorchHelpers.html#Mul"><span class="hs-identifier hs-var">Mul</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679370475"><span class="hs-identifier hs-type">num</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679370241"><span id="local-6989586621679370242"><span id="local-6989586621679370243"><span id="local-6989586621679370244"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Scalar</span></span><span> </span><span class="annot"><a href="#local-6989586621679370241"><span class="hs-identifier hs-type">num</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.TorchHelpers.html#Mul"><span class="hs-identifier hs-type">Mul</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370241"><span class="hs-identifier hs-type">num</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370242"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370243"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370244"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370242"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370243"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370244"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679370481"><span class="annot"><span class="annottext">apply' :: Mul num -&gt; Tensor dev dtype shape -&gt; Tensor dev dtype shape
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.TorchHelpers.html#Mul"><span class="hs-identifier hs-type">Mul</span></a></span><span> </span><span id="local-6989586621679370482"><span class="annot"><span class="annottext">num
+</span><a href="#local-6989586621679370482"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">num -&gt; Tensor dev dtype shape -&gt; Tensor dev dtype shape
+forall a (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Scalar a =&gt;
+a -&gt; Tensor device dtype shape -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.mulScalar</span></span><span> </span><span class="annot"><span class="annottext">num
+</span><a href="#local-6989586621679370482"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">newtype</span><span> </span><span id="Mul%27"><span class="annot"><a href="RL.TorchHelpers.html#Mul%27"><span class="hs-identifier hs-var">Mul'</span></a></span></span><span> </span><span id="local-6989586621679370484"><span class="annot"><a href="#local-6989586621679370484"><span class="hs-identifier hs-type">dev</span></a></span></span><span> </span><span id="local-6989586621679370485"><span class="annot"><a href="#local-6989586621679370485"><span class="hs-identifier hs-type">dtype</span></a></span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Mul%27"><span class="annot"><a href="RL.TorchHelpers.html#Mul%27"><span class="hs-identifier hs-var">Mul'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370484"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370485"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679370253"><span id="local-6989586621679370254"><span id="local-6989586621679370255"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679370253"><span class="hs-identifier hs-type">shape</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Broadcast</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><a href="#local-6989586621679370253"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.BasicArithmeticDTypeIsValid</span></span><span> </span><span class="annot"><a href="#local-6989586621679370254"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370255"><span class="hs-identifier hs-type">dtype</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.TorchHelpers.html#Mul%27"><span class="hs-identifier hs-type">Mul'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370254"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370255"><span class="hs-identifier hs-type">dtype</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370254"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370255"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370253"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370254"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370255"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370253"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679370501"><span class="annot"><span class="annottext">apply' :: Mul' dev dtype -&gt; Tensor dev dtype shape -&gt; Tensor dev dtype shape
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.TorchHelpers.html#Mul%27"><span class="hs-identifier hs-type">Mul'</span></a></span><span> </span><span id="local-6989586621679370502"><span class="annot"><span class="annottext">Tensor dev dtype '[]
+</span><a href="#local-6989586621679370502"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype '[]
+-&gt; Tensor dev dtype shape -&gt; Tensor dev dtype shape
+forall (shape'' :: [Nat]) (shape :: [Nat]) (shape' :: [Nat])
+       (dtype :: DType) (dtype' :: DType) (dtype'' :: DType)
+       (device :: (DeviceType, Nat)).
+(dtype'' ~ DTypePromotion dtype dtype',
+ shape'' ~ Broadcast shape shape',
+ BasicArithmeticDTypeIsValid device dtype,
+ BasicArithmeticDTypeIsValid device dtype',
+ BasicArithmeticDTypeIsValid device dtype'') =&gt;
+Tensor device dtype shape
+-&gt; Tensor device dtype' shape' -&gt; Tensor device dtype'' shape''
+</span><span class="hs-identifier hs-var">TT.mul</span></span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype '[]
+</span><a href="#local-6989586621679370502"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><span class="hs-comment">-- | Detach a typed tensor.</span></span><span>
+</span><span id="line-69"></span><span id="local-6989586621679370256"><span id="local-6989586621679370257"><span id="local-6989586621679370258"><span class="annot"><a href="RL.TorchHelpers.html#detach"><span class="hs-identifier hs-type">detach</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370256"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370257"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370258"><span class="hs-identifier hs-type">shape</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370256"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370257"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370258"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-70"></span><span id="detach"><span class="annot"><span class="annottext">detach :: forall (dev :: (DeviceType, Nat)) (dtype :: DType)
+       (shape :: [Nat]).
+Tensor dev dtype shape -&gt; IO (Tensor dev dtype shape)
+</span><a href="RL.TorchHelpers.html#detach"><span class="hs-identifier hs-var hs-var">detach</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor dev dtype shape)
+-&gt; IO Tensor -&gt; IO (Tensor dev dtype shape)
+forall a b. (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor dev dtype shape
+forall (device :: (DeviceType, Nat)) (dtype :: DType)
+       (shape :: [Nat]).
+Tensor -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.UnsafeMkTensor</span></span><span> </span><span class="annot"><span class="annottext">(IO Tensor -&gt; IO (Tensor dev dtype shape))
+-&gt; (Tensor dev dtype shape -&gt; IO Tensor)
+-&gt; Tensor dev dtype shape
+-&gt; IO (Tensor dev dtype shape)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; IO Tensor
+</span><span class="hs-identifier hs-var">TD.detach</span></span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; IO Tensor)
+-&gt; (Tensor dev dtype shape -&gt; Tensor)
+-&gt; Tensor dev dtype shape
+-&gt; IO Tensor
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape -&gt; Tensor
+forall t. Unnamed t =&gt; t -&gt; Tensor
+</span><span class="hs-identifier hs-var">TT.toDynamic</span></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- | Helper type for combining detach and 'TT.Apply''.</span></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">data</span><span> </span><span id="Detach"><span class="annot"><a href="RL.TorchHelpers.html#Detach"><span class="hs-identifier hs-var">Detach</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Detach"><span class="annot"><a href="RL.TorchHelpers.html#Detach"><span class="hs-identifier hs-var">Detach</span></a></span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679370281"><span id="local-6989586621679370282"><span id="local-6989586621679370283"><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="annot"><a href="RL.TorchHelpers.html#Detach"><span class="hs-identifier hs-type">Detach</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370281"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370282"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370283"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370281"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370282"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370283"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679370516"><span class="annot"><span class="annottext">apply' :: Detach -&gt; Tensor dev dtype shape -&gt; IO (Tensor dev dtype shape)
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="annot"><span class="annottext">Detach
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape -&gt; IO (Tensor dev dtype shape)
+forall (dev :: (DeviceType, Nat)) (dtype :: DType)
+       (shape :: [Nat]).
+Tensor dev dtype shape -&gt; IO (Tensor dev dtype shape)
+</span><a href="RL.TorchHelpers.html#detach"><span class="hs-identifier hs-var">detach</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="annot"><span class="hs-comment">-- | Helper Type for interpolating qnet parameters.</span></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">newtype</span><span> </span><span id="Interpolate"><span class="annot"><a href="RL.TorchHelpers.html#Interpolate"><span class="hs-identifier hs-var">Interpolate</span></a></span></span><span> </span><span id="local-6989586621679370517"><span class="annot"><a href="#local-6989586621679370517"><span class="hs-identifier hs-type">num</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Interpolate"><span class="annot"><a href="RL.TorchHelpers.html#Interpolate"><span class="hs-identifier hs-var">Interpolate</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679370517"><span class="hs-identifier hs-type">num</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-82"></span><span>  </span><span id="local-6989586621679370289"><span id="local-6989586621679370290"><span id="local-6989586621679370291"><span id="local-6989586621679370292"><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Scalar</span></span><span> </span><span class="annot"><a href="#local-6989586621679370289"><span class="hs-identifier hs-type">num</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679370289"><span class="hs-identifier hs-type">num</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.BasicArithmeticDTypeIsValid</span></span><span> </span><span class="annot"><a href="#local-6989586621679370290"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370291"><span class="hs-identifier hs-type">dtype</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.CheckBroadcast</span></span><span>
+</span><span id="line-86"></span><span>      </span><span class="annot"><a href="#local-6989586621679370292"><span class="hs-identifier hs-type">shape</span></a></span><span>
+</span><span id="line-87"></span><span>      </span><span class="annot"><a href="#local-6989586621679370292"><span class="hs-identifier hs-type">shape</span></a></span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.ComputeBroadcast</span></span><span>
+</span><span id="line-89"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.ReverseImpl</span></span><span> </span><span class="annot"><a href="#local-6989586621679370292"><span class="hs-identifier hs-type">shape</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.ReverseImpl</span></span><span> </span><span class="annot"><a href="#local-6989586621679370292"><span class="hs-identifier hs-type">shape</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>      </span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>      </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><a href="#local-6989586621679370292"><span class="hs-identifier hs-type">shape</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.TorchHelpers.html#Interpolate"><span class="hs-identifier hs-type">Interpolate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370289"><span class="hs-identifier hs-type">num</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370290"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370291"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370292"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370290"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370291"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370292"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370290"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370291"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370292"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621679370537"><span class="annot"><span class="annottext">apply' :: Interpolate num
+-&gt; (Tensor dev dtype shape, Tensor dev dtype shape)
+-&gt; Tensor dev dtype shape
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="RL.TorchHelpers.html#Interpolate"><span class="hs-identifier hs-type">Interpolate</span></a></span><span> </span><span id="local-6989586621679370538"><span class="annot"><span class="annottext">num
+</span><a href="#local-6989586621679370538"><span class="hs-identifier hs-var">tau</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679370539"><span class="annot"><span class="annottext">Tensor dev dtype shape
+</span><a href="#local-6989586621679370539"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679370540"><span class="annot"><span class="annottext">Tensor dev dtype shape
+</span><a href="#local-6989586621679370540"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">num -&gt; Tensor dev dtype shape -&gt; Tensor dev dtype shape
+forall a (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Scalar a =&gt;
+a -&gt; Tensor device dtype shape -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.mulScalar</span></span><span> </span><span class="annot"><span class="annottext">num
+</span><a href="#local-6989586621679370538"><span class="hs-identifier hs-var">tau</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape
+</span><a href="#local-6989586621679370539"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape
+-&gt; Tensor dev dtype shape -&gt; Tensor dev dtype shape
+forall (shape'' :: [Nat]) (shape :: [Nat]) (shape' :: [Nat])
+       (dtype :: DType) (dtype' :: DType) (dtype'' :: DType)
+       (device :: (DeviceType, Nat)).
+(dtype'' ~ DTypePromotion dtype dtype',
+ shape'' ~ Broadcast shape shape',
+ BasicArithmeticDTypeIsValid device dtype,
+ BasicArithmeticDTypeIsValid device dtype',
+ BasicArithmeticDTypeIsValid device dtype'') =&gt;
+Tensor device dtype shape
+-&gt; Tensor device dtype' shape' -&gt; Tensor device dtype'' shape''
+</span><span class="hs-operator hs-var">`TT.add`</span></span><span> </span><span class="annot"><span class="annottext">num -&gt; Tensor dev dtype shape -&gt; Tensor dev dtype shape
+forall a (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Scalar a =&gt;
+a -&gt; Tensor device dtype shape -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.mulScalar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">num
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">num -&gt; num -&gt; num
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">num
+</span><a href="#local-6989586621679370538"><span class="hs-identifier hs-var">tau</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tensor dev dtype shape
+</span><a href="#local-6989586621679370540"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="annot"><span class="hs-comment">-- | Helper Type for getting the number of parameters in a model</span></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">data</span><span> </span><span id="ShapeVal"><span class="annot"><a href="RL.TorchHelpers.html#ShapeVal"><span class="hs-identifier hs-var">ShapeVal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ShapeVal"><span class="annot"><a href="RL.TorchHelpers.html#ShapeVal"><span class="hs-identifier hs-var">ShapeVal</span></a></span></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679370299"><span id="local-6989586621679370300"><span id="local-6989586621679370301"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.KnownShape</span></span><span> </span><span class="annot"><a href="#local-6989586621679370299"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="annot"><a href="RL.TorchHelpers.html#ShapeVal"><span class="hs-identifier hs-type">ShapeVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370300"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370301"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370299"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>  </span><span id="local-6989586621679370546"><span class="annot"><span class="annottext">apply' :: ShapeVal -&gt; Tensor dev dtype shape -&gt; [Int]
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="annot"><span class="annottext">ShapeVal
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679370547"><span class="annot"><span class="annottext">Tensor dev dtype shape
+</span><a href="#local-6989586621679370547"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (shape :: [Nat]). KnownShape shape =&gt; [Int]
+</span><span class="hs-identifier hs-var">TT.shapeVal</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679370299"><span class="hs-identifier hs-type">shape</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679370307"><span id="local-6989586621679370308"><span id="local-6989586621679370309"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.KnownShape</span></span><span> </span><span class="annot"><a href="#local-6989586621679370307"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="annot"><a href="RL.TorchHelpers.html#ShapeVal"><span class="hs-identifier hs-type">ShapeVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Parameter</span></span><span> </span><span class="annot"><a href="#local-6989586621679370308"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370309"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370307"><span class="hs-identifier hs-type">shape</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621679370553"><span class="annot"><span class="annottext">apply' :: ShapeVal -&gt; Parameter dev dtype shape -&gt; [Int]
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="annot"><span class="annottext">ShapeVal
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679370554"><span class="annot"><span class="annottext">Parameter dev dtype shape
+</span><a href="#local-6989586621679370554"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (shape :: [Nat]). KnownShape shape =&gt; [Int]
+</span><span class="hs-identifier hs-var">TT.shapeVal</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679370307"><span class="hs-identifier hs-type">shape</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="annot"><span class="hs-comment">-- | Helper Type for getting a list out of a HList</span></span><span>
+</span><span id="line-108"></span><span class="hs-keyword">data</span><span> </span><span id="ToList"><span class="annot"><a href="RL.TorchHelpers.html#ToList"><span class="hs-identifier hs-var">ToList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ToList"><span class="annot"><a href="RL.TorchHelpers.html#ToList"><span class="hs-identifier hs-var">ToList</span></a></span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679370312"><span class="annot"><span class="hs-identifier hs-type">TT.Apply'</span></span><span> </span><span class="annot"><a href="RL.TorchHelpers.html#ToList"><span class="hs-identifier hs-type">ToList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679370312"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679370312"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679370312"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">]</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-111"></span><span>  </span><span id="local-6989586621679370558"><span class="annot"><span class="annottext">apply' :: ToList -&gt; (t, [t]) -&gt; [t]
+</span><span class="hs-identifier hs-var hs-var hs-var">apply'</span></span></span><span> </span><span class="annot"><span class="annottext">ToList
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679370559"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679370559"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679370560"><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679370560"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679370559"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">t -&gt; [t] -&gt; [t]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679370560"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- -- | Helper Type for getting zeros like the parameters of a model</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- data ZerosLike = ZerosLike</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- instance TT.Apply' ZerosLike (TT.Tensor dev dtype shape) (TT.Tensor dev dtype shape) where</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--   apply' _ = TT.zerosLike</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><span id="ToModelTensors"><span class="annot"><a href="RL.TorchHelpers.html#ToModelTensors"><span class="hs-identifier hs-var">ToModelTensors</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679370562"><span class="annot"><a href="#local-6989586621679370562"><span class="hs-identifier hs-type">params</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span id="ToModelTensors"><span class="annot"><a href="RL.TorchHelpers.html#ToModelTensors"><span class="hs-identifier hs-var">ToModelTensors</span></a></span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-121"></span><span>  </span><span id="ToModelTensors"><span class="annot"><a href="RL.TorchHelpers.html#ToModelTensors"><span class="hs-identifier hs-var">ToModelTensors</span></a></span></span><span> </span><span id="local-6989586621679370563"><span id="local-6989586621679370564"><span id="local-6989586621679370565"><span id="local-6989586621679370566"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Parameter</span></span><span> </span><span class="annot"><a href="#local-6989586621679370563"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370564"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370565"><span class="hs-identifier hs-type">shape</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-glyph">:</span><span> </span><span class="annot"><a href="#local-6989586621679370566"><span class="hs-identifier hs-type">rst</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370563"><span class="hs-identifier hs-type">dev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370564"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370565"><span class="hs-identifier hs-type">shape</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="RL.TorchHelpers.html#ToModelTensors"><span class="hs-identifier hs-type">ToModelTensors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370566"><span class="hs-identifier hs-type">rst</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="annot"><span class="hs-comment">-- | Run a batched operation in an unbatched context</span></span><span>
+</span><span id="line-124"></span><span class="annot"><a href="RL.TorchHelpers.html#withBatchDim"><span class="hs-identifier hs-type">withBatchDim</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679370313"><span class="annot"><a href="#local-6989586621679370313"><span class="hs-identifier hs-type">dev1</span></a></span></span><span> </span><span id="local-6989586621679370314"><span class="annot"><a href="#local-6989586621679370314"><span class="hs-identifier hs-type">dtype1</span></a></span></span><span> </span><span id="local-6989586621679370315"><span class="annot"><a href="#local-6989586621679370315"><span class="hs-identifier hs-type">shape1</span></a></span></span><span> </span><span id="local-6989586621679370316"><span class="annot"><a href="#local-6989586621679370316"><span class="hs-identifier hs-type">dev2</span></a></span></span><span> </span><span id="local-6989586621679370317"><span class="annot"><a href="#local-6989586621679370317"><span class="hs-identifier hs-type">dtype2</span></a></span></span><span> </span><span id="local-6989586621679370318"><span class="annot"><a href="#local-6989586621679370318"><span class="hs-identifier hs-type">shape2</span></a></span></span><span>
+</span><span id="line-126"></span><span>   </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370313"><span class="hs-identifier hs-type">dev1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370314"><span class="hs-identifier hs-type">dtype1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="#local-6989586621679370315"><span class="hs-identifier hs-type">shape1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370316"><span class="hs-identifier hs-type">dev2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370317"><span class="hs-identifier hs-type">dtype2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="#local-6989586621679370318"><span class="hs-identifier hs-type">shape2</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370313"><span class="hs-identifier hs-type">dev1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370314"><span class="hs-identifier hs-type">dtype1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370315"><span class="hs-identifier hs-type">shape1</span></a></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370316"><span class="hs-identifier hs-type">dev2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370317"><span class="hs-identifier hs-type">dtype2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370318"><span class="hs-identifier hs-type">shape2</span></a></span><span>
+</span><span id="line-129"></span><span id="withBatchDim"><span class="annot"><span class="annottext">withBatchDim :: forall (dev1 :: (DeviceType, Nat)) (dtype1 :: DType)
+       (shape1 :: [Nat]) (dev2 :: (DeviceType, Nat)) (dtype2 :: DType)
+       (shape2 :: [Nat]).
+(Tensor dev1 dtype1 (1 : shape1)
+ -&gt; Tensor dev2 dtype2 (1 : shape2))
+-&gt; Tensor dev1 dtype1 shape1 -&gt; Tensor dev2 dtype2 shape2
+</span><a href="RL.TorchHelpers.html#withBatchDim"><span class="hs-identifier hs-var hs-var">withBatchDim</span></a></span></span><span> </span><span id="local-6989586621679370574"><span class="annot"><span class="annottext">Tensor dev1 dtype1 (1 : shape1) -&gt; Tensor dev2 dtype2 (1 : shape2)
+</span><a href="#local-6989586621679370574"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621679370575"><span class="annot"><span class="annottext">Tensor dev1 dtype1 shape1
+</span><a href="#local-6989586621679370575"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (dim :: Nat) (shape :: [Nat]) (shape' :: [Nat])
+       (dtype :: DType) (device :: (DeviceType, Nat)).
+(KnownNat dim, shape' ~ SqueezeDim shape dim) =&gt;
+Tensor device dtype shape -&gt; Tensor device dtype shape'
+</span><span class="hs-identifier hs-var">TT.squeezeDim</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">(Tensor dev2 dtype2 (1 : shape2) -&gt; Tensor dev2 dtype2 shape2)
+-&gt; Tensor dev2 dtype2 (1 : shape2) -&gt; Tensor dev2 dtype2 shape2
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Tensor dev1 dtype1 (1 : shape1) -&gt; Tensor dev2 dtype2 (1 : shape2)
+</span><a href="#local-6989586621679370574"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor dev1 dtype1 (1 : shape1)
+</span><a href="#local-6989586621679370577"><span class="hs-identifier hs-var">batchedIn</span></a></span><span>
+</span><span id="line-130"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>  </span><span class="annot"><a href="#local-6989586621679370577"><span class="hs-identifier hs-type">batchedIn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370313"><span class="hs-identifier hs-type">dev1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370314"><span class="hs-identifier hs-type">dtype1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="#local-6989586621679370315"><span class="hs-identifier hs-type">shape1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>  </span><span id="local-6989586621679370577"><span class="annot"><span class="annottext">batchedIn :: Tensor dev1 dtype1 (1 : shape1)
+</span><a href="#local-6989586621679370577"><span class="hs-identifier hs-var hs-var">batchedIn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (dim :: Nat) (shape :: [Nat]) (shape' :: [Nat])
+       (dtype :: DType) (device :: (DeviceType, Nat)).
+(KnownNat dim, shape' ~ Unsqueeze shape dim) =&gt;
+Tensor device dtype shape -&gt; Tensor device dtype shape'
+</span><span class="hs-identifier hs-var">TT.unsqueeze</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Tensor dev1 dtype1 shape1
+</span><a href="#local-6989586621679370575"><span class="hs-identifier hs-var">input</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><span class="hs-comment">-- | conv2d with dropped batch size constraint</span></span><span>
+</span><span id="line-135"></span><span class="annot"><a href="RL.TorchHelpers.html#conv2dRelaxed"><span class="hs-identifier hs-type">conv2dRelaxed</span></a></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679370341"><span class="annot"><a href="#local-6989586621679370341"><span class="hs-identifier hs-type">stride</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679370344"><span class="annot"><a href="#local-6989586621679370344"><span class="hs-identifier hs-type">padding</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>    </span><span id="local-6989586621679370356"><span class="annot"><a href="#local-6989586621679370356"><span class="hs-identifier hs-type">inputChannelSize</span></a></span></span><span>
+</span><span id="line-140"></span><span>    </span><span id="local-6989586621679370355"><span class="annot"><a href="#local-6989586621679370355"><span class="hs-identifier hs-type">outputChannelSize</span></a></span></span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621679370347"><span class="annot"><a href="#local-6989586621679370347"><span class="hs-identifier hs-type">kernelSize0</span></a></span></span><span>
+</span><span id="line-142"></span><span>    </span><span id="local-6989586621679370351"><span class="annot"><a href="#local-6989586621679370351"><span class="hs-identifier hs-type">kernelSize1</span></a></span></span><span>
+</span><span id="line-143"></span><span>    </span><span id="local-6989586621679370346"><span class="annot"><a href="#local-6989586621679370346"><span class="hs-identifier hs-type">inputSize0</span></a></span></span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621679370350"><span class="annot"><a href="#local-6989586621679370350"><span class="hs-identifier hs-type">inputSize1</span></a></span></span><span>
+</span><span id="line-145"></span><span>    </span><span id="local-6989586621679370357"><span class="annot"><a href="#local-6989586621679370357"><span class="hs-identifier hs-type">batchSize</span></a></span></span><span>
+</span><span id="line-146"></span><span>    </span><span id="local-6989586621679370348"><span class="annot"><a href="#local-6989586621679370348"><span class="hs-identifier hs-type">outputSize0</span></a></span></span><span>
+</span><span id="line-147"></span><span>    </span><span id="local-6989586621679370352"><span class="annot"><a href="#local-6989586621679370352"><span class="hs-identifier hs-type">outputSize1</span></a></span></span><span>
+</span><span id="line-148"></span><span>    </span><span id="local-6989586621679370354"><span class="annot"><a href="#local-6989586621679370354"><span class="hs-identifier hs-type">dtype</span></a></span></span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621679370353"><span class="annot"><a href="#local-6989586621679370353"><span class="hs-identifier hs-type">device</span></a></span></span><span>
+</span><span id="line-150"></span><span>   </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.All</span></span><span>
+</span><span id="line-151"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span>
+</span><span id="line-152"></span><span>        </span><span class="hs-special">'</span><span class="hs-special">[</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370341"><span class="hs-identifier hs-type">stride</span></a></span><span>
+</span><span id="line-153"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370341"><span class="hs-identifier hs-type">stride</span></a></span><span>
+</span><span id="line-154"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370344"><span class="hs-identifier hs-type">padding</span></a></span><span>
+</span><span id="line-155"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370344"><span class="hs-identifier hs-type">padding</span></a></span><span>
+</span><span id="line-156"></span><span>         </span><span class="hs-special">]</span><span>
+</span><span id="line-157"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.ConvSideCheck</span></span><span> </span><span class="annot"><a href="#local-6989586621679370346"><span class="hs-identifier hs-type">inputSize0</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370347"><span class="hs-identifier hs-type">kernelSize0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370341"><span class="hs-identifier hs-type">stride</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370344"><span class="hs-identifier hs-type">padding</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679370348"><span class="hs-identifier hs-type">outputSize0</span></a></span><span>
+</span><span id="line-158"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.ConvSideCheck</span></span><span> </span><span class="annot"><a href="#local-6989586621679370350"><span class="hs-identifier hs-type">inputSize1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370351"><span class="hs-identifier hs-type">kernelSize1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370341"><span class="hs-identifier hs-type">stride</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370344"><span class="hs-identifier hs-type">padding</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679370352"><span class="hs-identifier hs-type">outputSize1</span></a></span><span>
+</span><span id="line-159"></span><span>     </span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370353"><span class="hs-identifier hs-type">device</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370354"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679370355"><span class="hs-identifier hs-type">outputChannelSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370356"><span class="hs-identifier hs-type">inputChannelSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370347"><span class="hs-identifier hs-type">kernelSize0</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370351"><span class="hs-identifier hs-type">kernelSize1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ weight</span></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370353"><span class="hs-identifier hs-type">device</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370354"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679370355"><span class="hs-identifier hs-type">outputChannelSize</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-163"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ bias</span></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370353"><span class="hs-identifier hs-type">device</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370354"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679370357"><span class="hs-identifier hs-type">batchSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370356"><span class="hs-identifier hs-type">inputChannelSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370346"><span class="hs-identifier hs-type">inputSize0</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370350"><span class="hs-identifier hs-type">inputSize1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-165"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ input</span></span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370353"><span class="hs-identifier hs-type">device</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370354"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679370357"><span class="hs-identifier hs-type">batchSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370355"><span class="hs-identifier hs-type">outputChannelSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370348"><span class="hs-identifier hs-type">outputSize0</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370352"><span class="hs-identifier hs-type">outputSize1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ output</span></span><span>
+</span><span id="line-168"></span><span id="conv2dRelaxed"><span class="annot"><span class="annottext">conv2dRelaxed :: forall (stride :: (Nat, Nat)) (padding :: (Nat, Nat))
+       (inputChannelSize :: Nat) (outputChannelSize :: Nat)
+       (kernelSize0 :: Nat) (kernelSize1 :: Nat) (inputSize0 :: Nat)
+       (inputSize1 :: Nat) (batchSize :: Nat) (outputSize0 :: Nat)
+       (outputSize1 :: Nat) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+(All KnownNat '[Fst stride, Snd stride, Fst padding, Snd padding],
+ ConvSideCheck
+   inputSize0 kernelSize0 (Fst stride) (Fst padding) outputSize0,
+ ConvSideCheck
+   inputSize1 kernelSize1 (Snd stride) (Snd padding) outputSize1) =&gt;
+Tensor
+  device
+  dtype
+  '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+-&gt; Tensor device dtype '[outputChannelSize]
+-&gt; Tensor
+     device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+-&gt; Tensor
+     device
+     dtype
+     '[batchSize, outputChannelSize, outputSize0, outputSize1]
+</span><a href="RL.TorchHelpers.html#conv2dRelaxed"><span class="hs-identifier hs-var hs-var">conv2dRelaxed</span></a></span></span><span> </span><span id="local-6989586621679370606"><span class="annot"><span class="annottext">Tensor
+  device
+  dtype
+  '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+</span><a href="#local-6989586621679370606"><span class="hs-identifier hs-var">weight</span></a></span></span><span> </span><span id="local-6989586621679370607"><span class="annot"><span class="annottext">Tensor device dtype '[outputChannelSize]
+</span><a href="#local-6989586621679370607"><span class="hs-identifier hs-var">bias</span></a></span></span><span> </span><span id="local-6989586621679370608"><span class="annot"><span class="annottext">Tensor
+  device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+</span><a href="#local-6989586621679370608"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><span class="annottext">IO
+  (Tensor
+     device
+     dtype
+     '[batchSize, outputChannelSize, outputSize0, outputSize1])
+-&gt; Tensor
+     device
+     dtype
+     '[batchSize, outputChannelSize, outputSize0, outputSize1]
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO
+   (Tensor
+      device
+      dtype
+      '[batchSize, outputChannelSize, outputSize0, outputSize1])
+ -&gt; Tensor
+      device
+      dtype
+      '[batchSize, outputChannelSize, outputSize0, outputSize1])
+-&gt; IO
+     (Tensor
+        device
+        dtype
+        '[batchSize, outputChannelSize, outputSize0, outputSize1])
+-&gt; Tensor
+     device
+     dtype
+     '[batchSize, outputChannelSize, outputSize0, outputSize1]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><span class="annottext">(ForeignPtr Tensor
+ -&gt; ForeignPtr Tensor
+ -&gt; ForeignPtr Tensor
+ -&gt; ForeignPtr IntArray
+ -&gt; ForeignPtr IntArray
+ -&gt; ForeignPtr IntArray
+ -&gt; Int64
+ -&gt; IO (ForeignPtr Tensor))
+-&gt; Tensor
+     device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+-&gt; Tensor
+     device
+     dtype
+     '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+-&gt; Tensor device dtype '[outputChannelSize]
+-&gt; [Int]
+-&gt; [Int]
+-&gt; [Int]
+-&gt; Int
+-&gt; IO
+     (Tensor
+        device
+        dtype
+        '[batchSize, outputChannelSize, outputSize0, outputSize1])
+forall a ca x1 cx1 x2 cx2 x3 cx3 x4 cx4 x5 cx5 x6 cx6 y cy.
+(Castable a ca, Castable x1 cx1, Castable x2 cx2, Castable x3 cx3,
+ Castable x4 cx4, Castable x5 cx5, Castable x6 cx6,
+ Castable y cy) =&gt;
+(ca -&gt; cx1 -&gt; cx2 -&gt; cx3 -&gt; cx4 -&gt; cx5 -&gt; cx6 -&gt; IO cy)
+-&gt; a -&gt; x1 -&gt; x2 -&gt; x3 -&gt; x4 -&gt; x5 -&gt; x6 -&gt; IO y
+</span><span class="hs-identifier hs-var">ATen.cast7</span></span><span>
+</span><span id="line-171"></span><span>      </span><span class="annot"><span class="annottext">ForeignPtr Tensor
+-&gt; ForeignPtr Tensor
+-&gt; ForeignPtr Tensor
+-&gt; ForeignPtr IntArray
+-&gt; ForeignPtr IntArray
+-&gt; ForeignPtr IntArray
+-&gt; Int64
+-&gt; IO (ForeignPtr Tensor)
+</span><span class="hs-identifier hs-var">ATen.Managed.conv2d_tttllll</span></span><span>
+</span><span id="line-172"></span><span>      </span><span class="annot"><span class="annottext">Tensor
+  device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+</span><a href="#local-6989586621679370608"><span class="hs-identifier hs-var">input</span></a></span><span>
+</span><span id="line-173"></span><span>      </span><span class="annot"><span class="annottext">Tensor
+  device
+  dtype
+  '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+</span><a href="#local-6989586621679370606"><span class="hs-identifier hs-var">weight</span></a></span><span>
+</span><span id="line-174"></span><span>      </span><span class="annot"><span class="annottext">Tensor device dtype '[outputChannelSize]
+</span><a href="#local-6989586621679370607"><span class="hs-identifier hs-var">bias</span></a></span><span>
+</span><span id="line-175"></span><span>      </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="annottext">forall (n :: Nat). KnownNat n =&gt; Int
+</span><span class="hs-identifier hs-var">TT.natValI</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370341"><span class="hs-identifier hs-type">stride</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (n :: Nat). KnownNat n =&gt; Int
+</span><span class="hs-identifier hs-var">TT.natValI</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370341"><span class="hs-identifier hs-type">stride</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>      </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="annottext">forall (n :: Nat). KnownNat n =&gt; Int
+</span><span class="hs-identifier hs-var">TT.natValI</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370344"><span class="hs-identifier hs-type">padding</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (n :: Nat). KnownNat n =&gt; Int
+</span><span class="hs-identifier hs-var">TT.natValI</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370344"><span class="hs-identifier hs-type">padding</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>      </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="annot"><a href="RL.TorchHelpers.html#conv2dForwardRelaxed"><span class="hs-identifier hs-type">conv2dForwardRelaxed</span></a></span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span>
+</span><span id="line-182"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679370396"><span class="annot"><a href="#local-6989586621679370396"><span class="hs-identifier hs-type">stride</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679370397"><span class="annot"><a href="#local-6989586621679370397"><span class="hs-identifier hs-type">padding</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>    </span><span id="local-6989586621679370404"><span class="annot"><a href="#local-6989586621679370404"><span class="hs-identifier hs-type">inputChannelSize</span></a></span></span><span>
+</span><span id="line-185"></span><span>    </span><span id="local-6989586621679370405"><span class="annot"><a href="#local-6989586621679370405"><span class="hs-identifier hs-type">outputChannelSize</span></a></span></span><span>
+</span><span id="line-186"></span><span>    </span><span id="local-6989586621679370399"><span class="annot"><a href="#local-6989586621679370399"><span class="hs-identifier hs-type">kernelSize0</span></a></span></span><span>
+</span><span id="line-187"></span><span>    </span><span id="local-6989586621679370402"><span class="annot"><a href="#local-6989586621679370402"><span class="hs-identifier hs-type">kernelSize1</span></a></span></span><span>
+</span><span id="line-188"></span><span>    </span><span id="local-6989586621679370398"><span class="annot"><a href="#local-6989586621679370398"><span class="hs-identifier hs-type">inputSize0</span></a></span></span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679370401"><span class="annot"><a href="#local-6989586621679370401"><span class="hs-identifier hs-type">inputSize1</span></a></span></span><span>
+</span><span id="line-190"></span><span>    </span><span id="local-6989586621679370409"><span class="annot"><a href="#local-6989586621679370409"><span class="hs-identifier hs-type">batchSize</span></a></span></span><span>
+</span><span id="line-191"></span><span>    </span><span id="local-6989586621679370400"><span class="annot"><a href="#local-6989586621679370400"><span class="hs-identifier hs-type">outputSize0</span></a></span></span><span>
+</span><span id="line-192"></span><span>    </span><span id="local-6989586621679370403"><span class="annot"><a href="#local-6989586621679370403"><span class="hs-identifier hs-type">outputSize1</span></a></span></span><span>
+</span><span id="line-193"></span><span>    </span><span id="local-6989586621679370406"><span class="annot"><a href="#local-6989586621679370406"><span class="hs-identifier hs-type">dtype</span></a></span></span><span>
+</span><span id="line-194"></span><span>    </span><span id="local-6989586621679370407"><span class="annot"><a href="#local-6989586621679370407"><span class="hs-identifier hs-type">device</span></a></span></span><span>
+</span><span id="line-195"></span><span>   </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.All</span></span><span>
+</span><span id="line-196"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span>
+</span><span id="line-197"></span><span>        </span><span class="hs-special">'</span><span class="hs-special">[</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370396"><span class="hs-identifier hs-type">stride</span></a></span><span>
+</span><span id="line-198"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370396"><span class="hs-identifier hs-type">stride</span></a></span><span>
+</span><span id="line-199"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370397"><span class="hs-identifier hs-type">padding</span></a></span><span>
+</span><span id="line-200"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370397"><span class="hs-identifier hs-type">padding</span></a></span><span>
+</span><span id="line-201"></span><span>         </span><span class="hs-special">]</span><span>
+</span><span id="line-202"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.ConvSideCheck</span></span><span> </span><span class="annot"><a href="#local-6989586621679370398"><span class="hs-identifier hs-type">inputSize0</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370399"><span class="hs-identifier hs-type">kernelSize0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370396"><span class="hs-identifier hs-type">stride</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Fst</span></span><span> </span><span class="annot"><a href="#local-6989586621679370397"><span class="hs-identifier hs-type">padding</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679370400"><span class="hs-identifier hs-type">outputSize0</span></a></span><span>
+</span><span id="line-203"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.ConvSideCheck</span></span><span> </span><span class="annot"><a href="#local-6989586621679370401"><span class="hs-identifier hs-type">inputSize1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370402"><span class="hs-identifier hs-type">kernelSize1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370396"><span class="hs-identifier hs-type">stride</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Torch.Typed.Auxiliary.Snd</span></span><span> </span><span class="annot"><a href="#local-6989586621679370397"><span class="hs-identifier hs-type">padding</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679370403"><span class="hs-identifier hs-type">outputSize1</span></a></span><span>
+</span><span id="line-204"></span><span>     </span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Conv2d</span></span><span> </span><span class="annot"><a href="#local-6989586621679370404"><span class="hs-identifier hs-type">inputChannelSize</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370405"><span class="hs-identifier hs-type">outputChannelSize</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370399"><span class="hs-identifier hs-type">kernelSize0</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370402"><span class="hs-identifier hs-type">kernelSize1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370406"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370407"><span class="hs-identifier hs-type">device</span></a></span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370407"><span class="hs-identifier hs-type">device</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370406"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679370409"><span class="hs-identifier hs-type">batchSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370404"><span class="hs-identifier hs-type">inputChannelSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370398"><span class="hs-identifier hs-type">inputSize0</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370401"><span class="hs-identifier hs-type">inputSize1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Tensor</span></span><span> </span><span class="annot"><a href="#local-6989586621679370407"><span class="hs-identifier hs-type">device</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679370406"><span class="hs-identifier hs-type">dtype</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679370409"><span class="hs-identifier hs-type">batchSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370405"><span class="hs-identifier hs-type">outputChannelSize</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370400"><span class="hs-identifier hs-type">outputSize0</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679370403"><span class="hs-identifier hs-type">outputSize1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-208"></span><span id="conv2dForwardRelaxed"><span class="annot"><span class="annottext">conv2dForwardRelaxed :: forall (stride :: (Nat, Nat)) (padding :: (Nat, Nat))
+       (inputChannelSize :: Nat) (outputChannelSize :: Nat)
+       (kernelSize0 :: Nat) (kernelSize1 :: Nat) (inputSize0 :: Nat)
+       (inputSize1 :: Nat) (batchSize :: Nat) (outputSize0 :: Nat)
+       (outputSize1 :: Nat) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+(All KnownNat '[Fst stride, Snd stride, Fst padding, Snd padding],
+ ConvSideCheck
+   inputSize0 kernelSize0 (Fst stride) (Fst padding) outputSize0,
+ ConvSideCheck
+   inputSize1 kernelSize1 (Snd stride) (Snd padding) outputSize1) =&gt;
+Conv2d
+  inputChannelSize
+  outputChannelSize
+  kernelSize0
+  kernelSize1
+  dtype
+  device
+-&gt; Tensor
+     device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+-&gt; Tensor
+     device
+     dtype
+     '[batchSize, outputChannelSize, outputSize0, outputSize1]
+</span><a href="RL.TorchHelpers.html#conv2dForwardRelaxed"><span class="hs-identifier hs-var hs-var">conv2dForwardRelaxed</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TT.Conv2d</span></span><span class="hs-special">{</span><span id="local-6989586621679370631"><span id="local-6989586621679370632"><span class="annot"><span class="annottext">Parameter
+  device
+  dtype
+  '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+Parameter device dtype '[outputChannelSize]
+weight :: Parameter
+  device
+  dtype
+  '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+bias :: Parameter device dtype '[outputChannelSize]
+bias :: forall (inputChannelSize :: Nat) (outputChannelSize :: Nat)
+       (kernelSize0 :: Nat) (kernelSize1 :: Nat) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Conv2d
+  inputChannelSize
+  outputChannelSize
+  kernelSize0
+  kernelSize1
+  dtype
+  device
+-&gt; Parameter device dtype '[outputChannelSize]
+weight :: forall (inputChannelSize :: Nat) (outputChannelSize :: Nat)
+       (kernelSize0 :: Nat) (kernelSize1 :: Nat) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Conv2d
+  inputChannelSize
+  outputChannelSize
+  kernelSize0
+  kernelSize1
+  dtype
+  device
+-&gt; Parameter
+     device
+     dtype
+     '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+</span><a href="#local-6989586621679370631"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679370635"><span class="annot"><span class="annottext">Tensor
+  device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+</span><a href="#local-6989586621679370635"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-209"></span><span>  </span><span class="annot"><span class="annottext">forall (stride :: (Nat, Nat)) (padding :: (Nat, Nat))
+       (inputChannelSize :: Nat) (outputChannelSize :: Nat)
+       (kernelSize0 :: Nat) (kernelSize1 :: Nat) (inputSize0 :: Nat)
+       (inputSize1 :: Nat) (batchSize :: Nat) (outputSize0 :: Nat)
+       (outputSize1 :: Nat) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+(All KnownNat '[Fst stride, Snd stride, Fst padding, Snd padding],
+ ConvSideCheck
+   inputSize0 kernelSize0 (Fst stride) (Fst padding) outputSize0,
+ ConvSideCheck
+   inputSize1 kernelSize1 (Snd stride) (Snd padding) outputSize1) =&gt;
+Tensor
+  device
+  dtype
+  '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+-&gt; Tensor device dtype '[outputChannelSize]
+-&gt; Tensor
+     device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+-&gt; Tensor
+     device
+     dtype
+     '[batchSize, outputChannelSize, outputSize0, outputSize1]
+</span><a href="RL.TorchHelpers.html#conv2dRelaxed"><span class="hs-identifier hs-var">conv2dRelaxed</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679370396"><span class="hs-identifier hs-type">stride</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679370397"><span class="hs-identifier hs-type">padding</span></a></span><span>
+</span><span id="line-210"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parameter
+  device
+  dtype
+  '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+-&gt; Tensor
+     device
+     dtype
+     '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+forall (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Parameter device dtype shape -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.toDependent</span></span><span> </span><span class="annot"><span class="annottext">Parameter
+  device
+  dtype
+  '[outputChannelSize, inputChannelSize, kernelSize0, kernelSize1]
+</span><a href="#local-6989586621679370631"><span class="hs-identifier hs-var">weight</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parameter device dtype '[outputChannelSize]
+-&gt; Tensor device dtype '[outputChannelSize]
+forall (shape :: [Nat]) (dtype :: DType)
+       (device :: (DeviceType, Nat)).
+Parameter device dtype shape -&gt; Tensor device dtype shape
+</span><span class="hs-identifier hs-var">TT.toDependent</span></span><span> </span><span class="annot"><span class="annottext">Parameter device dtype '[outputChannelSize]
+</span><a href="#local-6989586621679370632"><span class="hs-identifier hs-var">bias</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>    </span><span class="annot"><span class="annottext">Tensor
+  device dtype '[batchSize, inputChannelSize, inputSize0, inputSize1]
+</span><a href="#local-6989586621679370635"><span class="hs-identifier hs-var">input</span></a></span><span>
+</span><span id="line-213"></span></pre></body></html>

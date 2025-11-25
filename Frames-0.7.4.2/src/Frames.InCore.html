@@ -1,0 +1,1175 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns, CPP, DataKinds, EmptyCase,
+             FlexibleContexts, FlexibleInstances, PolyKinds,
+             ScopedTypeVariables, TupleSections, TypeFamilies,
+             TypeOperators, UndecidableInstances #-}</span><span>
+</span><span id="line-5"></span><span class="annot"><span class="hs-comment">-- | Efficient in-memory (in-core) storage of tabular data.</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Frames.InCore.html"><span class="hs-identifier">Frames.InCore</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Primitive</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.ST</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">runST</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Kind</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">VB</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">VG</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic.Mutable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">VGM</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Unboxed</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">VU</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vinyl</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Rec</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vinyl</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vinyl.Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Compose</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getCompose</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ElField</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(:.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Frames.Col.html"><span class="hs-identifier">Frames.Col</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Frames.Frame.html"><span class="hs-identifier">Frames.Frame</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Frames.Rec.html"><span class="hs-identifier">Frames.Rec</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Frames.RecF.html"><span class="hs-identifier">Frames.RecF</span></a></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 800
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Prim</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">RealWorld</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">KnownSymbol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Symbol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Pipes</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Pipes.Prelude</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><span class="hs-comment">-- | The most efficient vector type for each column data type.</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><span id="VectorFor"><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-var">VectorFor</span></a></span></span><span> </span><span id="local-6989586621679159136"><span class="annot"><a href="#local-6989586621679159136"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="VectorFor"><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-var">VectorFor</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VU.Vector</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="VectorFor"><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-var">VectorFor</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VU.Vector</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="VectorFor"><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-var">VectorFor</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VU.Vector</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="VectorFor"><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-var">VectorFor</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VU.Vector</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="VectorFor"><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-var">VectorFor</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VB.Vector</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="VectorFor"><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-var">VectorFor</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VB.Vector</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><span class="hs-comment">-- | The mutable version of 'VectorFor' a particular type.</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">type</span><span> </span><span id="VectorMFor"><span class="annot"><a href="Frames.InCore.html#VectorMFor"><span class="hs-identifier hs-var">VectorMFor</span></a></span></span><span> </span><span id="local-6989586621679159139"><span class="annot"><a href="#local-6989586621679159139"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VG.Mutable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-type">VectorFor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159139"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Since we stream into the in-memory representation, we use an</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- exponential growth strategy to resize arrays as more data is read</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- in. This is the initial capacity of each column.</span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Frames.InCore.html#initialCapacity"><span class="hs-identifier hs-type">initialCapacity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-47"></span><span id="initialCapacity"><span class="annot"><span class="annottext">initialCapacity :: Int
+</span><a href="Frames.InCore.html#initialCapacity"><span class="hs-identifier hs-var hs-var">initialCapacity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">128</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><span class="hs-comment">-- | Mutable vector types for each column in a row.</span></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><span id="VectorMs"><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-var">VectorMs</span></a></span></span><span> </span><span id="local-6989586621679159141"><span class="annot"><a href="#local-6989586621679159141"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679159142"><span class="annot"><a href="#local-6989586621679159142"><span class="hs-identifier hs-type">rs</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>  </span><span id="VectorMs"><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-var">VectorMs</span></a></span></span><span> </span><span id="local-6989586621679159143"><span class="annot"><a href="#local-6989586621679159143"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span>  </span><span id="VectorMs"><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-var">VectorMs</span></a></span></span><span> </span><span id="local-6989586621679159144"><span id="local-6989586621679159145"><span id="local-6989586621679159146"><span id="local-6989586621679159147"><span class="annot"><a href="#local-6989586621679159144"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679159145"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Frames.Col.html#%3A-%3E"><span class="hs-operator hs-type">:-&gt;</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159146"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-glyph">:</span><span> </span><span class="annot"><a href="#local-6989586621679159147"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="#local-6989586621679159145"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Frames.Col.html#%3A-%3E"><span class="hs-operator hs-type">:-&gt;</span></a></span><span> </span><span class="annot"><a href="Frames.InCore.html#VectorMFor"><span class="hs-identifier hs-type">VectorMFor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159146"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><a href="#local-6989586621679159144"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159146"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-glyph">:</span><span> </span><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-type">VectorMs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159144"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159147"><span class="hs-identifier hs-type">rs</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><span class="hs-comment">-- | Immutable vector types for each column in a row.</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><span id="Vectors"><span class="annot"><a href="Frames.InCore.html#Vectors"><span class="hs-identifier hs-var">Vectors</span></a></span></span><span> </span><span id="local-6989586621679159148"><span class="annot"><a href="#local-6989586621679159148"><span class="hs-identifier hs-type">rs</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="Vectors"><span class="annot"><a href="Frames.InCore.html#Vectors"><span class="hs-identifier hs-var">Vectors</span></a></span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-58"></span><span>  </span><span id="Vectors"><span class="annot"><a href="Frames.InCore.html#Vectors"><span class="hs-identifier hs-var">Vectors</span></a></span></span><span> </span><span id="local-6989586621679159149"><span id="local-6989586621679159150"><span id="local-6989586621679159151"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679159149"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Frames.Col.html#%3A-%3E"><span class="hs-operator hs-type">:-&gt;</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159150"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-glyph">:</span><span> </span><span class="annot"><a href="#local-6989586621679159151"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679159149"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Frames.Col.html#%3A-%3E"><span class="hs-operator hs-type">:-&gt;</span></a></span><span> </span><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-type">VectorFor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159150"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159150"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-glyph">:</span><span> </span><span class="annot"><a href="Frames.InCore.html#Vectors"><span class="hs-identifier hs-type">Vectors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159151"><span class="hs-identifier hs-type">rs</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | Tooling to allocate, grow, write to, freeze, and index into</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- records of vectors.</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">class</span><span> </span><span id="RecVec"><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-var">RecVec</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158903"><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="allocRec"><span class="annot"><a href="Frames.InCore.html#allocRec"><span class="hs-identifier hs-type">allocRec</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679158885"><span id="local-6989586621679158887"><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679158885"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-64"></span><span>             </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158887"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158885"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-type">VectorMs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158885"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-65"></span><span>  </span><span id="freezeRec"><span class="annot"><a href="Frames.InCore.html#freezeRec"><span class="hs-identifier hs-type">freezeRec</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679158890"><span id="local-6989586621679158891"><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679158890"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-66"></span><span>             </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158891"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-type">VectorMs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158890"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158890"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#Vectors"><span class="hs-identifier hs-type">Vectors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-68"></span><span>  </span><span id="growRec"><span class="annot"><a href="Frames.InCore.html#growRec"><span class="hs-identifier hs-type">growRec</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679158893"><span id="local-6989586621679158894"><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679158893"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-69"></span><span>             </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158894"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-type">VectorMs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158893"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158893"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-type">VectorMs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158893"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-70"></span><span>  </span><span id="writeRec"><span class="annot"><a href="Frames.InCore.html#writeRec"><span class="hs-identifier hs-type">writeRec</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679158895"><span id="local-6989586621679158896"><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679158895"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-71"></span><span>             </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158896"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-type">VectorMs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158895"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158895"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-72"></span><span>  </span><span id="indexRec"><span class="annot"><a href="Frames.InCore.html#indexRec"><span class="hs-identifier hs-type">indexRec</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679158897"><span class="annot"><a href="#local-6989586621679158897"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#Vectors"><span class="hs-identifier hs-type">Vectors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span></span><span>
+</span><span id="line-73"></span><span>  </span><span id="produceRec"><span class="annot"><a href="Frames.InCore.html#produceRec"><span class="hs-identifier hs-type">produceRec</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679158898"><span class="annot"><a href="#local-6989586621679158898"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#Vectors"><span class="hs-identifier hs-type">Vectors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Rec</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">-&gt;</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">:.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ElField</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679158903"><span class="hs-identifier hs-type">rs</span></a></span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- The use of the type families Vectors and VectorMs interferes with</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- GHC's pattern match exhaustiveness checker, so we write down dummy</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- cases to avoid warnings. This is probably a GHC bug as writing the</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- apparently missing pattern match causes a type checker error!</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679159170"><span class="annot"><span class="annottext">allocRec :: forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy '[] -&gt; Int -&gt; m (Record (VectorMs m '[]))
+</span><a href="Frames.InCore.html#allocRec"><span class="hs-identifier hs-var hs-var hs-var">allocRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy '[]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Record '[] -&gt; m (Record '[])
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Record '[]
+forall {u} (a :: u -&gt; *). Rec a '[]
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#allocRec"><span class="hs-pragma hs-type">allocRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>  </span><span id="local-6989586621679159174"><span class="annot"><span class="annottext">freezeRec :: forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy '[]
+-&gt; Int -&gt; Record (VectorMs m '[]) -&gt; m (Record (Vectors '[]))
+</span><a href="Frames.InCore.html#freezeRec"><span class="hs-identifier hs-var hs-var hs-var">freezeRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy '[]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Rec ElField (VectorMs m '[])
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Record '[] -&gt; m (Record '[])
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Record '[]
+forall {u} (a :: u -&gt; *). Rec a '[]
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 800
+</span><span>  </span><span class="hs-identifier">freezeRec</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-keyword">of</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#freezeRec"><span class="hs-pragma hs-type">freezeRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679159179"><span class="annot"><span class="annottext">growRec :: forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy '[] -&gt; Record (VectorMs m '[]) -&gt; m (Record (VectorMs m '[]))
+</span><a href="Frames.InCore.html#growRec"><span class="hs-identifier hs-var hs-var hs-var">growRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy '[]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Rec ElField (VectorMs m '[])
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Record '[] -&gt; m (Record '[])
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Record '[]
+forall {u} (a :: u -&gt; *). Rec a '[]
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 800
+</span><span>  </span><span class="hs-identifier">growRec</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-keyword">of</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#growRec"><span class="hs-pragma hs-type">growRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621679159182"><span class="annot"><span class="annottext">indexRec :: forall (proxy :: [(Symbol, *)] -&gt; *).
+proxy '[] -&gt; Int -&gt; Record (Vectors '[]) -&gt; Record '[]
+</span><a href="Frames.InCore.html#indexRec"><span class="hs-identifier hs-var hs-var hs-var">indexRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy '[]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Record (Vectors '[])
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Record '[]
+forall {u} (a :: u -&gt; *). Rec a '[]
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#indexRec"><span class="hs-pragma hs-type">indexRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621679159185"><span class="annot"><span class="annottext">writeRec :: forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy '[] -&gt; Int -&gt; Record (VectorMs m '[]) -&gt; Record '[] -&gt; m ()
+</span><a href="Frames.InCore.html#writeRec"><span class="hs-identifier hs-var hs-var hs-var">writeRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy '[]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Rec ElField (VectorMs m '[])
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span> </span><span class="annot"><span class="annottext">Record '[]
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; m ()
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 800
+</span><span>  </span><span class="hs-identifier">writeRec</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-keyword">of</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#writeRec"><span class="hs-pragma hs-type">writeRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621679159189"><span class="annot"><span class="annottext">produceRec :: forall (proxy :: [(Symbol, *)] -&gt; *).
+proxy '[] -&gt; Record (Vectors '[]) -&gt; Rec ((-&gt;) Int :. ElField) '[]
+</span><a href="Frames.InCore.html#produceRec"><span class="hs-identifier hs-var hs-var hs-var">produceRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy '[]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Record (Vectors '[])
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rec ((-&gt;) Int :. ElField) '[]
+forall {u} (a :: u -&gt; *). Rec a '[]
+</span><span class="hs-identifier hs-var">V.RNil</span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 800
+</span><span>  </span><span class="hs-identifier">produceRec</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-keyword">of</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#produceRec"><span class="hs-pragma hs-type">produceRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679158928"><span class="annot"><a href="#local-6989586621679158928"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679158927"><span class="annot"><a href="#local-6989586621679158927"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679158929"><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">VGM.MVector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorMFor"><span class="hs-identifier hs-type">VectorMFor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158927"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679158927"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>   </span><span class="annot"><span class="hs-identifier hs-type">VG.Vector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorFor"><span class="hs-identifier hs-type">VectorFor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158927"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679158927"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-114"></span><span>   </span><span class="annot"><span class="hs-identifier hs-type">KnownSymbol</span></span><span> </span><span class="annot"><a href="#local-6989586621679158928"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158928"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Frames.Col.html#%3A-%3E"><span class="hs-operator hs-type">:-&gt;</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158927"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-glyph">:</span><span> </span><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621679159217"><span class="annot"><span class="annottext">allocRec :: forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy ((s :-&gt; a) : rs)
+-&gt; Int -&gt; m (Record (VectorMs m ((s :-&gt; a) : rs)))
+</span><a href="Frames.InCore.html#allocRec"><span class="hs-identifier hs-var hs-var hs-var">allocRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679159218"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159218"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+-&gt; Record (VectorMs m rs)
+-&gt; Record
+     ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : VectorMs m rs)
+forall (s :: Symbol) a (rs :: [(Symbol, *)]).
+KnownSymbol s =&gt;
+a -&gt; Record rs -&gt; Record ((s :-&gt; a) : rs)
+</span><a href="Frames.Rec.html#%26%3A"><span class="hs-operator hs-var">(&amp;:)</span></a></span><span> </span><span class="annot"><span class="annottext">(Mutable (VectorFor a) (PrimState m) a
+ -&gt; Record (VectorMs m rs)
+ -&gt; Record
+      ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : VectorMs m rs))
+-&gt; m (Mutable (VectorFor a) (PrimState m) a)
+-&gt; m (Record (VectorMs m rs)
+      -&gt; Record
+           ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : VectorMs m rs))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; m (Mutable (VectorFor a) (PrimState m) a)
+forall (m :: * -&gt; *) (v :: * -&gt; * -&gt; *) a.
+(HasCallStack, PrimMonad m, MVector v a) =&gt;
+Int -&gt; m (v (PrimState m) a)
+</span><span class="hs-identifier hs-var">VGM.new</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159218"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">m (Record (VectorMs m rs)
+   -&gt; Record
+        ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : VectorMs m rs))
+-&gt; m (Record (VectorMs m rs))
+-&gt; m (Record
+        ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : VectorMs m rs))
+forall a b. m (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+</span><a href="Frames.InCore.html#allocRec"><span class="hs-identifier hs-var">allocRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159218"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#allocRec"><span class="hs-pragma hs-type">allocRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span>  </span><span id="local-6989586621679159229"><span class="annot"><span class="annottext">freezeRec :: forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy ((s :-&gt; a) : rs)
+-&gt; Int
+-&gt; Record (VectorMs m ((s :-&gt; a) : rs))
+-&gt; m (Record (Vectors ((s :-&gt; a) : rs)))
+</span><a href="Frames.InCore.html#freezeRec"><span class="hs-identifier hs-var hs-var hs-var">freezeRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679159230"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159230"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Col.html#Col"><span class="hs-identifier hs-type">Col</span></a></span><span> </span><span id="local-6989586621679159246"><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+</span><a href="#local-6989586621679159246"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&amp;</span></span><span> </span><span id="local-6989586621679159248"><span class="annot"><span class="annottext">Rec ElField rs
+</span><a href="#local-6989586621679159248"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><span class="annottext">VectorFor a a
+-&gt; Record (Vectors rs)
+-&gt; Record ((s :-&gt; VectorFor a a) : Vectors rs)
+forall (s :: Symbol) a (rs :: [(Symbol, *)]).
+KnownSymbol s =&gt;
+a -&gt; Record rs -&gt; Record ((s :-&gt; a) : rs)
+</span><a href="Frames.Rec.html#%26%3A"><span class="hs-operator hs-var">(&amp;:)</span></a></span><span> </span><span class="annot"><span class="annottext">(VectorFor a a
+ -&gt; Record (Vectors rs)
+ -&gt; Record ((s :-&gt; VectorFor a a) : Vectors rs))
+-&gt; m (VectorFor a a)
+-&gt; m (Record (Vectors rs)
+      -&gt; Record ((s :-&gt; VectorFor a a) : Vectors rs))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a -&gt; m (VectorFor a a)
+forall (m :: * -&gt; *) (v :: * -&gt; *) a.
+(PrimMonad m, Vector v a) =&gt;
+Mutable v (PrimState m) a -&gt; m (v a)
+</span><span class="hs-identifier hs-var">VG.unsafeFreeze</span></span><span> </span><span class="annot"><span class="annottext">(Mutable (VectorFor a) (PrimState m) a -&gt; m (VectorFor a a))
+-&gt; Mutable (VectorFor a) (PrimState m) a -&gt; m (VectorFor a a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; Int
+-&gt; Mutable (VectorFor a) (PrimState m) a
+-&gt; Mutable (VectorFor a) (PrimState m) a
+forall (v :: * -&gt; * -&gt; *) a s.
+MVector v a =&gt;
+Int -&gt; Int -&gt; v s a -&gt; v s a
+</span><span class="hs-identifier hs-var">VGM.unsafeSlice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159230"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+</span><a href="#local-6989586621679159246"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>         </span><span class="annot"><span class="annottext">m (Record (Vectors rs)
+   -&gt; Record ((s :-&gt; VectorFor a a) : Vectors rs))
+-&gt; m (Record (Vectors rs))
+-&gt; m (Record ((s :-&gt; VectorFor a a) : Vectors rs))
+forall a b. m (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+</span><a href="Frames.InCore.html#freezeRec"><span class="hs-identifier hs-var">freezeRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159230"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Rec ElField rs
+Record (VectorMs m rs)
+</span><a href="#local-6989586621679159248"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><a href="Frames.InCore.html#freezeRec"><span class="hs-identifier hs-var">freezeRec</span></a></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Rec ElField (VectorMs m ((s :-&gt; a) : rs))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; m (Record ((s :-&gt; VectorFor a a) : Vectors rs))
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Impossible case freezeRec&quot;</span></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#freezeRec"><span class="hs-pragma hs-type">freezeRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span>  </span><span id="local-6989586621679159258"><span class="annot"><span class="annottext">growRec :: forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy ((s :-&gt; a) : rs)
+-&gt; Record (VectorMs m ((s :-&gt; a) : rs))
+-&gt; m (Record (VectorMs m ((s :-&gt; a) : rs)))
+</span><a href="Frames.InCore.html#growRec"><span class="hs-identifier hs-var hs-var hs-var">growRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Col.html#Col"><span class="hs-identifier hs-type">Col</span></a></span><span> </span><span id="local-6989586621679159275"><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+</span><a href="#local-6989586621679159275"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&amp;</span></span><span> </span><span id="local-6989586621679159276"><span class="annot"><span class="annottext">Rec ElField rs
+</span><a href="#local-6989586621679159276"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+-&gt; Rec ElField rs
+-&gt; Record ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : rs)
+forall (s :: Symbol) a (rs :: [(Symbol, *)]).
+KnownSymbol s =&gt;
+a -&gt; Record rs -&gt; Record ((s :-&gt; a) : rs)
+</span><a href="Frames.Rec.html#%26%3A"><span class="hs-operator hs-var">(&amp;:)</span></a></span><span> </span><span class="annot"><span class="annottext">(Mutable (VectorFor a) (PrimState m) a
+ -&gt; Rec ElField rs
+ -&gt; Record ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : rs))
+-&gt; m (Mutable (VectorFor a) (PrimState m) a)
+-&gt; m (Rec ElField rs
+      -&gt; Record ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : rs))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+-&gt; Int -&gt; m (Mutable (VectorFor a) (PrimState m) a)
+forall (m :: * -&gt; *) (v :: * -&gt; * -&gt; *) a.
+(HasCallStack, PrimMonad m, MVector v a) =&gt;
+v (PrimState m) a -&gt; Int -&gt; m (v (PrimState m) a)
+</span><span class="hs-identifier hs-var">VGM.grow</span></span><span> </span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+</span><a href="#local-6989586621679159275"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a -&gt; Int
+forall (v :: * -&gt; * -&gt; *) a s. MVector v a =&gt; v s a -&gt; Int
+</span><span class="hs-identifier hs-var">VGM.length</span></span><span> </span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+</span><a href="#local-6989586621679159275"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>                                              </span><span class="annot"><span class="annottext">m (Rec ElField rs
+   -&gt; Record ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : rs))
+-&gt; m (Rec ElField rs)
+-&gt; m (Record ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : rs))
+forall a b. m (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+</span><a href="Frames.InCore.html#growRec"><span class="hs-identifier hs-var">growRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Rec ElField rs
+Record (VectorMs m rs)
+</span><a href="#local-6989586621679159276"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><a href="Frames.InCore.html#growRec"><span class="hs-identifier hs-var">growRec</span></a></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Rec ElField (VectorMs m ((s :-&gt; a) : rs))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char]
+-&gt; m (Record
+        ((s :-&gt; Mutable (VectorFor a) (PrimState m) a) : VectorMs m rs))
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Impossible case growRec&quot;</span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#growRec"><span class="hs-pragma hs-type">growRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621679159283"><span class="annot"><span class="annottext">writeRec :: forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy ((s :-&gt; a) : rs)
+-&gt; Int
+-&gt; Record (VectorMs m ((s :-&gt; a) : rs))
+-&gt; Record ((s :-&gt; a) : rs)
+-&gt; m ()
+</span><a href="Frames.InCore.html#writeRec"><span class="hs-identifier hs-var hs-var hs-var">writeRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679159284"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159284"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Frames.Col.html#Col"><span class="hs-identifier hs-type">Col</span></a></span><span> </span><span id="local-6989586621679159291"><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+</span><a href="#local-6989586621679159291"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&amp;</span></span><span> </span><span id="local-6989586621679159292"><span class="annot"><span class="annottext">Rec ElField rs
+</span><a href="#local-6989586621679159292"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Col.html#Col"><span class="hs-identifier hs-type">Col</span></a></span><span> </span><span id="local-6989586621679159304"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679159304"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&amp;</span></span><span> </span><span id="local-6989586621679159305"><span class="annot"><span class="annottext">Rec ElField rs
+</span><a href="#local-6989586621679159305"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+forall (m :: * -&gt; *) (v :: * -&gt; * -&gt; *) a.
+(PrimMonad m, MVector v a) =&gt;
+v (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">VGM.unsafeWrite</span></span><span> </span><span class="annot"><span class="annottext">Mutable (VectorFor a) (PrimState m) a
+</span><a href="#local-6989586621679159291"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159284"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679159304"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m () -&gt; m () -&gt; m ()
+forall a b. m a -&gt; m b -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+</span><a href="Frames.InCore.html#writeRec"><span class="hs-identifier hs-var">writeRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159284"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Rec ElField rs
+Record (VectorMs m rs)
+</span><a href="#local-6989586621679159292"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="annot"><span class="annottext">Record rs
+Rec ElField rs
+</span><a href="#local-6989586621679159305"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><a href="Frames.InCore.html#writeRec"><span class="hs-identifier hs-var">writeRec</span></a></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Rec ElField (VectorMs m ((s :-&gt; a) : rs))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Record ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; m ()
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Impossible case writeRec&quot;</span></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#writeRec"><span class="hs-pragma hs-type">writeRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span>  </span><span id="local-6989586621679159309"><span class="annot"><span class="annottext">indexRec :: forall (proxy :: [(Symbol, *)] -&gt; *).
+proxy ((s :-&gt; a) : rs)
+-&gt; Int
+-&gt; Record (Vectors ((s :-&gt; a) : rs))
+-&gt; Record ((s :-&gt; a) : rs)
+</span><a href="Frames.InCore.html#indexRec"><span class="hs-identifier hs-var hs-var hs-var">indexRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679159310"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159310"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Frames.Col.html#Col"><span class="hs-identifier hs-type">Col</span></a></span><span> </span><span id="local-6989586621679159322"><span class="annot"><span class="annottext">VectorFor a a
+</span><a href="#local-6989586621679159322"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&amp;</span></span><span> </span><span id="local-6989586621679159323"><span class="annot"><span class="annottext">Rec ElField rs
+</span><a href="#local-6989586621679159323"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><span class="annottext">VectorFor a a
+</span><a href="#local-6989586621679159322"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">VectorFor a a -&gt; Int -&gt; a
+forall (v :: * -&gt; *) a.
+(HasCallStack, Vector v a) =&gt;
+v a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">VG.!</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159310"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Record rs -&gt; Record ((s :-&gt; a) : rs)
+forall (s :: Symbol) a (rs :: [(Symbol, *)]).
+KnownSymbol s =&gt;
+a -&gt; Record rs -&gt; Record ((s :-&gt; a) : rs)
+</span><a href="Frames.Rec.html#%26%3A"><span class="hs-operator hs-var">&amp;:</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; Record (Vectors rs) -&gt; Record rs
+forall (rs :: [(Symbol, *)]) (proxy :: [(Symbol, *)] -&gt; *).
+RecVec rs =&gt;
+proxy rs -&gt; Int -&gt; Record (Vectors rs) -&gt; Record rs
+forall (proxy :: [(Symbol, *)] -&gt; *).
+proxy rs -&gt; Int -&gt; Record (Vectors rs) -&gt; Record rs
+</span><a href="Frames.InCore.html#indexRec"><span class="hs-identifier hs-var">indexRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159310"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Rec ElField rs
+Record (Vectors rs)
+</span><a href="#local-6989586621679159323"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><a href="Frames.InCore.html#indexRec"><span class="hs-identifier hs-var">indexRec</span></a></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Record (Vectors ((s :-&gt; a) : rs))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Record ((s :-&gt; a) : rs)
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Impossible case indexRec&quot;</span></span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#indexRec"><span class="hs-pragma hs-type">indexRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621679159327"><span class="annot"><span class="annottext">produceRec :: forall (proxy :: [(Symbol, *)] -&gt; *).
+proxy ((s :-&gt; a) : rs)
+-&gt; Record (Vectors ((s :-&gt; a) : rs))
+-&gt; Rec ((-&gt;) Int :. ElField) ((s :-&gt; a) : rs)
+</span><a href="Frames.InCore.html#produceRec"><span class="hs-identifier hs-var hs-var hs-var">produceRec</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Col.html#Col"><span class="hs-identifier hs-type">Col</span></a></span><span> </span><span id="local-6989586621679159338"><span class="annot"><span class="annottext">VectorFor a a
+</span><a href="#local-6989586621679159338"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">V.:&amp;</span></span><span> </span><span id="local-6989586621679159339"><span class="annot"><span class="annottext">Rec ElField rs
+</span><a href="#local-6989586621679159339"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; ElField (s :-&gt; a)) -&gt; Compose ((-&gt;) Int) ElField (s :-&gt; a)
+forall l k (f :: l -&gt; *) (g :: k -&gt; l) (x :: k).
+f (g x) -&gt; Compose f g x
+</span><span class="hs-identifier hs-var">Compose</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; ElField (s :-&gt; a)
+Snd (s :-&gt; a) -&gt; ElField (s :-&gt; a)
+forall (t :: (Symbol, *)). Snd t -&gt; ElField t
+</span><span class="hs-identifier hs-var">Field</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; ElField (s :-&gt; a)) -&gt; (Int -&gt; a) -&gt; Int -&gt; ElField (s :-&gt; a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">VectorFor a a
+</span><a href="#local-6989586621679159338"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">VectorFor a a -&gt; Int -&gt; a
+forall (v :: * -&gt; *) a.
+(HasCallStack, Vector v a) =&gt;
+v a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">VG.!</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Compose ((-&gt;) Int) ElField (s :-&gt; a)
+-&gt; Rec ((-&gt;) Int :. ElField) rs
+-&gt; Rec ((-&gt;) Int :. ElField) ((s :-&gt; a) : rs)
+forall {u} (a :: u -&gt; *) (r :: u) (rs :: [u]).
+a r -&gt; Rec a rs -&gt; Rec a (r : rs)
+</span><span class="hs-operator hs-var">:&amp;</span></span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Record (Vectors rs) -&gt; Rec ((-&gt;) Int :. ElField) rs
+forall (rs :: [(Symbol, *)]) (proxy :: [(Symbol, *)] -&gt; *).
+RecVec rs =&gt;
+proxy rs -&gt; Record (Vectors rs) -&gt; Rec ((-&gt;) Int :. ElField) rs
+forall (proxy :: [(Symbol, *)] -&gt; *).
+proxy rs -&gt; Record (Vectors rs) -&gt; Rec ((-&gt;) Int :. ElField) rs
+</span><a href="Frames.InCore.html#produceRec"><span class="hs-identifier hs-var">produceRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679158929"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Rec ElField rs
+Record (Vectors rs)
+</span><a href="#local-6989586621679159339"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><a href="Frames.InCore.html#produceRec"><span class="hs-identifier hs-var">produceRec</span></a></span><span> </span><span class="annot"><span class="annottext">proxy ((s :-&gt; a) : rs)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Record (Vectors ((s :-&gt; a) : rs))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Rec ((-&gt;) Int :. ElField) ((s :-&gt; a) : rs)
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Impossible case produceRec&quot;</span></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#produceRec"><span class="hs-pragma hs-type">produceRec</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- | Stream a finite sequence of rows into an efficient in-memory</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- representation for further manipulation. Each column of the input</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- table will be stored optimally based on its type, making use of the</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- resulting generators a matter of indexing into a densely packed</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- representation. Returns the number of rows and a record of column</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- indexing functions. See 'toAoS' to convert the result to a 'Frame'</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- which provides an easier-to-use function that indexes into the</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- table in a row-major fashion.</span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Frames.InCore.html#inCoreSoA"><span class="hs-identifier hs-type">inCoreSoA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679159008"><span class="annot"><a href="#local-6989586621679159008"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679159009"><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679159008"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Producer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159008"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159008"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Rec</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">-&gt;</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">:.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ElField</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span id="inCoreSoA"><span class="annot"><span class="annottext">inCoreSoA :: forall (m :: * -&gt; *) (rs :: [(Symbol, *)]).
+(PrimMonad m, RecVec rs) =&gt;
+Producer (Record rs) m () -&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs)
+</span><a href="Frames.InCore.html#inCoreSoA"><span class="hs-identifier hs-var hs-var">inCoreSoA</span></a></span></span><span> </span><span id="local-6989586621679159373"><span class="annot"><span class="annottext">Producer (Record rs) m ()
+</span><a href="#local-6989586621679159373"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679159374"><span class="annot"><a href="#local-6989586621679159374"><span class="hs-identifier hs-var">mvs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+</span><a href="Frames.InCore.html#allocRec"><span class="hs-identifier hs-var">allocRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Frames.InCore.html#initialCapacity"><span class="hs-identifier hs-var">initialCapacity</span></a></span><span>
+</span><span id="line-157"></span><span>     </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679159375"><span class="annot"><a href="#local-6989586621679159375"><span class="hs-identifier hs-var hs-var">feed</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679159376"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159376"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679159377"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159377"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679159378"><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159378"><span class="hs-identifier hs-var">mvs'</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679159379"><span class="annot"><span class="annottext">Record rs
+</span><a href="#local-6989586621679159379"><span class="hs-identifier hs-var">row</span></a></span></span><span>
+</span><span id="line-158"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159376"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159377"><span class="hs-identifier hs-var">sz</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+</span><a href="Frames.InCore.html#growRec"><span class="hs-identifier hs-var">growRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159378"><span class="hs-identifier hs-var">mvs'</span></a></span><span>
+</span><span id="line-159"></span><span>                       </span><span class="annot"><span class="annottext">m (Record (VectorMs m rs))
+-&gt; (Record (VectorMs m rs) -&gt; m (Int, Int, Record (VectorMs m rs)))
+-&gt; m (Int, Int, Record (VectorMs m rs))
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">((Int, Int, Record (VectorMs m rs))
+ -&gt; Record rs -&gt; m (Int, Int, Record (VectorMs m rs)))
+-&gt; Record rs
+-&gt; (Int, Int, Record (VectorMs m rs))
+-&gt; m (Int, Int, Record (VectorMs m rs))
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">(Int, Int, Record (VectorMs m rs))
+-&gt; Record rs -&gt; m (Int, Int, Record (VectorMs m rs))
+</span><a href="#local-6989586621679159375"><span class="hs-identifier hs-var">feed</span></a></span><span> </span><span class="annot"><span class="annottext">Record rs
+</span><a href="#local-6989586621679159379"><span class="hs-identifier hs-var">row</span></a></span><span> </span><span class="annot"><span class="annottext">((Int, Int, Record (VectorMs m rs))
+ -&gt; m (Int, Int, Record (VectorMs m rs)))
+-&gt; (Record (VectorMs m rs) -&gt; (Int, Int, Record (VectorMs m rs)))
+-&gt; Record (VectorMs m rs)
+-&gt; m (Int, Int, Record (VectorMs m rs))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159376"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159377"><span class="hs-identifier hs-var">sz</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+</span><a href="Frames.InCore.html#writeRec"><span class="hs-identifier hs-var">writeRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159376"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159378"><span class="hs-identifier hs-var">mvs'</span></a></span><span> </span><span class="annot"><span class="annottext">Record rs
+</span><a href="#local-6989586621679159379"><span class="hs-identifier hs-var">row</span></a></span><span>
+</span><span id="line-161"></span><span>                            </span><span class="annot"><span class="annottext">(Int, Int, Record (VectorMs m rs))
+-&gt; m (Int, Int, Record (VectorMs m rs))
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159376"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159377"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159378"><span class="hs-identifier hs-var">mvs'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>         </span><span id="local-6989586621679159383"><span class="annot"><a href="#local-6989586621679159383"><span class="hs-identifier hs-var hs-var">fin</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679159384"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159384"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679159385"><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159385"><span class="hs-identifier hs-var">mvs'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-163"></span><span>           </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679159386"><span class="annot"><a href="#local-6989586621679159386"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+</span><a href="Frames.InCore.html#freezeRec"><span class="hs-identifier hs-var">freezeRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159384"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159385"><span class="hs-identifier hs-var">mvs'</span></a></span><span>
+</span><span id="line-164"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679159384"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Frames.InCore.html#produceRec"><span class="hs-identifier hs-type">produceRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159009"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159386"><span class="hs-identifier hs-type">vs</span></a></span><span>
+</span><span id="line-165"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">P.foldM</span></span><span> </span><span class="annot"><a href="#local-6989586621679159375"><span class="hs-identifier hs-type">feed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><a href="Frames.InCore.html#initialCapacity"><span class="hs-identifier hs-type">initialCapacity</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679159374"><span class="hs-identifier hs-type">mvs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159383"><span class="hs-identifier hs-type">fin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159373"><span class="hs-identifier hs-type">xs</span></a></span><span>
+</span><span id="line-166"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#inCoreSoA"><span class="hs-pragma hs-type">inCoreSoA</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- | Stream a finite sequence of rows into an efficient in-memory</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- representation for further manipulation. Each column of the input</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- table will be stored optimally based on its type, making use of the</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- resulting generators a matter of indexing into a densely packed</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- representation. Returns a 'Frame' that provides a function to index</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- into the table.</span><span>
+</span><span id="line-174"></span><span id="local-6989586621679159024"><span id="local-6989586621679159025"><span class="annot"><a href="Frames.InCore.html#inCoreAoS"><span class="hs-identifier hs-type">inCoreAoS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679159024"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159025"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Producer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159025"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159024"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159024"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159025"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-176"></span><span id="inCoreAoS"><span class="annot"><span class="annottext">inCoreAoS :: forall (m :: * -&gt; *) (rs :: [(Symbol, *)]).
+(PrimMonad m, RecVec rs) =&gt;
+Producer (Record rs) m () -&gt; m (FrameRec rs)
+</span><a href="Frames.InCore.html#inCoreAoS"><span class="hs-identifier hs-var hs-var">inCoreAoS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, Rec ((-&gt;) Int :. ElField) rs) -&gt; FrameRec rs)
+-&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs) -&gt; m (FrameRec rs)
+forall a b. (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Rec ((-&gt;) Int :. ElField) rs -&gt; FrameRec rs)
+-&gt; (Int, Rec ((-&gt;) Int :. ElField) rs) -&gt; FrameRec rs
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Rec ((-&gt;) Int :. ElField) rs -&gt; FrameRec rs
+forall (rs :: [(Symbol, *)]).
+Int -&gt; Rec ((-&gt;) Int :. ElField) rs -&gt; FrameRec rs
+</span><a href="Frames.InCore.html#toAoS"><span class="hs-identifier hs-var">toAoS</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(m (Int, Rec ((-&gt;) Int :. ElField) rs) -&gt; m (FrameRec rs))
+-&gt; (Producer (Record rs) m ()
+    -&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs))
+-&gt; Producer (Record rs) m ()
+-&gt; m (FrameRec rs)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Producer (Record rs) m () -&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs)
+forall (m :: * -&gt; *) (rs :: [(Symbol, *)]).
+(PrimMonad m, RecVec rs) =&gt;
+Producer (Record rs) m () -&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs)
+</span><a href="Frames.InCore.html#inCoreSoA"><span class="hs-identifier hs-var">inCoreSoA</span></a></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- | Like 'inCoreAoS', but applies the provided function to the record</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- of columns before building the 'Frame'.</span><span>
+</span><span id="line-180"></span><span id="local-6989586621679159036"><span id="local-6989586621679159037"><span id="local-6989586621679159038"><span class="annot"><a href="Frames.InCore.html#inCoreAoS%27"><span class="hs-identifier hs-type">inCoreAoS'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679159036"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159037"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>           </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">V.Rec</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">-&gt;</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ElField</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159037"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Rec</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">-&gt;</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ElField</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159038"><span class="hs-identifier hs-type">ss</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Producer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159037"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159036"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159036"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159038"><span class="hs-identifier hs-type">ss</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-183"></span><span id="inCoreAoS%27"><span class="annot"><span class="annottext">inCoreAoS' :: forall (m :: * -&gt; *) (rs :: [(Symbol, *)]) (ss :: [(Symbol, *)]).
+(PrimMonad m, RecVec rs) =&gt;
+(Rec ((-&gt;) Int :. ElField) rs -&gt; Rec ((-&gt;) Int :. ElField) ss)
+-&gt; Producer (Record rs) m () -&gt; m (FrameRec ss)
+</span><a href="Frames.InCore.html#inCoreAoS%27"><span class="hs-identifier hs-var hs-var">inCoreAoS'</span></a></span></span><span> </span><span id="local-6989586621679159407"><span class="annot"><span class="annottext">Rec ((-&gt;) Int :. ElField) rs -&gt; Rec ((-&gt;) Int :. ElField) ss
+</span><a href="#local-6989586621679159407"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, Rec ((-&gt;) Int :. ElField) rs) -&gt; FrameRec ss)
+-&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs) -&gt; m (FrameRec ss)
+forall a b. (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Rec ((-&gt;) Int :. ElField) ss -&gt; FrameRec ss)
+-&gt; (Int, Rec ((-&gt;) Int :. ElField) ss) -&gt; FrameRec ss
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Rec ((-&gt;) Int :. ElField) ss -&gt; FrameRec ss
+forall (rs :: [(Symbol, *)]).
+Int -&gt; Rec ((-&gt;) Int :. ElField) rs -&gt; FrameRec rs
+</span><a href="Frames.InCore.html#toAoS"><span class="hs-identifier hs-var">toAoS</span></a></span><span> </span><span class="annot"><span class="annottext">((Int, Rec ((-&gt;) Int :. ElField) ss) -&gt; FrameRec ss)
+-&gt; ((Int, Rec ((-&gt;) Int :. ElField) rs)
+    -&gt; (Int, Rec ((-&gt;) Int :. ElField) ss))
+-&gt; (Int, Rec ((-&gt;) Int :. ElField) rs)
+-&gt; FrameRec ss
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int, Rec ((-&gt;) Int :. ElField) rs)
+-&gt; (Int, Rec ((-&gt;) Int :. ElField) ss)
+</span><a href="#local-6989586621679159408"><span class="hs-identifier hs-var">aux</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(m (Int, Rec ((-&gt;) Int :. ElField) rs) -&gt; m (FrameRec ss))
+-&gt; (Producer (Record rs) m ()
+    -&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs))
+-&gt; Producer (Record rs) m ()
+-&gt; m (FrameRec ss)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Producer (Record rs) m () -&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs)
+forall (m :: * -&gt; *) (rs :: [(Symbol, *)]).
+(PrimMonad m, RecVec rs) =&gt;
+Producer (Record rs) m () -&gt; m (Int, Rec ((-&gt;) Int :. ElField) rs)
+</span><a href="Frames.InCore.html#inCoreSoA"><span class="hs-identifier hs-var">inCoreSoA</span></a></span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679159408"><span class="annot"><span class="annottext">aux :: (Int, Rec ((-&gt;) Int :. ElField) rs)
+-&gt; (Int, Rec ((-&gt;) Int :. ElField) ss)
+</span><a href="#local-6989586621679159408"><span class="hs-identifier hs-var hs-var">aux</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679159409"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159409"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679159410"><span class="annot"><span class="annottext">Rec ((-&gt;) Int :. ElField) rs
+</span><a href="#local-6989586621679159410"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159409"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Rec ((-&gt;) Int :. ElField) rs -&gt; Rec ((-&gt;) Int :. ElField) ss
+</span><a href="#local-6989586621679159407"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Rec ((-&gt;) Int :. ElField) rs
+</span><a href="#local-6989586621679159410"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- | Convert a structure-of-arrays to an array-of-structures. This can</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- simplify usage of an in-memory representation.</span><span>
+</span><span id="line-188"></span><span id="local-6989586621679159035"><span class="annot"><a href="Frames.InCore.html#toAoS"><span class="hs-identifier hs-type">toAoS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Rec</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">-&gt;</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ElField</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159035"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159035"><span class="hs-identifier hs-type">rs</span></a></span></span><span>
+</span><span id="line-189"></span><span id="toAoS"><span class="annot"><span class="annottext">toAoS :: forall (rs :: [(Symbol, *)]).
+Int -&gt; Rec ((-&gt;) Int :. ElField) rs -&gt; FrameRec rs
+</span><a href="Frames.InCore.html#toAoS"><span class="hs-identifier hs-var hs-var">toAoS</span></a></span></span><span> </span><span id="local-6989586621679159413"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159413"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; Record rs) -&gt; Frame (Record rs)
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159413"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">((Int -&gt; Record rs) -&gt; Frame (Record rs))
+-&gt; (Rec ((-&gt;) Int :. ElField) rs -&gt; Int -&gt; Record rs)
+-&gt; Rec ((-&gt;) Int :. ElField) rs
+-&gt; Frame (Record rs)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(forall (x :: (Symbol, *)).
+ (:.) ((-&gt;) Int) ElField x -&gt; Int -&gt; ElField x)
+-&gt; Rec ((-&gt;) Int :. ElField) rs -&gt; Int -&gt; Record rs
+forall {u} (h :: * -&gt; *) (f :: u -&gt; *) (g :: u -&gt; *) (rs :: [u]).
+Applicative h =&gt;
+(forall (x :: u). f x -&gt; h (g x)) -&gt; Rec f rs -&gt; h (Rec g rs)
+</span><span class="hs-identifier hs-var">rtraverse</span></span><span> </span><span class="annot"><span class="annottext">Compose ((-&gt;) Int) ElField x -&gt; Int -&gt; ElField x
+forall l k (f :: l -&gt; *) (g :: k -&gt; l) (x :: k).
+Compose f g x -&gt; f (g x)
+forall (x :: (Symbol, *)).
+(:.) ((-&gt;) Int) ElField x -&gt; Int -&gt; ElField x
+</span><span class="hs-identifier hs-var">getCompose</span></span><span>
+</span><span id="line-190"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#toAoS"><span class="hs-pragma hs-type">toAoS</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- | Stream a finite sequence of rows into an efficient in-memory</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- representation for further manipulation. Each column of the input</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- table will be stored optimally based on its type, making use of the</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- resulting generator a matter of indexing into a densely packed</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- representation.</span><span>
+</span><span id="line-197"></span><span class="annot"><a href="Frames.InCore.html#inCore"><span class="hs-identifier hs-type">inCore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679159058"><span class="annot"><a href="#local-6989586621679159058"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679159060"><span class="annot"><a href="#local-6989586621679159060"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679159059"><span class="annot"><a href="#local-6989586621679159059"><span class="hs-identifier hs-type">rs</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679159058"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159059"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679159060"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span>       </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Producer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159059"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159058"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159058"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">P.Producer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159059"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159060"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span id="inCore"><span class="annot"><span class="annottext">inCore :: forall (m :: * -&gt; *) (n :: * -&gt; *) (rs :: [(Symbol, *)]).
+(PrimMonad m, RecVec rs, Monad n) =&gt;
+Producer (Record rs) m () -&gt; m (Producer (Record rs) n ())
+</span><a href="Frames.InCore.html#inCore"><span class="hs-identifier hs-var hs-var">inCore</span></a></span></span><span> </span><span id="local-6989586621679159453"><span class="annot"><span class="annottext">Producer (Record rs) m ()
+</span><a href="#local-6989586621679159453"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679159454"><span class="annot"><a href="#local-6989586621679159454"><span class="hs-identifier hs-var">mvs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+</span><a href="Frames.InCore.html#allocRec"><span class="hs-identifier hs-var">allocRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159059"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Frames.InCore.html#initialCapacity"><span class="hs-identifier hs-var">initialCapacity</span></a></span><span>
+</span><span id="line-201"></span><span>     </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679159455"><span class="annot"><a href="#local-6989586621679159455"><span class="hs-identifier hs-var hs-var">feed</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679159456"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159456"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span class="hs-glyph">!</span><span id="local-6989586621679159457"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159457"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">,</span><span class="hs-glyph">!</span><span id="local-6989586621679159458"><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159458"><span class="hs-identifier hs-var">mvs'</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679159459"><span class="annot"><span class="annottext">Record rs
+</span><a href="#local-6989586621679159459"><span class="hs-identifier hs-var">row</span></a></span></span><span>
+</span><span id="line-202"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159456"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159457"><span class="hs-identifier hs-var">sz</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Record (VectorMs m rs) -&gt; m (Record (VectorMs m rs))
+</span><a href="Frames.InCore.html#growRec"><span class="hs-identifier hs-var">growRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159059"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159458"><span class="hs-identifier hs-var">mvs'</span></a></span><span>
+</span><span id="line-203"></span><span>                          </span><span class="annot"><span class="annottext">m (Record (VectorMs m rs))
+-&gt; (Record (VectorMs m rs) -&gt; m (Int, Int, Record (VectorMs m rs)))
+-&gt; m (Int, Int, Record (VectorMs m rs))
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">((Int, Int, Record (VectorMs m rs))
+ -&gt; Record rs -&gt; m (Int, Int, Record (VectorMs m rs)))
+-&gt; Record rs
+-&gt; (Int, Int, Record (VectorMs m rs))
+-&gt; m (Int, Int, Record (VectorMs m rs))
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">(Int, Int, Record (VectorMs m rs))
+-&gt; Record rs -&gt; m (Int, Int, Record (VectorMs m rs))
+</span><a href="#local-6989586621679159455"><span class="hs-identifier hs-var">feed</span></a></span><span> </span><span class="annot"><span class="annottext">Record rs
+</span><a href="#local-6989586621679159459"><span class="hs-identifier hs-var">row</span></a></span><span> </span><span class="annot"><span class="annottext">((Int, Int, Record (VectorMs m rs))
+ -&gt; m (Int, Int, Record (VectorMs m rs)))
+-&gt; (Record (VectorMs m rs) -&gt; (Int, Int, Record (VectorMs m rs)))
+-&gt; Record (VectorMs m rs)
+-&gt; m (Int, Int, Record (VectorMs m rs))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159456"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159457"><span class="hs-identifier hs-var">sz</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+</span><a href="Frames.InCore.html#writeRec"><span class="hs-identifier hs-var">writeRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159059"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159456"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159458"><span class="hs-identifier hs-var">mvs'</span></a></span><span> </span><span class="annot"><span class="annottext">Record rs
+</span><a href="#local-6989586621679159459"><span class="hs-identifier hs-var">row</span></a></span><span>
+</span><span id="line-205"></span><span>                               </span><span class="annot"><span class="annottext">(Int, Int, Record (VectorMs m rs))
+-&gt; m (Int, Int, Record (VectorMs m rs))
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159456"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159457"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159458"><span class="hs-identifier hs-var">mvs'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-206"></span><span>         </span><span id="local-6989586621679159460"><span class="annot"><a href="#local-6989586621679159460"><span class="hs-identifier hs-var hs-var">fin</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679159461"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159461"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679159462"><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159462"><span class="hs-identifier hs-var">mvs'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-207"></span><span>           </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679159463"><span class="annot"><a href="#local-6989586621679159463"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+</span><a href="Frames.InCore.html#freezeRec"><span class="hs-identifier hs-var">freezeRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159059"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159461"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159462"><span class="hs-identifier hs-var">mvs'</span></a></span><span>
+</span><span id="line-208"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679159464"><span class="annot"><a href="#local-6989586621679159464"><span class="hs-identifier hs-var hs-var">spool</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679159465"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159465"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-209"></span><span>                    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159465"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159461"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; Proxy X () () (Record rs) n ()
+forall a. a -&gt; Proxy X () () (Record rs) n a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>                    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Record rs -&gt; Proxy X () () (Record rs) n ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">P.yield</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; Record (Vectors rs) -&gt; Record rs
+forall (rs :: [(Symbol, *)]) (proxy :: [(Symbol, *)] -&gt; *).
+RecVec rs =&gt;
+proxy rs -&gt; Int -&gt; Record (Vectors rs) -&gt; Record rs
+forall (proxy :: [(Symbol, *)] -&gt; *).
+proxy rs -&gt; Int -&gt; Record (Vectors rs) -&gt; Record rs
+</span><a href="Frames.InCore.html#indexRec"><span class="hs-identifier hs-var">indexRec</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159465"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Record (Vectors rs)
+</span><a href="#local-6989586621679159463"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Proxy X () () (Record rs) n ()
+-&gt; Proxy X () () (Record rs) n () -&gt; Proxy X () () (Record rs) n ()
+forall a b.
+Proxy X () () (Record rs) n a
+-&gt; Proxy X () () (Record rs) n b -&gt; Proxy X () () (Record rs) n b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Proxy X () () (Record rs) n ()
+</span><a href="#local-6989586621679159464"><span class="hs-identifier hs-var">spool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159465"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679159464"><span class="hs-identifier hs-type">spool</span></a></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span>
+</span><span id="line-212"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">P.foldM</span></span><span> </span><span class="annot"><a href="#local-6989586621679159455"><span class="hs-identifier hs-type">feed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><a href="Frames.InCore.html#initialCapacity"><span class="hs-identifier hs-type">initialCapacity</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679159454"><span class="hs-identifier hs-type">mvs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159460"><span class="hs-identifier hs-type">fin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159453"><span class="hs-identifier hs-type">xs</span></a></span><span>
+</span><span id="line-213"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#inCore"><span class="hs-pragma hs-type">inCore</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- | Build a 'Frame' from a collection of 'Record's using efficient</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- column-based storage.</span><span>
+</span><span id="line-217"></span><span id="local-6989586621679159081"><span id="local-6989586621679159082"><span class="annot"><a href="Frames.InCore.html#toFrame"><span class="hs-identifier hs-type">toFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">P.Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679159081"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159082"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159081"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159082"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159082"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-218"></span><span id="toFrame"><span class="annot"><span class="annottext">toFrame :: forall (f :: * -&gt; *) (rs :: [(Symbol, *)]).
+(Foldable f, RecVec rs) =&gt;
+f (Record rs) -&gt; Frame (Record rs)
+</span><a href="Frames.InCore.html#toFrame"><span class="hs-identifier hs-var hs-var">toFrame</span></a></span></span><span> </span><span id="local-6989586621679159470"><span class="annot"><span class="annottext">f (Record rs)
+</span><a href="#local-6989586621679159470"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (Frame (Record rs))) -&gt; Frame (Record rs)
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (Frame (Record rs))) -&gt; Frame (Record rs))
+-&gt; (forall s. ST s (Frame (Record rs))) -&gt; Frame (Record rs)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Producer (Record rs) (ST s) () -&gt; ST s (Frame (Record rs))
+forall (m :: * -&gt; *) (rs :: [(Symbol, *)]).
+(PrimMonad m, RecVec rs) =&gt;
+Producer (Record rs) m () -&gt; m (FrameRec rs)
+</span><a href="Frames.InCore.html#inCoreAoS"><span class="hs-identifier hs-var">inCoreAoS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f (Record rs) -&gt; Producer (Record rs) (ST s) ()
+forall (m :: * -&gt; *) (f :: * -&gt; *) a x' x.
+(Functor m, Foldable f) =&gt;
+f a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">P.each</span></span><span> </span><span class="annot"><span class="annottext">f (Record rs)
+</span><a href="#local-6989586621679159470"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-219"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#toFrame"><span class="hs-pragma hs-type">toFrame</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="annot"><span class="hs-comment">-- | Keep only those rows of a 'FrameRec' that satisfy a predicate.</span></span><span>
+</span><span id="line-222"></span><span id="local-6989586621679159096"><span class="annot"><a href="Frames.InCore.html#filterFrame"><span class="hs-identifier hs-type">filterFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159096"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159096"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159096"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159096"><span class="hs-identifier hs-type">rs</span></a></span></span><span>
+</span><span id="line-223"></span><span id="filterFrame"><span class="annot"><span class="annottext">filterFrame :: forall (rs :: [(Symbol, *)]).
+RecVec rs =&gt;
+(Record rs -&gt; Bool) -&gt; FrameRec rs -&gt; FrameRec rs
+</span><a href="Frames.InCore.html#filterFrame"><span class="hs-identifier hs-var hs-var">filterFrame</span></a></span></span><span> </span><span id="local-6989586621679159480"><span class="annot"><span class="annottext">Record rs -&gt; Bool
+</span><a href="#local-6989586621679159480"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679159481"><span class="annot"><span class="annottext">FrameRec rs
+</span><a href="#local-6989586621679159481"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (FrameRec rs)) -&gt; FrameRec rs
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (FrameRec rs)) -&gt; FrameRec rs)
+-&gt; (forall s. ST s (FrameRec rs)) -&gt; FrameRec rs
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Producer (Record rs) (ST s) () -&gt; ST s (FrameRec rs)
+forall (m :: * -&gt; *) (rs :: [(Symbol, *)]).
+(PrimMonad m, RecVec rs) =&gt;
+Producer (Record rs) m () -&gt; m (FrameRec rs)
+</span><a href="Frames.InCore.html#inCoreAoS"><span class="hs-identifier hs-var">inCoreAoS</span></a></span><span> </span><span class="annot"><span class="annottext">(Producer (Record rs) (ST s) () -&gt; ST s (FrameRec rs))
+-&gt; Producer (Record rs) (ST s) () -&gt; ST s (FrameRec rs)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FrameRec rs -&gt; Producer (Record rs) (ST s) ()
+forall (m :: * -&gt; *) (f :: * -&gt; *) a x' x.
+(Functor m, Foldable f) =&gt;
+f a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">P.each</span></span><span> </span><span class="annot"><span class="annottext">FrameRec rs
+</span><a href="#local-6989586621679159481"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Producer (Record rs) (ST s) ()
+-&gt; Proxy () (Record rs) () (Record rs) (ST s) ()
+-&gt; Producer (Record rs) (ST s) ()
+forall (m :: * -&gt; *) a' a b r c' c.
+Functor m =&gt;
+Proxy a' a () b m r -&gt; Proxy () b c' c m r -&gt; Proxy a' a c' c m r
+</span><span class="hs-operator hs-var">P.&gt;-&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Record rs -&gt; Bool)
+-&gt; Proxy () (Record rs) () (Record rs) (ST s) ()
+forall (m :: * -&gt; *) a r. Functor m =&gt; (a -&gt; Bool) -&gt; Pipe a a m r
+</span><span class="hs-identifier hs-var">P.filter</span></span><span> </span><span class="annot"><span class="annottext">Record rs -&gt; Bool
+</span><a href="#local-6989586621679159480"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-224"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Frames.InCore.html#filterFrame"><span class="hs-pragma hs-type">filterFrame</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-225"></span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- | Process a stream of 'Record's into a stream of 'Frame's that each</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- contains no more than the given number of records.</span><span>
+</span><span id="line-228"></span><span class="annot"><a href="Frames.InCore.html#produceFrameChunks"><span class="hs-identifier hs-type">produceFrameChunks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679159110"><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span></span><span> </span><span id="local-6989586621679159111"><span class="annot"><a href="#local-6989586621679159111"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#RecVec"><span class="hs-identifier hs-type">RecVec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679159111"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>                   </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-230"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Producer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159111"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-231"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Producer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679159111"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span id="produceFrameChunks"><span class="annot"><span class="annottext">produceFrameChunks :: forall (rs :: [(Symbol, *)]) (m :: * -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+Int -&gt; Producer (Record rs) m () -&gt; Producer (FrameRec rs) m ()
+</span><a href="Frames.InCore.html#produceFrameChunks"><span class="hs-identifier hs-var hs-var">produceFrameChunks</span></a></span></span><span> </span><span id="local-6989586621679159530"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159530"><span class="hs-identifier hs-var">chunkSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Producer (Record rs) m () -&gt; Proxy X () () (FrameRec rs) m ()
+</span><a href="#local-6989586621679159531"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-233"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679159531"><span class="annot"><span class="annottext">go :: Producer (Record rs) m () -&gt; Proxy X () () (FrameRec rs) m ()
+</span><a href="#local-6989586621679159531"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679159532"><span class="annot"><span class="annottext">Producer (Record rs) m ()
+</span><a href="#local-6989586621679159532"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679159533"><span class="annot"><a href="#local-6989586621679159533"><span class="hs-identifier hs-var">mutVecs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (Record (VectorMs m rs))
+-&gt; Proxy X () () (FrameRec rs) m (Record (VectorMs m rs))
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m a -&gt; Proxy X () () (FrameRec rs) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">P.lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Int -&gt; m (Record (VectorMs m rs))
+</span><a href="Frames.InCore.html#allocRec"><span class="hs-identifier hs-var">allocRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159530"><span class="hs-identifier hs-var">chunkSize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>                    </span><span class="annot"><a href="#local-6989586621679159535"><span class="hs-identifier hs-type">goChunk</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159532"><span class="hs-identifier hs-type">src</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159533"><span class="hs-identifier hs-type">mutVecs</span></a></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span>
+</span><span id="line-235"></span><span>        </span><span id="local-6989586621679159535"><span class="annot"><span class="annottext">goChunk :: Producer (Record rs) m ()
+-&gt; Record (VectorMs m rs)
+-&gt; Int
+-&gt; Proxy X () () (FrameRec rs) m ()
+</span><a href="#local-6989586621679159535"><span class="hs-identifier hs-var hs-var">goChunk</span></a></span></span><span> </span><span id="local-6989586621679159536"><span class="annot"><span class="annottext">Producer (Record rs) m ()
+</span><a href="#local-6989586621679159536"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span id="local-6989586621679159537"><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159537"><span class="hs-identifier hs-var">mutVecs</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679159538"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159538"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-236"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159538"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159530"><span class="hs-identifier hs-var">chunkSize</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-237"></span><span>              </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679159539"><span class="annot"><a href="#local-6989586621679159539"><span class="hs-identifier hs-var">chunk</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (FrameRec rs) -&gt; Proxy X () () (FrameRec rs) m (FrameRec rs)
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m a -&gt; Proxy X () () (FrameRec rs) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">P.lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Record (VectorMs m rs) -&gt; m (FrameRec rs)
+</span><a href="#local-6989586621679159540"><span class="hs-identifier hs-var">freezeFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159538"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159537"><span class="hs-identifier hs-var">mutVecs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>                 </span><span class="annot"><span class="hs-identifier hs-type">P.yield</span></span><span> </span><span class="annot"><a href="#local-6989586621679159539"><span class="hs-identifier hs-type">chunk</span></a></span><span>
+</span><span id="line-239"></span><span>                 </span><span class="annot"><a href="#local-6989586621679159531"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159536"><span class="hs-identifier hs-type">src</span></a></span><span>
+</span><span id="line-240"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-241"></span><span>            </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679159541"><span class="annot"><a href="#local-6989586621679159541"><span class="hs-identifier hs-var">maybeRow</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (Either () (Record rs, Producer (Record rs) m ()))
+-&gt; Proxy
+     X
+     ()
+     ()
+     (FrameRec rs)
+     m
+     (Either () (Record rs, Producer (Record rs) m ()))
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m a -&gt; Proxy X () () (FrameRec rs) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">P.lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Producer (Record rs) m ()
+-&gt; m (Either () (Record rs, Producer (Record rs) m ()))
+forall (m :: * -&gt; *) a r.
+Monad m =&gt;
+Producer a m r -&gt; m (Either r (a, Producer a m r))
+</span><span class="hs-identifier hs-var">P.next</span></span><span> </span><span class="annot"><span class="annottext">Producer (Record rs) m ()
+</span><a href="#local-6989586621679159536"><span class="hs-identifier hs-var">src</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span>               </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679159541"><span class="hs-identifier hs-type">maybeRow</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-243"></span><span>                 </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-244"></span><span>                   </span><span class="annot"><span class="annottext">m (FrameRec rs) -&gt; Proxy X () () (FrameRec rs) m (FrameRec rs)
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m a -&gt; Proxy X () () (FrameRec rs) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">P.lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Record (VectorMs m rs) -&gt; m (FrameRec rs)
+</span><a href="#local-6989586621679159540"><span class="hs-identifier hs-var">freezeFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159538"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159537"><span class="hs-identifier hs-var">mutVecs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Proxy X () () (FrameRec rs) m (FrameRec rs)
+-&gt; (FrameRec rs -&gt; Proxy X () () (FrameRec rs) m ())
+-&gt; Proxy X () () (FrameRec rs) m ()
+forall a b.
+Proxy X () () (FrameRec rs) m a
+-&gt; (a -&gt; Proxy X () () (FrameRec rs) m b)
+-&gt; Proxy X () () (FrameRec rs) m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">FrameRec rs -&gt; Proxy X () () (FrameRec rs) m ()
+forall (m :: * -&gt; *) a x' x. Functor m =&gt; a -&gt; Proxy x' x () a m ()
+</span><span class="hs-identifier hs-var">P.yield</span></span><span>
+</span><span id="line-245"></span><span>                 </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679159543"><span class="annot"><span class="annottext">Record rs
+</span><a href="#local-6989586621679159543"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679159544"><span class="annot"><span class="annottext">Producer (Record rs) m ()
+</span><a href="#local-6989586621679159544"><span class="hs-identifier hs-var">src'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-246"></span><span>                   </span><span class="annot"><span class="annottext">m () -&gt; Proxy X () () (FrameRec rs) m ()
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m a -&gt; Proxy X () () (FrameRec rs) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">P.lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs -&gt; Int -&gt; Record (VectorMs m rs) -&gt; Record rs -&gt; m ()
+</span><a href="Frames.InCore.html#writeRec"><span class="hs-identifier hs-var">writeRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159538"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159537"><span class="hs-identifier hs-var">mutVecs</span></a></span><span> </span><span class="annot"><span class="annottext">Record rs
+</span><a href="#local-6989586621679159543"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-247"></span><span>                   </span><span class="annot"><span class="annottext">Producer (Record rs) m ()
+-&gt; Record (VectorMs m rs)
+-&gt; Int
+-&gt; Proxy X () () (FrameRec rs) m ()
+</span><a href="#local-6989586621679159535"><span class="hs-identifier hs-var">goChunk</span></a></span><span> </span><span class="annot"><span class="annottext">Producer (Record rs) m ()
+</span><a href="#local-6989586621679159544"><span class="hs-identifier hs-var">src'</span></a></span><span> </span><span class="annot"><span class="annottext">Record (VectorMs m rs)
+</span><a href="#local-6989586621679159537"><span class="hs-identifier hs-var">mutVecs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159538"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-248"></span><span>        </span><span class="annot"><a href="#local-6989586621679159540"><span class="hs-identifier hs-type">freezeFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Rec.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.InCore.html#VectorMs"><span class="hs-identifier hs-type">VectorMs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159111"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159111"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span><span>        </span><span id="local-6989586621679159540"><span class="annot"><span class="annottext">freezeFrame :: Int -&gt; Record (VectorMs m rs) -&gt; m (FrameRec rs)
+</span><a href="#local-6989586621679159540"><span class="hs-identifier hs-var hs-var">freezeFrame</span></a></span></span><span> </span><span id="local-6989586621679159545"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159545"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-250"></span><span>          </span><span class="annot"><span class="annottext">(Record (Vectors rs) -&gt; FrameRec rs)
+-&gt; m (Record (Vectors rs)) -&gt; m (FrameRec rs)
+forall a b. (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Rec ((-&gt;) Int :. ElField) rs -&gt; FrameRec rs
+forall (rs :: [(Symbol, *)]).
+Int -&gt; Rec ((-&gt;) Int :. ElField) rs -&gt; FrameRec rs
+</span><a href="Frames.InCore.html#toAoS"><span class="hs-identifier hs-var">toAoS</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159545"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">(Rec ((-&gt;) Int :. ElField) rs -&gt; FrameRec rs)
+-&gt; (Record (Vectors rs) -&gt; Rec ((-&gt;) Int :. ElField) rs)
+-&gt; Record (Vectors rs)
+-&gt; FrameRec rs
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Proxy rs -&gt; Record (Vectors rs) -&gt; Rec ((-&gt;) Int :. ElField) rs
+forall (rs :: [(Symbol, *)]) (proxy :: [(Symbol, *)] -&gt; *).
+RecVec rs =&gt;
+proxy rs -&gt; Record (Vectors rs) -&gt; Rec ((-&gt;) Int :. ElField) rs
+forall (proxy :: [(Symbol, *)] -&gt; *).
+proxy rs -&gt; Record (Vectors rs) -&gt; Rec ((-&gt;) Int :. ElField) rs
+</span><a href="Frames.InCore.html#produceRec"><span class="hs-identifier hs-var">produceRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-251"></span><span>          </span><span class="annot"><span class="annottext">(m (Record (Vectors rs)) -&gt; m (FrameRec rs))
+-&gt; (Record (VectorMs m rs) -&gt; m (Record (Vectors rs)))
+-&gt; Record (VectorMs m rs)
+-&gt; m (FrameRec rs)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+forall (rs :: [(Symbol, *)]) (m :: * -&gt; *)
+       (proxy :: [(Symbol, *)] -&gt; *).
+(RecVec rs, PrimMonad m) =&gt;
+proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+forall (m :: * -&gt; *) (proxy :: [(Symbol, *)] -&gt; *).
+PrimMonad m =&gt;
+proxy rs
+-&gt; Int -&gt; Record (VectorMs m rs) -&gt; m (Record (Vectors rs))
+</span><a href="Frames.InCore.html#freezeRec"><span class="hs-identifier hs-var">freezeRec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy rs
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679159110"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159545"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-252"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Frames.InCore.html#produceFrameChunks"><span class="hs-pragma hs-type">produceFrameChunks</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-253"></span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- | Split a 'Frame' into chunks of no more than the given number of</span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- records. The underlying memory is shared with the original 'Frame'.</span><span>
+</span><span id="line-256"></span><span id="local-6989586621679159126"><span class="annot"><a href="Frames.InCore.html#frameChunks"><span class="hs-identifier hs-type">frameChunks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159126"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Frames.Frame.html#FrameRec"><span class="hs-identifier hs-type">FrameRec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159126"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-257"></span><span id="frameChunks"><span class="annot"><span class="annottext">frameChunks :: forall (rs :: [(Symbol, *)]). Int -&gt; FrameRec rs -&gt; [FrameRec rs]
+</span><a href="Frames.InCore.html#frameChunks"><span class="hs-identifier hs-var hs-var">frameChunks</span></a></span></span><span> </span><span id="local-6989586621679159555"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159555"><span class="hs-identifier hs-var">chunkSize</span></a></span></span><span> </span><span id="local-6989586621679159556"><span class="annot"><span class="annottext">FrameRec rs
+</span><a href="#local-6989586621679159556"><span class="hs-identifier hs-var">whole</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; FrameRec rs) -&gt; [Int] -&gt; [FrameRec rs]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; FrameRec rs
+</span><a href="#local-6989586621679159557"><span class="hs-identifier hs-var">aux</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159555"><span class="hs-identifier hs-var">chunkSize</span></a></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">FrameRec rs -&gt; Int
+forall r. Frame r -&gt; Int
+</span><a href="Frames.Frame.html#frameLength"><span class="hs-identifier hs-var">frameLength</span></a></span><span> </span><span class="annot"><span class="annottext">FrameRec rs
+</span><a href="#local-6989586621679159556"><span class="hs-identifier hs-var">whole</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-258"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679159557"><span class="annot"><span class="annottext">aux :: Int -&gt; FrameRec rs
+</span><a href="#local-6989586621679159557"><span class="hs-identifier hs-var hs-var">aux</span></a></span></span><span> </span><span id="local-6989586621679159559"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159559"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; Record rs) -&gt; FrameRec rs
+forall r. Int -&gt; (Int -&gt; r) -&gt; Frame r
+</span><a href="Frames.Frame.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FrameRec rs -&gt; Int
+forall r. Frame r -&gt; Int
+</span><a href="Frames.Frame.html#frameLength"><span class="hs-identifier hs-var">frameLength</span></a></span><span> </span><span class="annot"><span class="annottext">FrameRec rs
+</span><a href="#local-6989586621679159556"><span class="hs-identifier hs-var">whole</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159559"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159555"><span class="hs-identifier hs-var">chunkSize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-259"></span><span>                      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FrameRec rs -&gt; Int -&gt; Record rs
+forall r. Frame r -&gt; Int -&gt; r
+</span><a href="Frames.Frame.html#frameRow"><span class="hs-identifier hs-var">frameRow</span></a></span><span> </span><span class="annot"><span class="annottext">FrameRec rs
+</span><a href="#local-6989586621679159556"><span class="hs-identifier hs-var">whole</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Record rs) -&gt; (Int -&gt; Int) -&gt; Int -&gt; Record rs
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159559"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-260"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Frames.InCore.html#frameChunks"><span class="hs-pragma hs-type">frameChunks</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-261"></span></pre></body></html>

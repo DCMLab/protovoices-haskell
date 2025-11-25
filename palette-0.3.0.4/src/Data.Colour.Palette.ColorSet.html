@@ -1,0 +1,907 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module      :  Palette.ColorSet</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright   :  (c) 2013 Jeffrey Rosenbluth</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     :  BSD-style (see LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  :  jeffrey.rosenbluth@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Predefined sets of colors. Including the common html/css colors, The</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- colors from d3.js and the standard color wheel.</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- d3 Colors from https:\/\/github.com\/mbostock\/d3\/wiki\/Ordinal-Scales.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html"><span class="hs-identifier">Data.Colour.Palette.ColorSet</span></a></span><span>
+</span><span id="line-15"></span><span>       </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Predefined color palettes</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>         </span><span class="annot"><span class="hs-comment">-- ** Synonym for Colour Double</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>           </span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier">Kolor</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>         </span><span class="annot"><span class="hs-comment">-- ** RYB color wheel - red, rellow, blue</span></span><span>
+</span><span id="line-22"></span><span>         </span><span class="annot"><span class="hs-comment">-- *** Artist's pigment color wheel</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#rybColor"><span class="hs-identifier">rybColor</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>         </span><span class="annot"><span class="hs-comment">-- ** Colors from d3.js</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#Brightness"><span class="hs-identifier">Brightness</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3Colors1"><span class="hs-identifier">d3Colors1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3Colors2"><span class="hs-identifier">d3Colors2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3Colors4"><span class="hs-identifier">d3Colors4</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>         </span><span class="annot"><span class="hs-comment">-- ** Common html colors</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#webColors"><span class="hs-identifier">webColors</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#infiniteWebColors"><span class="hs-identifier">infiniteWebColors</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#getWebColor"><span class="hs-identifier">getWebColor</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>       </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Array.IArray</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sortBy</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour.SRGB</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sRGB24read</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toSRGB</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour.RGBSpace.HSV</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">hue</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Colour.Palette.Types.html"><span class="hs-identifier">Data.Colour.Palette.Types</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- &gt; import Data.Colour.Palette.ColorSet</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- &gt; wheel [] = circle 1 # fc black</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- &gt; wheel cs = wheel' # rotateBy r</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- &gt;   where</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- &gt;     wheel' = mconcat $ zipWith fc cs (iterateN n (rotateBy a) w)</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- &gt;     n = length cs</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- &gt;     a = 1 / (fromIntegral n) :: Turn</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- &gt;     w = wedge 1 (0 :: Turn) a # lw 0</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- &gt;     r = 1/4 - 1/(2*(fromIntegral n))</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- &gt; rybWheel = wheel [rybColor i | i &lt;- [0..23]]</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | The 24 colors from the artist's RYB color wheel. 0 == red.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- &lt;&lt;diagrams/src_Data_Colour_Palette_ColorSet_rybWheel.svg#diagram=rybWheel&amp;width=300&gt;&gt;</span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#rybColor"><span class="hs-identifier hs-type">rybColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span>
+</span><span id="line-58"></span><span id="rybColor"><span class="annot"><span class="annottext">rybColor :: Int -&gt; Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#rybColor"><span class="hs-identifier hs-var hs-var">rybColor</span></a></span></span><span> </span><span id="local-6989586621679060613"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060613"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array Int Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#rybColorA"><span class="hs-identifier hs-var">rybColorA</span></a></span><span> </span><span class="annot"><span class="annottext">Array Int Kolor -&gt; Int -&gt; Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+a i e -&gt; i -&gt; e
+</span><span class="hs-operator hs-var">!</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060613"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- A few hundred common html colors -------------------------------------------</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#numColors"><span class="hs-identifier hs-type">numColors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-63"></span><span id="numColors"><span class="annot"><span class="annottext">numColors :: Int
+</span><a href="Data.Colour.Palette.ColorSet.html#numColors"><span class="hs-identifier hs-var hs-var">numColors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Kolor] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#webColorL"><span class="hs-identifier hs-var">webColorL</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- Number of colors to skip beteen choices from hueColors.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- The idea is to skip enough similar colors so that the next color</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- is not too similar.</span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#primeRepeat"><span class="hs-identifier hs-type">primeRepeat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-69"></span><span id="primeRepeat"><span class="annot"><span class="annottext">primeRepeat :: Int
+</span><a href="Data.Colour.Palette.ColorSet.html#primeRepeat"><span class="hs-identifier hs-var hs-var">primeRepeat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">61</span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | Choose the `n`th color in an array @a@ skipping @skip@ colors</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--   every time.</span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#getWebColor"><span class="hs-identifier hs-type">getWebColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span>
+</span><span id="line-74"></span><span id="getWebColor"><span class="annot"><span class="annottext">getWebColor :: Array Int Kolor -&gt; Int -&gt; Int -&gt; Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#getWebColor"><span class="hs-identifier hs-var hs-var">getWebColor</span></a></span></span><span> </span><span id="local-6989586621679060621"><span class="annot"><span class="annottext">Array Int Kolor
+</span><a href="#local-6989586621679060621"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679060622"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060622"><span class="hs-identifier hs-var">skip</span></a></span></span><span> </span><span id="local-6989586621679060623"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060623"><span class="hs-identifier hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array Int Kolor
+</span><a href="#local-6989586621679060621"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Array Int Kolor -&gt; Int -&gt; Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+a i e -&gt; i -&gt; e
+</span><span class="hs-operator hs-var">!</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060624"><span class="hs-identifier hs-var">idx</span></a></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679060627"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060627"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679060628"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060628"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array Int Kolor -&gt; (Int, Int)
+forall i. Ix i =&gt; Array i Kolor -&gt; (i, i)
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+a i e -&gt; (i, i)
+</span><span class="hs-identifier hs-var">bounds</span></span><span> </span><span class="annot"><span class="annottext">Array Int Kolor
+</span><a href="#local-6989586621679060621"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679060632"><span class="annot"><span class="annottext">j :: Int
+</span><a href="#local-6989586621679060632"><span class="hs-identifier hs-var hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060623"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060622"><span class="hs-identifier hs-var">skip</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060628"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621679060624"><span class="annot"><span class="annottext">idx :: Int
+</span><a href="#local-6989586621679060624"><span class="hs-identifier hs-var hs-var">idx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060627"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060632"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- &gt; web = [[webColors (19 * j + i) | i &lt;- [0..19]] | j &lt;- [0..14]]</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- &gt; webcolors = grid web</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Return a color from webColorL arranged as to provide nice contrast</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--   between near by colors.</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- &lt;&lt;diagrams/src_Data_Colour_Palette_ColorSet_webcolors.svg#diagram=webcolors&amp;width=300&gt;&gt;</span><span>
+</span><span id="line-87"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#webColors"><span class="hs-identifier hs-type">webColors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span>
+</span><span id="line-88"></span><span id="webColors"><span class="annot"><span class="annottext">webColors :: Int -&gt; Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#webColors"><span class="hs-identifier hs-var hs-var">webColors</span></a></span></span><span> </span><span id="local-6989586621679060637"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060637"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array Int Kolor -&gt; Int -&gt; Int -&gt; Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#getWebColor"><span class="hs-identifier hs-var">getWebColor</span></a></span><span> </span><span class="annot"><span class="annottext">Array Int Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#webColorA"><span class="hs-identifier hs-var">webColorA</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Colour.Palette.ColorSet.html#primeRepeat"><span class="hs-identifier hs-var">primeRepeat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060637"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- Start with a blue.</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="annot"><span class="hs-comment">-- | A List of webColors ordered as above, cycling infinitely many times.</span></span><span>
+</span><span id="line-91"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#infiniteWebColors"><span class="hs-identifier hs-type">infiniteWebColors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-92"></span><span id="infiniteWebColors"><span class="annot"><span class="annottext">infiniteWebColors :: [Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#infiniteWebColors"><span class="hs-identifier hs-var hs-var">infiniteWebColors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Kolor] -&gt; [Kolor]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">cycle</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int -&gt; Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#webColors"><span class="hs-identifier hs-var">webColors</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060641"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679060641"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060641"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Colour.Palette.ColorSet.html#numColors"><span class="hs-identifier hs-var">numColors</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- Colors from d3. ------------------------------------------------------------</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | Four levels of brightness for functions that take a @Brightness@ parameter.</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--   For functions with only two levels of @Brightness@ we set @darkest == dark@</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--   and @lightest == light@.</span><span>
+</span><span id="line-100"></span><span class="hs-keyword">data</span><span> </span><span id="Brightness"><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#Brightness"><span class="hs-identifier hs-var">Brightness</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Darkest"><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#Darkest"><span class="hs-identifier hs-var">Darkest</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Dark"><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#Dark"><span class="hs-identifier hs-var">Dark</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Light"><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#Light"><span class="hs-identifier hs-var">Light</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Lightest"><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#Lightest"><span class="hs-identifier hs-var">Lightest</span></a></span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679060647"><span id="local-6989586621679060652"><span class="annot"><span class="annottext">Brightness -&gt; Brightness -&gt; Bool
+(Brightness -&gt; Brightness -&gt; Bool)
+-&gt; (Brightness -&gt; Brightness -&gt; Bool) -&gt; Eq Brightness
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Brightness -&gt; Brightness -&gt; Bool
+== :: Brightness -&gt; Brightness -&gt; Bool
+$c/= :: Brightness -&gt; Brightness -&gt; Bool
+/= :: Brightness -&gt; Brightness -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- &gt; import Data.Colour.Palette.ColorSet</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- &gt; gr = 1.618 -- golden ratio</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- &gt; bar [] = centerXY $ square gr # fc black</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- &gt; bar cs = centerXY $ hcat [square gr # scaleX s # fc k # lw 0 | k &lt;- cs]</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- &gt;   where s = gr / (fromIntegral (length cs))</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- &gt; singles      = bar [d3Colors1 n | n &lt;- [0..9]]</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Choose from one of 10 contrasting colors (0-9) borrowed from mbostock's d3.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">--</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- &lt;&lt;diagrams/src_Data_Colour_Palette_ColorSet_singles.svg#diagram=singles&amp;width=300&gt;&gt;</span><span>
+</span><span id="line-115"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3Colors1"><span class="hs-identifier hs-type">d3Colors1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>  </span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span>
+</span><span id="line-116"></span><span id="d3Colors1"><span class="annot"><span class="annottext">d3Colors1 :: Int -&gt; Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3Colors1"><span class="hs-identifier hs-var hs-var">d3Colors1</span></a></span></span><span> </span><span id="local-6989586621679060656"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060656"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array Int Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3c10"><span class="hs-identifier hs-var">d3c10</span></a></span><span> </span><span class="annot"><span class="annottext">Array Int Kolor -&gt; Int -&gt; Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+a i e -&gt; i -&gt; e
+</span><span class="hs-operator hs-var">!</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060656"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- &gt; d2 = [[d3Colors2  Dark  n | n &lt;- [0..9]], [d3Colors2 Light n | n &lt;- [0..9]]]</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- &gt; pairs      = grid d2</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- &gt; grid [] = centerXY $ square gr # fc black</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- &gt; grid cs = centerXY $ vcat [bar c # scaleY s | c &lt;- cs]</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- &gt;   where s = 1 / (fromIntegral (length cs))</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- | Choose 0 for dark and 1 for light for each pair of 10 sets of contrasting</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--   colors (0-9) from d3.</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- &lt;&lt;diagrams/src_Data_Colour_Palette_ColorSet_pairs.svg#diagram=pairs&amp;width=300&gt;&gt;</span><span>
+</span><span id="line-129"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3Colors2"><span class="hs-identifier hs-type">d3Colors2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#Brightness"><span class="hs-identifier hs-type">Brightness</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span>
+</span><span id="line-130"></span><span id="d3Colors2"><span class="annot"><span class="annottext">d3Colors2 :: Brightness -&gt; Int -&gt; Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3Colors2"><span class="hs-identifier hs-var hs-var">d3Colors2</span></a></span></span><span> </span><span id="local-6989586621679060658"><span class="annot"><span class="annottext">Brightness
+</span><a href="#local-6989586621679060658"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679060659"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060659"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array (Int, Int) Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3c20"><span class="hs-identifier hs-var">d3c20</span></a></span><span> </span><span class="annot"><span class="annottext">Array (Int, Int) Kolor -&gt; (Int, Int) -&gt; Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+a i e -&gt; i -&gt; e
+</span><span class="hs-operator hs-var">!</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060659"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060661"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679060661"><span class="annot"><span class="annottext">k :: Int
+</span><a href="#local-6989586621679060661"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Brightness
+</span><a href="#local-6989586621679060658"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Brightness -&gt; Brightness -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Brightness
+</span><a href="Data.Colour.Palette.ColorSet.html#Darkest"><span class="hs-identifier hs-var">Darkest</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Brightness
+</span><a href="#local-6989586621679060658"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Brightness -&gt; Brightness -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Brightness
+</span><a href="Data.Colour.Palette.ColorSet.html#Dark"><span class="hs-identifier hs-var">Dark</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- &gt; d4 = [[d3Colors4 b n | n &lt;- [0..9]] | b &lt;- [Darkest, Dark, Light, Lightest]]</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- &gt; quads      = grid d4</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- | Choose from 4 levels of darkness - 0 for darkest, 3 - for lightest. From</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--   10 quadruples of contrasting colors (0-9) from d3.</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- &lt;&lt;diagrams/src_Data_Colour_Palette_ColorSet_quads.svg#diagram=quads&amp;width=300&gt;&gt;</span><span>
+</span><span id="line-140"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3Colors4"><span class="hs-identifier hs-type">d3Colors4</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#Brightness"><span class="hs-identifier hs-type">Brightness</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span>
+</span><span id="line-141"></span><span id="d3Colors4"><span class="annot"><span class="annottext">d3Colors4 :: Brightness -&gt; Int -&gt; Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3Colors4"><span class="hs-identifier hs-var hs-var">d3Colors4</span></a></span></span><span> </span><span id="local-6989586621679060667"><span class="annot"><span class="annottext">Brightness
+</span><a href="#local-6989586621679060667"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679060668"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060668"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">Array (Int, Int) Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3c20bc"><span class="hs-identifier hs-var">d3c20bc</span></a></span><span> </span><span class="annot"><span class="annottext">Array (Int, Int) Kolor -&gt; (Int, Int) -&gt; Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+a i e -&gt; i -&gt; e
+</span><span class="hs-operator hs-var">!</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060668"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679060670"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679060670"><span class="annot"><span class="annottext">k :: Int
+</span><a href="#local-6989586621679060670"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Brightness
+</span><a href="#local-6989586621679060667"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>              </span><span class="annot"><span class="annottext">Brightness
+</span><a href="Data.Colour.Palette.ColorSet.html#Darkest"><span class="hs-identifier hs-var">Darkest</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-144"></span><span>              </span><span class="annot"><span class="annottext">Brightness
+</span><a href="Data.Colour.Palette.ColorSet.html#Dark"><span class="hs-identifier hs-var">Dark</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-145"></span><span>              </span><span class="annot"><span class="annottext">Brightness
+</span><a href="Data.Colour.Palette.ColorSet.html#Light"><span class="hs-identifier hs-var">Light</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-146"></span><span>              </span><span class="annot"><span class="annottext">Brightness
+</span><a href="Data.Colour.Palette.ColorSet.html#Lightest"><span class="hs-identifier hs-var">Lightest</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- Color data -----------------------------------------------------------------</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- d3.scale.category10()</span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3_10"><span class="hs-identifier hs-type">d3_10</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-153"></span><span id="d3_10"><span class="annot"><span class="annottext">d3_10 :: [Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#d3_10"><span class="hs-identifier hs-var hs-var">d3_10</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Kolor) -&gt; [String] -&gt; [Kolor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Kolor
+forall b. (Ord b, Floating b) =&gt; String -&gt; Colour b
+</span><span class="hs-identifier hs-var">sRGB24read</span></span><span>
+</span><span id="line-154"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#1f77b4&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff7f0e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2ca02c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d62728&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9467bd&quot;</span></span><span>
+</span><span id="line-155"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8c564b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e377c2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7f7f7f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#bcbd22&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#17becf&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3c10"><span class="hs-identifier hs-type">d3c10</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span id="d3c10"><span class="annot"><span class="annottext">d3c10 :: Array Int Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3c10"><span class="hs-identifier hs-var hs-var">d3c10</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int, Int) -&gt; [Kolor] -&gt; Array Int Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+(i, i) -&gt; [e] -&gt; a i e
+</span><span class="hs-identifier hs-var">listArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">9</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#d3_10"><span class="hs-identifier hs-var">d3_10</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- d3.scale.category20()</span><span>
+</span><span id="line-161"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3_20"><span class="hs-identifier hs-type">d3_20</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-162"></span><span id="d3_20"><span class="annot"><span class="annottext">d3_20 :: [Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#d3_20"><span class="hs-identifier hs-var hs-var">d3_20</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Kolor) -&gt; [String] -&gt; [Kolor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Kolor
+forall b. (Ord b, Floating b) =&gt; String -&gt; Colour b
+</span><span class="hs-identifier hs-var">sRGB24read</span></span><span>
+</span><span id="line-163"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#1f77b4&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#aec7e8&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff7f0e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffbb78&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2ca02c&quot;</span></span><span>
+</span><span id="line-164"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#98df8a&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d62728&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff9896&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9467bd&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c5b0d5&quot;</span></span><span>
+</span><span id="line-165"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8c564b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c49c94&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e377c2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f7b6d2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7f7f7f&quot;</span></span><span>
+</span><span id="line-166"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c7c7c7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#bcbd22&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#dbdb8d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#17becf&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9edae5&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3c20"><span class="hs-identifier hs-type">d3c20</span></a></span><span> </span><span class="hs-glyph">::</span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span id="d3c20"><span class="annot"><span class="annottext">d3c20 :: Array (Int, Int) Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3c20"><span class="hs-identifier hs-var hs-var">d3c20</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, Int), (Int, Int)) -&gt; [Kolor] -&gt; Array (Int, Int) Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+(i, i) -&gt; [e] -&gt; a i e
+</span><span class="hs-identifier hs-var">listArray</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">9</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#d3_20"><span class="hs-identifier hs-var">d3_20</span></a></span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- d3.scale.category20b() and d3.scale.category20c()</span><span>
+</span><span id="line-172"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3_40"><span class="hs-identifier hs-type">d3_40</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-173"></span><span id="d3_40"><span class="annot"><span class="annottext">d3_40 :: [Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#d3_40"><span class="hs-identifier hs-var hs-var">d3_40</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Kolor) -&gt; [String] -&gt; [Kolor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Kolor
+forall b. (Ord b, Floating b) =&gt; String -&gt; Colour b
+</span><span class="hs-identifier hs-var">sRGB24read</span></span><span>
+</span><span id="line-174"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#393b79&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#5254a3&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6b6ecf&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9c9ede&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#637939&quot;</span></span><span>
+</span><span id="line-175"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8ca252&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b5cf6b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#cedb9c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8c6d31&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#bd9e39&quot;</span></span><span>
+</span><span id="line-176"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e7ba52&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e7cb94&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#843c39&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ad494a&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d6616b&quot;</span></span><span>
+</span><span id="line-177"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e7969c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7b4173&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#a55194&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ce6dbd&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#de9ed6&quot;</span></span><span>
+</span><span id="line-178"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#3182bd&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6baed6&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9ecae1&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c6dbef&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e6550d&quot;</span></span><span>
+</span><span id="line-179"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fd8d3c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fdae6b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fdd0a2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#31a354&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#74c476&quot;</span></span><span>
+</span><span id="line-180"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#a1d99b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c7e9c0&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#756bb1&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9e9ac8&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#bcbddc&quot;</span></span><span>
+</span><span id="line-181"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#dadaeb&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#636363&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#969696&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#bdbdbd&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d9d9d9&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#d3c20bc"><span class="hs-identifier hs-type">d3c20bc</span></a></span><span> </span><span class="hs-glyph">::</span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span id="d3c20bc"><span class="annot"><span class="annottext">d3c20bc :: Array (Int, Int) Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#d3c20bc"><span class="hs-identifier hs-var hs-var">d3c20bc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, Int), (Int, Int)) -&gt; [Kolor] -&gt; Array (Int, Int) Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+(i, i) -&gt; [e] -&gt; a i e
+</span><span class="hs-identifier hs-var">listArray</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">9</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#d3_40"><span class="hs-identifier hs-var">d3_40</span></a></span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- List of commonly used html colors.</span><span>
+</span><span id="line-187"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#htmlColors"><span class="hs-identifier hs-type">htmlColors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-188"></span><span id="htmlColors"><span class="annot"><span class="annottext">htmlColors :: [Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#htmlColors"><span class="hs-identifier hs-var hs-var">htmlColors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Kolor) -&gt; [String] -&gt; [Kolor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Kolor
+forall b. (Ord b, Floating b) =&gt; String -&gt; Colour b
+</span><span class="hs-identifier hs-var">sRGB24read</span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#000000&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2c3539&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2b1b17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#34282c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#25383c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#3b3131&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#413839&quot;</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#463e3f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4c4646&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#504a4b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#565051&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#5c5858&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#625d5d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#666362&quot;</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6d6968&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#726e6d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#736f6e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#837e7c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#848482&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b6b6b4&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d1d0ce&quot;</span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e5e4e2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#bcc6cc&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#98afc7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6d7b8d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#657383&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#616d7e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#646d7e&quot;</span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#566d7e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#737ca1&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4863a0&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2b547e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2b3856&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#151b54&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#000080&quot;</span></span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#342d7e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#15317e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#151b8d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#0000a0&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#0020c2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#0041c2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2554c7&quot;</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#1569c7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2b60de&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#1f45fc&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6960ec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#736aff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#357ec7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#488ac7&quot;</span></span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#3090c7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#659ec7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#87afc7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#95b9c7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#728fce&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#2b65ec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#306eff&quot;</span></span><span>
+</span><span id="line-197"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#157dec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#1589ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6495ed&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6698ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#38acec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#56a5ec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#5cb3ff&quot;</span></span><span>
+</span><span id="line-198"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#3bb9ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#79baec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#82cafa&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#82caff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#a0cfec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b7ceec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b4cfec&quot;</span></span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c2dfff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c6deff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#afdcec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#addfff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#bdedff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#cfecec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e0ffff&quot;</span></span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ebf4fa&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f0f8ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f0ffff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ccffff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#93ffe8&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9afeff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7fffd4&quot;</span></span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#00ffff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7dfdfe&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#57feff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8eebec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#50ebec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4ee2ec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#81d8d0&quot;</span></span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#92c7c7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#77bfc7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#78c7c7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#48cccd&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#43c6db&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#46c7c7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#43bfc7&quot;</span></span><span>
+</span><span id="line-203"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#3ea99f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#3b9c9c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#438d80&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#348781&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#307d7e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#5e7d7e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4c787e&quot;</span></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#008080&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4e8975&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#78866b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#617c58&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#728c00&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#667c26&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#254117&quot;</span></span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#306754&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#347235&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#437c17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#387c44&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#347c2c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#347c17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#348017&quot;</span></span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4e9258&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6aa121&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4aa02c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#41a317&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#3ea055&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6cbb3c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6cc417&quot;</span></span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4cc417&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#52d017&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4cc552&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#54c571&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#99c68e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#89c35c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#85bb65&quot;</span></span><span>
+</span><span id="line-208"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8bb381&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9cb071&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b2c248&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9dc209&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#a1c935&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7fe817&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#59e817&quot;</span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#57e964&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#64e986&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#5efb6e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#00ff00&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#5ffb17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#87f717&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8afb17&quot;</span></span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6afb92&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#98ff98&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b5eaaa&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c3fdb8&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ccfb5d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b1fb17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#bce954&quot;</span></span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#edda74&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ede275&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffe87c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffff00&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fff380&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffffc2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffffcc&quot;</span></span><span>
+</span><span id="line-212"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fff8c6&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fff8dc&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f5f5dc&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#faebd7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffebcd&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f3e5ab&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ece5b6&quot;</span></span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffe5b4&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffdb58&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffd801&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fdd017&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#eac117&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f2bb66&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fbb917&quot;</span></span><span>
+</span><span id="line-214"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fbb117&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffa62f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e9ab17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e2a76f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#deb887&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffcba4&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c9be62&quot;</span></span><span>
+</span><span id="line-215"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e8a317&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ee9a4d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c8b560&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d4a017&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c2b280&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c7a317&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c68e17&quot;</span></span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b5a642&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ada96e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c19a6b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#cd7f32&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c88141&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c58917&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#af7817&quot;</span></span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b87333&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#966f33&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#806517&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#827839&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#827b60&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#786d5f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#493d26&quot;</span></span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#483c32&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6f4e37&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#835c3b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7f5217&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7f462c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c47451&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c36241&quot;</span></span><span>
+</span><span id="line-219"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c35817&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c85a17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#cc6600&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e56717&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e66c2c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f87217&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f87431&quot;</span></span><span>
+</span><span id="line-220"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e67451&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff8040&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f88017&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff7f50&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f88158&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f9966b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e78a61&quot;</span></span><span>
+</span><span id="line-221"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e18b6b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e77471&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f75d59&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e55451&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e55b3c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff0000&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff2400&quot;</span></span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f62217&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f70d1a&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f62817&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e42217&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e41b17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#dc381f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c34a2c&quot;</span></span><span>
+</span><span id="line-223"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c24641&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c04000&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c11b17&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9f000f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#990012&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8c001a&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7e3517&quot;</span></span><span>
+</span><span id="line-224"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8a4117&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7e3817&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#800517&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#810541&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7d0541&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7e354d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7d0552&quot;</span></span><span>
+</span><span id="line-225"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7f4e52&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7f5a58&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7f525d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b38481&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c5908e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c48189&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c48793&quot;</span></span><span>
+</span><span id="line-226"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e8adaa&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#edc9af&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fdd7e4&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fcdfff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffdfdd&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fbbbb9&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#faafbe&quot;</span></span><span>
+</span><span id="line-227"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#faafba&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f9a7b0&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e7a1b0&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e799a3&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e38aae&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f778a1&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e56e94&quot;</span></span><span>
+</span><span id="line-228"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f660ab&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fc6c85&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f6358a&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f52887&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e45e9d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e4287c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f535aa&quot;</span></span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff00ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e3319d&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f433ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d16587&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c25a7c&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ca226b&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c12869&quot;</span></span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c12267&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c25283&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c12283&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b93b8f&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7e587e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#571b7e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#583759&quot;</span></span><span>
+</span><span id="line-231"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4b0082&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#461b7e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#4e387e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#614051&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#5e5a80&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6a287e&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7d1b7e&quot;</span></span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#a74ac7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b048b5&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#6c2dc7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#842dce&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8d38c9&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7a5dc7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7f38ec&quot;</span></span><span>
+</span><span id="line-233"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8e35ef&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#893bff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#8467d7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#a23bec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#b041ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c45aec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9172ec&quot;</span></span><span>
+</span><span id="line-234"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9e7bff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d462ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e238ec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c38ec7&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#c8a2c8&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e6a9ec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e0b0ff&quot;</span></span><span>
+</span><span id="line-235"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#f9b7ff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#d2b9d3&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e9cfec&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ebdde2&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e3e4fa&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fdeef4&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fff5ee&quot;</span></span><span>
+</span><span id="line-236"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#fefcff&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffffff&quot;</span></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#webColorL"><span class="hs-identifier hs-type">webColorL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-239"></span><span id="webColorL"><span class="annot"><span class="annottext">webColorL :: [Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#webColorL"><span class="hs-identifier hs-var hs-var">webColorL</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Kolor -&gt; Kolor -&gt; Ordering) -&gt; [Kolor] -&gt; [Kolor]
+forall a. (a -&gt; a -&gt; Ordering) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sortBy</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679060680"><span class="annot"><span class="annottext">Kolor
+</span><a href="#local-6989586621679060680"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679060681"><span class="annot"><span class="annottext">Kolor
+</span><a href="#local-6989586621679060681"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Kolor -&gt; Double
+</span><a href="#local-6989586621679060682"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Kolor
+</span><a href="#local-6989586621679060680"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-operator hs-var">`compare`</span></span><span> </span><span class="annot"><span class="annottext">Kolor -&gt; Double
+</span><a href="#local-6989586621679060682"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Kolor
+</span><a href="#local-6989586621679060681"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#htmlColors"><span class="hs-identifier hs-var">htmlColors</span></a></span><span>
+</span><span id="line-240"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679060682"><span class="annot"><span class="annottext">f :: Kolor -&gt; Double
+</span><a href="#local-6989586621679060682"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RGB Double -&gt; Double
+forall a. (Fractional a, Ord a) =&gt; RGB a -&gt; a
+</span><span class="hs-identifier hs-var">hue</span></span><span> </span><span class="annot"><span class="annottext">(RGB Double -&gt; Double) -&gt; (Kolor -&gt; RGB Double) -&gt; Kolor -&gt; Double
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Kolor -&gt; RGB Double
+forall b. (Ord b, Floating b) =&gt; Colour b -&gt; RGB b
+</span><span class="hs-identifier hs-var">toSRGB</span></span><span>
+</span><span id="line-241"></span><span>
+</span><span id="line-242"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#webColorA"><span class="hs-identifier hs-type">webColorA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-243"></span><span id="webColorA"><span class="annot"><span class="annottext">webColorA :: Array Int Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#webColorA"><span class="hs-identifier hs-var hs-var">webColorA</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int, Int) -&gt; [Kolor] -&gt; Array Int Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+(i, i) -&gt; [e] -&gt; a i e
+</span><span class="hs-identifier hs-var">listArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Colour.Palette.ColorSet.html#numColors"><span class="hs-identifier hs-var">numColors</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#webColorL"><span class="hs-identifier hs-var">webColorL</span></a></span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#rybColors"><span class="hs-identifier hs-type">rybColors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-246"></span><span id="rybColors"><span class="annot"><span class="annottext">rybColors :: [Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#rybColors"><span class="hs-identifier hs-var hs-var">rybColors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">(String -&gt; Kolor) -&gt; [String] -&gt; [Kolor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Kolor
+forall b. (Ord b, Floating b) =&gt; String -&gt; Colour b
+</span><span class="hs-identifier hs-var">sRGB24read</span></span><span>
+</span><span id="line-247"></span><span>  </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff0000&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff4900&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff7400&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ff9200&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffaa00&quot;</span></span><span>
+</span><span id="line-248"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffbf00&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffd300&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffe800&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ffff00&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#ccf600&quot;</span></span><span>
+</span><span id="line-249"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#9fee00&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#67e300&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#00cc00&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#00af64&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#009999&quot;</span></span><span>
+</span><span id="line-250"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#0b61a4&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#1240ab&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#1b1bb3&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#3914af&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#530fad&quot;</span></span><span>
+</span><span id="line-251"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#7109aa&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#a600a6&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#cd0074&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#e40045&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="annot"><a href="Data.Colour.Palette.ColorSet.html#rybColorA"><span class="hs-identifier hs-type">rybColorA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Colour.Palette.Types.html#Kolor"><span class="hs-identifier hs-type">Kolor</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-254"></span><span id="rybColorA"><span class="annot"><span class="annottext">rybColorA :: Array Int Kolor
+</span><a href="Data.Colour.Palette.ColorSet.html#rybColorA"><span class="hs-identifier hs-var hs-var">rybColorA</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int, Int) -&gt; [Kolor] -&gt; Array Int Kolor
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+(i, i) -&gt; [e] -&gt; a i e
+</span><span class="hs-identifier hs-var">listArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">23</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Kolor]
+</span><a href="Data.Colour.Palette.ColorSet.html#rybColors"><span class="hs-identifier hs-var">rybColors</span></a></span><span>
+</span><span id="line-255"></span></pre></body></html>

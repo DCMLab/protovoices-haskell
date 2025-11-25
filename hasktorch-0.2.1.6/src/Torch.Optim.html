@@ -1,0 +1,685 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Torch.Optim.html"><span class="hs-identifier">Torch.Optim</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Mem</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">performGC</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Torch.Autograd.html"><span class="hs-identifier">Torch.Autograd</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Torch.Functional.html"><span class="hs-identifier">Torch.Functional</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Torch.Internal.GC</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mallocTrim</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Torch.NN.html"><span class="hs-identifier">Torch.NN</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Torch.Tensor.html"><span class="hs-identifier">Torch.Tensor</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Torch.TensorFactories.html"><span class="hs-identifier">Torch.TensorFactories</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sqrt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">force</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">type</span><span> </span><span id="LearningRate"><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-var">LearningRate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">type</span><span> </span><span id="Loss"><span class="annot"><a href="Torch.Optim.html#Loss"><span class="hs-identifier hs-var">Loss</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">newtype</span><span> </span><span id="Gradients"><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-var">Gradients</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Gradients"><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-var">Gradients</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679799526"><span id="local-6989586621679799533"><span id="local-6989586621679799537"><span class="annot"><span class="annottext">Int -&gt; Gradients -&gt; ShowS
+[Gradients] -&gt; ShowS
+Gradients -&gt; String
+(Int -&gt; Gradients -&gt; ShowS)
+-&gt; (Gradients -&gt; String)
+-&gt; ([Gradients] -&gt; ShowS)
+-&gt; Show Gradients
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Gradients -&gt; ShowS
+showsPrec :: Int -&gt; Gradients -&gt; ShowS
+$cshow :: Gradients -&gt; String
+show :: Gradients -&gt; String
+$cshowList :: [Gradients] -&gt; ShowS
+showList :: [Gradients] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">newtype</span><span> </span><span id="OptimizerState"><span class="annot"><a href="Torch.Optim.html#OptimizerState"><span class="hs-identifier hs-var">OptimizerState</span></a></span></span><span> </span><span id="local-6989586621679799543"><span class="annot"><a href="#local-6989586621679799543"><span class="hs-identifier hs-type">option</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OptimizerState"><span class="annot"><a href="Torch.Optim.html#OptimizerState"><span class="hs-identifier hs-var">OptimizerState</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679799543"><span class="hs-identifier hs-type">option</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Torch.Optim.html#grad%27"><span class="hs-identifier hs-type">grad'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Torch.Optim.html#Loss"><span class="hs-identifier hs-type">Loss</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.NN.html#Parameter"><span class="hs-identifier hs-type">Parameter</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span>
+</span><span id="line-28"></span><span id="grad%27"><span class="annot"><span class="annottext">grad' :: Tensor -&gt; [Parameter] -&gt; Gradients
+</span><a href="Torch.Optim.html#grad%27"><span class="hs-identifier hs-var hs-var">grad'</span></a></span></span><span> </span><span id="local-6989586621679799546"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799546"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679799547"><span class="annot"><span class="annottext">[Parameter]
+</span><a href="#local-6989586621679799547"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Tensor] -&gt; Gradients
+</span><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-var">Gradients</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor -&gt; [Parameter] -&gt; [Tensor]
+</span><a href="Torch.Autograd.html#grad"><span class="hs-identifier hs-var">grad</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799546"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">[Parameter]
+</span><a href="#local-6989586621679799547"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">class</span><span> </span><span id="Optimizer"><span class="annot"><a href="Torch.Optim.html#Optimizer"><span class="hs-identifier hs-var">Optimizer</span></a></span></span><span> </span><span id="local-6989586621679799418"><span class="annot"><a href="#local-6989586621679799418"><span class="hs-identifier hs-type">optimizer</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>  </span><span id="step"><span class="annot"><a href="Torch.Optim.html#step"><span class="hs-identifier hs-type">step</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679799418"><span class="hs-identifier hs-type">optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679799418"><span class="hs-identifier hs-type">optimizer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-comment">-- | run a single iteration of an optimizer, returning new parameters and updated optimizer state</span><span>
+</span><span id="line-34"></span><span>  </span><span id="runStep"><span class="annot"><a href="Torch.Optim.html#runStep"><span class="hs-identifier hs-type">runStep</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679799416"><span class="hs-special">(</span><span class="annot"><a href="Torch.NN.html#Parameterized"><span class="hs-identifier hs-type">Parameterized</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679799416"><span class="hs-identifier hs-type">model</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679799416"><span class="hs-identifier hs-type">model</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679799418"><span class="hs-identifier hs-type">optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#Loss"><span class="hs-identifier hs-type">Loss</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679799416"><span class="hs-identifier hs-type">model</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679799418"><span class="hs-identifier hs-type">optimizer</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679799552"><span class="annot"><a href="Torch.Optim.html#runStep"><span class="hs-identifier hs-var hs-var">runStep</span></a></span><span> </span><span id="local-6989586621679799557"><span class="annot"><span class="annottext">model
+</span><a href="#local-6989586621679799557"><span class="hs-identifier hs-var">paramState</span></a></span></span><span> </span><span id="local-6989586621679799558"><span class="annot"><span class="annottext">optimizer
+</span><a href="#local-6989586621679799558"><span class="hs-identifier hs-var">optState</span></a></span></span><span> </span><span id="local-6989586621679799559"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799559"><span class="hs-identifier hs-var">lossValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">model -&gt; optimizer -&gt; Gradients -&gt; Tensor -&gt; IO (model, optimizer)
+forall model.
+Parameterized model =&gt;
+model -&gt; optimizer -&gt; Gradients -&gt; Tensor -&gt; IO (model, optimizer)
+forall optimizer model.
+(Optimizer optimizer, Parameterized model) =&gt;
+model -&gt; optimizer -&gt; Gradients -&gt; Tensor -&gt; IO (model, optimizer)
+</span><a href="Torch.Optim.html#runStep%27"><span class="hs-identifier hs-var">runStep'</span></a></span><span> </span><span class="annot"><span class="annottext">model
+</span><a href="#local-6989586621679799557"><span class="hs-identifier hs-var">paramState</span></a></span><span> </span><span class="annot"><span class="annottext">optimizer
+</span><a href="#local-6989586621679799558"><span class="hs-identifier hs-var">optState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor -&gt; [Parameter] -&gt; Gradients
+</span><a href="Torch.Optim.html#grad%27"><span class="hs-identifier hs-var">grad'</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799559"><span class="hs-identifier hs-var">lossValue</span></a></span><span> </span><span class="annot"><span class="annottext">([Parameter] -&gt; Gradients) -&gt; [Parameter] -&gt; Gradients
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">model -&gt; [Parameter]
+forall f. Parameterized f =&gt; f -&gt; [Parameter]
+</span><a href="Torch.NN.html#flattenParameters"><span class="hs-identifier hs-var">flattenParameters</span></a></span><span> </span><span class="annot"><span class="annottext">model
+</span><a href="#local-6989586621679799557"><span class="hs-identifier hs-var">paramState</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-comment">-- | run a single iteration of an optimizer, returning new parameters and updated optimizer state</span><span>
+</span><span id="line-38"></span><span>  </span><span id="runStep%27"><span class="annot"><a href="Torch.Optim.html#runStep%27"><span class="hs-identifier hs-type">runStep'</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679799421"><span class="hs-special">(</span><span class="annot"><a href="Torch.NN.html#Parameterized"><span class="hs-identifier hs-type">Parameterized</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679799421"><span class="hs-identifier hs-type">model</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679799421"><span class="hs-identifier hs-type">model</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679799418"><span class="hs-identifier hs-type">optimizer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679799421"><span class="hs-identifier hs-type">model</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679799418"><span class="hs-identifier hs-type">optimizer</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621679799562"><span class="annot"><a href="Torch.Optim.html#runStep%27"><span class="hs-identifier hs-var hs-var">runStep'</span></a></span><span> </span><span id="local-6989586621679799576"><span class="annot"><span class="annottext">model
+</span><a href="#local-6989586621679799576"><span class="hs-identifier hs-var">paramState</span></a></span></span><span> </span><span id="local-6989586621679799577"><span class="annot"><span class="annottext">optimizer
+</span><a href="#local-6989586621679799577"><span class="hs-identifier hs-var">optState</span></a></span></span><span> </span><span id="local-6989586621679799578"><span class="annot"><span class="annottext">Gradients
+</span><a href="#local-6989586621679799578"><span class="hs-identifier hs-var">gradients</span></a></span></span><span> </span><span id="local-6989586621679799579"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799579"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">IO ()
+</span><span class="hs-identifier hs-var">performGC</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="annottext">CInt -&gt; IO ()
+</span><span class="hs-identifier hs-var">mallocTrim</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679799581"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799581"><span class="hs-identifier hs-var hs-var">flatParameters'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679799582"><span class="annot"><span class="annottext">optimizer
+</span><a href="#local-6989586621679799582"><span class="hs-identifier hs-var hs-var">optState'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor
+-&gt; Gradients -&gt; [Tensor] -&gt; optimizer -&gt; ([Tensor], optimizer)
+forall optimizer.
+Optimizer optimizer =&gt;
+Tensor
+-&gt; Gradients -&gt; [Tensor] -&gt; optimizer -&gt; ([Tensor], optimizer)
+</span><a href="Torch.Optim.html#step"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799579"><span class="hs-identifier hs-var">lr</span></a></span><span> </span><span class="annot"><span class="annottext">Gradients
+</span><a href="#local-6989586621679799578"><span class="hs-identifier hs-var">gradients</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799583"><span class="hs-identifier hs-var">depParameters</span></a></span><span> </span><span class="annot"><span class="annottext">optimizer
+</span><a href="#local-6989586621679799577"><span class="hs-identifier hs-var">optState</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span id="local-6989586621679799584"><span class="annot"><a href="#local-6989586621679799584"><span class="hs-identifier hs-var">newFlatParam</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; IO Parameter) -&gt; [Tensor] -&gt; IO [Parameter]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; IO Parameter
+</span><a href="Torch.Autograd.html#makeIndependent"><span class="hs-identifier hs-var">makeIndependent</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799581"><span class="hs-identifier hs-var">flatParameters'</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Torch.NN.html#replaceParameters"><span class="hs-identifier hs-type">replaceParameters</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679799576"><span class="hs-identifier hs-type">paramState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679799584"><span class="hs-identifier hs-type">newFlatParam</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679799582"><span class="hs-identifier hs-type">optState'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>      </span><span id="local-6989586621679799589"><span class="annot"><span class="annottext">flatParameters :: [Parameter]
+</span><a href="#local-6989586621679799589"><span class="hs-identifier hs-var hs-var">flatParameters</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">model -&gt; [Parameter]
+forall f. Parameterized f =&gt; f -&gt; [Parameter]
+</span><a href="Torch.NN.html#flattenParameters"><span class="hs-identifier hs-var">flattenParameters</span></a></span><span> </span><span class="annot"><span class="annottext">model
+</span><a href="#local-6989586621679799576"><span class="hs-identifier hs-var">paramState</span></a></span><span>
+</span><span id="line-47"></span><span>      </span><span id="local-6989586621679799583"><span class="annot"><span class="annottext">depParameters :: [Tensor]
+</span><a href="#local-6989586621679799583"><span class="hs-identifier hs-var hs-var">depParameters</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Parameter -&gt; Tensor) -&gt; [Parameter] -&gt; [Tensor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Parameter -&gt; Tensor
+</span><a href="Torch.Autograd.html#toDependent"><span class="hs-identifier hs-var">toDependent</span></a></span><span> </span><span class="annot"><span class="annottext">[Parameter]
+</span><a href="#local-6989586621679799589"><span class="hs-identifier hs-var">flatParameters</span></a></span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- Gradient Descent</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">data</span><span> </span><span id="GD"><span class="annot"><a href="Torch.Optim.html#GD"><span class="hs-identifier hs-var">GD</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GD"><span class="annot"><a href="Torch.Optim.html#GD"><span class="hs-identifier hs-var">GD</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679799594"><span id="local-6989586621679799596"><span id="local-6989586621679799600"><span class="annot"><span class="annottext">Int -&gt; GD -&gt; ShowS
+[GD] -&gt; ShowS
+GD -&gt; String
+(Int -&gt; GD -&gt; ShowS)
+-&gt; (GD -&gt; String) -&gt; ([GD] -&gt; ShowS) -&gt; Show GD
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; GD -&gt; ShowS
+showsPrec :: Int -&gt; GD -&gt; ShowS
+$cshow :: GD -&gt; String
+show :: GD -&gt; String
+$cshowList :: [GD] -&gt; ShowS
+showList :: [GD] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><span class="hs-comment">-- | Stateless gradient descent step</span></span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Torch.Optim.html#gd"><span class="hs-identifier hs-type">gd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span id="gd"><span class="annot"><span class="annottext">gd :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; [Tensor]
+</span><a href="Torch.Optim.html#gd"><span class="hs-identifier hs-var hs-var">gd</span></a></span></span><span> </span><span id="local-6989586621679799603"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799603"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span id="local-6989586621679799604"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799604"><span class="hs-identifier hs-var">gradients</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679799605"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799605"><span class="hs-identifier hs-var">parameters</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor -&gt; Tensor) -&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799607"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799605"><span class="hs-identifier hs-var">parameters</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799604"><span class="hs-identifier hs-var">gradients</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679799607"><span class="annot"><span class="annottext">step :: Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799607"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679799611"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799611"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679799612"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799612"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799611"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799603"><span class="hs-identifier hs-var">lr</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799612"><span class="hs-identifier hs-var">dp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">-- | Gradient descent step with a dummy state variable</span></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Torch.Optim.html#gd%27"><span class="hs-identifier hs-type">gd'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Torch.Optim.html#GD"><span class="hs-identifier hs-type">GD</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Torch.Optim.html#GD"><span class="hs-identifier hs-type">GD</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span id="gd%27"><span class="annot"><span class="annottext">gd' :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; GD -&gt; ([Tensor], GD)
+</span><a href="Torch.Optim.html#gd%27"><span class="hs-identifier hs-var hs-var">gd'</span></a></span></span><span> </span><span id="local-6989586621679799615"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799615"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span id="local-6989586621679799616"><span class="annot"><span class="annottext">Gradients
+</span><a href="#local-6989586621679799616"><span class="hs-identifier hs-var">gradients</span></a></span></span><span> </span><span id="local-6989586621679799617"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799617"><span class="hs-identifier hs-var">depParameters</span></a></span></span><span> </span><span id="local-6989586621679799618"><span class="annot"><span class="annottext">GD
+</span><a href="#local-6989586621679799618"><span class="hs-identifier hs-var">dummy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor -&gt; Gradients -&gt; [Tensor] -&gt; [Tensor]
+</span><a href="Torch.Optim.html#gd"><span class="hs-identifier hs-var">gd</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799615"><span class="hs-identifier hs-var">lr</span></a></span><span> </span><span class="annot"><span class="annottext">Gradients
+</span><a href="#local-6989586621679799616"><span class="hs-identifier hs-var">gradients</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799617"><span class="hs-identifier hs-var">depParameters</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">GD
+</span><a href="#local-6989586621679799618"><span class="hs-identifier hs-var">dummy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679799621"><span id="local-6989586621679799627"><span class="annot"><a href="Torch.Optim.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="annot"><a href="Torch.Optim.html#GD"><span class="hs-identifier hs-type">GD</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679799632"><span class="annot"><span class="annottext">step :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; GD -&gt; ([Tensor], GD)
+</span><a href="Torch.Optim.html#step"><span class="hs-identifier hs-var hs-var hs-var">step</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Gradients -&gt; [Tensor] -&gt; GD -&gt; ([Tensor], GD)
+</span><a href="Torch.Optim.html#gd%27"><span class="hs-identifier hs-var">gd'</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Torch.Optim.html#sgd"><span class="hs-identifier hs-type">sgd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.NN.html#Parameter"><span class="hs-identifier hs-type">Parameter</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-69"></span><span id="sgd"><span class="annot"><span class="annottext">sgd :: Tensor -&gt; [Parameter] -&gt; [Tensor] -&gt; [Tensor]
+</span><a href="Torch.Optim.html#sgd"><span class="hs-identifier hs-var hs-var">sgd</span></a></span></span><span> </span><span id="local-6989586621679799634"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799634"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span id="local-6989586621679799635"><span class="annot"><span class="annottext">[Parameter]
+</span><a href="#local-6989586621679799635"><span class="hs-identifier hs-var">parameters</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor -&gt; Tensor) -&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799636"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799637"><span class="hs-identifier hs-var">depParameters</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>    </span><span id="local-6989586621679799636"><span class="annot"><span class="annottext">step :: Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799636"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679799640"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799640"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679799641"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799641"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799640"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799634"><span class="hs-identifier hs-var">lr</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799641"><span class="hs-identifier hs-var">dp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679799637"><span class="annot"><span class="annottext">depParameters :: [Tensor]
+</span><a href="#local-6989586621679799637"><span class="hs-identifier hs-var hs-var">depParameters</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Parameter -&gt; Tensor) -&gt; [Parameter] -&gt; [Tensor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Parameter -&gt; Tensor
+</span><a href="Torch.Autograd.html#toDependent"><span class="hs-identifier hs-var">toDependent</span></a></span><span> </span><span class="annot"><span class="annottext">[Parameter]
+</span><a href="#local-6989586621679799635"><span class="hs-identifier hs-var">parameters</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- Gradient Descent with Momentum</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">data</span><span> </span><span id="GDM"><span class="annot"><a href="Torch.Optim.html#GDM"><span class="hs-identifier hs-var">GDM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GDM"><span class="annot"><a href="Torch.Optim.html#GDM"><span class="hs-identifier hs-var">GDM</span></a></span></span><span> </span><span class="hs-special">{</span><span id="beta"><span class="annot"><span class="annottext">GDM -&gt; Float
+</span><a href="Torch.Optim.html#beta"><span class="hs-identifier hs-var hs-var">beta</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span class="hs-special">,</span><span> </span><span id="momentum"><span class="annot"><span class="annottext">GDM -&gt; [Tensor]
+</span><a href="Torch.Optim.html#momentum"><span class="hs-identifier hs-var hs-var">momentum</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679799646"><span id="local-6989586621679799653"><span id="local-6989586621679799657"><span class="annot"><span class="annottext">Int -&gt; GDM -&gt; ShowS
+[GDM] -&gt; ShowS
+GDM -&gt; String
+(Int -&gt; GDM -&gt; ShowS)
+-&gt; (GDM -&gt; String) -&gt; ([GDM] -&gt; ShowS) -&gt; Show GDM
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; GDM -&gt; ShowS
+showsPrec :: Int -&gt; GDM -&gt; ShowS
+$cshow :: GDM -&gt; String
+show :: GDM -&gt; String
+$cshowList :: [GDM] -&gt; ShowS
+showList :: [GDM] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- gradient descent with momentum step</span><span>
+</span><span id="line-81"></span><span class="annot"><a href="Torch.Optim.html#gdm"><span class="hs-identifier hs-type">gdm</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><span class="hs-comment">-- | learning rate</span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="hs-comment">-- | model parameter gradients</span></span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><span class="hs-comment">-- | model parameters</span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><span class="hs-comment">-- | beta &amp; momentum</span></span><span>
+</span><span id="line-89"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#GDM"><span class="hs-identifier hs-type">GDM</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><span class="hs-comment">-- | returns new parameters + updated momentum</span></span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Torch.Optim.html#GDM"><span class="hs-identifier hs-type">GDM</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span id="gdm"><span class="annot"><span class="annottext">gdm :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; GDM -&gt; ([Tensor], GDM)
+</span><a href="Torch.Optim.html#gdm"><span class="hs-identifier hs-var hs-var">gdm</span></a></span></span><span> </span><span id="local-6989586621679799660"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799660"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span id="local-6989586621679799661"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799661"><span class="hs-identifier hs-var">gradients</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679799662"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799662"><span class="hs-identifier hs-var">parameters</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Torch.Optim.html#GDM"><span class="hs-identifier hs-type">GDM</span></a></span><span> </span><span id="local-6989586621679799663"><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799663"><span class="hs-identifier hs-var">beta</span></a></span></span><span> </span><span id="local-6989586621679799664"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799664"><span class="hs-identifier hs-var">momentum</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Tensor, Tensor) -&gt; Tensor) -&gt; [(Tensor, Tensor)] -&gt; [Tensor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">(Tensor, Tensor) -&gt; Tensor
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">[(Tensor, Tensor)]
+</span><a href="#local-6989586621679799666"><span class="hs-identifier hs-var">runStep</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Float -&gt; [Tensor] -&gt; GDM
+</span><a href="Torch.Optim.html#GDM"><span class="hs-identifier hs-var">GDM</span></a></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799663"><span class="hs-identifier hs-var">beta</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Tensor, Tensor) -&gt; Tensor) -&gt; [(Tensor, Tensor)] -&gt; [Tensor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">(Tensor, Tensor) -&gt; Tensor
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">[(Tensor, Tensor)]
+</span><a href="#local-6989586621679799666"><span class="hs-identifier hs-var">runStep</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621679799670"><span class="annot"><span class="annottext">step :: Tensor -&gt; Tensor -&gt; Tensor -&gt; (Tensor, Tensor)
+</span><a href="#local-6989586621679799670"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679799671"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799671"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679799672"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799672"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span id="local-6989586621679799673"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799673"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679799677"><span class="annot"><span class="annottext">z' :: Tensor
+</span><a href="#local-6989586621679799677"><span class="hs-identifier hs-var hs-var">z'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Float -&gt; Tensor -&gt; Tensor
+forall a. Scalar a =&gt; a -&gt; Tensor -&gt; Tensor
+</span><a href="Torch.Functional.html#mulScalar"><span class="hs-identifier hs-var">mulScalar</span></a></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799663"><span class="hs-identifier hs-var">beta</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799673"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799672"><span class="hs-identifier hs-var">dp</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799671"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799660"><span class="hs-identifier hs-var">lr</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799677"><span class="hs-identifier hs-var">z'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799677"><span class="hs-identifier hs-var">z'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679799666"><span class="annot"><span class="annottext">runStep :: [(Tensor, Tensor)]
+</span><a href="#local-6989586621679799666"><span class="hs-identifier hs-var hs-var">runStep</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor -&gt; Tensor -&gt; (Tensor, Tensor))
+-&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor] -&gt; [(Tensor, Tensor)]
+forall a b c d. (a -&gt; b -&gt; c -&gt; d) -&gt; [a] -&gt; [b] -&gt; [c] -&gt; [d]
+</span><span class="hs-identifier hs-var">zipWith3</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor -&gt; (Tensor, Tensor)
+</span><a href="#local-6989586621679799670"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799662"><span class="hs-identifier hs-var">parameters</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799661"><span class="hs-identifier hs-var">gradients</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799664"><span class="hs-identifier hs-var">momentum</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679799683"><span id="local-6989586621679799689"><span class="annot"><a href="Torch.Optim.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="annot"><a href="Torch.Optim.html#GDM"><span class="hs-identifier hs-type">GDM</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621679799693"><span class="annot"><span class="annottext">step :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; GDM -&gt; ([Tensor], GDM)
+</span><a href="Torch.Optim.html#step"><span class="hs-identifier hs-var hs-var hs-var">step</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Gradients -&gt; [Tensor] -&gt; GDM -&gt; ([Tensor], GDM)
+</span><a href="Torch.Optim.html#gdm"><span class="hs-identifier hs-var">gdm</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- Adam</span><span>
+</span><span id="line-103"></span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="annot"><span class="hs-comment">-- | State representation for Adam Optimizer</span></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">data</span><span> </span><span id="Adam"><span class="annot"><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-var">Adam</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Adam"><span class="annot"><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-var">Adam</span></a></span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="beta1"><span class="annot"><span class="annottext">Adam -&gt; Float
+</span><a href="Torch.Optim.html#beta1"><span class="hs-identifier hs-var hs-var">beta1</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- 1st moment forgetting factor</span><span>
+</span><span id="line-108"></span><span>    </span><span id="beta2"><span class="annot"><span class="annottext">Adam -&gt; Float
+</span><a href="Torch.Optim.html#beta2"><span class="hs-identifier hs-var hs-var">beta2</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- 2nd moment forgetting factor</span><span>
+</span><span id="line-109"></span><span>    </span><span id="m1"><span class="annot"><span class="annottext">Adam -&gt; [Tensor]
+</span><a href="Torch.Optim.html#m1"><span class="hs-identifier hs-var hs-var">m1</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- 1st moment</span><span>
+</span><span id="line-110"></span><span>    </span><span id="m2"><span class="annot"><span class="annottext">Adam -&gt; [Tensor]
+</span><a href="Torch.Optim.html#m2"><span class="hs-identifier hs-var hs-var">m2</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- 2nd moment</span><span>
+</span><span id="line-111"></span><span>    </span><span id="iter"><span class="annot"><span class="annottext">Adam -&gt; Int
+</span><a href="Torch.Optim.html#iter"><span class="hs-identifier hs-var hs-var">iter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-comment">-- iteration</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679799701"><span id="local-6989586621679799711"><span id="local-6989586621679799715"><span class="annot"><span class="annottext">Int -&gt; Adam -&gt; ShowS
+[Adam] -&gt; ShowS
+Adam -&gt; String
+(Int -&gt; Adam -&gt; ShowS)
+-&gt; (Adam -&gt; String) -&gt; ([Adam] -&gt; ShowS) -&gt; Show Adam
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Adam -&gt; ShowS
+showsPrec :: Int -&gt; Adam -&gt; ShowS
+$cshow :: Adam -&gt; String
+show :: Adam -&gt; String
+$cshowList :: [Adam] -&gt; ShowS
+showList :: [Adam] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679799718"><span id="local-6989586621679799720"><span class="annot"><span class="annottext">(forall x. Adam -&gt; Rep Adam x)
+-&gt; (forall x. Rep Adam x -&gt; Adam) -&gt; Generic Adam
+forall x. Rep Adam x -&gt; Adam
+forall x. Adam -&gt; Rep Adam x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Adam -&gt; Rep Adam x
+from :: forall x. Adam -&gt; Rep Adam x
+$cto :: forall x. Rep Adam x -&gt; Adam
+to :: forall x. Rep Adam x -&gt; Adam
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679799726"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-type">Adam</span></a></span></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Torch.Optim.html#mkAdam"><span class="hs-identifier hs-type">mkAdam</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">[</span><span class="annot"><a href="Torch.NN.html#Parameter"><span class="hs-identifier hs-type">Parameter</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-type">Adam</span></a></span><span>
+</span><span id="line-123"></span><span id="mkAdam"><span class="annot"><span class="annottext">mkAdam :: Int -&gt; Float -&gt; Float -&gt; [Parameter] -&gt; Adam
+</span><a href="Torch.Optim.html#mkAdam"><span class="hs-identifier hs-var hs-var">mkAdam</span></a></span></span><span> </span><span id="local-6989586621679799758"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679799758"><span class="hs-identifier hs-var">iter</span></a></span></span><span> </span><span id="local-6989586621679799759"><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799759"><span class="hs-identifier hs-var">beta1</span></a></span></span><span> </span><span id="local-6989586621679799760"><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799760"><span class="hs-identifier hs-var">beta2</span></a></span></span><span> </span><span id="local-6989586621679799761"><span class="annot"><span class="annottext">[Parameter]
+</span><a href="#local-6989586621679799761"><span class="hs-identifier hs-var">parameters</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-124"></span><span>  </span><span class="annot"><span class="annottext">Float -&gt; Float -&gt; [Tensor] -&gt; [Tensor] -&gt; Int -&gt; Adam
+</span><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-var">Adam</span></a></span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799759"><span class="hs-identifier hs-var">beta1</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799760"><span class="hs-identifier hs-var">beta2</span></a></span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parameter -&gt; Tensor
+</span><a href="#local-6989586621679799762"><span class="hs-identifier hs-var">initZeros</span></a></span><span> </span><span class="annot"><span class="annottext">(Parameter -&gt; Tensor) -&gt; [Parameter] -&gt; [Tensor]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Parameter]
+</span><a href="#local-6989586621679799761"><span class="hs-identifier hs-var">parameters</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parameter -&gt; Tensor
+</span><a href="#local-6989586621679799762"><span class="hs-identifier hs-var">initZeros</span></a></span><span> </span><span class="annot"><span class="annottext">(Parameter -&gt; Tensor) -&gt; [Parameter] -&gt; [Tensor]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Parameter]
+</span><a href="#local-6989586621679799761"><span class="hs-identifier hs-var">parameters</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679799758"><span class="hs-identifier hs-var">iter</span></a></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>    </span><span id="local-6989586621679799762"><span class="annot"><span class="annottext">initZeros :: Parameter -&gt; Tensor
+</span><a href="#local-6989586621679799762"><span class="hs-identifier hs-var hs-var">initZeros</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor
+</span><a href="Torch.TensorFactories.html#zerosLike"><span class="hs-identifier hs-var">zerosLike</span></a></span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor) -&gt; (Parameter -&gt; Tensor) -&gt; Parameter -&gt; Tensor
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Parameter -&gt; Tensor
+</span><a href="Torch.Autograd.html#toDependent"><span class="hs-identifier hs-var">toDependent</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="annot"><span class="hs-comment">-- | Adam step</span></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="Torch.Optim.html#adam"><span class="hs-identifier hs-type">adam</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-135"></span><span>  </span><span class="annot"><span class="hs-comment">-- | learning rate</span></span><span>
+</span><span id="line-136"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="hs-comment">-- | model parameter gradients</span></span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-139"></span><span>  </span><span class="annot"><span class="hs-comment">-- | model parameters</span></span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><span class="hs-comment">-- | adam parameters - beta1, beta2, moments, iteration</span></span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-type">Adam</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-143"></span><span>  </span><span class="annot"><span class="hs-comment">-- | returns new parameters + updated adam parameters</span></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-type">Adam</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span id="adam"><span class="annot"><span class="annottext">adam :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; Adam -&gt; ([Tensor], Adam)
+</span><a href="Torch.Optim.html#adam"><span class="hs-identifier hs-var hs-var">adam</span></a></span></span><span> </span><span id="local-6989586621679799767"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799767"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span id="local-6989586621679799768"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799768"><span class="hs-identifier hs-var">gradients</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679799769"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799769"><span class="hs-identifier hs-var">parameters</span></a></span></span><span> </span><span class="annot"><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-type">Adam</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679799770"><span id="local-6989586621679799771"><span id="local-6989586621679799772"><span id="local-6989586621679799773"><span id="local-6989586621679799774"><span class="annot"><span class="annottext">Float
+Int
+[Tensor]
+beta1 :: Adam -&gt; Float
+beta2 :: Adam -&gt; Float
+m1 :: Adam -&gt; [Tensor]
+m2 :: Adam -&gt; [Tensor]
+iter :: Adam -&gt; Int
+beta1 :: Float
+beta2 :: Float
+m1 :: [Tensor]
+m2 :: [Tensor]
+iter :: Int
+</span><a href="Torch.Optim.html#beta1"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799775"><span class="hs-identifier hs-var">parameters'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Float -&gt; Float -&gt; [Tensor] -&gt; [Tensor] -&gt; Int -&gt; Adam
+</span><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-var">Adam</span></a></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799770"><span class="hs-identifier hs-var">beta1</span></a></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799771"><span class="hs-identifier hs-var">beta2</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799776"><span class="hs-identifier hs-var">m1'</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799777"><span class="hs-identifier hs-var">m2'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679799774"><span class="hs-identifier hs-var">iter</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-comment">-- decaying averages of 1st &amp; 2nd moments</span><span>
+</span><span id="line-148"></span><span>    </span><span id="local-6989586621679799784"><span class="annot"><span class="annottext">f1 :: Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799784"><span class="hs-identifier hs-var hs-var">f1</span></a></span></span><span> </span><span id="local-6989586621679799785"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799785"><span class="hs-identifier hs-var">m1</span></a></span></span><span> </span><span id="local-6989586621679799786"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799786"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Float -&gt; Tensor -&gt; Tensor
+forall a. Scalar a =&gt; a -&gt; Tensor -&gt; Tensor
+</span><a href="Torch.Functional.html#mulScalar"><span class="hs-identifier hs-var">mulScalar</span></a></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799770"><span class="hs-identifier hs-var">beta1</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799785"><span class="hs-identifier hs-var">m1</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Float -&gt; Tensor -&gt; Tensor
+forall a. Scalar a =&gt; a -&gt; Tensor -&gt; Tensor
+</span><a href="Torch.Functional.html#mulScalar"><span class="hs-identifier hs-var">mulScalar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Float
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Float -&gt; Float -&gt; Float
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799770"><span class="hs-identifier hs-var">beta1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799786"><span class="hs-identifier hs-var">dp</span></a></span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621679799793"><span class="annot"><span class="annottext">f2 :: Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799793"><span class="hs-identifier hs-var hs-var">f2</span></a></span></span><span> </span><span id="local-6989586621679799794"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799794"><span class="hs-identifier hs-var">m2</span></a></span></span><span> </span><span id="local-6989586621679799795"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799795"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Float -&gt; Tensor -&gt; Tensor
+forall a. Scalar a =&gt; a -&gt; Tensor -&gt; Tensor
+</span><a href="Torch.Functional.html#mulScalar"><span class="hs-identifier hs-var">mulScalar</span></a></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799771"><span class="hs-identifier hs-var">beta2</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799794"><span class="hs-identifier hs-var">m2</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Float -&gt; Tensor -&gt; Tensor
+forall a. Scalar a =&gt; a -&gt; Tensor -&gt; Tensor
+</span><a href="Torch.Functional.html#mulScalar"><span class="hs-identifier hs-var">mulScalar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Float
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Float -&gt; Float -&gt; Float
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799771"><span class="hs-identifier hs-var">beta2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799795"><span class="hs-identifier hs-var">dp</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799795"><span class="hs-identifier hs-var">dp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-comment">-- force to prevent spine laziness. See https://github.com/hasktorch/hasktorch/pull/728</span><span>
+</span><span id="line-151"></span><span>    </span><span id="local-6989586621679799776"><span class="annot"><span class="annottext">m1' :: [Tensor]
+</span><a href="#local-6989586621679799776"><span class="hs-identifier hs-var hs-var">m1'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Tensor] -&gt; [Tensor]
+forall a. NFData a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">force</span></span><span> </span><span class="annot"><span class="annottext">([Tensor] -&gt; [Tensor]) -&gt; [Tensor] -&gt; [Tensor]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor -&gt; Tensor) -&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799784"><span class="hs-identifier hs-var">f1</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799772"><span class="hs-identifier hs-var">m1</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799768"><span class="hs-identifier hs-var">gradients</span></a></span><span>
+</span><span id="line-152"></span><span>    </span><span id="local-6989586621679799777"><span class="annot"><span class="annottext">m2' :: [Tensor]
+</span><a href="#local-6989586621679799777"><span class="hs-identifier hs-var hs-var">m2'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Tensor] -&gt; [Tensor]
+forall a. NFData a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">force</span></span><span> </span><span class="annot"><span class="annottext">([Tensor] -&gt; [Tensor]) -&gt; [Tensor] -&gt; [Tensor]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor -&gt; Tensor) -&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799793"><span class="hs-identifier hs-var">f2</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799773"><span class="hs-identifier hs-var">m2</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799768"><span class="hs-identifier hs-var">gradients</span></a></span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-comment">-- bias adjustment</span><span>
+</span><span id="line-154"></span><span>    </span><span id="local-6989586621679799813"><span class="annot"><span class="annottext">a :: a -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799813"><span class="hs-identifier hs-var hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679799814"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799814"><span class="hs-identifier hs-var">beta</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Tensor -&gt; Tensor
+forall a. Scalar a =&gt; a -&gt; Tensor -&gt; Tensor
+</span><a href="Torch.Functional.html#divScalar"><span class="hs-identifier hs-var">divScalar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799814"><span class="hs-identifier hs-var">beta</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679799774"><span class="hs-identifier hs-var">iter</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>    </span><span id="local-6989586621679799820"><span class="annot"><span class="annottext">a1 :: [Tensor]
+</span><a href="#local-6989586621679799820"><span class="hs-identifier hs-var hs-var">a1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor) -&gt; [Tensor] -&gt; [Tensor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Float -&gt; Tensor -&gt; Tensor
+forall {a}. (Scalar a, Num a) =&gt; a -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799813"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799770"><span class="hs-identifier hs-var">beta1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799776"><span class="hs-identifier hs-var">m1'</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span id="local-6989586621679799824"><span class="annot"><span class="annottext">a2 :: [Tensor]
+</span><a href="#local-6989586621679799824"><span class="hs-identifier hs-var hs-var">a2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor) -&gt; [Tensor] -&gt; [Tensor]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Float -&gt; Tensor -&gt; Tensor
+forall {a}. (Scalar a, Num a) =&gt; a -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799813"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="#local-6989586621679799771"><span class="hs-identifier hs-var">beta2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799777"><span class="hs-identifier hs-var">m2'</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="hs-comment">-- parameter update</span><span>
+</span><span id="line-158"></span><span>    </span><span id="local-6989586621679799828"><span class="annot"><span class="annottext">eps :: Tensor
+</span><a href="#local-6989586621679799828"><span class="hs-identifier hs-var hs-var">eps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><span class="hs-number">1e-37</span></span><span>
+</span><span id="line-159"></span><span>    </span><span id="local-6989586621679799833"><span class="annot"><span class="annottext">update :: Tensor -&gt; Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799833"><span class="hs-identifier hs-var hs-var">update</span></a></span></span><span> </span><span id="local-6989586621679799834"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799834"><span class="hs-identifier hs-var">prevParam</span></a></span></span><span> </span><span id="local-6989586621679799835"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799835"><span class="hs-identifier hs-var">a1'</span></a></span></span><span> </span><span id="local-6989586621679799836"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799836"><span class="hs-identifier hs-var">a2'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799834"><span class="hs-identifier hs-var">prevParam</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799767"><span class="hs-identifier hs-var">lr</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799835"><span class="hs-identifier hs-var">a1'</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor -&gt; Tensor
+</span><a href="Torch.Functional.html#sqrt"><span class="hs-identifier hs-var">sqrt</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799836"><span class="hs-identifier hs-var">a2'</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799828"><span class="hs-identifier hs-var">eps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>    </span><span id="local-6989586621679799775"><span class="annot"><span class="annottext">parameters' :: [Tensor]
+</span><a href="#local-6989586621679799775"><span class="hs-identifier hs-var hs-var">parameters'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor -&gt; Tensor -&gt; Tensor)
+-&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor]
+forall a b c d. (a -&gt; b -&gt; c -&gt; d) -&gt; [a] -&gt; [b] -&gt; [c] -&gt; [d]
+</span><span class="hs-identifier hs-var">zipWith3</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799833"><span class="hs-identifier hs-var">update</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799769"><span class="hs-identifier hs-var">parameters</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799820"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799824"><span class="hs-identifier hs-var">a2</span></a></span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679799841"><span id="local-6989586621679799847"><span class="annot"><a href="Torch.Optim.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="annot"><a href="Torch.Optim.html#Adam"><span class="hs-identifier hs-type">Adam</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-163"></span><span>  </span><span id="local-6989586621679799851"><span class="annot"><span class="annottext">step :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; Adam -&gt; ([Tensor], Adam)
+</span><a href="Torch.Optim.html#step"><span class="hs-identifier hs-var hs-var hs-var">step</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Gradients -&gt; [Tensor] -&gt; Adam -&gt; ([Tensor], Adam)
+</span><a href="Torch.Optim.html#adam"><span class="hs-identifier hs-var">adam</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-comment">--</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- Adagrad</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--</span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span class="annot"><span class="hs-comment">-- | State representation for Adagrad Optimizer</span></span><span>
+</span><span id="line-170"></span><span class="hs-keyword">data</span><span> </span><span id="Adagrad"><span class="annot"><a href="Torch.Optim.html#Adagrad"><span class="hs-identifier hs-var">Adagrad</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Adagrad"><span class="annot"><a href="Torch.Optim.html#Adagrad"><span class="hs-identifier hs-var">Adagrad</span></a></span></span><span> </span><span class="hs-special">{</span><span id="gsum"><span class="annot"><span class="annottext">Adagrad -&gt; [Tensor]
+</span><a href="Torch.Optim.html#gsum"><span class="hs-identifier hs-var hs-var">gsum</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">}</span><span> </span><span class="hs-comment">-- sum of squared gradients</span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679799855"><span id="local-6989586621679799860"><span id="local-6989586621679799864"><span class="annot"><span class="annottext">Int -&gt; Adagrad -&gt; ShowS
+[Adagrad] -&gt; ShowS
+Adagrad -&gt; String
+(Int -&gt; Adagrad -&gt; ShowS)
+-&gt; (Adagrad -&gt; String) -&gt; ([Adagrad] -&gt; ShowS) -&gt; Show Adagrad
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Adagrad -&gt; ShowS
+showsPrec :: Int -&gt; Adagrad -&gt; ShowS
+$cshow :: Adagrad -&gt; String
+show :: Adagrad -&gt; String
+$cshowList :: [Adagrad] -&gt; ShowS
+showList :: [Adagrad] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="annot"><span class="hs-comment">-- | Adagrad step</span></span><span>
+</span><span id="line-174"></span><span class="annot"><a href="Torch.Optim.html#adagrad"><span class="hs-identifier hs-type">adagrad</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><span class="hs-comment">-- | learning rate</span></span><span>
+</span><span id="line-176"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#LearningRate"><span class="hs-identifier hs-type">LearningRate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-177"></span><span>  </span><span class="annot"><span class="hs-comment">-- | model parameter gradients</span></span><span>
+</span><span id="line-178"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-179"></span><span>  </span><span class="annot"><span class="hs-comment">-- | model parameters</span></span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="hs-comment">-- | adagrad parameters - gsum, iteration</span></span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><a href="Torch.Optim.html#Adagrad"><span class="hs-identifier hs-type">Adagrad</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-183"></span><span>  </span><span class="annot"><span class="hs-comment">-- | returns new parameters + updated adam parameters</span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Torch.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Torch.Optim.html#Adagrad"><span class="hs-identifier hs-type">Adagrad</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span id="adagrad"><span class="annot"><span class="annottext">adagrad :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; Adagrad -&gt; ([Tensor], Adagrad)
+</span><a href="Torch.Optim.html#adagrad"><span class="hs-identifier hs-var hs-var">adagrad</span></a></span></span><span> </span><span id="local-6989586621679799867"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799867"><span class="hs-identifier hs-var">lr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Torch.Optim.html#Gradients"><span class="hs-identifier hs-type">Gradients</span></a></span><span> </span><span id="local-6989586621679799868"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799868"><span class="hs-identifier hs-var">gradients</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679799869"><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799869"><span class="hs-identifier hs-var">parameters</span></a></span></span><span> </span><span class="annot"><a href="Torch.Optim.html#Adagrad"><span class="hs-identifier hs-type">Adagrad</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679799870"><span class="annot"><span class="annottext">[Tensor]
+gsum :: Adagrad -&gt; [Tensor]
+gsum :: [Tensor]
+</span><a href="Torch.Optim.html#gsum"><span class="hs-glyph hs-var hs-var">..</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799871"><span class="hs-identifier hs-var">parameters'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Tensor] -&gt; Adagrad
+</span><a href="Torch.Optim.html#Adagrad"><span class="hs-identifier hs-var">Adagrad</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799872"><span class="hs-identifier hs-var">gsum'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-187"></span><span>    </span><span class="hs-comment">-- add gradient squared to running total</span><span>
+</span><span id="line-188"></span><span>    </span><span id="local-6989586621679799876"><span class="annot"><span class="annottext">f :: a -&gt; a -&gt; a
+</span><a href="#local-6989586621679799876"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679799877"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799877"><span class="hs-identifier hs-var">gsum</span></a></span></span><span> </span><span id="local-6989586621679799878"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799878"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799877"><span class="hs-identifier hs-var">gsum</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799878"><span class="hs-identifier hs-var">dp</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799878"><span class="hs-identifier hs-var">dp</span></a></span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679799872"><span class="annot"><span class="annottext">gsum' :: [Tensor]
+</span><a href="#local-6989586621679799872"><span class="hs-identifier hs-var hs-var">gsum'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor -&gt; Tensor) -&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="#local-6989586621679799876"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799870"><span class="hs-identifier hs-var">gsum</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799868"><span class="hs-identifier hs-var">gradients</span></a></span><span>
+</span><span id="line-190"></span><span>
+</span><span id="line-191"></span><span>    </span><span class="hs-comment">-- parameter update</span><span>
+</span><span id="line-192"></span><span>    </span><span id="local-6989586621679799882"><span class="annot"><span class="annottext">eps :: Tensor
+</span><a href="#local-6989586621679799882"><span class="hs-identifier hs-var hs-var">eps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><span class="hs-number">1e-37</span></span><span>
+</span><span id="line-193"></span><span>    </span><span id="local-6989586621679799887"><span class="annot"><span class="annottext">update :: Tensor -&gt; Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799887"><span class="hs-identifier hs-var hs-var">update</span></a></span></span><span> </span><span id="local-6989586621679799888"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799888"><span class="hs-identifier hs-var">prevParam</span></a></span></span><span> </span><span id="local-6989586621679799889"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799889"><span class="hs-identifier hs-var">a1'</span></a></span></span><span> </span><span id="local-6989586621679799890"><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799890"><span class="hs-identifier hs-var">a2'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799888"><span class="hs-identifier hs-var">prevParam</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799867"><span class="hs-identifier hs-var">lr</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799889"><span class="hs-identifier hs-var">a1'</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor -&gt; Tensor
+</span><a href="Torch.Functional.html#sqrt"><span class="hs-identifier hs-var">sqrt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799890"><span class="hs-identifier hs-var">a2'</span></a></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Tensor
+</span><a href="#local-6989586621679799882"><span class="hs-identifier hs-var">eps</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>    </span><span id="local-6989586621679799871"><span class="annot"><span class="annottext">parameters' :: [Tensor]
+</span><a href="#local-6989586621679799871"><span class="hs-identifier hs-var hs-var">parameters'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tensor -&gt; Tensor -&gt; Tensor -&gt; Tensor)
+-&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor] -&gt; [Tensor]
+forall a b c d. (a -&gt; b -&gt; c -&gt; d) -&gt; [a] -&gt; [b] -&gt; [c] -&gt; [d]
+</span><span class="hs-identifier hs-var">zipWith3</span></span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Tensor -&gt; Tensor -&gt; Tensor
+</span><a href="#local-6989586621679799887"><span class="hs-identifier hs-var">update</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799869"><span class="hs-identifier hs-var">parameters</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799868"><span class="hs-identifier hs-var">gradients</span></a></span><span> </span><span class="annot"><span class="annottext">[Tensor]
+</span><a href="#local-6989586621679799872"><span class="hs-identifier hs-var">gsum'</span></a></span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679799893"><span id="local-6989586621679799899"><span class="annot"><a href="Torch.Optim.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a></span><span> </span><span class="annot"><a href="Torch.Optim.html#Adagrad"><span class="hs-identifier hs-type">Adagrad</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-197"></span><span>  </span><span id="local-6989586621679799903"><span class="annot"><span class="annottext">step :: Tensor -&gt; Gradients -&gt; [Tensor] -&gt; Adagrad -&gt; ([Tensor], Adagrad)
+</span><a href="Torch.Optim.html#step"><span class="hs-identifier hs-var hs-var hs-var">step</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tensor -&gt; Gradients -&gt; [Tensor] -&gt; Adagrad -&gt; ([Tensor], Adagrad)
+</span><a href="Torch.Optim.html#adagrad"><span class="hs-identifier hs-var">adagrad</span></a></span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="annot"><span class="hs-comment">-- | syntactic sugar for looping with foldM</span></span><span>
+</span><span id="line-200"></span><span id="local-6989586621679799502"><span class="annot"><a href="Torch.Optim.html#foldLoop"><span class="hs-identifier hs-type">foldLoop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679799502"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679799502"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679799502"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679799502"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-201"></span><span id="foldLoop"><span class="annot"><span class="annottext">foldLoop :: forall a. a -&gt; Int -&gt; (a -&gt; Int -&gt; IO a) -&gt; IO a
+</span><a href="Torch.Optim.html#foldLoop"><span class="hs-identifier hs-var hs-var">foldLoop</span></a></span></span><span> </span><span id="local-6989586621679799911"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799911"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679799912"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679799912"><span class="hs-identifier hs-var">count</span></a></span></span><span> </span><span id="local-6989586621679799913"><span class="annot"><span class="annottext">a -&gt; Int -&gt; IO a
+</span><a href="#local-6989586621679799913"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Int -&gt; IO a) -&gt; a -&gt; [Int] -&gt; IO a
+forall (t :: * -&gt; *) (m :: * -&gt; *) b a.
+(Foldable t, Monad m) =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m b
+</span><span class="hs-identifier hs-var">foldM</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; IO a
+</span><a href="#local-6989586621679799913"><span class="hs-identifier hs-var">block</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679799911"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679799912"><span class="hs-identifier hs-var">count</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-202"></span></pre></body></html>

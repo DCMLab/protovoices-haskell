@@ -8,7 +8,7 @@
 @version 0.1.0.0
 
 module Musicology.Core
-class (Num (TimeOf a), Ord (TimeOf a)) => Timed a where {
+class (Num TimeOf a, Ord TimeOf a) => Timed a where {
     type TimeOf a;
 }
 class Timed a => HasTime a
@@ -18,7 +18,7 @@ onset :: HasTime a => a -> TimeOf a
 offset :: HasTime a => a -> TimeOf a
 setOnset :: HasTime a => TimeOf a -> a -> a
 setOffset :: HasTime a => TimeOf a -> a -> a
-class (Interval (IntervalOf a), ReTypeInterval a (IntervalOf a) ~ a) => Pitched a where {
+class (Interval IntervalOf a, ReTypeInterval a IntervalOf a ~ a) => Pitched a where {
     type IntervalOf a;
     type ReTypeInterval a p;
 }
@@ -26,7 +26,7 @@ class Pitched a => HasInterval a
 intervalL :: (HasInterval a, IntervalOf (ReTypeInterval a p2) ~ p2) => Lens a (ReTypeInterval a p2) (IntervalOf a) p2
 interval :: HasInterval a => a -> IntervalOf a
 setInterval :: (HasInterval a, IntervalOf (ReTypeInterval a p2) ~ p2) => p2 -> a -> ReTypeInterval a p2
-class (Pitched a) => HasPitch a
+class Pitched a => HasPitch a
 pitchL :: (HasPitch a, IntervalOf (ReTypeInterval a p2) ~ p2) => Lens a (ReTypeInterval a p2) (Pitch (IntervalOf a)) (Pitch p2)
 pitch :: HasPitch a => a -> Pitch (IntervalOf a)
 setPitch :: (HasPitch a, IntervalOf (ReTypeInterval a p2) ~ p2) => Pitch p2 -> a -> ReTypeInterval a p2
@@ -44,7 +44,7 @@ NoteId :: !Pitch p -> !t -> !t -> !i -> NoteId p t i
 data OnOff c t
 Onset :: c -> !t -> OnOff c t
 Offset :: c -> !t -> OnOff c t
-onOffContent :: Lens (OnOff c t) (OnOff c2 t) c c2
+onOffContent :: forall c t c2 f. Functor f => (c -> f c2) -> OnOff c t -> f (OnOff c2 t)
 isOn :: OnOff c t -> Bool
 isOff :: OnOff c t -> Bool
 data Tied
@@ -61,78 +61,78 @@ Ends :: RightTied
 rightTie :: Tied -> RightTied
 leftTie :: Tied -> LeftTied
 fullTie :: LeftTied -> RightTied -> Tied
-instance (Data.Hashable.Class.Hashable c, Data.Hashable.Class.Hashable t) => Data.Hashable.Class.Hashable (Musicology.Core.TimedEvent c t)
-instance (Control.DeepSeq.NFData c, Control.DeepSeq.NFData t) => Control.DeepSeq.NFData (Musicology.Core.TimedEvent c t)
-instance GHC.Generics.Generic (Musicology.Core.TimedEvent c t)
-instance (GHC.Read.Read c, GHC.Read.Read t) => GHC.Read.Read (Musicology.Core.TimedEvent c t)
-instance (GHC.Show.Show c, GHC.Show.Show t) => GHC.Show.Show (Musicology.Core.TimedEvent c t)
-instance (GHC.Classes.Ord c, GHC.Classes.Ord t) => GHC.Classes.Ord (Musicology.Core.TimedEvent c t)
-instance (GHC.Classes.Eq c, GHC.Classes.Eq t) => GHC.Classes.Eq (Musicology.Core.TimedEvent c t)
-instance (Data.Hashable.Class.Hashable p, Data.Hashable.Class.Hashable t) => Data.Hashable.Class.Hashable (Musicology.Core.Note p t)
-instance (Control.DeepSeq.NFData p, Control.DeepSeq.NFData t) => Control.DeepSeq.NFData (Musicology.Core.Note p t)
-instance GHC.Generics.Generic (Musicology.Core.Note p t)
-instance (GHC.Classes.Ord p, GHC.Classes.Ord t) => GHC.Classes.Ord (Musicology.Core.Note p t)
-instance (GHC.Classes.Eq p, GHC.Classes.Eq t) => GHC.Classes.Eq (Musicology.Core.Note p t)
-instance (Data.Hashable.Class.Hashable p, Data.Hashable.Class.Hashable t, Data.Hashable.Class.Hashable i) => Data.Hashable.Class.Hashable (Musicology.Core.NoteId p t i)
-instance (Control.DeepSeq.NFData p, Control.DeepSeq.NFData t, Control.DeepSeq.NFData i) => Control.DeepSeq.NFData (Musicology.Core.NoteId p t i)
-instance GHC.Generics.Generic (Musicology.Core.NoteId p t i)
-instance (GHC.Classes.Ord p, GHC.Classes.Ord t, GHC.Classes.Ord i) => GHC.Classes.Ord (Musicology.Core.NoteId p t i)
-instance (GHC.Classes.Eq p, GHC.Classes.Eq t, GHC.Classes.Eq i) => GHC.Classes.Eq (Musicology.Core.NoteId p t i)
-instance (Data.Hashable.Class.Hashable c, Data.Hashable.Class.Hashable t) => Data.Hashable.Class.Hashable (Musicology.Core.OnOff c t)
-instance (Control.DeepSeq.NFData c, Control.DeepSeq.NFData t) => Control.DeepSeq.NFData (Musicology.Core.OnOff c t)
-instance GHC.Generics.Generic (Musicology.Core.OnOff c t)
-instance (GHC.Read.Read c, GHC.Read.Read t) => GHC.Read.Read (Musicology.Core.OnOff c t)
-instance (GHC.Show.Show c, GHC.Show.Show t) => GHC.Show.Show (Musicology.Core.OnOff c t)
-instance (GHC.Classes.Ord c, GHC.Classes.Ord t) => GHC.Classes.Ord (Musicology.Core.OnOff c t)
-instance (GHC.Classes.Eq c, GHC.Classes.Eq t) => GHC.Classes.Eq (Musicology.Core.OnOff c t)
-instance Data.Hashable.Class.Hashable Musicology.Core.Tied
-instance Control.DeepSeq.NFData Musicology.Core.Tied
-instance GHC.Generics.Generic Musicology.Core.Tied
-instance GHC.Classes.Ord Musicology.Core.Tied
-instance GHC.Classes.Eq Musicology.Core.Tied
-instance GHC.Show.Show Musicology.Core.Tied
-instance Data.Hashable.Class.Hashable Musicology.Core.RightTied
-instance Control.DeepSeq.NFData Musicology.Core.RightTied
-instance GHC.Generics.Generic Musicology.Core.RightTied
-instance GHC.Classes.Ord Musicology.Core.RightTied
-instance GHC.Classes.Eq Musicology.Core.RightTied
-instance GHC.Show.Show Musicology.Core.RightTied
-instance Data.Hashable.Class.Hashable Musicology.Core.LeftTied
-instance Control.DeepSeq.NFData Musicology.Core.LeftTied
-instance GHC.Generics.Generic Musicology.Core.LeftTied
-instance GHC.Classes.Ord Musicology.Core.LeftTied
 instance GHC.Classes.Eq Musicology.Core.LeftTied
-instance GHC.Show.Show Musicology.Core.LeftTied
-instance (GHC.Show.Show (Musicology.Pitch.Class.Pitch p), GHC.Show.Show t) => GHC.Show.Show (Musicology.Core.Note p t)
-instance (GHC.Read.Read (Musicology.Pitch.Class.Pitch p), GHC.Read.Read t) => GHC.Read.Read (Musicology.Core.Note p t)
-instance (GHC.Show.Show (Musicology.Pitch.Class.Pitch p), GHC.Show.Show t, GHC.Show.Show i) => GHC.Show.Show (Musicology.Core.NoteId p t i)
-instance (GHC.Read.Read (Musicology.Pitch.Class.Pitch p), GHC.Read.Read t, GHC.Read.Read i) => GHC.Read.Read (Musicology.Core.NoteId p t i)
-instance (GHC.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.Timed (Musicology.Core.OnOff c t)
-instance (GHC.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.HasTime (Musicology.Core.OnOff p t)
-instance Musicology.Core.Pitched c => Musicology.Core.Pitched (Musicology.Core.OnOff c t)
-instance Musicology.Core.HasInterval c => Musicology.Core.HasInterval (Musicology.Core.OnOff c t)
-instance Musicology.Core.HasPitch c => Musicology.Core.HasPitch (Musicology.Core.OnOff c t)
-instance (GHC.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.Timed (Musicology.Core.NoteId p t i)
-instance (GHC.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.HasTime (Musicology.Core.NoteId p t i)
-instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched (Musicology.Core.NoteId p t i)
-instance Musicology.Pitch.Class.Interval p => Musicology.Core.HasPitch (Musicology.Core.NoteId p t i)
-instance Musicology.Core.Identifiable (Musicology.Core.NoteId p t i)
-instance (Data.Aeson.Types.ToJSON.ToJSON p, Data.Aeson.Types.ToJSON.ToJSON t, Data.Aeson.Types.ToJSON.ToJSON i) => Data.Aeson.Types.ToJSON.ToJSON (Musicology.Core.NoteId p t i)
-instance (Data.Aeson.Types.FromJSON.FromJSON p, Data.Aeson.Types.FromJSON.FromJSON t, Data.Aeson.Types.FromJSON.FromJSON i) => Data.Aeson.Types.FromJSON.FromJSON (Musicology.Core.NoteId p t i)
-instance (GHC.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.Timed (Musicology.Core.Note p t)
-instance (GHC.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.HasTime (Musicology.Core.Note p t)
-instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched (Musicology.Core.Note p t)
-instance Musicology.Pitch.Class.Interval p => Musicology.Core.HasPitch (Musicology.Core.Note p t)
-instance (Data.Aeson.Types.ToJSON.ToJSON p, Data.Aeson.Types.ToJSON.ToJSON t) => Data.Aeson.Types.ToJSON.ToJSON (Musicology.Core.Note p t)
+instance (GHC.Classes.Eq p, GHC.Classes.Eq t) => GHC.Classes.Eq (Musicology.Core.Note p t)
+instance (GHC.Classes.Eq p, GHC.Classes.Eq t, GHC.Classes.Eq i) => GHC.Classes.Eq (Musicology.Core.NoteId p t i)
+instance (GHC.Classes.Eq c, GHC.Classes.Eq t) => GHC.Classes.Eq (Musicology.Core.OnOff c t)
+instance GHC.Classes.Eq Musicology.Core.RightTied
+instance GHC.Classes.Eq Musicology.Core.Tied
+instance (GHC.Classes.Eq c, GHC.Classes.Eq t) => GHC.Classes.Eq (Musicology.Core.TimedEvent c t)
 instance (Data.Aeson.Types.FromJSON.FromJSON p, Data.Aeson.Types.FromJSON.FromJSON t) => Data.Aeson.Types.FromJSON.FromJSON (Musicology.Core.Note p t)
-instance (GHC.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.Timed (Musicology.Core.TimedEvent p t)
-instance (GHC.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.HasTime (Musicology.Core.TimedEvent p t)
-instance Musicology.Core.Pitched c => Musicology.Core.Pitched (Musicology.Core.TimedEvent c t)
+instance (Data.Aeson.Types.FromJSON.FromJSON p, Data.Aeson.Types.FromJSON.FromJSON t, Data.Aeson.Types.FromJSON.FromJSON i) => Data.Aeson.Types.FromJSON.FromJSON (Musicology.Core.NoteId p t i)
+instance GHC.Internal.Generics.Generic Musicology.Core.LeftTied
+instance GHC.Internal.Generics.Generic (Musicology.Core.Note p t)
+instance GHC.Internal.Generics.Generic (Musicology.Core.NoteId p t i)
+instance GHC.Internal.Generics.Generic (Musicology.Core.OnOff c t)
+instance GHC.Internal.Generics.Generic Musicology.Core.RightTied
+instance GHC.Internal.Generics.Generic Musicology.Core.Tied
+instance GHC.Internal.Generics.Generic (Musicology.Core.TimedEvent c t)
+instance Musicology.Core.HasInterval c => Musicology.Core.HasInterval (Musicology.Core.OnOff c t)
+instance Musicology.Pitch.Class.Interval p => Musicology.Core.HasPitch (Musicology.Core.Note p t)
+instance Musicology.Pitch.Class.Interval p => Musicology.Core.HasPitch (Musicology.Core.NoteId p t i)
+instance Musicology.Core.HasPitch c => Musicology.Core.HasPitch (Musicology.Core.OnOff c t)
 instance Musicology.Pitch.Class.Interval i => Musicology.Core.HasPitch (Musicology.Pitch.Class.Pitch i)
-instance Musicology.Pitch.Class.Interval i => Musicology.Core.Pitched (Musicology.Pitch.Class.Pitch i)
+instance (GHC.Internal.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.HasTime (Musicology.Core.Note p t)
+instance (GHC.Internal.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.HasTime (Musicology.Core.NoteId p t i)
+instance (GHC.Internal.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.HasTime (Musicology.Core.OnOff p t)
+instance (GHC.Internal.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.HasTime (Musicology.Core.TimedEvent p t)
+instance Data.Hashable.Class.Hashable Musicology.Core.LeftTied
+instance (Data.Hashable.Class.Hashable p, Data.Hashable.Class.Hashable t) => Data.Hashable.Class.Hashable (Musicology.Core.Note p t)
+instance (Data.Hashable.Class.Hashable p, Data.Hashable.Class.Hashable t, Data.Hashable.Class.Hashable i) => Data.Hashable.Class.Hashable (Musicology.Core.NoteId p t i)
+instance (Data.Hashable.Class.Hashable c, Data.Hashable.Class.Hashable t) => Data.Hashable.Class.Hashable (Musicology.Core.OnOff c t)
+instance Data.Hashable.Class.Hashable Musicology.Core.RightTied
+instance Data.Hashable.Class.Hashable Musicology.Core.Tied
+instance (Data.Hashable.Class.Hashable c, Data.Hashable.Class.Hashable t) => Data.Hashable.Class.Hashable (Musicology.Core.TimedEvent c t)
+instance Musicology.Core.Identifiable (Musicology.Core.NoteId p t i)
+instance Control.DeepSeq.NFData Musicology.Core.LeftTied
+instance (Control.DeepSeq.NFData p, Control.DeepSeq.NFData t) => Control.DeepSeq.NFData (Musicology.Core.Note p t)
+instance (Control.DeepSeq.NFData p, Control.DeepSeq.NFData t, Control.DeepSeq.NFData i) => Control.DeepSeq.NFData (Musicology.Core.NoteId p t i)
+instance (Control.DeepSeq.NFData c, Control.DeepSeq.NFData t) => Control.DeepSeq.NFData (Musicology.Core.OnOff c t)
+instance Control.DeepSeq.NFData Musicology.Core.RightTied
+instance Control.DeepSeq.NFData Musicology.Core.Tied
+instance (Control.DeepSeq.NFData c, Control.DeepSeq.NFData t) => Control.DeepSeq.NFData (Musicology.Core.TimedEvent c t)
+instance GHC.Classes.Ord Musicology.Core.LeftTied
+instance (GHC.Classes.Ord p, GHC.Classes.Ord t) => GHC.Classes.Ord (Musicology.Core.Note p t)
+instance (GHC.Classes.Ord p, GHC.Classes.Ord t, GHC.Classes.Ord i) => GHC.Classes.Ord (Musicology.Core.NoteId p t i)
+instance (GHC.Classes.Ord c, GHC.Classes.Ord t) => GHC.Classes.Ord (Musicology.Core.OnOff c t)
+instance GHC.Classes.Ord Musicology.Core.RightTied
+instance GHC.Classes.Ord Musicology.Core.Tied
+instance (GHC.Classes.Ord c, GHC.Classes.Ord t) => GHC.Classes.Ord (Musicology.Core.TimedEvent c t)
+instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched (GHC.Internal.Data.Functor.Identity.Identity p)
 instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched [p]
-instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched (GHC.Maybe.Maybe p)
-instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched (Data.Functor.Identity.Identity p)
+instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched (GHC.Internal.Maybe.Maybe p)
+instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched (Musicology.Core.Note p t)
+instance Musicology.Pitch.Class.Interval p => Musicology.Core.Pitched (Musicology.Core.NoteId p t i)
+instance Musicology.Core.Pitched c => Musicology.Core.Pitched (Musicology.Core.OnOff c t)
+instance Musicology.Pitch.Class.Interval i => Musicology.Core.Pitched (Musicology.Pitch.Class.Pitch i)
+instance Musicology.Core.Pitched c => Musicology.Core.Pitched (Musicology.Core.TimedEvent c t)
+instance (GHC.Internal.Read.Read (Musicology.Pitch.Class.Pitch p), GHC.Internal.Read.Read t) => GHC.Internal.Read.Read (Musicology.Core.Note p t)
+instance (GHC.Internal.Read.Read (Musicology.Pitch.Class.Pitch p), GHC.Internal.Read.Read t, GHC.Internal.Read.Read i) => GHC.Internal.Read.Read (Musicology.Core.NoteId p t i)
+instance (GHC.Internal.Read.Read c, GHC.Internal.Read.Read t) => GHC.Internal.Read.Read (Musicology.Core.OnOff c t)
+instance (GHC.Internal.Read.Read c, GHC.Internal.Read.Read t) => GHC.Internal.Read.Read (Musicology.Core.TimedEvent c t)
+instance GHC.Internal.Show.Show Musicology.Core.LeftTied
+instance (GHC.Internal.Show.Show (Musicology.Pitch.Class.Pitch p), GHC.Internal.Show.Show t) => GHC.Internal.Show.Show (Musicology.Core.Note p t)
+instance (GHC.Internal.Show.Show (Musicology.Pitch.Class.Pitch p), GHC.Internal.Show.Show t, GHC.Internal.Show.Show i) => GHC.Internal.Show.Show (Musicology.Core.NoteId p t i)
+instance (GHC.Internal.Show.Show c, GHC.Internal.Show.Show t) => GHC.Internal.Show.Show (Musicology.Core.OnOff c t)
+instance GHC.Internal.Show.Show Musicology.Core.RightTied
+instance GHC.Internal.Show.Show Musicology.Core.Tied
+instance (GHC.Internal.Show.Show c, GHC.Internal.Show.Show t) => GHC.Internal.Show.Show (Musicology.Core.TimedEvent c t)
+instance (GHC.Internal.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.Timed (Musicology.Core.Note p t)
+instance (GHC.Internal.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.Timed (Musicology.Core.NoteId p t i)
+instance (GHC.Internal.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.Timed (Musicology.Core.OnOff c t)
+instance (GHC.Internal.Num.Num t, GHC.Classes.Ord t) => Musicology.Core.Timed (Musicology.Core.TimedEvent p t)
+instance (Data.Aeson.Types.ToJSON.ToJSON p, Data.Aeson.Types.ToJSON.ToJSON t) => Data.Aeson.Types.ToJSON.ToJSON (Musicology.Core.Note p t)
+instance (Data.Aeson.Types.ToJSON.ToJSON p, Data.Aeson.Types.ToJSON.ToJSON t, Data.Aeson.Types.ToJSON.ToJSON i) => Data.Aeson.Types.ToJSON.ToJSON (Musicology.Core.NoteId p t i)
 
 module Musicology.Core.Slicing
 onOffGroups :: (Foldable f, HasTime n) => f n -> [[OnOff n (TimeOf n)]]
@@ -143,6 +143,6 @@ Slicer :: ([OnOff a t] -> st) -> (st -> [OnOff a t] -> (st, s)) -> (st -> Maybe 
 [slInit] :: Slicer a t st s -> [OnOff a t] -> st
 [slNext] :: Slicer a t st s -> st -> [OnOff a t] -> (st, s)
 [slFinal] :: Slicer a t st s -> st -> Maybe s
-timed :: (Num a, Ord a) => Slicer a a c c -> Slicer a a (a, c) (TimedEvent c a)
+timed :: (Num a1, Ord a1) => Slicer a2 a1 c c -> Slicer a2 a1 (a1, c) (TimedEvent c a1)
 cleanSlicer :: Eq a => Slicer a t [a] [a]
 tiedSlicer :: Eq a => Slicer a t ([a], [a]) [(a, Tied)]

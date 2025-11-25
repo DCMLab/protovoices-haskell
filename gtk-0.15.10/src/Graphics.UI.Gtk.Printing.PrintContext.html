@@ -1,0 +1,580 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget PrintContext</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Andy Stewart</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 28 Mar 2010</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 2010 Andy Stewart</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Encapsulates context for drawing pages</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- * Module available since Gtk+ version 2.10</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html"><span class="hs-identifier">Graphics.UI.Gtk.Printing.PrintContext</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | A 'PrintContext' encapsulates context information that is required when</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- drawing pages for printing, such as the cairo context and important</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- parameters like page size and resolution. It also lets you easily create</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- 'PangoLayout' and 'Context' objects that match the font metrics of the cairo</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- surface.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- 'PrintContext' objects gets passed to the 'beginPrint', 'endPrint',</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- 'requestPageSetup' and 'drawPage' signals on the 'PrintOperation'.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- Printing support was added in Gtk+ 2.10.</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | +----PrintContext</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier">PrintContext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier">PrintContextClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToPrintContext"><span class="hs-identifier">castToPrintContext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toPrintContext"><span class="hs-identifier">toPrintContext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetCairoContext"><span class="hs-identifier">printContextGetCairoContext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextSetCairoContext"><span class="hs-identifier">printContextSetCairoContext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetPageSetup"><span class="hs-identifier">printContextGetPageSetup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetWidth"><span class="hs-identifier">printContextGetWidth</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetHeight"><span class="hs-identifier">printContextGetHeight</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetDpiX"><span class="hs-identifier">printContextGetDpiX</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetDpiY"><span class="hs-identifier">printContextGetDpiY</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetPangoFontmap"><span class="hs-identifier">printContextGetPangoFontmap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextCreatePangoContext"><span class="hs-identifier">printContextCreatePangoContext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextCreatePangoLayout"><span class="hs-identifier">printContextCreatePangoLayout</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetHardMargins"><span class="hs-identifier">printContextGetHardMargins</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">newIORef</span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.UTFString</span></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-83"></span><span class="hs-pragma">{-# LINE 83 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-83"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.Rendering.Pango.Types</span><span>
+</span><span id="line-84"></span><span class="hs-pragma">{-# LINE 84 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.Rendering.Pango.BasicTypes</span><span>
+</span><span id="line-85"></span><span class="hs-pragma">{-# LINE 85 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.Rendering.Cairo.Types</span><span>
+</span><span id="line-86"></span><span class="hs-pragma">{-# LINE 86 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-pragma">{-# LINE 88 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | Obtains the cairo context that is associated with the 'PrintContext'.</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span id="local-6989586621679637471"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetCairoContext"><span class="hs-identifier hs-type">printContextGetCairoContext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637471"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637471"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-96"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cairo</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the cairo context of @context@</span></span><span>
+</span><span id="line-97"></span><span id="printContextGetCairoContext"><span class="annot"><span class="annottext">printContextGetCairoContext :: forall self. PrintContextClass self =&gt; self -&gt; IO Cairo
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetCairoContext"><span class="hs-identifier hs-var hs-var">printContextGetCairoContext</span></a></span></span><span> </span><span id="local-6989586621679637560"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637560"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><span class="annottext">(Ptr Cairo -&gt; Cairo) -&gt; IO (Ptr Cairo) -&gt; IO Cairo
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">Ptr Cairo -&gt; Cairo
+</span><span class="hs-identifier hs-var">Cairo</span></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr Cairo) -&gt; IO Cairo) -&gt; IO (Ptr Cairo) -&gt; IO Cairo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637562"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637562"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO (Ptr Cairo)) -&gt; IO (Ptr Cairo)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637562"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO (Ptr Cairo)) -&gt; IO (Ptr Cairo))
+-&gt; (Ptr PrintContext -&gt; IO (Ptr Cairo)) -&gt; IO (Ptr Cairo)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637564"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637564"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO (Ptr Cairo)
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_cairo_context"><span class="hs-identifier hs-var">gtk_print_context_get_cairo_context</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637564"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">self -&gt; PrintContext
+forall o. PrintContextClass o =&gt; o -&gt; PrintContext
+</span><a href="Graphics.UI.Gtk.Types.html#toPrintContext"><span class="hs-identifier hs-var">toPrintContext</span></a></span><span> </span><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637560"><span class="hs-identifier hs-var">self</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- | Sets a new cairo context on a print context.</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- This function is intended to be used when implementing an internal print</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- preview, it is not needed for printing, since Gtk+ itself creates a suitable</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- cairo context in that case.</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--</span><span>
+</span><span id="line-107"></span><span id="local-6989586621679637487"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextSetCairoContext"><span class="hs-identifier hs-type">printContextSetCairoContext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637487"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637487"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-108"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cairo</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @cr@ - the cairo context</span></span><span>
+</span><span id="line-109"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @dpiX@ - the horizontal resolution to use with @cr@</span></span><span>
+</span><span id="line-110"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @dpiY@ - the vertical resolution to use with @cr@</span></span><span>
+</span><span id="line-111"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-112"></span><span id="printContextSetCairoContext"><span class="annot"><span class="annottext">printContextSetCairoContext :: forall self.
+PrintContextClass self =&gt;
+self -&gt; Cairo -&gt; Double -&gt; Double -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextSetCairoContext"><span class="hs-identifier hs-var hs-var">printContextSetCairoContext</span></a></span></span><span> </span><span id="local-6989586621679637574"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637574"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679637575"><span class="annot"><span class="annottext">Cairo
+</span><a href="#local-6989586621679637575"><span class="hs-identifier hs-var">cr</span></a></span></span><span> </span><span id="local-6989586621679637576"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679637576"><span class="hs-identifier hs-var">dpiX</span></a></span></span><span> </span><span id="local-6989586621679637577"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679637577"><span class="hs-identifier hs-var">dpiY</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637578"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637578"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Cairo</span></span><span> </span><span id="local-6989586621679637579"><span class="annot"><span class="annottext">Ptr Cairo
+</span><a href="#local-6989586621679637579"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679637580"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621679637580"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621679637581"><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621679637581"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext -&gt; (Ptr PrintContext -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637578"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr PrintContext -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637582"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637582"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; Ptr Cairo -&gt; CDouble -&gt; CDouble -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_set_cairo_context"><span class="hs-identifier hs-var">gtk_print_context_set_cairo_context</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637582"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Cairo
+</span><a href="#local-6989586621679637579"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621679637580"><span class="hs-identifier hs-var">arg3</span></a></span><span> </span><span class="annot"><span class="annottext">CDouble
+</span><a href="#local-6989586621679637581"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span class="hs-pragma">{-# LINE 114 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><span class="annottext">Cairo
+</span><a href="#local-6989586621679637575"><span class="hs-identifier hs-var">cr</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; CDouble
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679637576"><span class="hs-identifier hs-var">dpiX</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; CDouble
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679637577"><span class="hs-identifier hs-var">dpiY</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- | Obtains the 'PageSetup' that determines the page dimensions of the</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- 'PrintContext'.</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span id="local-6989586621679637492"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetPageSetup"><span class="hs-identifier hs-type">printContextGetPageSetup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637492"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637492"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-123"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PageSetup"><span class="hs-identifier hs-type">PageSetup</span></a></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the page setup of @context@</span></span><span>
+</span><span id="line-124"></span><span id="printContextGetPageSetup"><span class="annot"><span class="annottext">printContextGetPageSetup :: forall self. PrintContextClass self =&gt; self -&gt; IO PageSetup
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetPageSetup"><span class="hs-identifier hs-var hs-var">printContextGetPageSetup</span></a></span></span><span> </span><span id="local-6989586621679637589"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637589"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr PageSetup -&gt; PageSetup, FinalizerPtr PageSetup)
+-&gt; IO (Ptr PageSetup) -&gt; IO PageSetup
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr PageSetup -&gt; PageSetup, FinalizerPtr PageSetup)
+forall {a}. (ForeignPtr PageSetup -&gt; PageSetup, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkPageSetup"><span class="hs-identifier hs-var">mkPageSetup</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr PageSetup) -&gt; IO PageSetup)
+-&gt; IO (Ptr PageSetup) -&gt; IO PageSetup
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637592"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637592"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO (Ptr PageSetup)) -&gt; IO (Ptr PageSetup)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637592"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO (Ptr PageSetup)) -&gt; IO (Ptr PageSetup))
+-&gt; (Ptr PrintContext -&gt; IO (Ptr PageSetup)) -&gt; IO (Ptr PageSetup)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637593"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637593"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO (Ptr PageSetup)
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_page_setup"><span class="hs-identifier hs-var">gtk_print_context_get_page_setup</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637593"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span class="hs-pragma">{-# LINE 127 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- | Obtains the width of the 'PrintContext', in pixels.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span id="local-6989586621679637499"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetWidth"><span class="hs-identifier hs-type">printContextGetWidth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637499"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637499"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-132"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the width of @context@</span></span><span>
+</span><span id="line-133"></span><span id="printContextGetWidth"><span class="annot"><span class="annottext">printContextGetWidth :: forall self. PrintContextClass self =&gt; self -&gt; IO Double
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetWidth"><span class="hs-identifier hs-var hs-var">printContextGetWidth</span></a></span></span><span> </span><span id="local-6989586621679637602"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637602"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><span class="annottext">(CDouble -&gt; Double) -&gt; IO CDouble -&gt; IO Double
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CDouble -&gt; Double
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">(IO CDouble -&gt; IO Double) -&gt; IO CDouble -&gt; IO Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637603"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637603"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637603"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble)
+-&gt; (Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637604"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637604"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO CDouble
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_width"><span class="hs-identifier hs-var">gtk_print_context_get_width</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637604"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span class="hs-pragma">{-# LINE 136 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- | Obtains the height of the 'PrintContext', in pixels.</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--</span><span>
+</span><span id="line-140"></span><span id="local-6989586621679637606"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetHeight"><span class="hs-identifier hs-type">printContextGetHeight</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637606"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637606"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-141"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the height of @context@</span></span><span>
+</span><span id="line-142"></span><span id="printContextGetHeight"><span class="annot"><span class="annottext">printContextGetHeight :: forall self. PrintContextClass self =&gt; self -&gt; IO Double
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetHeight"><span class="hs-identifier hs-var hs-var">printContextGetHeight</span></a></span></span><span> </span><span id="local-6989586621679637612"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637612"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-143"></span><span>  </span><span class="annot"><span class="annottext">(CDouble -&gt; Double) -&gt; IO CDouble -&gt; IO Double
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CDouble -&gt; Double
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">(IO CDouble -&gt; IO Double) -&gt; IO CDouble -&gt; IO Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637613"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637613"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637613"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble)
+-&gt; (Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637614"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637614"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO CDouble
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_height"><span class="hs-identifier hs-var">gtk_print_context_get_height</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637614"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span class="hs-pragma">{-# LINE 145 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- | Obtains the horizontal resolution of the 'PrintContext', in dots per</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- inch.</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--</span><span>
+</span><span id="line-150"></span><span id="local-6989586621679637616"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetDpiX"><span class="hs-identifier hs-type">printContextGetDpiX</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637616"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637616"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-151"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the horizontal resolution of @context@</span></span><span>
+</span><span id="line-152"></span><span id="printContextGetDpiX"><span class="annot"><span class="annottext">printContextGetDpiX :: forall self. PrintContextClass self =&gt; self -&gt; IO Double
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetDpiX"><span class="hs-identifier hs-var hs-var">printContextGetDpiX</span></a></span></span><span> </span><span id="local-6989586621679637622"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637622"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><span class="annottext">(CDouble -&gt; Double) -&gt; IO CDouble -&gt; IO Double
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CDouble -&gt; Double
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">(IO CDouble -&gt; IO Double) -&gt; IO CDouble -&gt; IO Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637623"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637623"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637623"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble)
+-&gt; (Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637624"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637624"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO CDouble
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_dpi_x"><span class="hs-identifier hs-var">gtk_print_context_get_dpi_x</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637624"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span class="hs-pragma">{-# LINE 155 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- | Obtains the vertical resolution of the 'PrintContext', in dots per inch.</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--</span><span>
+</span><span id="line-159"></span><span id="local-6989586621679637626"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetDpiY"><span class="hs-identifier hs-type">printContextGetDpiY</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637626"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637626"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-160"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the vertical resolution of @context@</span></span><span>
+</span><span id="line-161"></span><span id="printContextGetDpiY"><span class="annot"><span class="annottext">printContextGetDpiY :: forall self. PrintContextClass self =&gt; self -&gt; IO Double
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetDpiY"><span class="hs-identifier hs-var hs-var">printContextGetDpiY</span></a></span></span><span> </span><span id="local-6989586621679637632"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637632"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><span class="annottext">(CDouble -&gt; Double) -&gt; IO CDouble -&gt; IO Double
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CDouble -&gt; Double
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">(IO CDouble -&gt; IO Double) -&gt; IO CDouble -&gt; IO Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637633"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637633"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637633"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble)
+-&gt; (Ptr PrintContext -&gt; IO CDouble) -&gt; IO CDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637634"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637634"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO CDouble
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_dpi_y"><span class="hs-identifier hs-var">gtk_print_context_get_dpi_y</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637634"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span class="hs-pragma">{-# LINE 164 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- | Returns a 'FontMap' that is suitable for use with the 'PrintContext'.</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--</span><span>
+</span><span id="line-168"></span><span id="local-6989586621679637504"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetPangoFontmap"><span class="hs-identifier hs-type">printContextGetPangoFontmap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637504"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637504"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-169"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FontMap</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the font map of @context@</span></span><span>
+</span><span id="line-170"></span><span id="printContextGetPangoFontmap"><span class="annot"><span class="annottext">printContextGetPangoFontmap :: forall self. PrintContextClass self =&gt; self -&gt; IO FontMap
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetPangoFontmap"><span class="hs-identifier hs-var hs-var">printContextGetPangoFontmap</span></a></span></span><span> </span><span id="local-6989586621679637641"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637641"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr FontMap -&gt; FontMap, FinalizerPtr FontMap)
+-&gt; IO (Ptr FontMap) -&gt; IO FontMap
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr FontMap -&gt; FontMap, FinalizerPtr FontMap)
+forall {a}. (ForeignPtr FontMap -&gt; FontMap, FinalizerPtr a)
+</span><span class="hs-identifier hs-var">mkFontMap</span></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr FontMap) -&gt; IO FontMap) -&gt; IO (Ptr FontMap) -&gt; IO FontMap
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637643"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637643"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO (Ptr FontMap)) -&gt; IO (Ptr FontMap)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637643"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO (Ptr FontMap)) -&gt; IO (Ptr FontMap))
+-&gt; (Ptr PrintContext -&gt; IO (Ptr FontMap)) -&gt; IO (Ptr FontMap)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637644"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637644"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO (Ptr FontMap)
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_pango_fontmap"><span class="hs-identifier hs-var">gtk_print_context_get_pango_fontmap</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637644"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span class="hs-pragma">{-# LINE 173 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-173"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- | Creates a new 'Context' that can be used with the 'PrintContext'.</span><span>
+</span><span id="line-176"></span><span class="hs-comment">--</span><span>
+</span><span id="line-177"></span><span id="local-6989586621679637508"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextCreatePangoContext"><span class="hs-identifier hs-type">printContextCreatePangoContext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637508"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637508"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-178"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PangoContext</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns a new Pango context for @context@</span></span><span>
+</span><span id="line-179"></span><span id="printContextCreatePangoContext"><span class="annot"><span class="annottext">printContextCreatePangoContext :: forall self. PrintContextClass self =&gt; self -&gt; IO PangoContext
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextCreatePangoContext"><span class="hs-identifier hs-var hs-var">printContextCreatePangoContext</span></a></span></span><span> </span><span id="local-6989586621679637650"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637650"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr PangoContext -&gt; PangoContext,
+ FinalizerPtr PangoContext)
+-&gt; IO (Ptr PangoContext) -&gt; IO PangoContext
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">wrapNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr PangoContext -&gt; PangoContext,
+ FinalizerPtr PangoContext)
+forall {a}.
+(ForeignPtr PangoContext -&gt; PangoContext, FinalizerPtr a)
+</span><span class="hs-identifier hs-var">mkPangoContext</span></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr PangoContext) -&gt; IO PangoContext)
+-&gt; IO (Ptr PangoContext) -&gt; IO PangoContext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637653"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637653"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO (Ptr PangoContext))
+-&gt; IO (Ptr PangoContext)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637653"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO (Ptr PangoContext))
+ -&gt; IO (Ptr PangoContext))
+-&gt; (Ptr PrintContext -&gt; IO (Ptr PangoContext))
+-&gt; IO (Ptr PangoContext)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637654"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637654"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO (Ptr PangoContext)
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_create_pango_context"><span class="hs-identifier hs-var">gtk_print_context_create_pango_context</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637654"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span class="hs-pragma">{-# LINE 182 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-182"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- | Creates a new 'PangoLayout' that is suitable for use with the</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- 'PrintContext'.</span><span>
+</span><span id="line-186"></span><span class="hs-comment">--</span><span>
+</span><span id="line-187"></span><span id="local-6989586621679637512"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextCreatePangoLayout"><span class="hs-identifier hs-type">printContextCreatePangoLayout</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637512"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637512"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-188"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PangoLayout</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns a new Pango layout for @context@</span></span><span>
+</span><span id="line-189"></span><span id="printContextCreatePangoLayout"><span class="annot"><span class="annottext">printContextCreatePangoLayout :: forall self. PrintContextClass self =&gt; self -&gt; IO PangoLayout
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextCreatePangoLayout"><span class="hs-identifier hs-var hs-var">printContextCreatePangoLayout</span></a></span></span><span> </span><span id="local-6989586621679637668"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637668"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-190"></span><span>  </span><span id="local-6989586621679637669"><span class="annot"><a href="#local-6989586621679637669"><span class="hs-identifier hs-var">pl</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(ForeignPtr PangoLayoutRaw -&gt; PangoLayoutRaw,
+ FinalizerPtr PangoLayoutRaw)
+-&gt; IO (Ptr PangoLayoutRaw) -&gt; IO PangoLayoutRaw
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">wrapNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr PangoLayoutRaw -&gt; PangoLayoutRaw,
+ FinalizerPtr PangoLayoutRaw)
+forall {a}.
+(ForeignPtr PangoLayoutRaw -&gt; PangoLayoutRaw, FinalizerPtr a)
+</span><span class="hs-identifier hs-var">mkPangoLayoutRaw</span></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr PangoLayoutRaw) -&gt; IO PangoLayoutRaw)
+-&gt; IO (Ptr PangoLayoutRaw) -&gt; IO PangoLayoutRaw
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-191"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637671"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637671"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+-&gt; (Ptr PrintContext -&gt; IO (Ptr PangoLayoutRaw))
+-&gt; IO (Ptr PangoLayoutRaw)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637671"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO (Ptr PangoLayoutRaw))
+ -&gt; IO (Ptr PangoLayoutRaw))
+-&gt; (Ptr PrintContext -&gt; IO (Ptr PangoLayoutRaw))
+-&gt; IO (Ptr PangoLayoutRaw)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637672"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637672"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext -&gt; IO (Ptr PangoLayoutRaw)
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_create_pango_layout"><span class="hs-identifier hs-var">gtk_print_context_create_pango_layout</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637672"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span class="hs-pragma">{-# LINE 192 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-192"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toPrintContext</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-193"></span><span>  </span><span id="local-6989586621679637674"><span class="annot"><a href="#local-6989586621679637674"><span class="hs-identifier hs-var">ps</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">makeNewPangoString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;&quot;</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">DefaultGlibString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>  </span><span id="local-6989586621679637676"><span class="annot"><a href="#local-6989586621679637676"><span class="hs-identifier hs-var">psRef</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newIORef</span></span><span> </span><span class="annot"><a href="#local-6989586621679637674"><span class="hs-identifier hs-type">ps</span></a></span><span>
+</span><span id="line-195"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PangoLayout</span></span><span> </span><span class="annot"><a href="#local-6989586621679637676"><span class="hs-identifier hs-type">psRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637669"><span class="hs-identifier hs-type">pl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span id="local-6989586621679637526"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetHardMargins"><span class="hs-identifier hs-type">printContextGetHardMargins</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContextClass"><span class="hs-identifier hs-type">PrintContextClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679637526"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679637526"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-199"></span><span>                           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-200"></span><span>                             </span><span class="hs-comment">-- ^ returns @(top, bottom, left, right)@</span><span>
+</span><span id="line-201"></span><span>                             </span><span class="hs-comment">-- @top@ top hardware printer margin</span><span>
+</span><span id="line-202"></span><span>                             </span><span class="hs-comment">-- @bottom@ bottom hardware printer margin</span><span>
+</span><span id="line-203"></span><span>                             </span><span class="hs-comment">-- @left@ left hardware printer margin</span><span>
+</span><span id="line-204"></span><span>                             </span><span class="hs-comment">-- @right@ right hardware printer margin</span><span>
+</span><span id="line-205"></span><span id="printContextGetHardMargins"><span class="annot"><span class="annottext">printContextGetHardMargins :: forall self.
+PrintContextClass self =&gt;
+self -&gt; IO (Maybe (Double, Double, Double, Double))
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#printContextGetHardMargins"><span class="hs-identifier hs-var hs-var">printContextGetHardMargins</span></a></span></span><span> </span><span id="local-6989586621679637712"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637712"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-206"></span><span>  </span><span class="annot"><span class="annottext">(Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; IO (Maybe (Double, Double, Double, Double))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+ -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; (Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; IO (Maybe (Double, Double, Double, Double))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679637714"><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637714"><span class="hs-identifier hs-var">topPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="annottext">(Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; IO (Maybe (Double, Double, Double, Double))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+ -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; (Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; IO (Maybe (Double, Double, Double, Double))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679637715"><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637715"><span class="hs-identifier hs-var">bottomPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-208"></span><span>  </span><span class="annot"><span class="annottext">(Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; IO (Maybe (Double, Double, Double, Double))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+ -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; (Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; IO (Maybe (Double, Double, Double, Double))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679637716"><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637716"><span class="hs-identifier hs-var">leftPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-209"></span><span>  </span><span class="annot"><span class="annottext">(Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; IO (Maybe (Double, Double, Double, Double))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+ -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; (Ptr CDouble -&gt; IO (Maybe (Double, Double, Double, Double)))
+-&gt; IO (Maybe (Double, Double, Double, Double))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679637717"><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637717"><span class="hs-identifier hs-var">rightPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-210"></span><span>  </span><span id="local-6989586621679637718"><span class="annot"><a href="#local-6989586621679637718"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(CInt -&gt; Bool) -&gt; IO CInt -&gt; IO Bool
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Bool
+forall a. (Eq a, Num a) =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">toBool</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Bool) -&gt; IO CInt -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span> </span><span id="local-6989586621679637720"><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637720"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679637721"><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637721"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679637722"><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637722"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621679637723"><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637723"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span id="local-6989586621679637724"><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637724"><span class="hs-identifier hs-var">arg5</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext -&gt; (Ptr PrintContext -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr PrintContext
+</span><a href="#local-6989586621679637720"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr PrintContext -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr PrintContext -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679637725"><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637725"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr PrintContext
+-&gt; Ptr CDouble
+-&gt; Ptr CDouble
+-&gt; Ptr CDouble
+-&gt; Ptr CDouble
+-&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_hard_margins"><span class="hs-identifier hs-var">gtk_print_context_get_hard_margins</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr PrintContext
+</span><a href="#local-6989586621679637725"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637721"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637722"><span class="hs-identifier hs-var">arg3</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637723"><span class="hs-identifier hs-var">arg4</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637724"><span class="hs-identifier hs-var">arg5</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span class="hs-pragma">{-# LINE 211 &quot;./Graphics/UI/Gtk/Printing/PrintContext.chs&quot; #-}</span><span>
+</span><span id="line-211"></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="annottext">self -&gt; PrintContext
+forall o. PrintContextClass o =&gt; o -&gt; PrintContext
+</span><a href="Graphics.UI.Gtk.Types.html#toPrintContext"><span class="hs-identifier hs-var">toPrintContext</span></a></span><span> </span><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679637712"><span class="hs-identifier hs-var">self</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>               </span><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637714"><span class="hs-identifier hs-var">topPtr</span></a></span><span>
+</span><span id="line-213"></span><span>               </span><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637715"><span class="hs-identifier hs-var">bottomPtr</span></a></span><span>
+</span><span id="line-214"></span><span>               </span><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637716"><span class="hs-identifier hs-var">leftPtr</span></a></span><span>
+</span><span id="line-215"></span><span>               </span><span class="annot"><span class="annottext">Ptr CDouble
+</span><a href="#local-6989586621679637717"><span class="hs-identifier hs-var">rightPtr</span></a></span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679637718"><span class="hs-identifier hs-type">success</span></a></span><span>
+</span><span id="line-217"></span><span>     </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-218"></span><span>       </span><span id="local-6989586621679637727"><span class="annot"><a href="#local-6989586621679637727"><span class="hs-identifier hs-var">top</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">realToFrac</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">peek</span></span><span> </span><span class="annot"><a href="#local-6989586621679637714"><span class="hs-identifier hs-type">topPtr</span></a></span><span>
+</span><span id="line-219"></span><span>       </span><span id="local-6989586621679637729"><span class="annot"><a href="#local-6989586621679637729"><span class="hs-identifier hs-var">bottom</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">realToFrac</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">peek</span></span><span> </span><span class="annot"><a href="#local-6989586621679637715"><span class="hs-identifier hs-type">bottomPtr</span></a></span><span>
+</span><span id="line-220"></span><span>       </span><span id="local-6989586621679637730"><span class="annot"><a href="#local-6989586621679637730"><span class="hs-identifier hs-var">left</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">realToFrac</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">peek</span></span><span> </span><span class="annot"><a href="#local-6989586621679637716"><span class="hs-identifier hs-type">leftPtr</span></a></span><span>
+</span><span id="line-221"></span><span>       </span><span id="local-6989586621679637731"><span class="annot"><a href="#local-6989586621679637731"><span class="hs-identifier hs-var">right</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">realToFrac</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">peek</span></span><span> </span><span class="annot"><a href="#local-6989586621679637717"><span class="hs-identifier hs-type">rightPtr</span></a></span><span>
+</span><span id="line-222"></span><span>       </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679637727"><span class="hs-identifier hs-type">top</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679637729"><span class="hs-identifier hs-type">bottom</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679637730"><span class="hs-identifier hs-type">left</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679637731"><span class="hs-identifier hs-type">right</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span>     </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_get_cairo_context&quot;</span></span><span>
+</span><span id="line-226"></span><span>  </span><span id="gtk_print_context_get_cairo_context"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_cairo_context"><span class="hs-identifier hs-var">gtk_print_context_get_cairo_context</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cairo</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-227"></span><span>
+</span><span id="line-228"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_set_cairo_context&quot;</span></span><span>
+</span><span id="line-229"></span><span>  </span><span id="gtk_print_context_set_cairo_context"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_set_cairo_context"><span class="hs-identifier hs-var">gtk_print_context_set_cairo_context</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cairo</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-230"></span><span>
+</span><span id="line-231"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_get_page_setup&quot;</span></span><span>
+</span><span id="line-232"></span><span>  </span><span id="gtk_print_context_get_page_setup"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_page_setup"><span class="hs-identifier hs-var">gtk_print_context_get_page_setup</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PageSetup"><span class="hs-identifier hs-type">PageSetup</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_get_width&quot;</span></span><span>
+</span><span id="line-235"></span><span>  </span><span id="gtk_print_context_get_width"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_width"><span class="hs-identifier hs-var">gtk_print_context_get_width</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-236"></span><span>
+</span><span id="line-237"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_get_height&quot;</span></span><span>
+</span><span id="line-238"></span><span>  </span><span id="gtk_print_context_get_height"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_height"><span class="hs-identifier hs-var">gtk_print_context_get_height</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_get_dpi_x&quot;</span></span><span>
+</span><span id="line-241"></span><span>  </span><span id="gtk_print_context_get_dpi_x"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_dpi_x"><span class="hs-identifier hs-var">gtk_print_context_get_dpi_x</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_get_dpi_y&quot;</span></span><span>
+</span><span id="line-244"></span><span>  </span><span id="gtk_print_context_get_dpi_y"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_dpi_y"><span class="hs-identifier hs-var">gtk_print_context_get_dpi_y</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_get_pango_fontmap&quot;</span></span><span>
+</span><span id="line-247"></span><span>  </span><span id="gtk_print_context_get_pango_fontmap"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_pango_fontmap"><span class="hs-identifier hs-var">gtk_print_context_get_pango_fontmap</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FontMap</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-248"></span><span>
+</span><span id="line-249"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_create_pango_context&quot;</span></span><span>
+</span><span id="line-250"></span><span>  </span><span id="gtk_print_context_create_pango_context"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_create_pango_context"><span class="hs-identifier hs-var">gtk_print_context_create_pango_context</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PangoContext</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-251"></span><span>
+</span><span id="line-252"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_create_pango_layout&quot;</span></span><span>
+</span><span id="line-253"></span><span>  </span><span id="gtk_print_context_create_pango_layout"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_create_pango_layout"><span class="hs-identifier hs-var">gtk_print_context_create_pango_layout</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PangoLayoutRaw</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-254"></span><span>
+</span><span id="line-255"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_print_context_get_hard_margins&quot;</span></span><span>
+</span><span id="line-256"></span><span>  </span><span id="gtk_print_context_get_hard_margins"><span class="annot"><a href="Graphics.UI.Gtk.Printing.PrintContext.html#gtk_print_context_get_hard_margins"><span class="hs-identifier hs-var">gtk_print_context_get_hard_margins</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#PrintContext"><span class="hs-identifier hs-type">PrintContext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CDouble</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span></pre></body></html>

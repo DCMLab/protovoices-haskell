@@ -18,26 +18,26 @@ module Control.Monad.Trans.Ix
 --   GeneralizedNewtypeDeriving can be used to get the instances of
 --   <a>IxFunctor</a>, <a>IxPointed</a>, <a>IxApplicative</a>,
 --   <a>IxMonad</a>, <a>IxMonadZero</a> and <a>IxMonadPlus</a> for free.
-newtype Ix (m :: Type -> Type) i j a
-Ix :: m a -> Ix (m :: Type -> Type) i j a
-[runIx] :: Ix (m :: Type -> Type) i j a -> m a
+newtype Ix (m :: Type -> Type) (i :: k) (j :: k1) a
+Ix :: m a -> Ix (m :: Type -> Type) (i :: k) (j :: k1) a
+[runIx] :: Ix (m :: Type -> Type) (i :: k) (j :: k1) a -> m a
 
 -- | Lift an <tt>m</tt> action into 'Ix m', maintaining the current index.
-liftIx :: m a -> Ix m i i a
+liftIx :: forall {k} m a (i :: k). m a -> Ix m i i a
 
 -- | Lift an <tt>m</tt> action into 'Ix m', changing the current index.
 --   <a>unsafeLiftIx</a> is obviously unsafe due to the fact that it can
 --   arbitrarily change the index.
-unsafeLiftIx :: m a -> Ix m i j a
-instance forall (m :: * -> *) k1 (i :: k1) k2 (j :: k2). GHC.Base.Monad m => GHC.Base.Monad (Control.Monad.Trans.Ix.Ix m i j)
-instance forall (m :: * -> *) k1 (i :: k1) k2 (j :: k2). GHC.Base.Applicative m => GHC.Base.Applicative (Control.Monad.Trans.Ix.Ix m i j)
-instance forall (m :: * -> *) k1 (i :: k1) k2 (j :: k2). GHC.Base.Functor m => GHC.Base.Functor (Control.Monad.Trans.Ix.Ix m i j)
-instance GHC.Base.Functor m => Data.Functor.Indexed.IxFunctor (Control.Monad.Trans.Ix.Ix m)
-instance GHC.Base.Applicative m => Data.Functor.Indexed.IxPointed (Control.Monad.Trans.Ix.Ix m)
-instance GHC.Base.Applicative m => Data.Functor.Indexed.IxApplicative (Control.Monad.Trans.Ix.Ix m)
-instance GHC.Base.Monad m => Control.Monad.Indexed.IxMonad (Control.Monad.Trans.Ix.Ix m)
-instance GHC.Base.MonadPlus m => Control.Monad.Indexed.IxMonadZero (Control.Monad.Trans.Ix.Ix m)
-instance GHC.Base.MonadPlus m => Control.Monad.Indexed.IxMonadPlus (Control.Monad.Trans.Ix.Ix m)
+unsafeLiftIx :: forall {k1} {k2} m a (i :: k1) (j :: k2). m a -> Ix m i j a
+instance forall (m :: * -> *) k1 (i :: k1) k2 (j :: k2). GHC.Internal.Base.Applicative m => GHC.Internal.Base.Applicative (Control.Monad.Trans.Ix.Ix m i j)
+instance forall (m :: * -> *) k1 (i :: k1) k2 (j :: k2). GHC.Internal.Base.Functor m => GHC.Internal.Base.Functor (Control.Monad.Trans.Ix.Ix m i j)
+instance GHC.Internal.Base.Applicative m => Data.Functor.Indexed.IxApplicative (Control.Monad.Trans.Ix.Ix m)
+instance GHC.Internal.Base.Functor m => Data.Functor.Indexed.IxFunctor (Control.Monad.Trans.Ix.Ix m)
+instance GHC.Internal.Base.MonadPlus m => Control.Monad.Indexed.IxMonadPlus (Control.Monad.Trans.Ix.Ix m)
+instance GHC.Internal.Base.MonadPlus m => Control.Monad.Indexed.IxMonadZero (Control.Monad.Trans.Ix.Ix m)
+instance GHC.Internal.Base.Monad m => Control.Monad.Indexed.IxMonad (Control.Monad.Trans.Ix.Ix m)
+instance GHC.Internal.Base.Applicative m => Data.Functor.Indexed.IxPointed (Control.Monad.Trans.Ix.Ix m)
+instance forall (m :: * -> *) k1 (i :: k1) k2 (j :: k2). GHC.Internal.Base.Monad m => GHC.Internal.Base.Monad (Control.Monad.Trans.Ix.Ix m i j)
 
 
 -- | This module provides new implementations for <a>(&gt;&gt;=)</a>,
@@ -86,8 +86,8 @@ return :: PureSyntax x => a -> x a
 --   
 --   <ul>
 --   <li><pre><a>pure</a> = <a>return</a></pre></li>
---   <li><pre>m1 <a>&lt;*&gt;</a> m2 = m1 <a>&gt;&gt;=</a> (x1 -&gt; m2
---   <a>&gt;&gt;=</a> (x2 -&gt; <a>return</a> (x1 x2)))</pre></li>
+--   <li><pre>m1 <a>&lt;*&gt;</a> m2 = m1 <a>&gt;&gt;=</a> (\x1 -&gt; m2
+--   <a>&gt;&gt;=</a> (\x2 -&gt; <a>return</a> (x1 x2)))</pre></li>
 --   </ul>
 --   
 --   The above laws imply:
@@ -101,11 +101,11 @@ return :: PureSyntax x => a -> x a
 --   and that <a>pure</a> and (<a>&lt;*&gt;</a>) satisfy the applicative
 --   functor laws.
 --   
---   The instances of <a>Monad</a> for lists, <a>Maybe</a> and <a>IO</a>
---   defined in the <a>Prelude</a> satisfy these laws.
+--   The instances of <a>Monad</a> for <a>List</a>, <a>Maybe</a> and
+--   <a>IO</a> defined in the <a>Prelude</a> satisfy these laws.
 class Applicative m => Monad (m :: Type -> Type)
 class IxApplicative m => IxMonad (m :: k -> k -> Type -> Type)
-instance (GHC.Base.Monad m, x GHC.Types.~ m) => Language.Haskell.DoNotation.BindSyntax m x m
 instance forall k1 (m :: k1 -> k1 -> * -> *) (x :: * -> *) (i :: k1) (j :: k1) (y :: * -> *) (k2 :: k1) (z :: * -> *). (Control.Monad.Indexed.IxMonad m, x GHC.Types.~ m i j, y GHC.Types.~ m j k2, z GHC.Types.~ m i k2) => Language.Haskell.DoNotation.BindSyntax x y z
-instance GHC.Base.Applicative m => Language.Haskell.DoNotation.PureSyntax m
+instance (GHC.Internal.Base.Monad m, x GHC.Types.~ m) => Language.Haskell.DoNotation.BindSyntax m x m
+instance GHC.Internal.Base.Applicative m => Language.Haskell.DoNotation.PureSyntax m
 instance forall k (m :: k -> k -> * -> *) (j :: k) (i :: k). (Control.Monad.Indexed.IxMonad m, j GHC.Types.~ i) => Language.Haskell.DoNotation.PureSyntax (m i j)

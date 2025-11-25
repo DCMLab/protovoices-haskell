@@ -55,7 +55,7 @@ module Pipes.Group
 --   &gt;&gt;&gt; (toList . intercalates (yield '|') . view groups) (each "12233345")
 --   "1|22|333|4|5"
 --   </pre>
-groups :: (Monad m, Eq a') => Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
+groups :: forall (m :: Type -> Type) a' x a. (Monad m, Eq a') => Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
 
 -- | <a>groupsBy</a> splits a <a>Producer</a> into a <a>FreeT</a> of
 --   <a>Producer</a>s grouped using the given equality predicate
@@ -77,9 +77,9 @@ groups :: (Monad m, Eq a') => Lens (Producer a' m x) (Producer a m x) (FreeT (Pr
 --   &gt;&gt;&gt; (toList . intercalates (yield '|') . view (groupsBy (==))) (each "12233345")
 --   "1|22|333|4|5"
 --   </pre>
-groupsBy :: Monad m => (a' -> a' -> Bool) -> Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
+groupsBy :: forall (m :: Type -> Type) a' x a. Monad m => (a' -> a' -> Bool) -> Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
 
--- | <a>groupsBy</a>` splits a <a>Producer</a> into a <a>FreeT</a> of
+-- | <a>groupsBy'</a> splits a <a>Producer</a> into a <a>FreeT</a> of
 --   <a>Producer</a>s grouped using the given equality predicate
 --   
 --   This differs from <a>groupsBy</a> by comparing successive elements for
@@ -108,7 +108,7 @@ groupsBy :: Monad m => (a' -> a' -> Bool) -> Lens (Producer a' m x) (Producer a 
 --   set  (groupsBy' p) :: Monad m =&gt; Groups a m x -&gt; <a>Producer</a> a m x -&gt; <a>Producer</a> a m x
 --   over (groupsBy' p) :: Monad m =&gt; Transformation a m x -&gt; <a>Producer</a> a m x -&gt; <a>Producer</a> a m x
 --   </pre>
-groupsBy' :: Monad m => (a' -> a' -> Bool) -> Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
+groupsBy' :: forall (m :: Type -> Type) a' x a. Monad m => (a' -> a' -> Bool) -> Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
 
 -- | <a>chunksOf</a> is an splits a <a>Producer</a> into a <a>FreeT</a> of
 --   <a>Producer</a>s of fixed length
@@ -130,7 +130,7 @@ groupsBy' :: Monad m => (a' -> a' -> Bool) -> Lens (Producer a' m x) (Producer a
 --   &gt;&gt;&gt; (toList . intercalates (yield '|') . view (chunksOf 3)) (each "12233345")
 --   "122|333|45"
 --   </pre>
-chunksOf :: Monad m => Int -> Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
+chunksOf :: forall (m :: Type -> Type) a' x a. Monad m => Int -> Lens (Producer a' m x) (Producer a m x) (FreeT (Producer a' m) m x) (FreeT (Producer a m) m x)
 
 -- | <tt>(takes n)</tt> only keeps the first <tt>n</tt> functor layers of a
 --   <a>FreeT</a>
@@ -149,7 +149,7 @@ chunksOf :: Monad m => Int -> Lens (Producer a' m x) (Producer a m x) (FreeT (Pr
 --   &gt;&gt;&gt; (toList . intercalates (yield '|') . takes 3 . view groups) (each "12233345")
 --   "1|22|333"
 --   </pre>
-takes :: (Functor f, Monad m) => Int -> FreeT f m () -> FreeT f m ()
+takes :: forall (f :: Type -> Type) (m :: Type -> Type). (Functor f, Monad m) => Int -> FreeT f m () -> FreeT f m ()
 
 -- | <tt>(takes' n)</tt> only keeps the first <tt>n</tt> <a>Producer</a>s
 --   of a <a>FreeT</a>
@@ -161,7 +161,7 @@ takes :: (Functor f, Monad m) => Int -> FreeT f m () -> FreeT f m ()
 --   <pre>
 --   takes' :: Monad m =&gt; Int -&gt; Transformation a m x
 --   </pre>
-takes' :: Monad m => Int -> FreeT (Producer a m) m x -> FreeT (Producer a m) m x
+takes' :: forall (m :: Type -> Type) a x. Monad m => Int -> FreeT (Producer a m) m x -> FreeT (Producer a m) m x
 
 -- | <tt>(drops n)</tt> peels off the first <tt>n</tt> <a>Producer</a>
 --   layers of a <a>FreeT</a>
@@ -183,7 +183,7 @@ takes' :: Monad m => Int -> FreeT (Producer a m) m x -> FreeT (Producer a m) m x
 --   
 --   <b>Use carefully</b>: the peeling off is not free. This runs the first
 --   <tt>n</tt> layers, just discarding everything they produce.
-drops :: Monad m => Int -> FreeT (Producer a m) m x -> FreeT (Producer a m) m x
+drops :: forall (m :: Type -> Type) a x. Monad m => Int -> FreeT (Producer a m) m x -> FreeT (Producer a m) m x
 
 -- | Transform each individual functor layer of a <a>FreeT</a>
 --   
@@ -196,7 +196,7 @@ drops :: Monad m => Int -> FreeT (Producer a m) m x -> FreeT (Producer a m) m x
 --   </pre>
 --   
 --   This is just a synonym for <a>transFreeT</a>
-maps :: (Monad m, Functor g) => (forall r. f r -> g r) -> FreeT f m x -> FreeT g m x
+maps :: forall (m :: Type -> Type) g f x. (Monad m, Functor g) => (forall r. () => f r -> g r) -> FreeT f m x -> FreeT g m x
 
 -- | Lens to transform each individual functor layer of a <a>FreeT</a>.
 --   (<tt>over <a>individually</a></tt>) is equivalent to <a>maps</a>, but
@@ -208,7 +208,7 @@ maps :: (Monad m, Functor g) => (forall r. f r -> g r) -> FreeT f m x -> FreeT g
 --   set  individually :: Monad m =&gt; Group a m x -&gt; Transformation a m x
 --   over individually :: Monad m =&gt; (Group a m x -&gt; Group a m x) -&gt; Transformation a m x
 --   </pre>
-individually :: (Monad m, Functor g) => Setter (FreeT f m x) (FreeT g m x) (f (FreeT f m x)) (g (FreeT f m x))
+individually :: forall (m :: Type -> Type) g f x. (Monad m, Functor g) => Setter (FreeT f m x) (FreeT g m x) (f (FreeT f m x)) (g (FreeT f m x))
 
 -- | Join a <a>FreeT</a>-delimited stream of <a>Producer</a>s into a single
 --   <a>Producer</a>
@@ -216,7 +216,7 @@ individually :: (Monad m, Functor g) => Setter (FreeT f m x) (FreeT g m x) (f (F
 --   <pre>
 --   concats :: Monad m =&gt; Joiner a m x
 --   </pre>
-concats :: Monad m => FreeT (Producer a m) m x -> Producer a m x
+concats :: forall (m :: Type -> Type) a x. Monad m => FreeT (Producer a m) m x -> Producer a m x
 
 -- | Join a <a>FreeT</a>-delimited stream of <a>Producer</a>s into a single
 --   <a>Producer</a> by intercalating a <a>Producer</a> in between them
@@ -224,14 +224,14 @@ concats :: Monad m => FreeT (Producer a m) m x -> Producer a m x
 --   <pre>
 --   intercalates :: Monad m =&gt; <a>Producer</a> a m () -&gt; Joiner a m x
 --   </pre>
-intercalates :: Monad m => Producer a m () -> FreeT (Producer a m) m x -> Producer a m x
+intercalates :: forall (m :: Type -> Type) a x. Monad m => Producer a m () -> FreeT (Producer a m) m x -> Producer a m x
 
 -- | Fold each <a>Producer</a> of a <a>FreeT</a>
 --   
 --   <pre>
 --   <a>purely</a> folds :: Monad m =&gt; <a>Fold</a> a b -&gt; Groups a m r -&gt; <a>Producer</a> b m r
 --   </pre>
-folds :: Monad m => (x -> a -> x) -> x -> (x -> b) -> FreeT (Producer a m) m r -> Producer b m r
+folds :: forall (m :: Type -> Type) x a b r. Monad m => (x -> a -> x) -> x -> (x -> b) -> FreeT (Producer a m) m r -> Producer b m r
 
 -- | Fold each <a>Producer</a> of a <a>FreeT</a>, monadically
 --   
@@ -249,16 +249,9 @@ Pure :: a -> FreeF (f :: Type -> Type) a b
 Free :: f b -> FreeF (f :: Type -> Type) a b
 
 -- | The "free monad transformer" for a functor <tt>f</tt>
-newtype FreeT (f :: Type -> Type) (m :: Type -> TYPE LiftedRep) a
-FreeT :: m (FreeF f a (FreeT f m a)) -> FreeT (f :: Type -> Type) (m :: Type -> TYPE LiftedRep) a
-[runFreeT] :: FreeT (f :: Type -> Type) (m :: Type -> TYPE LiftedRep) a -> m (FreeF f a (FreeT f m a))
-
--- | Consume the first value from a <a>Producer</a>
---   
---   <a>next</a> either fails with a <a>Left</a> if the <a>Producer</a>
---   terminates or succeeds with a <a>Right</a> providing the next value
---   and the remainder of the <a>Producer</a>.
-next :: Monad m => Producer a m r -> m (Either r (a, Producer a m r))
+newtype FreeT (f :: Type -> Type) (m :: Type -> Type) a
+FreeT :: m (FreeF f a (FreeT f m a)) -> FreeT (f :: Type -> Type) (m :: Type -> Type) a
+[runFreeT] :: FreeT (f :: Type -> Type) (m :: Type -> Type) a -> m (FreeF f a (FreeT f m a))
 
 -- | Produce a value
 --   
@@ -270,6 +263,13 @@ yield :: forall (m :: Type -> Type) a x' x. Functor m => a -> Proxy x' x () a m 
 
 -- | <a>Producer</a>s can only <a>yield</a>
 type Producer b = Proxy X () () b
+
+-- | Consume the first value from a <a>Producer</a>
+--   
+--   <a>next</a> either fails with a <a>Left</a> if the <a>Producer</a>
+--   terminates or succeeds with a <a>Right</a> providing the next value
+--   and the remainder of the <a>Producer</a>.
+next :: Monad m => Producer a m r -> m (Either r (a, Producer a m r))
 
 
 -- | <tt>pipes-group</tt> builds upon <tt>pipes</tt> to establish idioms

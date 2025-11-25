@@ -63,18 +63,18 @@ module Pipes.Internal
 --   <li><tt>m </tt> - The base monad</li>
 --   <li><tt>r </tt> - The return value</li>
 --   </ul>
-data Proxy a' a b' b m r
-Request :: a' -> (a -> Proxy a' a b' b m r) -> Proxy a' a b' b m r
-Respond :: b -> (b' -> Proxy a' a b' b m r) -> Proxy a' a b' b m r
-M :: m (Proxy a' a b' b m r) -> Proxy a' a b' b m r
-Pure :: r -> Proxy a' a b' b m r
+data Proxy a' a b' b (m :: Type -> Type) r
+Request :: a' -> (a -> Proxy a' a b' b m r) -> Proxy a' a b' b (m :: Type -> Type) r
+Respond :: b -> (b' -> Proxy a' a b' b m r) -> Proxy a' a b' b (m :: Type -> Type) r
+M :: m (Proxy a' a b' b m r) -> Proxy a' a b' b (m :: Type -> Type) r
+Pure :: r -> Proxy a' a b' b (m :: Type -> Type) r
 
 -- | <a>unsafeHoist</a> is like <a>hoist</a>, but faster.
 --   
 --   This is labeled as unsafe because you will break the monad transformer
 --   laws if you do not pass a monad morphism as the first argument. This
 --   function is safe if you pass a monad morphism as the first argument.
-unsafeHoist :: Functor m => (forall x. m x -> n x) -> Proxy a' a b' b m r -> Proxy a' a b' b n r
+unsafeHoist :: Functor m => (forall x. () => m x -> n x) -> Proxy a' a b' b m r -> Proxy a' a b' b n r
 
 -- | The monad transformer laws are correct when viewed through the
 --   <a>observe</a> function:
@@ -91,29 +91,29 @@ unsafeHoist :: Functor m => (forall x. m x -> n x) -> Proxy a' a b' b m r -> Pro
 --   This function is a convenience for low-level <tt>pipes</tt>
 --   implementers. You do not need to use <a>observe</a> if you stick to
 --   the safe API.
-observe :: Monad m => Proxy a' a b' b m r -> Proxy a' a b' b m r
+observe :: forall (m :: Type -> Type) a' a b' b r. Monad m => Proxy a' a b' b m r -> Proxy a' a b' b m r
 
 -- | The empty type, used to close output ends
 type X = Void
 
 -- | Use <a>closed</a> to "handle" impossible outputs
 closed :: X -> a
-instance GHC.Base.Functor m => GHC.Base.Functor (Pipes.Internal.Proxy a' a b' b m)
-instance GHC.Base.Functor m => GHC.Base.Applicative (Pipes.Internal.Proxy a' a b' b m)
-instance GHC.Base.Functor m => GHC.Base.Monad (Pipes.Internal.Proxy a' a b' b m)
-instance (GHC.Base.Functor m, GHC.Base.Semigroup r) => GHC.Base.Semigroup (Pipes.Internal.Proxy a' a b' b m r)
-instance (GHC.Base.Functor m, GHC.Base.Monoid r, GHC.Base.Semigroup r) => GHC.Base.Monoid (Pipes.Internal.Proxy a' a b' b m r)
-instance Control.Monad.Trans.Class.MonadTrans (Pipes.Internal.Proxy a' a b' b)
+instance GHC.Internal.Base.Functor m => GHC.Internal.Base.Applicative (Pipes.Internal.Proxy a' a b' b m)
+instance GHC.Internal.Base.Functor m => GHC.Internal.Base.Functor (Pipes.Internal.Proxy a' a b' b m)
 instance Control.Monad.Morph.MFunctor (Pipes.Internal.Proxy a' a b' b)
 instance Control.Monad.Morph.MMonad (Pipes.Internal.Proxy a' a b' b)
-instance Control.Monad.Fail.MonadFail m => Control.Monad.Fail.MonadFail (Pipes.Internal.Proxy a' a b' b m)
+instance Control.Monad.Catch.MonadCatch m => Control.Monad.Catch.MonadCatch (Pipes.Internal.Proxy a' a b' b m)
+instance Control.Monad.Error.Class.MonadError e m => Control.Monad.Error.Class.MonadError e (Pipes.Internal.Proxy a' a b' b m)
+instance GHC.Internal.Control.Monad.Fail.MonadFail m => GHC.Internal.Control.Monad.Fail.MonadFail (Pipes.Internal.Proxy a' a b' b m)
 instance Control.Monad.IO.Class.MonadIO m => Control.Monad.IO.Class.MonadIO (Pipes.Internal.Proxy a' a b' b m)
+instance GHC.Internal.Base.Functor m => GHC.Internal.Base.Monad (Pipes.Internal.Proxy a' a b' b m)
 instance Control.Monad.Reader.Class.MonadReader r m => Control.Monad.Reader.Class.MonadReader r (Pipes.Internal.Proxy a' a b' b m)
 instance Control.Monad.State.Class.MonadState s m => Control.Monad.State.Class.MonadState s (Pipes.Internal.Proxy a' a b' b m)
-instance Control.Monad.Writer.Class.MonadWriter w m => Control.Monad.Writer.Class.MonadWriter w (Pipes.Internal.Proxy a' a b' b m)
-instance Control.Monad.Error.Class.MonadError e m => Control.Monad.Error.Class.MonadError e (Pipes.Internal.Proxy a' a b' b m)
 instance Control.Monad.Catch.MonadThrow m => Control.Monad.Catch.MonadThrow (Pipes.Internal.Proxy a' a b' b m)
-instance Control.Monad.Catch.MonadCatch m => Control.Monad.Catch.MonadCatch (Pipes.Internal.Proxy a' a b' b m)
+instance Control.Monad.Trans.Class.MonadTrans (Pipes.Internal.Proxy a' a b' b)
+instance Control.Monad.Writer.Class.MonadWriter w m => Control.Monad.Writer.Class.MonadWriter w (Pipes.Internal.Proxy a' a b' b m)
+instance (GHC.Internal.Base.Functor m, GHC.Internal.Base.Monoid r, GHC.Internal.Base.Semigroup r) => GHC.Internal.Base.Monoid (Pipes.Internal.Proxy a' a b' b m r)
+instance (GHC.Internal.Base.Functor m, GHC.Internal.Base.Semigroup r) => GHC.Internal.Base.Semigroup (Pipes.Internal.Proxy a' a b' b m r)
 
 
 -- | The core functionality for the <a>Proxy</a> monad transformer
@@ -146,7 +146,7 @@ module Pipes.Core
 --   <li><tt>m </tt> - The base monad</li>
 --   <li><tt>r </tt> - The return value</li>
 --   </ul>
-data Proxy a' a b' b m r
+data Proxy a' a b' b (m :: Type -> Type) r
 
 -- | Run a self-contained <a>Effect</a>, converting it back to the base
 --   monad
@@ -156,7 +156,7 @@ runEffect :: Monad m => Effect m r -> m r
 --   reply of type <tt>a'</tt>
 --   
 --   <a>respond</a> is the identity of the respond category.
-respond :: Functor m => a -> Proxy x' x a' a m a'
+respond :: forall (m :: Type -> Type) a x' x a'. Functor m => a -> Proxy x' x a' a m a'
 
 -- | Compose two unfolds, creating a new unfold
 --   
@@ -165,21 +165,21 @@ respond :: Functor m => a -> Proxy x' x a' a m a'
 --   </pre>
 --   
 --   (<a>/&gt;/</a>) is the composition operator of the respond category.
-(/>/) :: Functor m => (a -> Proxy x' x b' b m a') -> (b -> Proxy x' x c' c m b') -> a -> Proxy x' x c' c m a'
+(/>/) :: forall (m :: Type -> Type) a x' x b' b a' c' c. Functor m => (a -> Proxy x' x b' b m a') -> (b -> Proxy x' x c' c m b') -> a -> Proxy x' x c' c m a'
 infixr 4 />/
 
 -- | <tt>(p //&gt; f)</tt> replaces each <a>respond</a> in <tt>p</tt> with
 --   <tt>f</tt>.
 --   
 --   Point-ful version of (<a>/&gt;/</a>)
-(//>) :: Functor m => Proxy x' x b' b m a' -> (b -> Proxy x' x c' c m b') -> Proxy x' x c' c m a'
+(//>) :: forall (m :: Type -> Type) x' x b' b a' c' c. Functor m => Proxy x' x b' b m a' -> (b -> Proxy x' x c' c m b') -> Proxy x' x c' c m a'
 infixl 3 //>
 
 -- | Send a value of type <tt>a'</tt> upstream and block waiting for a
 --   reply of type <tt>a</tt>
 --   
 --   <a>request</a> is the identity of the request category.
-request :: Functor m => a' -> Proxy a' a y' y m a
+request :: forall (m :: Type -> Type) a' a y' y. Functor m => a' -> Proxy a' a y' y m a
 
 -- | Compose two folds, creating a new fold
 --   
@@ -188,14 +188,14 @@ request :: Functor m => a' -> Proxy a' a y' y m a
 --   </pre>
 --   
 --   (<a>\&gt;\</a>) is the composition operator of the request category.
-(\>\) :: Functor m => (b' -> Proxy a' a y' y m b) -> (c' -> Proxy b' b y' y m c) -> c' -> Proxy a' a y' y m c
+(\>\) :: forall (m :: Type -> Type) b' a' a y' y b c' c. Functor m => (b' -> Proxy a' a y' y m b) -> (c' -> Proxy b' b y' y m c) -> c' -> Proxy a' a y' y m c
 infixl 5 \>\
 
 -- | <tt>(f &gt;\\ p)</tt> replaces each <a>request</a> in <tt>p</tt> with
 --   <tt>f</tt>.
 --   
 --   Point-ful version of (<a>\&gt;\</a>)
-(>\\) :: Functor m => (b' -> Proxy a' a y' y m b) -> Proxy b' b y' y m c -> Proxy a' a y' y m c
+(>\\) :: forall (m :: Type -> Type) b' a' a y' y b c. Functor m => (b' -> Proxy a' a y' y m b) -> Proxy b' b y' y m c -> Proxy a' a y' y m c
 infixr 4 >\\
 
 -- | Forward responses followed by requests
@@ -205,7 +205,7 @@ infixr 4 >\\
 --   </pre>
 --   
 --   <a>push</a> is the identity of the push category.
-push :: Functor m => a -> Proxy a' a a' a m r
+push :: forall (m :: Type -> Type) a a' r. Functor m => a -> Proxy a' a a' a m r
 
 -- | Compose two proxies blocked while <a>request</a>ing data, creating a
 --   new proxy blocked while <a>request</a>ing data
@@ -215,14 +215,14 @@ push :: Functor m => a -> Proxy a' a a' a m r
 --   </pre>
 --   
 --   (<a>&gt;~&gt;</a>) is the composition operator of the push category.
-(>~>) :: Functor m => (_a -> Proxy a' a b' b m r) -> (b -> Proxy b' b c' c m r) -> _a -> Proxy a' a c' c m r
+(>~>) :: forall (m :: Type -> Type) _a a' a b' b r c' c. Functor m => (_a -> Proxy a' a b' b m r) -> (b -> Proxy b' b c' c m r) -> _a -> Proxy a' a c' c m r
 infixr 8 >~>
 
 -- | <tt>(p &gt;&gt;~ f)</tt> pairs each <a>respond</a> in <tt>p</tt> with
 --   a <a>request</a> in <tt>f</tt>.
 --   
 --   Point-ful version of (<a>&gt;~&gt;</a>)
-(>>~) :: Functor m => Proxy a' a b' b m r -> (b -> Proxy b' b c' c m r) -> Proxy a' a c' c m r
+(>>~) :: forall (m :: Type -> Type) a' a b' b r c' c. Functor m => Proxy a' a b' b m r -> (b -> Proxy b' b c' c m r) -> Proxy a' a c' c m r
 infixl 7 >>~
 
 -- | Forward requests followed by responses:
@@ -232,7 +232,7 @@ infixl 7 >>~
 --   </pre>
 --   
 --   <a>pull</a> is the identity of the pull category.
-pull :: Functor m => a' -> Proxy a' a a' a m r
+pull :: forall (m :: Type -> Type) a' a r. Functor m => a' -> Proxy a' a a' a m r
 
 -- | Compose two proxies blocked in the middle of <a>respond</a>ing,
 --   creating a new proxy blocked in the middle of <a>respond</a>ing
@@ -242,18 +242,18 @@ pull :: Functor m => a' -> Proxy a' a a' a m r
 --   </pre>
 --   
 --   (<a>&gt;+&gt;</a>) is the composition operator of the pull category.
-(>+>) :: Functor m => (b' -> Proxy a' a b' b m r) -> (_c' -> Proxy b' b c' c m r) -> _c' -> Proxy a' a c' c m r
+(>+>) :: forall (m :: Type -> Type) b' a' a b r _c' c' c. Functor m => (b' -> Proxy a' a b' b m r) -> (_c' -> Proxy b' b c' c m r) -> _c' -> Proxy a' a c' c m r
 infixl 7 >+>
 
 -- | <tt>(f +&gt;&gt; p)</tt> pairs each <a>request</a> in <tt>p</tt> with
 --   a <a>respond</a> in <tt>f</tt>.
 --   
 --   Point-ful version of (<a>&gt;+&gt;</a>)
-(+>>) :: Functor m => (b' -> Proxy a' a b' b m r) -> Proxy b' b c' c m r -> Proxy a' a c' c m r
+(+>>) :: forall (m :: Type -> Type) b' a' a b r c' c. Functor m => (b' -> Proxy a' a b' b m r) -> Proxy b' b c' c m r -> Proxy a' a c' c m r
 infixr 6 +>>
 
 -- | Switch the upstream and downstream ends
-reflect :: Functor m => Proxy a' a b' b m r -> Proxy b b' a a' m r
+reflect :: forall (m :: Type -> Type) a' a b' b r. Functor m => Proxy a' a b' b m r -> Proxy b b' a a' m r
 
 -- | The empty type, used to close output ends
 type X = Void
@@ -285,50 +285,50 @@ type Client a' a = Proxy a' a () X
 type Server b' b = Proxy X () b' b
 
 -- | Like <a>Effect</a>, but with a polymorphic type
-type Effect' m r = forall x' x y' y. Proxy x' x y' y m r
+type Effect' (m :: Type -> Type) r = forall x' x y' y. () => Proxy x' x y' y m r
 
 -- | Like <a>Producer</a>, but with a polymorphic type
-type Producer' b m r = forall x' x. Proxy x' x () b m r
+type Producer' b (m :: Type -> Type) r = forall x' x. () => Proxy x' x () b m r
 
 -- | Like <a>Consumer</a>, but with a polymorphic type
-type Consumer' a m r = forall y' y. Proxy () a y' y m r
+type Consumer' a (m :: Type -> Type) r = forall y' y. () => Proxy () a y' y m r
 
 -- | Like <a>Client</a>, but with a polymorphic type
-type Client' a' a m r = forall y' y. Proxy a' a y' y m r
+type Client' a' a (m :: Type -> Type) r = forall y' y. () => Proxy a' a y' y m r
 
 -- | Like <a>Server</a>, but with a polymorphic type
-type Server' b' b m r = forall x' x. Proxy x' x b' b m r
+type Server' b' b (m :: Type -> Type) r = forall x' x. () => Proxy x' x b' b m r
 
 -- | Equivalent to (<a>/&gt;/</a>) with the arguments flipped
-(\<\) :: Functor m => (b -> Proxy x' x c' c m b') -> (a -> Proxy x' x b' b m a') -> a -> Proxy x' x c' c m a'
+(\<\) :: forall (m :: Type -> Type) b x' x c' c b' a a'. Functor m => (b -> Proxy x' x c' c m b') -> (a -> Proxy x' x b' b m a') -> a -> Proxy x' x c' c m a'
 infixl 4 \<\
 
 -- | Equivalent to (<a>\&gt;\</a>) with the arguments flipped
-(/</) :: Functor m => (c' -> Proxy b' b x' x m c) -> (b' -> Proxy a' a x' x m b) -> c' -> Proxy a' a x' x m c
+(/</) :: forall (m :: Type -> Type) c' b' b x' x c a' a. Functor m => (c' -> Proxy b' b x' x m c) -> (b' -> Proxy a' a x' x m b) -> c' -> Proxy a' a x' x m c
 infixr 5 /</
 
 -- | Equivalent to (<a>&gt;~&gt;</a>) with the arguments flipped
-(<~<) :: Functor m => (b -> Proxy b' b c' c m r) -> (a -> Proxy a' a b' b m r) -> a -> Proxy a' a c' c m r
+(<~<) :: forall (m :: Type -> Type) b b' c' c r a a'. Functor m => (b -> Proxy b' b c' c m r) -> (a -> Proxy a' a b' b m r) -> a -> Proxy a' a c' c m r
 infixl 8 <~<
 
 -- | Equivalent to (<a>&gt;&gt;~</a>) with the arguments flipped
-(~<<) :: Functor m => (b -> Proxy b' b c' c m r) -> Proxy a' a b' b m r -> Proxy a' a c' c m r
+(~<<) :: forall (m :: Type -> Type) b b' c' c r a' a. Functor m => (b -> Proxy b' b c' c m r) -> Proxy a' a b' b m r -> Proxy a' a c' c m r
 infixr 7 ~<<
 
 -- | Equivalent to (<a>&gt;+&gt;</a>) with the arguments flipped
-(<+<) :: Functor m => (c' -> Proxy b' b c' c m r) -> (b' -> Proxy a' a b' b m r) -> c' -> Proxy a' a c' c m r
+(<+<) :: forall (m :: Type -> Type) c' b' b c r a' a. Functor m => (c' -> Proxy b' b c' c m r) -> (b' -> Proxy a' a b' b m r) -> c' -> Proxy a' a c' c m r
 infixr 7 <+<
 
 -- | Equivalent to (<a>//&gt;</a>) with the arguments flipped
-(<\\) :: Functor m => (b -> Proxy x' x c' c m b') -> Proxy x' x b' b m a' -> Proxy x' x c' c m a'
+(<\\) :: forall (m :: Type -> Type) b x' x c' c b' a'. Functor m => (b -> Proxy x' x c' c m b') -> Proxy x' x b' b m a' -> Proxy x' x c' c m a'
 infixr 3 <\\
 
 -- | Equivalent to (<a>&gt;\\</a>) with the arguments flipped
-(//<) :: Functor m => Proxy b' b y' y m c -> (b' -> Proxy a' a y' y m b) -> Proxy a' a y' y m c
+(//<) :: forall (m :: Type -> Type) b' b y' y c a' a. Functor m => Proxy b' b y' y m c -> (b' -> Proxy a' a y' y m b) -> Proxy a' a y' y m c
 infixl 4 //<
 
 -- | Equivalent to (<a>+&gt;&gt;</a>) with the arguments flipped
-(<<+) :: Functor m => Proxy b' b c' c m r -> (b' -> Proxy a' a b' b m r) -> Proxy a' a c' c m r
+(<<+) :: forall (m :: Type -> Type) b' b c' c r a' a. Functor m => Proxy b' b c' c m r -> (b' -> Proxy a' a b' b m r) -> Proxy a' a c' c m r
 infixl 6 <<+
 
 -- | Use <a>closed</a> to "handle" impossible outputs
@@ -355,7 +355,7 @@ module Pipes
 --   <li><tt>m </tt> - The base monad</li>
 --   <li><tt>r </tt> - The return value</li>
 --   </ul>
-data Proxy a' a b' b m r
+data Proxy a' a b' b (m :: Type -> Type) r
 
 -- | The empty type, used to close output ends
 type X = Void
@@ -366,7 +366,7 @@ type X = Void
 type Effect = Proxy X () () X
 
 -- | Like <a>Effect</a>, but with a polymorphic type
-type Effect' m r = forall x' x y' y. Proxy x' x y' y m r
+type Effect' (m :: Type -> Type) r = forall x' x y' y. () => Proxy x' x y' y m r
 
 -- | Run a self-contained <a>Effect</a>, converting it back to the base
 --   monad
@@ -376,7 +376,7 @@ runEffect :: Monad m => Effect m r -> m r
 type Producer b = Proxy X () () b
 
 -- | Like <a>Producer</a>, but with a polymorphic type
-type Producer' b m r = forall x' x. Proxy x' x () b m r
+type Producer' b (m :: Type -> Type) r = forall x' x. () => Proxy x' x () b m r
 
 -- | Produce a value
 --   
@@ -384,7 +384,7 @@ type Producer' b m r = forall x' x. Proxy x' x () b m r
 --   <a>yield</a> :: <a>Monad</a> m =&gt; a -&gt; <a>Producer</a> a m ()
 --   <a>yield</a> :: <a>Monad</a> m =&gt; a -&gt; <a>Pipe</a>   x a m ()
 --   </pre>
-yield :: Functor m => a -> Proxy x' x () a m ()
+yield :: forall (m :: Type -> Type) a x' x. Functor m => a -> Proxy x' x () a m ()
 
 -- | <tt>(for p body)</tt> loops over <tt>p</tt> replacing each
 --   <a>yield</a> with <tt>body</tt>.
@@ -414,7 +414,7 @@ yield :: Functor m => a -> Proxy x' x () a m ()
 --   
 --   For a more complete diagram including bidirectional flow, see
 --   <a>Pipes.Core#respond-diagram</a>.
-for :: Functor m => Proxy x' x b' b m a' -> (b -> Proxy x' x c' c m b') -> Proxy x' x c' c m a'
+for :: forall (m :: Type -> Type) x' x b' b a' c' c. Functor m => Proxy x' x b' b m a' -> (b -> Proxy x' x c' c m b') -> Proxy x' x c' c m a'
 
 -- | Compose loop bodies
 --   
@@ -443,25 +443,25 @@ for :: Functor m => Proxy x' x b' b m a' -> (b -> Proxy x' x c' c m b') -> Proxy
 --   
 --   For a more complete diagram including bidirectional flow, see
 --   <a>Pipes.Core#respond-diagram</a>.
-(~>) :: Functor m => (a -> Proxy x' x b' b m a') -> (b -> Proxy x' x c' c m b') -> a -> Proxy x' x c' c m a'
+(~>) :: forall (m :: Type -> Type) a x' x b' b a' c' c. Functor m => (a -> Proxy x' x b' b m a') -> (b -> Proxy x' x c' c m b') -> a -> Proxy x' x c' c m a'
 infixr 4 ~>
 
 -- | (<a>~&gt;</a>) with the arguments flipped
-(<~) :: Functor m => (b -> Proxy x' x c' c m b') -> (a -> Proxy x' x b' b m a') -> a -> Proxy x' x c' c m a'
+(<~) :: forall (m :: Type -> Type) b x' x c' c b' a a'. Functor m => (b -> Proxy x' x c' c m b') -> (a -> Proxy x' x b' b m a') -> a -> Proxy x' x c' c m a'
 infixl 4 <~
 
 -- | <a>Consumer</a>s can only <a>await</a>
 type Consumer a = Proxy () a () X
 
 -- | Like <a>Consumer</a>, but with a polymorphic type
-type Consumer' a m r = forall y' y. Proxy () a y' y m r
+type Consumer' a (m :: Type -> Type) r = forall y' y. () => Proxy () a y' y m r
 
 -- | Consume a value
 --   
 --   <pre>
 --   <a>await</a> :: <a>Functor</a> m =&gt; <a>Pipe</a> a y m a
 --   </pre>
-await :: Functor m => Consumer' a m a
+await :: forall (m :: Type -> Type) a. Functor m => Consumer' a m a
 
 -- | <tt>(draw &gt;~ p)</tt> loops over <tt>p</tt> replacing each
 --   <a>await</a> with <tt>draw</tt>
@@ -489,18 +489,18 @@ await :: Functor m => Consumer' a m a
 --   
 --   For a more complete diagram including bidirectional flow, see
 --   <a>Pipes.Core#request-diagram</a>.
-(>~) :: Functor m => Proxy a' a y' y m b -> Proxy () b y' y m c -> Proxy a' a y' y m c
+(>~) :: forall (m :: Type -> Type) a' a y' y b c. Functor m => Proxy a' a y' y m b -> Proxy () b y' y m c -> Proxy a' a y' y m c
 infixr 5 >~
 
 -- | (<a>&gt;~</a>) with the arguments flipped
-(~<) :: Functor m => Proxy () b y' y m c -> Proxy a' a y' y m b -> Proxy a' a y' y m c
+(~<) :: forall (m :: Type -> Type) b y' y c a' a. Functor m => Proxy () b y' y m c -> Proxy a' a y' y m b -> Proxy a' a y' y m c
 infixl 5 ~<
 
 -- | <a>Pipe</a>s can both <a>await</a> and <a>yield</a>
 type Pipe a b = Proxy () a () b
 
 -- | The identity <a>Pipe</a>, analogous to the Unix <tt>cat</tt> program
-cat :: Functor m => Pipe a a m r
+cat :: forall (m :: Type -> Type) a r. Functor m => Pipe a a m r
 
 -- | <a>Pipe</a> composition, analogous to the Unix pipe operator
 --   
@@ -527,11 +527,11 @@ cat :: Functor m => Pipe a a m r
 --   
 --   For a more complete diagram including bidirectional flow, see
 --   <a>Pipes.Core#pull-diagram</a>.
-(>->) :: Functor m => Proxy a' a () b m r -> Proxy () b c' c m r -> Proxy a' a c' c m r
+(>->) :: forall (m :: Type -> Type) a' a b r c' c. Functor m => Proxy a' a () b m r -> Proxy () b c' c m r -> Proxy a' a c' c m r
 infixl 7 >->
 
 -- | (<a>&gt;-&gt;</a>) with the arguments flipped
-(<-<) :: Functor m => Proxy () b c' c m r -> Proxy a' a () b m r -> Proxy a' a c' c m r
+(<-<) :: forall (m :: Type -> Type) b c' c r a' a. Functor m => Proxy () b c' c m r -> Proxy a' a () b m r -> Proxy a' a c' c m r
 infixr 7 <-<
 
 -- | The list monad transformer, which extends a monad with non-determinism
@@ -581,9 +581,9 @@ infixr 7 <-<
 --   <a>enumerate</a> to obtain a <a>Producer</a>. Then see the “Folds”
 --   section in <a>Pipes.Prelude</a> to proceed.</li>
 --   </ul>
-newtype ListT m a
-Select :: Producer a m () -> ListT m a
-[enumerate] :: ListT m a -> Producer a m ()
+newtype ListT (m :: Type -> Type) a
+Select :: Producer a m () -> ListT (m :: Type -> Type) a
+[enumerate] :: ListT (m :: Type -> Type) a -> Producer a m ()
 
 -- | Run a self-contained <a>ListT</a> computation
 runListT :: Monad m => ListT m a -> m ()
@@ -601,8 +601,8 @@ runListT :: Monad m => ListT m a -> m ()
 --   </pre>
 --   
 --   In other words, <a>toListT</a> is monad morphism.
-class Enumerable t
-toListT :: (Enumerable t, Monad m) => t m a -> ListT m a
+class Enumerable (t :: Type -> Type -> Type -> Type)
+toListT :: forall (m :: Type -> Type) a. (Enumerable t, Monad m) => t m a -> ListT m a
 
 -- | Consume the first value from a <a>Producer</a>
 --   
@@ -616,14 +616,14 @@ next :: Monad m => Producer a m r -> m (Either r (a, Producer a m r))
 --   <pre>
 --   <a>each</a> :: (<a>Functor</a> m, <a>Foldable</a> f) =&gt; f a -&gt; <a>Producer</a> a m ()
 --   </pre>
-each :: (Functor m, Foldable f) => f a -> Proxy x' x () a m ()
+each :: forall (m :: Type -> Type) f a x' x. (Functor m, Foldable f) => f a -> Proxy x' x () a m ()
 
 -- | Convert an <a>Enumerable</a> to a <a>Producer</a>
 --   
 --   <pre>
 --   <a>every</a> :: (<a>Monad</a> m, <a>Enumerable</a> t) =&gt; t m a -&gt; <a>Producer</a> a m ()
 --   </pre>
-every :: (Monad m, Enumerable t) => t m a -> Proxy x' x () a m ()
+every :: forall (m :: Type -> Type) t a x' x. (Monad m, Enumerable t) => t m a -> Proxy x' x () a m ()
 
 -- | Discards a value
 discard :: Monad m => a -> m ()
@@ -638,7 +638,9 @@ discard :: Monad m => a -> m ()
 --   <pre>
 --   &gt;&gt;&gt; void Nothing
 --   Nothing
+--   </pre>
 --   
+--   <pre>
 --   &gt;&gt;&gt; void (Just 3)
 --   Just ()
 --   </pre>
@@ -650,7 +652,9 @@ discard :: Monad m => a -> m ()
 --   <pre>
 --   &gt;&gt;&gt; void (Left 8675309)
 --   Left 8675309
+--   </pre>
 --   
+--   <pre>
 --   &gt;&gt;&gt; void (Right 8675309)
 --   Right ()
 --   </pre>
@@ -676,7 +680,9 @@ discard :: Monad m => a -> m ()
 --   1
 --   2
 --   [(),()]
+--   </pre>
 --   
+--   <pre>
 --   &gt;&gt;&gt; void $ mapM print [1,2]
 --   1
 --   2
@@ -707,91 +713,6 @@ mzero :: MonadPlus m => m a
 --   </pre>
 mplus :: MonadPlus m => m a -> m a -> m a
 
--- | Monads in which <a>IO</a> computations may be embedded. Any monad
---   built by applying a sequence of monad transformers to the <a>IO</a>
---   monad will be an instance of this class.
---   
---   Instances should satisfy the following laws, which state that
---   <a>liftIO</a> is a transformer of monads:
---   
---   <ul>
---   <li><pre><a>liftIO</a> . <a>return</a> = <a>return</a></pre></li>
---   <li><pre><a>liftIO</a> (m &gt;&gt;= f) = <a>liftIO</a> m &gt;&gt;=
---   (<a>liftIO</a> . f)</pre></li>
---   </ul>
-class Monad m => MonadIO (m :: Type -> Type)
-
--- | Lift a computation from the <a>IO</a> monad. This allows us to run IO
---   computations in any monadic stack, so long as it supports these kinds
---   of operations (i.e. <a>IO</a> is the base monad for the stack).
---   
---   <h3><b>Example</b></h3>
---   
---   <pre>
---   import Control.Monad.Trans.State -- from the "transformers" library
---   
---   printState :: Show s =&gt; StateT s IO ()
---   printState = do
---     state &lt;- get
---     liftIO $ print state
---   </pre>
---   
---   Had we omitted <tt><a>liftIO</a></tt>, we would have ended up with
---   this error:
---   
---   <pre>
---   • Couldn't match type ‘IO’ with ‘StateT s IO’
---    Expected type: StateT s IO ()
---      Actual type: IO ()
---   </pre>
---   
---   The important part here is the mismatch between <tt>StateT s IO
---   ()</tt> and <tt><a>IO</a> ()</tt>.
---   
---   Luckily, we know of a function that takes an <tt><a>IO</a> a</tt> and
---   returns an <tt>(m a)</tt>: <tt><a>liftIO</a></tt>, enabling us to run
---   the program and see the expected results:
---   
---   <pre>
---   &gt; evalStateT printState "hello"
---   "hello"
---   
---   &gt; evalStateT printState 3
---   3
---   </pre>
-liftIO :: MonadIO m => IO a -> m a
-
--- | The class of monad transformers. Instances should satisfy the
---   following laws, which state that <a>lift</a> is a monad
---   transformation:
---   
---   <ul>
---   <li><pre><a>lift</a> . <a>return</a> = <a>return</a></pre></li>
---   <li><pre><a>lift</a> (m &gt;&gt;= f) = <a>lift</a> m &gt;&gt;=
---   (<a>lift</a> . f)</pre></li>
---   </ul>
-class MonadTrans (t :: Type -> Type -> Type -> Type)
-
--- | Lift a computation from the argument monad to the constructed monad.
-lift :: (MonadTrans t, Monad m) => m a -> t m a
-
--- | A functor in the category of monads, using <a>hoist</a> as the analog
---   of <a>fmap</a>:
---   
---   <pre>
---   hoist (f . g) = hoist f . hoist g
---   
---   hoist id = id
---   </pre>
-class MFunctor (t :: Type -> Type -> k -> Type)
-
--- | Lift a monad morphism from <tt>m</tt> to <tt>n</tt> into a monad
---   morphism from <tt>(t m)</tt> to <tt>(t n)</tt>
---   
---   The first argument to <a>hoist</a> must be a monad morphism, even
---   though the type system does not enforce this
-hoist :: forall m n (b :: k). (MFunctor t, Monad m) => (forall a. () => m a -> n a) -> t m b -> t n b
-
 -- | A monad in the category of monads, using <a>lift</a> from
 --   <a>MonadTrans</a> as the analog of <a>return</a> and <a>embed</a> as
 --   the analog of (<a>=&lt;&lt;</a>):
@@ -809,6 +730,23 @@ class (MFunctor t, MonadTrans t) => MMonad (t :: Type -> Type -> Type -> Type)
 --   
 --   <a>embed</a> is analogous to (<a>=&lt;&lt;</a>)
 embed :: forall (n :: Type -> Type) m b. (MMonad t, Monad n) => (forall a. () => m a -> t n a) -> t m b -> t n b
+
+-- | A functor in the category of monads, using <a>hoist</a> as the analog
+--   of <a>fmap</a>:
+--   
+--   <pre>
+--   hoist (f . g) = hoist f . hoist g
+--   
+--   hoist id = id
+--   </pre>
+class MFunctor (t :: Type -> Type -> k -> Type)
+
+-- | Lift a monad morphism from <tt>m</tt> to <tt>n</tt> into a monad
+--   morphism from <tt>(t m)</tt> to <tt>(t n)</tt>
+--   
+--   The first argument to <a>hoist</a> must be a monad morphism, even
+--   though the type system does not enforce this
+hoist :: forall m n (b :: k). (MFunctor t, Monad m) => (forall a. () => m a -> n a) -> t m b -> t n b
 
 -- | The Foldable class represents data structures that can be reduced to a
 --   summary value one element at a time. Strict left-associative folds are
@@ -834,32 +772,32 @@ embed :: forall (n :: Type -> Type) m b. (MMonad t, Monad n) => (forall a. () =>
 --   
 --   For the class laws see the <b>Laws</b> section of
 --   <a>Data.Foldable#laws</a>.
-class Foldable (t :: TYPE LiftedRep -> Type)
-instance Pipes.Enumerable Pipes.ListT
-instance Pipes.Enumerable Control.Monad.Trans.Identity.IdentityT
-instance Pipes.Enumerable Control.Monad.Trans.Maybe.MaybeT
+class Foldable (t :: Type -> Type)
+instance GHC.Internal.Base.Functor m => GHC.Internal.Base.Alternative (Pipes.ListT m)
+instance GHC.Internal.Base.Functor m => GHC.Internal.Base.Applicative (Pipes.ListT m)
 instance Pipes.Enumerable (Control.Monad.Trans.Except.ExceptT e)
-instance GHC.Base.Functor m => GHC.Base.Functor (Pipes.ListT m)
-instance GHC.Base.Functor m => GHC.Base.Applicative (Pipes.ListT m)
-instance GHC.Base.Monad m => GHC.Base.Monad (Pipes.ListT m)
-instance GHC.Base.Monad m => Control.Monad.Fail.MonadFail (Pipes.ListT m)
-instance Data.Foldable.Foldable m => Data.Foldable.Foldable (Pipes.ListT m)
-instance (GHC.Base.Functor m, Data.Traversable.Traversable m) => Data.Traversable.Traversable (Pipes.ListT m)
-instance Control.Monad.Trans.Class.MonadTrans Pipes.ListT
-instance Control.Monad.IO.Class.MonadIO m => Control.Monad.IO.Class.MonadIO (Pipes.ListT m)
-instance GHC.Base.Functor m => GHC.Base.Alternative (Pipes.ListT m)
-instance GHC.Base.Monad m => GHC.Base.MonadPlus (Pipes.ListT m)
+instance Pipes.Enumerable Control.Monad.Trans.Identity.IdentityT
+instance Pipes.Enumerable Pipes.ListT
+instance Pipes.Enumerable Control.Monad.Trans.Maybe.MaybeT
+instance GHC.Internal.Data.Foldable.Foldable m => GHC.Internal.Data.Foldable.Foldable (Pipes.ListT m)
+instance GHC.Internal.Base.Functor m => GHC.Internal.Base.Functor (Pipes.ListT m)
 instance Control.Monad.Morph.MFunctor Pipes.ListT
 instance Control.Monad.Morph.MMonad Pipes.ListT
-instance GHC.Base.Functor m => GHC.Base.Semigroup (Pipes.ListT m a)
-instance GHC.Base.Functor m => GHC.Base.Monoid (Pipes.ListT m a)
-instance Control.Monad.State.Class.MonadState s m => Control.Monad.State.Class.MonadState s (Pipes.ListT m)
-instance Control.Monad.Writer.Class.MonadWriter w m => Control.Monad.Writer.Class.MonadWriter w (Pipes.ListT m)
-instance Control.Monad.Reader.Class.MonadReader i m => Control.Monad.Reader.Class.MonadReader i (Pipes.ListT m)
-instance Control.Monad.Error.Class.MonadError e m => Control.Monad.Error.Class.MonadError e (Pipes.ListT m)
-instance Control.Monad.Catch.MonadThrow m => Control.Monad.Catch.MonadThrow (Pipes.ListT m)
 instance Control.Monad.Catch.MonadCatch m => Control.Monad.Catch.MonadCatch (Pipes.ListT m)
-instance GHC.Base.Monad m => Control.Monad.Zip.MonadZip (Pipes.ListT m)
+instance Control.Monad.Error.Class.MonadError e m => Control.Monad.Error.Class.MonadError e (Pipes.ListT m)
+instance GHC.Internal.Base.Monad m => GHC.Internal.Control.Monad.Fail.MonadFail (Pipes.ListT m)
+instance Control.Monad.IO.Class.MonadIO m => Control.Monad.IO.Class.MonadIO (Pipes.ListT m)
+instance GHC.Internal.Base.Monad m => GHC.Internal.Base.Monad (Pipes.ListT m)
+instance GHC.Internal.Base.Monad m => GHC.Internal.Base.MonadPlus (Pipes.ListT m)
+instance Control.Monad.Reader.Class.MonadReader i m => Control.Monad.Reader.Class.MonadReader i (Pipes.ListT m)
+instance Control.Monad.State.Class.MonadState s m => Control.Monad.State.Class.MonadState s (Pipes.ListT m)
+instance Control.Monad.Catch.MonadThrow m => Control.Monad.Catch.MonadThrow (Pipes.ListT m)
+instance Control.Monad.Trans.Class.MonadTrans Pipes.ListT
+instance Control.Monad.Writer.Class.MonadWriter w m => Control.Monad.Writer.Class.MonadWriter w (Pipes.ListT m)
+instance GHC.Internal.Base.Monad m => Control.Monad.Zip.MonadZip (Pipes.ListT m)
+instance GHC.Internal.Base.Functor m => GHC.Internal.Base.Monoid (Pipes.ListT m a)
+instance GHC.Internal.Base.Functor m => GHC.Internal.Base.Semigroup (Pipes.ListT m a)
+instance (GHC.Internal.Base.Functor m, GHC.Internal.Data.Traversable.Traversable m) => GHC.Internal.Data.Traversable.Traversable (Pipes.ListT m)
 
 
 -- | Many actions in base monad transformers cannot be automatically
@@ -871,64 +809,64 @@ instance GHC.Base.Monad m => Control.Monad.Zip.MonadZip (Pipes.ListT m)
 module Pipes.Lift
 
 -- | Distribute <a>Proxy</a> over a monad transformer
-distribute :: (Monad m, MonadTrans t, MFunctor t, Monad (t m), Monad (t (Proxy a' a b' b m))) => Proxy a' a b' b (t m) r -> t (Proxy a' a b' b m) r
+distribute :: forall (m :: Type -> Type) t a' a b' b r. (Monad m, MonadTrans t, MFunctor t, Monad (t m), Monad (t (Proxy a' a b' b m))) => Proxy a' a b' b (t m) r -> t (Proxy a' a b' b m) r
 
 -- | Wrap the base monad in <a>ExceptT</a>
-exceptP :: Monad m => Proxy a' a b' b m (Either e r) -> Proxy a' a b' b (ExceptT e m) r
+exceptP :: forall (m :: Type -> Type) a' a b' b e r. Monad m => Proxy a' a b' b m (Either e r) -> Proxy a' a b' b (ExceptT e m) r
 
 -- | Run <a>ExceptT</a> in the base monad
-runExceptP :: Monad m => Proxy a' a b' b (ExceptT e m) r -> Proxy a' a b' b m (Either e r)
+runExceptP :: forall (m :: Type -> Type) a' a b' b e r. Monad m => Proxy a' a b' b (ExceptT e m) r -> Proxy a' a b' b m (Either e r)
 
 -- | Catch an error in the base monad
-catchError :: Monad m => Proxy a' a b' b (ExceptT e m) r -> (e -> Proxy a' a b' b (ExceptT e m) r) -> Proxy a' a b' b (ExceptT e m) r
+catchError :: forall (m :: Type -> Type) a' a b' b e r. Monad m => Proxy a' a b' b (ExceptT e m) r -> (e -> Proxy a' a b' b (ExceptT e m) r) -> Proxy a' a b' b (ExceptT e m) r
 
 -- | Catch an error using a catch function for the base monad
 liftCatchError :: Monad m => (m (Proxy a' a b' b m r) -> (e -> m (Proxy a' a b' b m r)) -> m (Proxy a' a b' b m r)) -> Proxy a' a b' b m r -> (e -> Proxy a' a b' b m r) -> Proxy a' a b' b m r
 
 -- | Wrap the base monad in <a>MaybeT</a>
-maybeP :: Monad m => Proxy a' a b' b m (Maybe r) -> Proxy a' a b' b (MaybeT m) r
+maybeP :: forall (m :: Type -> Type) a' a b' b r. Monad m => Proxy a' a b' b m (Maybe r) -> Proxy a' a b' b (MaybeT m) r
 
 -- | Run <a>MaybeT</a> in the base monad
-runMaybeP :: Monad m => Proxy a' a b' b (MaybeT m) r -> Proxy a' a b' b m (Maybe r)
+runMaybeP :: forall (m :: Type -> Type) a' a b' b r. Monad m => Proxy a' a b' b (MaybeT m) r -> Proxy a' a b' b m (Maybe r)
 
 -- | Wrap the base monad in <a>ReaderT</a>
-readerP :: Monad m => (i -> Proxy a' a b' b m r) -> Proxy a' a b' b (ReaderT i m) r
+readerP :: forall (m :: Type -> Type) i a' a b' b r. Monad m => (i -> Proxy a' a b' b m r) -> Proxy a' a b' b (ReaderT i m) r
 
 -- | Run <a>ReaderT</a> in the base monad
-runReaderP :: Monad m => i -> Proxy a' a b' b (ReaderT i m) r -> Proxy a' a b' b m r
+runReaderP :: forall (m :: Type -> Type) i a' a b' b r. Monad m => i -> Proxy a' a b' b (ReaderT i m) r -> Proxy a' a b' b m r
 
 -- | Wrap the base monad in <a>StateT</a>
-stateP :: Monad m => (s -> Proxy a' a b' b m (r, s)) -> Proxy a' a b' b (StateT s m) r
+stateP :: forall (m :: Type -> Type) s a' a b' b r. Monad m => (s -> Proxy a' a b' b m (r, s)) -> Proxy a' a b' b (StateT s m) r
 
 -- | Run <a>StateT</a> in the base monad
-runStateP :: Monad m => s -> Proxy a' a b' b (StateT s m) r -> Proxy a' a b' b m (r, s)
+runStateP :: forall (m :: Type -> Type) s a' a b' b r. Monad m => s -> Proxy a' a b' b (StateT s m) r -> Proxy a' a b' b m (r, s)
 
 -- | Evaluate <a>StateT</a> in the base monad
-evalStateP :: Monad m => s -> Proxy a' a b' b (StateT s m) r -> Proxy a' a b' b m r
+evalStateP :: forall (m :: Type -> Type) s a' a b' b r. Monad m => s -> Proxy a' a b' b (StateT s m) r -> Proxy a' a b' b m r
 
 -- | Execute <a>StateT</a> in the base monad
-execStateP :: Monad m => s -> Proxy a' a b' b (StateT s m) r -> Proxy a' a b' b m s
+execStateP :: forall (m :: Type -> Type) s a' a b' b r. Monad m => s -> Proxy a' a b' b (StateT s m) r -> Proxy a' a b' b m s
 
 -- | Wrap the base monad in <a>WriterT</a>
-writerP :: (Monad m, Monoid w) => Proxy a' a b' b m (r, w) -> Proxy a' a b' b (WriterT w m) r
+writerP :: forall (m :: Type -> Type) w a' a b' b r. (Monad m, Monoid w) => Proxy a' a b' b m (r, w) -> Proxy a' a b' b (WriterT w m) r
 
 -- | Run <a>WriterT</a> in the base monad
-runWriterP :: (Monad m, Monoid w) => Proxy a' a b' b (WriterT w m) r -> Proxy a' a b' b m (r, w)
+runWriterP :: forall (m :: Type -> Type) w a' a b' b r. (Monad m, Monoid w) => Proxy a' a b' b (WriterT w m) r -> Proxy a' a b' b m (r, w)
 
 -- | Execute <a>WriterT</a> in the base monad
-execWriterP :: (Monad m, Monoid w) => Proxy a' a b' b (WriterT w m) r -> Proxy a' a b' b m w
+execWriterP :: forall (m :: Type -> Type) w a' a b' b r. (Monad m, Monoid w) => Proxy a' a b' b (WriterT w m) r -> Proxy a' a b' b m w
 
 -- | Wrap the base monad in <a>RWST</a>
-rwsP :: (Monad m, Monoid w) => (i -> s -> Proxy a' a b' b m (r, s, w)) -> Proxy a' a b' b (RWST i w s m) r
+rwsP :: forall (m :: Type -> Type) w i s a' a b' b r. (Monad m, Monoid w) => (i -> s -> Proxy a' a b' b m (r, s, w)) -> Proxy a' a b' b (RWST i w s m) r
 
 -- | Run <a>RWST</a> in the base monad
-runRWSP :: (Monad m, Monoid w) => r -> s -> Proxy a' a b' b (RWST r w s m) d -> Proxy a' a b' b m (d, s, w)
+runRWSP :: forall (m :: Type -> Type) w r s a' a b' b d. (Monad m, Monoid w) => r -> s -> Proxy a' a b' b (RWST r w s m) d -> Proxy a' a b' b m (d, s, w)
 
 -- | Evaluate <a>RWST</a> in the base monad
-evalRWSP :: (Monad m, Monoid w) => r -> s -> Proxy a' a b' b (RWST r w s m) d -> Proxy a' a b' b m (d, w)
+evalRWSP :: forall (m :: Type -> Type) w r s a' a b' b d. (Monad m, Monoid w) => r -> s -> Proxy a' a b' b (RWST r w s m) d -> Proxy a' a b' b m (d, w)
 
 -- | Execute <a>RWST</a> in the base monad
-execRWSP :: (Monad m, Monoid w) => r -> s -> Proxy a' a b' b (RWST r w s m) d -> Proxy a' a b' b m (s, w)
+execRWSP :: forall (m :: Type -> Type) w r s a' a b' b d. (Monad m, Monoid w) => r -> s -> Proxy a' a b' b (RWST r w s m) d -> Proxy a' a b' b m (s, w)
 
 
 -- | General purpose utilities
@@ -955,10 +893,10 @@ module Pipes.Prelude
 -- | Read <a>String</a>s from <a>stdin</a> using <a>getLine</a>
 --   
 --   Terminates on end of input
-stdinLn :: MonadIO m => Producer' String m ()
+stdinLn :: forall (m :: Type -> Type). MonadIO m => Producer' String m ()
 
 -- | <a>read</a> values from <a>stdin</a>, ignoring failed parses
-readLn :: (MonadIO m, Read a) => Producer' a m ()
+readLn :: forall (m :: Type -> Type) a. (MonadIO m, Read a) => Producer' a m ()
 
 -- | Read <a>String</a>s from a <a>Handle</a> using <a>hGetLine</a>
 --   
@@ -967,7 +905,7 @@ readLn :: (MonadIO m, Read a) => Producer' a m ()
 --   <pre>
 --   <a>fromHandle</a> :: <a>MonadIO</a> m =&gt; <a>Handle</a> -&gt; <a>Producer</a> <a>String</a> m ()
 --   </pre>
-fromHandle :: MonadIO m => Handle -> Proxy x' x () String m ()
+fromHandle :: forall (m :: Type -> Type) x' x. MonadIO m => Handle -> Proxy x' x () String m ()
 
 -- | Repeat a monadic action indefinitely, <a>yield</a>ing each result
 --   
@@ -1000,25 +938,25 @@ unfoldr :: Monad m => (s -> m (Either r (a, s))) -> s -> Producer a m r
 --   
 --   Unlike <a>toHandle</a>, <a>stdoutLn</a> gracefully terminates on a
 --   broken output pipe
-stdoutLn :: MonadIO m => Consumer' String m ()
+stdoutLn :: forall (m :: Type -> Type). MonadIO m => Consumer' String m ()
 
 -- | Write <a>String</a>s to <a>stdout</a> using <a>putStrLn</a>
 --   
 --   This does not handle a broken output pipe, but has a polymorphic
 --   return value
-stdoutLn' :: MonadIO m => Consumer' String m r
+stdoutLn' :: forall (m :: Type -> Type) r. MonadIO m => Consumer' String m r
 
 -- | Consume all values using a monadic function
 mapM_ :: Monad m => (a -> m ()) -> Consumer' a m r
 
 -- | <a>print</a> values to <a>stdout</a>
-print :: (MonadIO m, Show a) => Consumer' a m r
+print :: forall (m :: Type -> Type) a r. (MonadIO m, Show a) => Consumer' a m r
 
 -- | Write <a>String</a>s to a <a>Handle</a> using <a>hPutStrLn</a>
-toHandle :: MonadIO m => Handle -> Consumer' String m r
+toHandle :: forall (m :: Type -> Type) r. MonadIO m => Handle -> Consumer' String m r
 
 -- | <a>discard</a> all incoming values
-drain :: Functor m => Consumer' a m r
+drain :: forall (m :: Type -> Type) a r. Functor m => Consumer' a m r
 
 -- | Apply a function to all values flowing downstream
 --   
@@ -1027,7 +965,7 @@ drain :: Functor m => Consumer' a m r
 --   
 --   map (g . f) = map f &gt;-&gt; map g
 --   </pre>
-map :: Functor m => (a -> b) -> Pipe a b m r
+map :: forall (m :: Type -> Type) a b r. Functor m => (a -> b) -> Pipe a b m r
 
 -- | Apply a monadic function to all values flowing downstream
 --   
@@ -1043,7 +981,7 @@ sequence :: Monad m => Pipe (m a) a m r
 
 -- | Apply a function to all values flowing downstream, and forward each
 --   element of the result.
-mapFoldable :: (Functor m, Foldable t) => (a -> t b) -> Pipe a b m r
+mapFoldable :: forall (m :: Type -> Type) t a b r. (Functor m, Foldable t) => (a -> t b) -> Pipe a b m r
 
 -- | <tt>(filter predicate)</tt> only forwards values that satisfy the
 --   predicate.
@@ -1055,7 +993,7 @@ mapFoldable :: (Functor m, Foldable t) => (a -> t b) -> Pipe a b m r
 --   
 --   filter f = mapMaybe (\a -&gt; a &lt;$ guard (f a))
 --   </pre>
-filter :: Functor m => (a -> Bool) -> Pipe a a m r
+filter :: forall (m :: Type -> Type) a r. Functor m => (a -> Bool) -> Pipe a a m r
 
 -- | <tt>(mapMaybe f)</tt> yields <a>Just</a> results of <tt>f</tt>.
 --   
@@ -1074,7 +1012,7 @@ filter :: Functor m => (a -> Bool) -> Pipe a a m r
 --   <pre>
 --   mapMaybe return = mapMaybe Just = cat
 --   </pre>
-mapMaybe :: Functor m => (a -> Maybe b) -> Pipe a b m r
+mapMaybe :: forall (m :: Type -> Type) a b r. Functor m => (a -> Maybe b) -> Pipe a b m r
 
 -- | <tt>(filterM predicate)</tt> only forwards values that satisfy the
 --   monadic predicate
@@ -1127,7 +1065,7 @@ wither :: Monad m => (a -> m (Maybe b)) -> Pipe a b m r
 --   
 --   take (min m n) = take m &gt;-&gt; take n
 --   </pre>
-take :: Functor m => Int -> Pipe a a m ()
+take :: forall (m :: Type -> Type) a. Functor m => Int -> Pipe a a m ()
 
 -- | <tt>(takeWhile p)</tt> allows values to pass downstream so long as
 --   they satisfy the predicate <tt>p</tt>.
@@ -1137,7 +1075,7 @@ take :: Functor m => Int -> Pipe a a m ()
 --   
 --   takeWhile (liftA2 (&amp;&amp;) p1 p2) = takeWhile p1 &gt;-&gt; takeWhile p2
 --   </pre>
-takeWhile :: Functor m => (a -> Bool) -> Pipe a a m ()
+takeWhile :: forall (m :: Type -> Type) a. Functor m => (a -> Bool) -> Pipe a a m ()
 
 -- | <tt>(takeWhile' p)</tt> is a version of takeWhile that returns the
 --   value failing the predicate.
@@ -1147,7 +1085,7 @@ takeWhile :: Functor m => (a -> Bool) -> Pipe a a m ()
 --   
 --   takeWhile' (liftA2 (&amp;&amp;) p1 p2) = takeWhile' p1 &gt;-&gt; takeWhile' p2
 --   </pre>
-takeWhile' :: Functor m => (a -> Bool) -> Pipe a a m a
+takeWhile' :: forall (m :: Type -> Type) a. Functor m => (a -> Bool) -> Pipe a a m a
 
 -- | <tt>(drop n)</tt> discards <tt>n</tt> values going downstream
 --   
@@ -1156,7 +1094,7 @@ takeWhile' :: Functor m => (a -> Bool) -> Pipe a a m a
 --   
 --   drop (m + n) = drop m &gt;-&gt; drop n
 --   </pre>
-drop :: Functor m => Int -> Pipe a a m r
+drop :: forall (m :: Type -> Type) a r. Functor m => Int -> Pipe a a m r
 
 -- | <tt>(dropWhile p)</tt> discards values going downstream until one
 --   violates the predicate <tt>p</tt>.
@@ -1166,23 +1104,23 @@ drop :: Functor m => Int -> Pipe a a m r
 --   
 --   dropWhile (liftA2 (||) p1 p2) = dropWhile p1 &gt;-&gt; dropWhile p2
 --   </pre>
-dropWhile :: Functor m => (a -> Bool) -> Pipe a a m r
+dropWhile :: forall (m :: Type -> Type) a r. Functor m => (a -> Bool) -> Pipe a a m r
 
 -- | Flatten all <a>Foldable</a> elements flowing downstream
-concat :: (Functor m, Foldable f) => Pipe (f a) a m r
+concat :: forall (m :: Type -> Type) f a r. (Functor m, Foldable f) => Pipe (f a) a m r
 
 -- | Outputs the indices of all elements that match the given element
-elemIndices :: (Functor m, Eq a) => a -> Pipe a Int m r
+elemIndices :: forall (m :: Type -> Type) a r. (Functor m, Eq a) => a -> Pipe a Int m r
 
 -- | Outputs the indices of all elements that satisfied the predicate
-findIndices :: Functor m => (a -> Bool) -> Pipe a Int m r
+findIndices :: forall (m :: Type -> Type) a r. Functor m => (a -> Bool) -> Pipe a Int m r
 
 -- | Strict left scan
 --   
 --   <pre>
 --   Control.Foldl.purely scan :: Monad m =&gt; Fold a b -&gt; Pipe a b m r
 --   </pre>
-scan :: Functor m => (x -> a -> x) -> x -> (x -> b) -> Pipe a b m r
+scan :: forall (m :: Type -> Type) x a b r. Functor m => (x -> a -> x) -> x -> (x -> b) -> Pipe a b m r
 
 -- | Strict, monadic left scan
 --   
@@ -1202,13 +1140,13 @@ chain :: Monad m => (a -> m ()) -> Pipe a a m r
 
 -- | Parse <a>Read</a>able values, only forwarding the value if the parse
 --   succeeds
-read :: (Functor m, Read a) => Pipe String a m r
+read :: forall (m :: Type -> Type) a r. (Functor m, Read a) => Pipe String a m r
 
 -- | Convert <a>Show</a>able values to <a>String</a>s
-show :: (Functor m, Show a) => Pipe a String m r
+show :: forall (m :: Type -> Type) a r. (Functor m, Show a) => Pipe a String m r
 
 -- | Evaluate all values flowing downstream to WHNF
-seq :: Functor m => Pipe a a m r
+seq :: forall (m :: Type -> Type) a r. Functor m => Pipe a a m r
 
 -- | Create a <a>Pipe</a> from a <a>ListT</a> transformation
 --   
@@ -1217,7 +1155,7 @@ seq :: Functor m => Pipe a a m r
 --   
 --   loop return = cat
 --   </pre>
-loop :: Monad m => (a -> ListT m b) -> Pipe a b m r
+loop :: forall (m :: Type -> Type) a b r. Monad m => (a -> ListT m b) -> Pipe a b m r
 
 -- | Strict fold of the elements of a <a>Producer</a>
 --   
@@ -1326,14 +1264,14 @@ toListM :: Monad m => Producer a m () -> m [a]
 toListM' :: Monad m => Producer a m r -> m ([a], r)
 
 -- | Zip two <a>Producer</a>s
-zip :: Monad m => Producer a m r -> Producer b m r -> Proxy x' x () (a, b) m r
+zip :: forall (m :: Type -> Type) a r b x' x. Monad m => Producer a m r -> Producer b m r -> Proxy x' x () (a, b) m r
 
 -- | Zip two <a>Producer</a>s using the provided combining function
-zipWith :: Monad m => (a -> b -> c) -> Producer a m r -> Producer b m r -> Proxy x' x () c m r
+zipWith :: forall (m :: Type -> Type) a b c r x' x. Monad m => (a -> b -> c) -> Producer a m r -> Producer b m r -> Proxy x' x () c m r
 
 -- | Transform a <a>Consumer</a> to a <a>Pipe</a> that reforwards all
 --   values further downstream
-tee :: Monad m => Consumer a m r -> Pipe a a m r
+tee :: forall (m :: Type -> Type) a r. Monad m => Consumer a m r -> Pipe a a m r
 
 -- | Transform a unidirectional <a>Pipe</a> to a bidirectional <a>Proxy</a>
 --   
@@ -1342,7 +1280,7 @@ tee :: Monad m => Consumer a m r -> Pipe a a m r
 --   
 --   generalize cat = pull
 --   </pre>
-generalize :: Monad m => Pipe a b m r -> x -> Proxy x a x b m r
+generalize :: forall (m :: Type -> Type) a b r x. Monad m => Pipe a b m r -> x -> Proxy x a x b m r
 
 
 -- | Conventional Haskell stream programming forces you to choose only two

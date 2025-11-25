@@ -1,0 +1,312 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE EmptyDataDecls #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ExistentialQuantification #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE ForeignFunctionInterface #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE TypeSynonymInstances #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Torch.Internal.GC.html"><span class="hs-identifier">Torch.Internal.GC</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">threadDelay</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Async</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception.Safe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Exception</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadThrow</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">catch</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isPrefixOf</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.Types</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.ExecutionStack</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.C.Inline.Cpp.Exception</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Environment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">lookupEnv</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">hPutStrLn</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">stderr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Mem</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">performGC</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.SysInfo</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding.Error</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;hasktorch_finalizer.h showWeakPtrList&quot;</span></span><span>
+</span><span id="line-37"></span><span>  </span><span id="c_showWeakPtrList"><span class="annot"><a href="Torch.Internal.GC.html#c_showWeakPtrList"><span class="hs-identifier hs-var">c_showWeakPtrList</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- malloc_trim is a glibc function. It doesn't exist on macos.</span><span class="hs-cpp">
+#ifdef ENABLE_DUMMY_MALLOC_TRIM
+</span><span class="hs-identifier">mallocTrim</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-identifier">mallocTrim</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;malloc.h malloc_trim&quot;</span></span><span>
+</span><span id="line-45"></span><span>  </span><span id="mallocTrim"><span class="annot"><a href="Torch.Internal.GC.html#mallocTrim"><span class="hs-identifier hs-var">mallocTrim</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Returns all objects of libtorch.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- Each time it is called, the age of the object increases by one.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- Dumps objects that are greater than or equal to the argument of age.</span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Torch.Internal.GC.html#dumpLibtorchObjects"><span class="hs-identifier hs-type">dumpLibtorchObjects</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><span class="hs-comment">-- | age</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="hs-comment">-- | output</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span id="dumpLibtorchObjects"><span class="annot"><span class="annottext">dumpLibtorchObjects :: Int -&gt; IO ()
+</span><a href="Torch.Internal.GC.html#dumpLibtorchObjects"><span class="hs-identifier hs-var hs-var">dumpLibtorchObjects</span></a></span></span><span> </span><span id="local-6989586621685397735"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621685397735"><span class="hs-identifier hs-var">age</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CInt -&gt; IO ()
+</span><a href="Torch.Internal.GC.html#c_showWeakPtrList"><span class="hs-identifier hs-var">c_showWeakPtrList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621685397735"><span class="hs-identifier hs-var">age</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">newtype</span><span> </span><span id="HasktorchException"><span class="annot"><a href="Torch.Internal.GC.html#HasktorchException"><span class="hs-identifier hs-var">HasktorchException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HasktorchException"><span class="annot"><a href="Torch.Internal.GC.html#HasktorchException"><span class="hs-identifier hs-var">HasktorchException</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621685397738"><span id="local-6989586621685397745"><span id="local-6989586621685397749"><span class="annot"><span class="annottext">Int -&gt; HasktorchException -&gt; ShowS
+[HasktorchException] -&gt; ShowS
+HasktorchException -&gt; String
+(Int -&gt; HasktorchException -&gt; ShowS)
+-&gt; (HasktorchException -&gt; String)
+-&gt; ([HasktorchException] -&gt; ShowS)
+-&gt; Show HasktorchException
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; HasktorchException -&gt; ShowS
+showsPrec :: Int -&gt; HasktorchException -&gt; ShowS
+$cshow :: HasktorchException -&gt; String
+show :: HasktorchException -&gt; String
+$cshowList :: [HasktorchException] -&gt; ShowS
+showList :: [HasktorchException] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621685397759"><span id="local-6989586621685397763"><span id="local-6989586621685397766"><span id="local-6989586621685397769"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Torch.Internal.GC.html#HasktorchException"><span class="hs-identifier hs-type">HasktorchException</span></a></span></span></span></span></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Torch.Internal.GC.html#bsToChars"><span class="hs-identifier hs-type">bsToChars</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-64"></span><span id="bsToChars"><span class="annot"><span class="annottext">bsToChars :: ByteString -&gt; String
+</span><a href="Torch.Internal.GC.html#bsToChars"><span class="hs-identifier hs-var hs-var">bsToChars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; String) -&gt; (ByteString -&gt; Text) -&gt; ByteString -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">OnDecodeError -&gt; ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">T.decodeUtf8With</span></span><span> </span><span class="annot"><span class="annottext">OnDecodeError
+</span><span class="hs-identifier hs-var">T.lenientDecode</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Torch.Internal.GC.html#unsafeThrowableIO"><span class="hs-identifier hs-type">unsafeThrowableIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621685397638"><span class="annot"><a href="#local-6989586621685397638"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621685397636"><span class="annot"><a href="#local-6989586621685397636"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadThrow</span></span><span> </span><span class="annot"><a href="#local-6989586621685397636"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621685397638"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621685397636"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621685397638"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-67"></span><span id="unsafeThrowableIO"><span class="annot"><span class="annottext">unsafeThrowableIO :: forall a (m :: * -&gt; *). MonadThrow m =&gt; IO a -&gt; m a
+</span><a href="Torch.Internal.GC.html#unsafeThrowableIO"><span class="hs-identifier hs-var hs-var">unsafeThrowableIO</span></a></span></span><span> </span><span id="local-6989586621685397803"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397803"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (m a) -&gt; m a
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (m a) -&gt; m a) -&gt; IO (m a) -&gt; m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; m a
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; m a) -&gt; IO a -&gt; IO (m a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397803"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (m a) -&gt; (CppException -&gt; IO (m a)) -&gt; IO (m a)
+forall (m :: * -&gt; *) e a.
+(HasCallStack, MonadCatch m, Exception e) =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-operator hs-var">`catch`</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CppStdException</span></span><span> </span><span class="annot"><span class="annottext">CppExceptionPtr
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621685397806"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621685397806"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m a -&gt; IO (m a)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; IO (m a))
+-&gt; (HasktorchException -&gt; m a) -&gt; HasktorchException -&gt; IO (m a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">HasktorchException -&gt; m a
+forall (m :: * -&gt; *) e a.
+(HasCallStack, MonadThrow m, Exception e) =&gt;
+e -&gt; m a
+</span><span class="hs-identifier hs-var">throwM</span></span><span> </span><span class="annot"><span class="annottext">(HasktorchException -&gt; IO (m a)) -&gt; HasktorchException -&gt; IO (m a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; HasktorchException
+</span><a href="Torch.Internal.GC.html#HasktorchException"><span class="hs-identifier hs-var">HasktorchException</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Exception: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; String
+</span><a href="Torch.Internal.GC.html#bsToChars"><span class="hs-identifier hs-var">bsToChars</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621685397806"><span class="hs-identifier hs-var">msg</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span id="local-6989586621685397670"><span class="annot"><a href="Torch.Internal.GC.html#prettyException"><span class="hs-identifier hs-type">prettyException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621685397670"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621685397670"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-70"></span><span id="prettyException"><span class="annot"><span class="annottext">prettyException :: forall a. IO a -&gt; IO a
+</span><a href="Torch.Internal.GC.html#prettyException"><span class="hs-identifier hs-var hs-var">prettyException</span></a></span></span><span> </span><span id="local-6989586621685397830"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397830"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397830"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; (CppException -&gt; IO a) -&gt; IO a
+forall (m :: * -&gt; *) e a.
+(HasCallStack, MonadCatch m, Exception e) =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-operator hs-var">`catch`</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621685397831"><span class="annot"><span class="annottext">a :: CppException
+</span><a href="#local-6989586621685397831"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CppStdException</span></span><span> </span><span class="annot"><span class="annottext">CppExceptionPtr
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621685397832"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621685397832"><span class="hs-identifier hs-var">message</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621685397833"><span class="annot"><a href="#local-6989586621685397833"><span class="hs-identifier hs-var">flag</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Maybe String)
+</span><span class="hs-identifier hs-var">lookupEnv</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;HASKTORCH_DEBUG&quot;</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621685397833"><span class="hs-identifier hs-type">flag</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">/=</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="hs-string">&quot;0&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-74"></span><span>      </span><span id="local-6989586621685397835"><span class="annot"><a href="#local-6989586621685397835"><span class="hs-identifier hs-var">mst</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">showStackTrace</span></span><span>
+</span><span id="line-75"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621685397835"><span class="hs-identifier hs-type">mst</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621685397837"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621685397837"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; String -&gt; IO ()
+</span><span class="hs-identifier hs-var">hPutStrLn</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stderr</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621685397837"><span class="hs-identifier hs-var">st</span></a></span><span>
+</span><span id="line-77"></span><span>        </span><span class="annot"><span class="annottext">Maybe String
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; String -&gt; IO ()
+</span><span class="hs-identifier hs-var">hPutStrLn</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stderr</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Cannot show stacktrace&quot;</span></span><span>
+</span><span id="line-78"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">B.hPutStr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">stderr</span></span><span> </span><span class="annot"><a href="#local-6989586621685397832"><span class="hs-identifier hs-type">message</span></a></span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">throwIO</span></span><span> </span><span class="annot"><a href="#local-6989586621685397831"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-80"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Torch.Internal.GC.html#prettyException"><span class="hs-pragma hs-type">prettyException</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span id="local-6989586621685397677"><span class="annot"><a href="Torch.Internal.GC.html#retryWithGC%27"><span class="hs-identifier hs-type">retryWithGC'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621685397677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621685397677"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-83"></span><span id="retryWithGC%27"><span class="annot"><span class="annottext">retryWithGC' :: forall a. Int -&gt; IO a -&gt; IO a
+</span><a href="Torch.Internal.GC.html#retryWithGC%27"><span class="hs-identifier hs-var hs-var">retryWithGC'</span></a></span></span><span> </span><span id="local-6989586621685397865"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621685397865"><span class="hs-identifier hs-var">count</span></a></span></span><span> </span><span id="local-6989586621685397866"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397866"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397866"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; (CppException -&gt; IO a) -&gt; IO a
+forall (m :: * -&gt; *) e a.
+(HasCallStack, MonadCatch m, Exception e) =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-operator hs-var">`catch`</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621685397867"><span class="annot"><span class="annottext">a :: CppException
+</span><a href="#local-6989586621685397867"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CppStdException</span></span><span> </span><span class="annot"><span class="annottext">CppExceptionPtr
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621685397868"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621685397868"><span class="hs-identifier hs-var">message</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">B.isPrefixOf</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621685397870"><span class="hs-identifier hs-var">msgOutOfMemory</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621685397868"><span class="hs-identifier hs-var">message</span></a></span><span>
+</span><span id="line-86"></span><span>      </span><span class="hs-keyword">then</span><span>
+</span><span id="line-87"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621685397865"><span class="hs-identifier hs-var">count</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-88"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">IOError -&gt; IO a
+forall (m :: * -&gt; *) e a.
+(HasCallStack, MonadThrow m, Exception e) =&gt;
+e -&gt; m a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">(IOError -&gt; IO a) -&gt; IOError -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IOError) -&gt; String -&gt; IOError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; String
+</span><a href="Torch.Internal.GC.html#bsToChars"><span class="hs-identifier hs-var">bsToChars</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; String) -&gt; ByteString -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;Too many calls to performGC, &quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621685397868"><span class="hs-identifier hs-var">message</span></a></span><span>
+</span><span id="line-89"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-90"></span><span>            </span><span class="annot"><span class="annottext">IO ()
+</span><span class="hs-identifier hs-var">performGC</span></span><span>
+</span><span id="line-91"></span><span>            </span><span class="annot"><span class="annottext">CInt -&gt; IO ()
+</span><a href="Torch.Internal.GC.html#mallocTrim"><span class="hs-identifier hs-var">mallocTrim</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-92"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">threadDelay</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1000</span></span><span> </span><span class="hs-comment">-- We need delta delay(1ms) to wait GC.</span><span>
+</span><span id="line-93"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; IO a -&gt; IO a
+forall a. Int -&gt; IO a -&gt; IO a
+</span><a href="Torch.Internal.GC.html#retryWithGC%27"><span class="hs-identifier hs-var">retryWithGC'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621685397865"><span class="hs-identifier hs-var">count</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397866"><span class="hs-identifier hs-var">func</span></a></span><span>
+</span><span id="line-94"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">CppException -&gt; IO a
+forall (m :: * -&gt; *) e a.
+(HasCallStack, MonadThrow m, Exception e) =&gt;
+e -&gt; m a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">CppException
+</span><a href="#local-6989586621685397867"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-keyword">where</span><span class="hs-cpp">
+#ifdef darwin_HOST_OS
+</span><span>    </span><span class="hs-identifier">msgOutOfMemory</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;MPS backend out of memory&quot;</span><span class="hs-cpp">
+#else
+</span><span>    </span><span id="local-6989586621685397870"><span class="annot"><span class="annottext">msgOutOfMemory :: ByteString
+</span><a href="#local-6989586621685397870"><span class="hs-identifier hs-var hs-var">msgOutOfMemory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;Exception: CUDA out of memory.&quot;</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Torch.Internal.GC.html#retryWithGC%27"><span class="hs-pragma hs-type">retryWithGC'</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span id="local-6989586621685397874"><span class="annot"><a href="Torch.Internal.GC.html#retryWithGC"><span class="hs-identifier hs-type">retryWithGC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621685397874"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621685397874"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-104"></span><span id="retryWithGC"><span class="annot"><span class="annottext">retryWithGC :: forall a. IO a -&gt; IO a
+</span><a href="Torch.Internal.GC.html#retryWithGC"><span class="hs-identifier hs-var hs-var">retryWithGC</span></a></span></span><span> </span><span id="local-6989586621685397876"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397876"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><a href="Torch.Internal.GC.html#prettyException"><span class="hs-identifier hs-var">prettyException</span></a></span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; IO a) -&gt; IO a -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO a -&gt; IO a
+forall a. Int -&gt; IO a -&gt; IO a
+</span><a href="Torch.Internal.GC.html#retryWithGC%27"><span class="hs-identifier hs-var">retryWithGC'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621685397876"><span class="hs-identifier hs-var">func</span></a></span><span>
+</span><span id="line-105"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Torch.Internal.GC.html#retryWithGC"><span class="hs-pragma hs-type">retryWithGC</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="annot"><a href="Torch.Internal.GC.html#checkOSMemoryWithGC"><span class="hs-identifier hs-type">checkOSMemoryWithGC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span id="checkOSMemoryWithGC"><span class="annot"><span class="annottext">checkOSMemoryWithGC :: IO ()
+</span><a href="Torch.Internal.GC.html#checkOSMemoryWithGC"><span class="hs-identifier hs-var hs-var">checkOSMemoryWithGC</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-109"></span><span>  </span><span id="local-6989586621685397878"><span class="annot"><a href="#local-6989586621685397878"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Either Errno SysInfo)
+</span><span class="hs-identifier hs-var">sysInfo</span></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621685397878"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621685397880"><span class="annot"><span class="annottext">SysInfo
+</span><a href="#local-6989586621685397880"><span class="hs-identifier hs-var">stat</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-112"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621685397881"><span class="annot"><span class="annottext">rate :: Double
+</span><a href="#local-6989586621685397881"><span class="hs-identifier hs-var hs-var">rate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CULong -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SysInfo -&gt; CULong
+</span><span class="hs-identifier hs-var">freeram</span></span><span> </span><span class="annot"><span class="annottext">SysInfo
+</span><a href="#local-6989586621685397880"><span class="hs-identifier hs-var">stat</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">CULong -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SysInfo -&gt; CULong
+</span><span class="hs-identifier hs-var">totalram</span></span><span> </span><span class="annot"><span class="annottext">SysInfo
+</span><a href="#local-6989586621685397880"><span class="hs-identifier hs-var">stat</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621685397881"><span class="hs-identifier hs-var">rate</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.5</span></span><span>
+</span><span id="line-114"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-115"></span><span>          </span><span class="annot"><span class="annottext">IO ()
+</span><span class="hs-identifier hs-var">performGC</span></span><span>
+</span><span id="line-116"></span><span>          </span><span class="annot"><span class="annottext">CInt -&gt; IO ()
+</span><a href="Torch.Internal.GC.html#mallocTrim"><span class="hs-identifier hs-var">mallocTrim</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-117"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">Errno
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">threadDelay</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">500</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">*</span></span><span> </span><span class="annot"><span class="hs-number">1000</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- wait 500msec</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><a href="Torch.Internal.GC.html#checkOSMemoryWithGC"><span class="hs-identifier hs-type">checkOSMemoryWithGC</span></a></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Torch.Internal.GC.html#monitorMemory"><span class="hs-identifier hs-type">monitorMemory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span id="monitorMemory"><span class="annot"><span class="annottext">monitorMemory :: IO () -&gt; IO ()
+</span><a href="Torch.Internal.GC.html#monitorMemory"><span class="hs-identifier hs-var hs-var">monitorMemory</span></a></span></span><span> </span><span id="local-6989586621685397887"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621685397887"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-124"></span><span>  </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621685397887"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO (Either () ())
+forall a b. IO a -&gt; IO b -&gt; IO (Either a b)
+</span><span class="hs-operator hs-var">`race`</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="Torch.Internal.GC.html#checkOSMemoryWithGC"><span class="hs-identifier hs-var">checkOSMemoryWithGC</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span></pre></body></html>

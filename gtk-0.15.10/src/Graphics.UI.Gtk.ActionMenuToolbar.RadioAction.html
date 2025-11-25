@@ -1,0 +1,467 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/ActionMenuToolbar/RadioAction.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Widget RadioAction</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Duncan Coutts</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 6 April 2005</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 2005 Duncan Coutts</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- I don't know what the element type of the group GSList is for</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- radioActionSetGroup / radioActionGetGroup</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- Also, the signals clash with those from other modules</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- An action of which only one in a group can be active</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- * Module available since Gtk+ version 2.4</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html"><span class="hs-identifier">Graphics.UI.Gtk.ActionMenuToolbar.RadioAction</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-37"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | A 'RadioAction' is similar to 'RadioMenuItem'. A number of radio actions</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- can be linked together so that only one may be active at any one time.</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | +----'Action'</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | +----'ToggleAction'</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | +----RadioAction</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier">RadioAction</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier">RadioActionClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToRadioAction"><span class="hs-identifier">castToRadioAction</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeRadioAction"><span class="hs-identifier">gTypeRadioAction</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toRadioAction"><span class="hs-identifier">toRadioAction</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionNew"><span class="hs-identifier">radioActionNew</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGetGroup"><span class="hs-identifier">radioActionGetGroup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionSetGroup"><span class="hs-identifier">radioActionSetGroup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGetCurrentValue"><span class="hs-identifier">radioActionGetCurrentValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><span class="hs-comment">-- * Attributes</span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionValueAttr"><span class="hs-identifier">radioActionValueAttr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGroup"><span class="hs-identifier">radioActionGroup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionCurrentValue"><span class="hs-identifier">radioActionCurrentValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><span class="hs-comment">-- * Signals</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionChanged"><span class="hs-identifier">radioActionChanged</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="annot"><span class="hs-comment">-- * Deprecated</span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#onRadioActionChanged"><span class="hs-identifier">onRadioActionChanged</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#afterRadioActionChanged"><span class="hs-identifier">afterRadioActionChanged</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.UTFString</span></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.GList</span></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Attributes</span></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.Properties</span></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-92"></span><span class="hs-pragma">{-# LINE 92 &quot;./Graphics/UI/Gtk/ActionMenuToolbar/RadioAction.chs&quot; #-}</span><span>
+</span><span id="line-92"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.Signals</span><span>
+</span><span id="line-93"></span><span class="hs-pragma">{-# LINE 93 &quot;./Graphics/UI/Gtk/ActionMenuToolbar/RadioAction.chs&quot; #-}</span><span>
+</span><span id="line-93"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.General.StockItems</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-pragma">{-# LINE 96 &quot;./Graphics/UI/Gtk/ActionMenuToolbar/RadioAction.chs&quot; #-}</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- | Creates a new 'RadioAction' object. To add the action to a 'ActionGroup'</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- and set the accelerator for the action, call</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- 'Graphics.UI.Gtk.ActionMenuToolbar.ActionGroup.actionGroupAddActionWithAccel'.</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span id="local-6989586621679673248"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionNew"><span class="hs-identifier hs-type">radioActionNew</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GlibString</span></span><span> </span><span class="annot"><a href="#local-6989586621679673248"><span class="hs-identifier hs-type">string</span></a></span><span>
+</span><span id="line-106"></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679673248"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @name@ - A unique name for the action</span></span><span>
+</span><span id="line-107"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679673248"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="hs-comment">-- ^ @label@ - The label displayed in menu items and on</span><span>
+</span><span id="line-108"></span><span>                   </span><span class="hs-comment">-- buttons</span><span>
+</span><span id="line-109"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679673248"><span class="hs-identifier hs-type">string</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @tooltip@ - A tooltip for this action</span></span><span>
+</span><span id="line-110"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.General.StockItems.html#StockId"><span class="hs-identifier hs-type">StockId</span></a></span><span> </span><span class="hs-comment">-- ^ @stockId@ - The stock icon to display in widgets</span><span>
+</span><span id="line-111"></span><span>                   </span><span class="hs-comment">-- representing this action</span><span>
+</span><span id="line-112"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-comment">-- ^ @value@ - The value which 'radioActionGetCurrentValue'</span><span>
+</span><span id="line-113"></span><span>                   </span><span class="hs-comment">-- should return if this action is selected.</span><span>
+</span><span id="line-114"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span></span><span>
+</span><span id="line-115"></span><span id="radioActionNew"><span class="annot"><span class="annottext">radioActionNew :: forall string.
+GlibString string =&gt;
+string
+-&gt; string -&gt; Maybe string -&gt; Maybe StockId -&gt; Int -&gt; IO RadioAction
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionNew"><span class="hs-identifier hs-var hs-var">radioActionNew</span></a></span></span><span> </span><span id="local-6989586621679673359"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679673359"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679673360"><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679673360"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679673361"><span class="annot"><span class="annottext">Maybe string
+</span><a href="#local-6989586621679673361"><span class="hs-identifier hs-var">tooltip</span></a></span></span><span> </span><span id="local-6989586621679673362"><span class="annot"><span class="annottext">Maybe StockId
+</span><a href="#local-6989586621679673362"><span class="hs-identifier hs-var">stockId</span></a></span></span><span> </span><span id="local-6989586621679673363"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679673363"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr RadioAction -&gt; RadioAction, FinalizerPtr RadioAction)
+-&gt; IO (Ptr RadioAction) -&gt; IO RadioAction
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">wrapNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr RadioAction -&gt; RadioAction, FinalizerPtr RadioAction)
+forall {a}. (ForeignPtr RadioAction -&gt; RadioAction, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkRadioAction"><span class="hs-identifier hs-var">mkRadioAction</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr RadioAction) -&gt; IO RadioAction)
+-&gt; IO (Ptr RadioAction) -&gt; IO RadioAction
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><span class="annottext">(StockId
+ -&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction))
+-&gt; Maybe StockId
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction))
+-&gt; IO (Ptr RadioAction)
+forall a b c.
+(a -&gt; (Ptr b -&gt; IO c) -&gt; IO c)
+-&gt; Maybe a -&gt; (Ptr b -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">maybeWith</span></span><span> </span><span class="annot"><span class="annottext">StockId
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction)
+forall s a. GlibString s =&gt; s -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+forall a. StockId -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">Maybe StockId
+</span><a href="#local-6989586621679673362"><span class="hs-identifier hs-var">stockId</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction))
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679673368"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621679673368"><span class="hs-identifier hs-var">stockIdPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><span class="annottext">(string
+ -&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction))
+-&gt; Maybe string
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction))
+-&gt; IO (Ptr RadioAction)
+forall a b c.
+(a -&gt; (Ptr b -&gt; IO c) -&gt; IO c)
+-&gt; Maybe a -&gt; (Ptr b -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">maybeWith</span></span><span> </span><span class="annot"><span class="annottext">string
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction)
+forall a. string -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">Maybe string
+</span><a href="#local-6989586621679673361"><span class="hs-identifier hs-var">tooltip</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction))
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679673369"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621679673369"><span class="hs-identifier hs-var">tooltipPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="annottext">string
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction)
+forall a. string -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679673360"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction))
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679673370"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621679673370"><span class="hs-identifier hs-var">labelPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><span class="annottext">string
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction)
+forall a. string -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+forall s a. GlibString s =&gt; s -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withUTFString</span></span><span> </span><span class="annot"><span class="annottext">string
+</span><a href="#local-6989586621679673359"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction))
+-&gt; (Ptr CChar -&gt; IO (Ptr RadioAction)) -&gt; IO (Ptr RadioAction)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679673371"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621679673371"><span class="hs-identifier hs-var">namePtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><span class="annottext">Ptr CChar
+-&gt; Ptr CChar
+-&gt; Ptr CChar
+-&gt; Ptr CChar
+-&gt; CInt
+-&gt; IO (Ptr RadioAction)
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_new"><span class="hs-identifier hs-var">gtk_radio_action_new</span></a></span><span>
+</span><span id="line-122"></span><span class="hs-pragma">{-# LINE 122 &quot;./Graphics/UI/Gtk/ActionMenuToolbar/RadioAction.chs&quot; #-}</span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-identifier">namePtr</span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621679673370"><span class="hs-identifier hs-var">labelPtr</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621679673369"><span class="hs-identifier hs-var">tooltipPtr</span></a></span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621679673368"><span class="hs-identifier hs-var">stockIdPtr</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679673363"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | Returns the list representing the radio group for this object</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span id="local-6989586621679673271"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGetGroup"><span class="hs-identifier hs-type">radioActionGetGroup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673271"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679673271"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-134"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span class="hs-special">]</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the members of the radio group</span></span><span>
+</span><span id="line-135"></span><span id="radioActionGetGroup"><span class="annot"><span class="annottext">radioActionGetGroup :: forall self. RadioActionClass self =&gt; self -&gt; IO [RadioAction]
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGetGroup"><span class="hs-identifier hs-var hs-var">radioActionGetGroup</span></a></span></span><span> </span><span id="local-6989586621679673383"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679673383"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span> </span><span id="local-6989586621679673384"><span class="annot"><span class="annottext">ForeignPtr RadioAction
+</span><a href="#local-6989586621679673384"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RadioAction
+-&gt; (Ptr RadioAction -&gt; IO (Ptr ())) -&gt; IO (Ptr ())
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RadioAction
+</span><a href="#local-6989586621679673384"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RadioAction -&gt; IO (Ptr ())) -&gt; IO (Ptr ()))
+-&gt; (Ptr RadioAction -&gt; IO (Ptr ())) -&gt; IO (Ptr ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679673386"><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673386"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RadioAction -&gt; IO (Ptr ())
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_get_group"><span class="hs-identifier hs-var">gtk_radio_action_get_group</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673386"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span class="hs-pragma">{-# LINE 137 &quot;./Graphics/UI/Gtk/ActionMenuToolbar/RadioAction.chs&quot; #-}</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toRadioAction</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr ())
+-&gt; (Ptr () -&gt; IO [Ptr RadioAction]) -&gt; IO [Ptr RadioAction]
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Ptr () -&gt; IO [Ptr RadioAction]
+forall a. Ptr () -&gt; IO [Ptr a]
+</span><span class="hs-identifier hs-var">readGSList</span></span><span>
+</span><span id="line-139"></span><span>  </span><span class="annot"><span class="annottext">IO [Ptr RadioAction]
+-&gt; ([Ptr RadioAction] -&gt; IO [RadioAction]) -&gt; IO [RadioAction]
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">(Ptr RadioAction -&gt; IO RadioAction)
+-&gt; [Ptr RadioAction] -&gt; IO [RadioAction]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679673390"><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673390"><span class="hs-identifier hs-var">elemPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(ForeignPtr RadioAction -&gt; RadioAction, FinalizerPtr RadioAction)
+-&gt; IO (Ptr RadioAction) -&gt; IO RadioAction
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr RadioAction -&gt; RadioAction, FinalizerPtr RadioAction)
+forall {a}. (ForeignPtr RadioAction -&gt; RadioAction, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkRadioAction"><span class="hs-identifier hs-var">mkRadioAction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr RadioAction -&gt; IO (Ptr RadioAction)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673390"><span class="hs-identifier hs-var">elemPtr</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- | Sets the radio group for the radio action object.</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--</span><span>
+</span><span id="line-143"></span><span id="local-6989586621679673286"><span id="local-6989586621679673287"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionSetGroup"><span class="hs-identifier hs-type">radioActionSetGroup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673286"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673287"><span class="hs-identifier hs-type">groupMember</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679673286"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-144"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679673287"><span class="hs-identifier hs-type">groupMember</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @groupMember@ - an existing member of the radio group</span></span><span>
+</span><span id="line-145"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-146"></span><span id="radioActionSetGroup"><span class="annot"><span class="annottext">radioActionSetGroup :: forall self groupMember.
+(RadioActionClass self, RadioActionClass groupMember) =&gt;
+self -&gt; groupMember -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionSetGroup"><span class="hs-identifier hs-var hs-var">radioActionSetGroup</span></a></span></span><span> </span><span id="local-6989586621679673397"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679673397"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679673398"><span class="annot"><span class="annottext">groupMember
+</span><a href="#local-6989586621679673398"><span class="hs-identifier hs-var">group</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-147"></span><span>  </span><span id="local-6989586621679673399"><span class="annot"><a href="#local-6989586621679673399"><span class="hs-identifier hs-var">groupPtr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span> </span><span id="local-6989586621679673400"><span class="annot"><span class="annottext">ForeignPtr RadioAction
+</span><a href="#local-6989586621679673400"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RadioAction
+-&gt; (Ptr RadioAction -&gt; IO (Ptr ())) -&gt; IO (Ptr ())
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RadioAction
+</span><a href="#local-6989586621679673400"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RadioAction -&gt; IO (Ptr ())) -&gt; IO (Ptr ()))
+-&gt; (Ptr RadioAction -&gt; IO (Ptr ())) -&gt; IO (Ptr ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679673401"><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673401"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RadioAction -&gt; IO (Ptr ())
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_get_group"><span class="hs-identifier hs-var">gtk_radio_action_get_group</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673401"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">groupMember -&gt; RadioAction
+forall o. RadioActionClass o =&gt; o -&gt; RadioAction
+</span><a href="Graphics.UI.Gtk.Types.html#toRadioAction"><span class="hs-identifier hs-var">toRadioAction</span></a></span><span> </span><span class="annot"><span class="annottext">groupMember
+</span><a href="#local-6989586621679673398"><span class="hs-identifier hs-var">group</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span> </span><span id="local-6989586621679673402"><span class="annot"><span class="annottext">ForeignPtr RadioAction
+</span><a href="#local-6989586621679673402"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679673403"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679673403"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RadioAction -&gt; (Ptr RadioAction -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RadioAction
+</span><a href="#local-6989586621679673402"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RadioAction -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr RadioAction -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679673404"><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673404"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RadioAction -&gt; Ptr () -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_set_group"><span class="hs-identifier hs-var">gtk_radio_action_set_group</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673404"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679673403"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span class="hs-pragma">{-# LINE 149 &quot;./Graphics/UI/Gtk/ActionMenuToolbar/RadioAction.chs&quot; #-}</span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toRadioAction</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>    </span><span class="annot"><a href="#local-6989586621679673399"><span class="hs-identifier hs-type">groupPtr</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- | Obtains the value property of the currently active member of the group to</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- which the action belongs.</span><span>
+</span><span id="line-154"></span><span class="hs-comment">--</span><span>
+</span><span id="line-155"></span><span id="local-6989586621679673290"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGetCurrentValue"><span class="hs-identifier hs-type">radioActionGetCurrentValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673290"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679673290"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-156"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ returns the value of the currently active group member</span></span><span>
+</span><span id="line-157"></span><span id="radioActionGetCurrentValue"><span class="annot"><span class="annottext">radioActionGetCurrentValue :: forall self. RadioActionClass self =&gt; self -&gt; IO Int
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGetCurrentValue"><span class="hs-identifier hs-var hs-var">radioActionGetCurrentValue</span></a></span></span><span> </span><span id="local-6989586621679673413"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679673413"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-158"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; Int) -&gt; IO CInt -&gt; IO Int
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Int) -&gt; IO CInt -&gt; IO Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-159"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span> </span><span id="local-6989586621679673414"><span class="annot"><span class="annottext">ForeignPtr RadioAction
+</span><a href="#local-6989586621679673414"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr RadioAction -&gt; (Ptr RadioAction -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr RadioAction
+</span><a href="#local-6989586621679673414"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr RadioAction -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr RadioAction -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679673415"><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673415"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr RadioAction -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_get_current_value"><span class="hs-identifier hs-var">gtk_radio_action_get_current_value</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr RadioAction
+</span><a href="#local-6989586621679673415"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span class="hs-pragma">{-# LINE 160 &quot;./Graphics/UI/Gtk/ActionMenuToolbar/RadioAction.chs&quot; #-}</span><span>
+</span><span id="line-160"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toRadioAction</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- Attributes</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- %hash d:1bcf</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- | The value is an arbitrary integer which can be used as a convenient way</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- to determine which action in the group is currently active in an ::activate</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- or ::changed signal handler. See 'radioActionGetCurrentValue' and</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- 'RadioActionEntry' for convenient ways to get and set</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- this property.</span><span>
+</span><span id="line-171"></span><span class="hs-comment">--</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- Default value: 0</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--</span><span>
+</span><span id="line-174"></span><span id="local-6989586621679673295"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionValueAttr"><span class="hs-identifier hs-type">radioActionValueAttr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673295"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679673295"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-175"></span><span id="radioActionValueAttr"><span class="annot"><span class="annottext">radioActionValueAttr :: forall self. RadioActionClass self =&gt; Attr self Int
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionValueAttr"><span class="hs-identifier hs-var hs-var">radioActionValueAttr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr self Int
+forall gobj. GObjectClass gobj =&gt; String -&gt; Attr gobj Int
+</span><span class="hs-identifier hs-var">newAttrFromIntProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;value&quot;</span></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- %hash c:a380</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- | Sets a new group for a radio action.</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--</span><span>
+</span><span id="line-180"></span><span id="local-6989586621679673304"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGroup"><span class="hs-identifier hs-type">radioActionGroup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673304"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadWriteAttr</span></span><span> </span><span class="annot"><a href="#local-6989586621679673304"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span></span><span>
+</span><span id="line-181"></span><span id="radioActionGroup"><span class="annot"><span class="annottext">radioActionGroup :: forall self.
+RadioActionClass self =&gt;
+ReadWriteAttr self [RadioAction] RadioAction
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGroup"><span class="hs-identifier hs-var hs-var">radioActionGroup</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(self -&gt; IO [RadioAction])
+-&gt; (self -&gt; RadioAction -&gt; IO ())
+-&gt; ReadWriteAttr self [RadioAction] RadioAction
+forall o a b.
+(o -&gt; IO a) -&gt; (o -&gt; b -&gt; IO ()) -&gt; ReadWriteAttr o a b
+</span><span class="hs-identifier hs-var">newAttr</span></span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; IO [RadioAction]
+forall self. RadioActionClass self =&gt; self -&gt; IO [RadioAction]
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionGetGroup"><span class="hs-identifier hs-var">radioActionGetGroup</span></a></span><span>
+</span><span id="line-183"></span><span>  </span><span class="annot"><span class="annottext">self -&gt; RadioAction -&gt; IO ()
+forall self groupMember.
+(RadioActionClass self, RadioActionClass groupMember) =&gt;
+self -&gt; groupMember -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionSetGroup"><span class="hs-identifier hs-var">radioActionSetGroup</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- %hash c:4cec d:1710</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- | The value property of the currently active member of the group to which</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- this action belongs.</span><span>
+</span><span id="line-189"></span><span class="hs-comment">--</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- Default value: 0</span><span>
+</span><span id="line-191"></span><span class="hs-comment">--</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- * Available since Gtk+ version 2.10</span><span>
+</span><span id="line-193"></span><span class="hs-comment">--</span><span>
+</span><span id="line-194"></span><span id="local-6989586621679673432"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionCurrentValue"><span class="hs-identifier hs-type">radioActionCurrentValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673432"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Attr</span></span><span> </span><span class="annot"><a href="#local-6989586621679673432"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-195"></span><span id="radioActionCurrentValue"><span class="annot"><span class="annottext">radioActionCurrentValue :: forall self. RadioActionClass self =&gt; Attr self Int
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionCurrentValue"><span class="hs-identifier hs-var hs-var">radioActionCurrentValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Attr self Int
+forall gobj. GObjectClass gobj =&gt; String -&gt; Attr gobj Int
+</span><span class="hs-identifier hs-var">newAttrFromIntProperty</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;current-value&quot;</span></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | The 'radioActionChanged' signal is emitted on every member of a radio group when the</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- active member is changed. The signal gets emitted after the 'actionActivated' signals for the</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- previous and current active members.</span><span>
+</span><span id="line-201"></span><span class="hs-comment">--</span><span>
+</span><span id="line-202"></span><span id="local-6989586621679673311"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionChanged"><span class="hs-identifier hs-type">radioActionChanged</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673311"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Signal</span></span><span> </span><span class="annot"><a href="#local-6989586621679673311"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-203"></span><span id="radioActionChanged"><span class="annot"><span class="annottext">radioActionChanged :: forall self.
+RadioActionClass self =&gt;
+Signal self (RadioAction -&gt; IO ())
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#radioActionChanged"><span class="hs-identifier hs-var hs-var">radioActionChanged</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; self -&gt; (RadioAction -&gt; IO ()) -&gt; IO (ConnectId self))
+-&gt; Signal self (RadioAction -&gt; IO ())
+forall object handler.
+(Bool -&gt; object -&gt; handler -&gt; IO (ConnectId object))
+-&gt; Signal object handler
+</span><span class="hs-identifier hs-var">Signal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+-&gt; Bool -&gt; self -&gt; (RadioAction -&gt; IO ()) -&gt; IO (ConnectId self)
+forall a' obj.
+(GObjectClass a', GObjectClass obj) =&gt;
+String -&gt; Bool -&gt; obj -&gt; (a' -&gt; IO ()) -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_OBJECT__NONE"><span class="hs-identifier hs-var">connect_OBJECT__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;changed&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- Deprecated Signals</span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- | The changed signal is emitted on every member of a radio group when the</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- active member is changed. The signal gets emitted after the activate</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- signals for the previous and current active members.</span><span>
+</span><span id="line-212"></span><span class="hs-comment">--</span><span>
+</span><span id="line-213"></span><span id="local-6989586621679673319"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#onRadioActionChanged"><span class="hs-identifier hs-type">onRadioActionChanged</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#afterRadioActionChanged"><span class="hs-identifier hs-type">afterRadioActionChanged</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioActionClass"><span class="hs-identifier hs-type">RadioActionClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679673319"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679673319"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-214"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-215"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConnectId</span></span><span> </span><span class="annot"><a href="#local-6989586621679673319"><span class="hs-identifier hs-type">self</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-216"></span><span id="onRadioActionChanged"><span class="annot"><span class="annottext">onRadioActionChanged :: forall self.
+RadioActionClass self =&gt;
+self -&gt; (RadioAction -&gt; IO ()) -&gt; IO (ConnectId self)
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#onRadioActionChanged"><span class="hs-identifier hs-var hs-var">onRadioActionChanged</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; Bool -&gt; self -&gt; (RadioAction -&gt; IO ()) -&gt; IO (ConnectId self)
+forall a' obj.
+(GObjectClass a', GObjectClass obj) =&gt;
+String -&gt; Bool -&gt; obj -&gt; (a' -&gt; IO ()) -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_OBJECT__NONE"><span class="hs-identifier hs-var">connect_OBJECT__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;changed&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-217"></span><span id="afterRadioActionChanged"><span class="annot"><span class="annottext">afterRadioActionChanged :: forall self.
+RadioActionClass self =&gt;
+self -&gt; (RadioAction -&gt; IO ()) -&gt; IO (ConnectId self)
+</span><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#afterRadioActionChanged"><span class="hs-identifier hs-var hs-var">afterRadioActionChanged</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; Bool -&gt; self -&gt; (RadioAction -&gt; IO ()) -&gt; IO (ConnectId self)
+forall a' obj.
+(GObjectClass a', GObjectClass obj) =&gt;
+String -&gt; Bool -&gt; obj -&gt; (a' -&gt; IO ()) -&gt; IO (ConnectId obj)
+</span><a href="Graphics.UI.Gtk.Signals.html#connect_OBJECT__NONE"><span class="hs-identifier hs-var">connect_OBJECT__NONE</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;changed&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_radio_action_new&quot;</span></span><span>
+</span><span id="line-220"></span><span>  </span><span id="gtk_radio_action_new"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_new"><span class="hs-identifier hs-var">gtk_radio_action_new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_radio_action_get_group&quot;</span></span><span>
+</span><span id="line-223"></span><span>  </span><span id="gtk_radio_action_get_group"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_get_group"><span class="hs-identifier hs-var">gtk_radio_action_get_group</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_radio_action_set_group&quot;</span></span><span>
+</span><span id="line-226"></span><span>  </span><span id="gtk_radio_action_set_group"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_set_group"><span class="hs-identifier hs-var">gtk_radio_action_set_group</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-227"></span><span>
+</span><span id="line-228"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_radio_action_get_current_value&quot;</span></span><span>
+</span><span id="line-229"></span><span>  </span><span id="gtk_radio_action_get_current_value"><span class="annot"><a href="Graphics.UI.Gtk.ActionMenuToolbar.RadioAction.html#gtk_radio_action_get_current_value"><span class="hs-identifier hs-var">gtk_radio_action_get_current_value</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#RadioAction"><span class="hs-identifier hs-type">RadioAction</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-230"></span></pre></body></html>

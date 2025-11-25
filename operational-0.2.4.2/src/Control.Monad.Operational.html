@@ -1,0 +1,802 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GADTSyntax, ExistentialQuantification, Rank2Types, ScopedTypeVariables #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances, MultiParamTypeClasses, FlexibleInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Search for UndecidableInstances to see why this is needed</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html"><span class="hs-identifier">Control.Monad.Operational</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Synopsis</span></span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><span class="hs-comment">-- $synopsis</span></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Overview</span></span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><span class="hs-comment">-- $intro</span></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Monad</span></span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Control.Monad.Operational.html#Program"><span class="hs-identifier">Program</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#singleton"><span class="hs-identifier">singleton</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramView"><span class="hs-identifier">ProgramView</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#view"><span class="hs-identifier">view</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><span class="hs-comment">-- $example</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Control.Monad.Operational.html#interpretWithMonad"><span class="hs-identifier">interpretWithMonad</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Monad transformer</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier">ProgramT</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier">ProgramViewT</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier">viewT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-comment">-- $exampleT</span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Control.Monad.Operational.html#liftProgram"><span class="hs-identifier">liftProgram</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#mapInstr"><span class="hs-identifier">mapInstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Control.Monad.Operational.html#unviewT"><span class="hs-identifier">unviewT</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#interpretWithMonadT"><span class="hs-identifier">interpretWithMonadT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Identity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Identity</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runIdentity</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans</span></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadTrans</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">lift</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-comment">-- mtl  classes to instantiate.</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-comment">-- Those commented out cannot be instantiated. For reasons see below.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- import Control.Monad.Cont.Class</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- import Control.Monad.Error.Class</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader.Class</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State.Class</span></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- import Control.Monad.Writer.Class</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">{------------------------------------------------------------------------------
+    Introduction
+------------------------------------------------------------------------------}</span><span>
+</span><span id="line-41"></span><span class="annot"><span class="hs-comment">{-$synopsis
+To write a monad, use the 'Program' type.
+
+To write a monad transformer, use the 'ProgramT' type.
+
+For easier interoperability,
+the 'Program' type is actually a type synonym
+and defined in terms of 'ProgramT'.
+-}</span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="annot"><span class="hs-comment">{-$intro
+
+The basic idea for implementing monads with this libary
+is to think of monads as /sequences of primitive instructions/.
+For instance, imagine that you want to write a web application
+with a custom monad that features an instruction
+
+&gt; askUserInput :: CustomMonad UserInput
+
+which sends a form to the remote user and waits for the user
+to send back his input
+
+To implement this monad, you decide that this instruction is
+a primitive, i.e. should not be implemented in terms of other,
+more basic instructions.
+Once you have chosen your primitives, collect them in a data type
+
+@
+data CustomMonadInstruction a where
+    AskUserInput :: CustomMonadInstruction UserInput
+@
+
+Then, obtain your custom monad simply by applying the 'Program'
+type constructor
+
+&gt; type CustomMonad a = Program CustomMonadInstruction a
+
+The library makes sure that it is an instance of the 'Monad' class
+and fulfills all the required laws.
+
+Essentially, the monad you now obtained is just a
+fancy list of primitive instructions.
+In particular, you can pattern match on the first element of this &quot;list&quot;.
+This is how you implement an @interpret@ or @run@ function for your monad.
+Note that pattern matching is done using the 'view' function
+
+@
+runCustomMonad :: CustomMonad a -&gt; IO a
+runCustomMonad m = case view m of
+    Return a            -&gt; return a -- done, return the result
+    AskUserInput :&gt;&gt;= k -&gt; do
+        b &lt;- waitForUserInput       -- wait for external user input
+        runCustomMonad (k b)        -- proceed with next instruction
+@
+
+The point is that you can now proceed in any way you like:
+you can wait for the user to return input as shown,
+or you store the continuation @k@ and retrieve it when
+your web application receives another HTTP request,
+or you can keep a log of all user inputs on the client side and replay them,
+and so on. Moreover, you can implement different @run@ functions
+for one and the same custom monad, which is useful for testing.
+Also note that the result type of the @run@ function does not need to
+be a monad at all.
+
+In essence, your custom monad allows you to express
+your web application as a simple imperative program,
+while the underlying implementation can freely map this to
+an event-drived model or some other control flow architecture
+of your choice.
+
+The possibilities are endless.
+More usage examples can be found here:
+&lt;https://github.com/HeinrichApfelmus/operational/tree/master/doc/examples#readme&gt;
+
+-}</span></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">{------------------------------------------------------------------------------
+   Program
+------------------------------------------------------------------------------}</span><span>
+</span><span id="line-121"></span><span class="annot"><span class="hs-comment">{-| The abstract data type @'Program' instr a@ represents programs,
+    i.e. sequences of primitive instructions.
+
+    * The /primitive instructions/ are given by the type constructor @instr :: * -&gt; *@.
+
+    * @a@ is the return type of a program.
+
+    @'Program' instr@ is always a monad and
+    automatically obeys the monad laws.
+-}</span></span><span>
+</span><span id="line-131"></span><span class="hs-keyword">type</span><span> </span><span id="Program"><span class="annot"><a href="Control.Monad.Operational.html#Program"><span class="hs-identifier hs-var">Program</span></a></span></span><span> </span><span id="local-6989586621679039457"><span class="annot"><a href="#local-6989586621679039457"><span class="hs-identifier hs-type">instr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039457"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- | View type for inspecting the first instruction.</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--   It has two constructors 'Return' and @:&gt;&gt;=@.</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--   (For technical reasons, they are documented at 'ProgramViewT'.)</span><span>
+</span><span id="line-136"></span><span class="hs-keyword">type</span><span> </span><span id="ProgramView"><span class="annot"><a href="Control.Monad.Operational.html#ProgramView"><span class="hs-identifier hs-var">ProgramView</span></a></span></span><span> </span><span id="local-6989586621679039459"><span class="annot"><a href="#local-6989586621679039459"><span class="hs-identifier hs-type">instr</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-type">ProgramViewT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039459"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="annot"><span class="hs-comment">-- | View function for inspecting the first instruction.</span></span><span>
+</span><span id="line-139"></span><span id="local-6989586621679039243"><span id="local-6989586621679039244"><span class="annot"><a href="Control.Monad.Operational.html#view"><span class="hs-identifier hs-type">view</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#Program"><span class="hs-identifier hs-type">Program</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039243"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039244"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramView"><span class="hs-identifier hs-type">ProgramView</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039243"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039244"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-140"></span><span id="view"><span class="annot"><span class="annottext">view :: forall (instr :: * -&gt; *) a. Program instr a -&gt; ProgramView instr a
+</span><a href="Control.Monad.Operational.html#view"><span class="hs-identifier hs-var hs-var">view</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity (ProgramView instr a) -&gt; ProgramView instr a
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity (ProgramView instr a) -&gt; ProgramView instr a)
+-&gt; (Program instr a -&gt; Identity (ProgramView instr a))
+-&gt; Program instr a
+-&gt; ProgramView instr a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Program instr a -&gt; Identity (ProgramView instr a)
+forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+ProgramT instr m a -&gt; m (ProgramViewT instr m a)
+</span><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var">viewT</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- | Utility function that extends</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- a given interpretation of instructions as monadic actions</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- to an interpration of 'Program's as monadic actions.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- This function can be useful if you are mainly interested in</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- mapping a 'Program' to different standard monads, like the state monad.</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- For implementing a truly custom monad,</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- you should write your interpreter directly with 'view' instead.</span><span>
+</span><span id="line-151"></span><span class="annot"><a href="Control.Monad.Operational.html#interpretWithMonad"><span class="hs-identifier hs-type">interpretWithMonad</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679039260"><span class="annot"><a href="#local-6989586621679039260"><span class="hs-identifier hs-type">instr</span></a></span></span><span> </span><span id="local-6989586621679039259"><span class="annot"><a href="#local-6989586621679039259"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679039262"><span class="annot"><a href="#local-6989586621679039262"><span class="hs-identifier hs-type">b</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039259"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679039261"><span class="annot"><a href="#local-6989586621679039261"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679039260"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039261"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679039259"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039261"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Program"><span class="hs-identifier hs-type">Program</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039260"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039262"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679039259"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039262"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span id="interpretWithMonad"><span class="annot"><span class="annottext">interpretWithMonad :: forall (instr :: * -&gt; *) (m :: * -&gt; *) b.
+Monad m =&gt;
+(forall a. instr a -&gt; m a) -&gt; Program instr b -&gt; m b
+</span><a href="Control.Monad.Operational.html#interpretWithMonad"><span class="hs-identifier hs-var hs-var">interpretWithMonad</span></a></span></span><span> </span><span id="local-6989586621679039464"><span class="annot"><span class="annottext">forall a. instr a -&gt; m a
+</span><a href="#local-6989586621679039464"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramView instr b -&gt; m b
+forall a. ProgramView instr a -&gt; m a
+</span><a href="#local-6989586621679039465"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramView instr b -&gt; m b)
+-&gt; (Program instr b -&gt; ProgramView instr b)
+-&gt; Program instr b
+-&gt; m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Program instr b -&gt; ProgramView instr b
+forall (instr :: * -&gt; *) a. Program instr a -&gt; ProgramView instr a
+</span><a href="Control.Monad.Operational.html#view"><span class="hs-identifier hs-var">view</span></a></span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><a href="#local-6989586621679039465"><span class="hs-identifier hs-type">eval</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679039266"><span class="annot"><a href="#local-6989586621679039266"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramView"><span class="hs-identifier hs-type">ProgramView</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039260"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039266"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679039259"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039266"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span id="local-6989586621679039465"><span class="annot"><span class="annottext">eval :: forall a. ProgramView instr a -&gt; m a
+</span><a href="#local-6989586621679039465"><span class="hs-identifier hs-var hs-var">eval</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-type">Return</span></a></span><span> </span><span id="local-6989586621679039467"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679039467"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m a
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679039467"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><a href="#local-6989586621679039465"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679039470"><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039470"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-type">:&gt;&gt;=</span></a></span><span> </span><span id="local-6989586621679039472"><span class="annot"><span class="annottext">b -&gt; ProgramT instr Identity a
+</span><a href="#local-6989586621679039472"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">instr b -&gt; m b
+forall a. instr a -&gt; m a
+</span><a href="#local-6989586621679039464"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039470"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m b -&gt; (b -&gt; m a) -&gt; m a
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">(forall a. instr a -&gt; m a) -&gt; ProgramT instr Identity a -&gt; m a
+forall (instr :: * -&gt; *) (m :: * -&gt; *) b.
+Monad m =&gt;
+(forall a. instr a -&gt; m a) -&gt; Program instr b -&gt; m b
+</span><a href="Control.Monad.Operational.html#interpretWithMonad"><span class="hs-identifier hs-var">interpretWithMonad</span></a></span><span> </span><span class="annot"><span class="annottext">instr a -&gt; m a
+forall a. instr a -&gt; m a
+</span><a href="#local-6989586621679039464"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramT instr Identity a -&gt; m a)
+-&gt; (b -&gt; ProgramT instr Identity a) -&gt; b -&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr Identity a
+</span><a href="#local-6989586621679039472"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="annot"><span class="hs-comment">{- $example
+
+/Example usage/
+
+Stack machine from \&quot;The Operational Monad Tutorial\&quot;.
+
+&gt;    data StackInstruction a where
+&gt;        Push :: Int -&gt; StackInstruction ()
+&gt;        Pop  :: StackInstruction Int
+&gt;
+&gt;    type StackProgram a = Program StackInstruction a
+&gt;    type Stack b        = [b]
+&gt;
+&gt;    interpret :: StackProgram a -&gt; (Stack Int -&gt; a)
+&gt;    interpret = eval . view
+&gt;        where
+&gt;        eval :: ProgramView StackInstruction a -&gt; (Stack Int -&gt; a)
+&gt;        eval (Push a :&gt;&gt;= is) stack     = interpret (is ()) (a:stack)
+&gt;        eval (Pop    :&gt;&gt;= is) (a:stack) = interpret (is a ) stack
+&gt;        eval (Return a)       stack     = a
+
+In this example, the type signature for the `eval` helper function is optional.
+
+-}</span></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-comment">{------------------------------------------------------------------------------
+    ProgramT - monad transformer
+------------------------------------------------------------------------------}</span><span>
+</span><span id="line-187"></span><span class="annot"><span class="hs-comment">{-| The abstract data type @'ProgramT' instr m a@ represents programs
+    over a base monad @m@,
+    i.e. sequences of primitive instructions and actions from the base monad.
+
+    * The /primitive instructions/ are given by the type constructor @instr :: * -&gt; *@.
+
+    * @m@ is the base monad, embedded with 'lift'.
+
+    * @a@ is the return type of a program.
+
+    @'ProgramT' instr m@ is a monad transformer and
+    automatically obeys both the monad and the lifting laws.
+-}</span></span><span>
+</span><span id="line-200"></span><span class="hs-keyword">data</span><span> </span><span id="ProgramT"><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-var">ProgramT</span></a></span></span><span> </span><span id="local-6989586621679039473"><span class="annot"><a href="#local-6989586621679039473"><span class="hs-identifier hs-type">instr</span></a></span></span><span> </span><span id="local-6989586621679039474"><span class="annot"><a href="#local-6989586621679039474"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679039475"><span class="annot"><a href="#local-6989586621679039475"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-201"></span><span>    </span><span id="local-6989586621679039281"><span id="local-6989586621679039282"><span id="local-6989586621679039283"><span id="Lift"><span class="annot"><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-var">Lift</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679039281"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039282"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039283"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039281"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039282"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-202"></span><span>    </span><span id="local-6989586621679039286"><span id="local-6989586621679039287"><span id="local-6989586621679039289"><span id="local-6989586621679039477"><span id="Bind"><span class="annot"><a href="Control.Monad.Operational.html#Bind"><span class="hs-identifier hs-var">Bind</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039286"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039287"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039477"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679039477"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039286"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039287"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039289"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-203"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039286"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039287"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039289"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-204"></span><span>    </span><span id="local-6989586621679039479"><span id="local-6989586621679039480"><span id="local-6989586621679039481"><span id="Instr"><span class="annot"><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-var">Instr</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679039479"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039480"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039479"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039481"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039480"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span>    </span><span class="hs-comment">-- basic instances</span><span>
+</span><span id="line-207"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039278"><span id="local-6989586621679039279"><span id="local-6989586621679039489"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039278"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039279"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039278"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-208"></span><span>    </span><span id="local-6989586621679039495"><span class="annot"><span class="annottext">return :: forall a. a -&gt; ProgramT instr m a
+</span><span class="hs-identifier hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) a (instr :: * -&gt; *). m a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-var">Lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; ProgramT instr m a)
+-&gt; (a -&gt; m a) -&gt; a -&gt; ProgramT instr m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m a
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-209"></span><span>    </span><span id="local-6989586621679039496"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b.
+ProgramT instr m a
+-&gt; (a -&gt; ProgramT instr m b) -&gt; ProgramT instr m b
+</span><span class="hs-operator hs-var hs-var hs-var">(&gt;&gt;=)</span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramT instr m a
+-&gt; (a -&gt; ProgramT instr m b) -&gt; ProgramT instr m b
+forall (instr :: * -&gt; *) (m :: * -&gt; *) b a.
+ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Bind"><span class="hs-identifier hs-var">Bind</span></a></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039296"><span class="annot"><span class="hs-identifier hs-type">MonadTrans</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039296"><span class="hs-identifier hs-type">instr</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-212"></span><span>    </span><span id="local-6989586621679039503"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ProgramT instr m a
+</span><span class="hs-identifier hs-var hs-var hs-var">lift</span></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) a (instr :: * -&gt; *). m a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-var">Lift</span></a></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039306"><span id="local-6989586621679039307"><span id="local-6989586621679039507"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039306"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039307"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039306"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-215"></span><span>    </span><span id="local-6989586621679039512"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; ProgramT instr m a -&gt; ProgramT instr m b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; ProgramT instr m a -&gt; ProgramT instr m b
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span>
+</span><span id="line-216"></span><span>
+</span><span id="line-217"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039514"><span id="local-6989586621679039515"><span id="local-6989586621679039522"><span id="local-6989586621679039525"><span id="local-6989586621679039528"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039514"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039515"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039514"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-218"></span><span>    </span><span id="local-6989586621679039532"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; ProgramT instr m a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramT instr m a
+forall a. a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-219"></span><span>    </span><span id="local-6989586621679039534"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b.
+ProgramT instr m (a -&gt; b)
+-&gt; ProgramT instr m a -&gt; ProgramT instr m b
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramT instr m (a -&gt; b)
+-&gt; ProgramT instr m a -&gt; ProgramT instr m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m (a -&gt; b) -&gt; m a -&gt; m b
+</span><span class="hs-identifier hs-var">ap</span></span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="annot"><span class="hs-comment">-- | Program made from a single primitive instruction.</span></span><span>
+</span><span id="line-222"></span><span id="local-6989586621679039332"><span id="local-6989586621679039333"><span id="local-6989586621679039334"><span class="annot"><a href="Control.Monad.Operational.html#singleton"><span class="hs-identifier hs-type">singleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679039332"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039333"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039332"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039334"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039333"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-223"></span><span id="singleton"><span class="annot"><span class="annottext">singleton :: forall (instr :: * -&gt; *) a (m :: * -&gt; *).
+instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#singleton"><span class="hs-identifier hs-var hs-var">singleton</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">instr a -&gt; ProgramT instr m a
+forall (instr :: * -&gt; *) a (m :: * -&gt; *).
+instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-var">Instr</span></a></span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- | View type for inspecting the first instruction.</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- This is very similar to pattern matching on lists.</span><span>
+</span><span id="line-227"></span><span class="hs-comment">--</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- * The case @(Return a)@ means that the program contains no instructions</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- and just returns the result @a@.</span><span>
+</span><span id="line-230"></span><span class="hs-comment">--</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- *The case @(someInstruction :&gt;&gt;= k)@ means that the first instruction</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- is @someInstruction@ and the remaining program is given by the function @k@.</span><span>
+</span><span id="line-233"></span><span class="hs-keyword">data</span><span> </span><span id="ProgramViewT"><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-var">ProgramViewT</span></a></span></span><span> </span><span id="local-6989586621679039536"><span class="annot"><a href="#local-6989586621679039536"><span class="hs-identifier hs-type">instr</span></a></span></span><span> </span><span id="local-6989586621679039537"><span class="annot"><a href="#local-6989586621679039537"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679039538"><span class="annot"><a href="#local-6989586621679039538"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-234"></span><span>    </span><span id="local-6989586621679039344"><span id="local-6989586621679039345"><span id="local-6989586621679039346"><span id="Return"><span class="annot"><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-var">Return</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679039344"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-type">ProgramViewT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039345"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039346"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039344"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-235"></span><span>    </span><span id="local-6989586621679039352"><span id="local-6989586621679039353"><span id="local-6989586621679039354"><span id="local-6989586621679039539"><span id="%3A%3E%3E%3D"><span class="annot"><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-var">(:&gt;&gt;=)</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679039352"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039539"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-236"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679039539"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039352"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039353"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039354"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-237"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-type">ProgramViewT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039352"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039353"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039354"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039340"><span id="local-6989586621679039341"><span id="local-6989586621679039543"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039340"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-type">ProgramViewT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039341"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039340"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-240"></span><span>    </span><span id="local-6989586621679039546"><span class="annot"><span class="annottext">fmap :: forall a b.
+(a -&gt; b) -&gt; ProgramViewT instr m a -&gt; ProgramViewT instr m b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679039547"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679039547"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-type">Return</span></a></span><span> </span><span id="local-6989586621679039548"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679039548"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramViewT instr m b
+forall a (instr :: * -&gt; *) (m :: * -&gt; *).
+a -&gt; ProgramViewT instr m a
+</span><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-var">Return</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; ProgramViewT instr m b) -&gt; b -&gt; ProgramViewT instr m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679039547"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679039548"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-241"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">fmap</span></span><span> </span><span id="local-6989586621679039549"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679039549"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679039551"><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039551"><span class="hs-identifier hs-var">instr</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-type">:&gt;&gt;=</span></a></span><span> </span><span id="local-6989586621679039552"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039552"><span class="hs-identifier hs-var">cont</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039551"><span class="hs-identifier hs-var">instr</span></a></span><span> </span><span class="annot"><span class="annottext">instr b -&gt; (b -&gt; ProgramT instr m b) -&gt; ProgramViewT instr m b
+forall (instr :: * -&gt; *) b (m :: * -&gt; *) a.
+instr b -&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramViewT instr m a
+</span><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-var">:&gt;&gt;=</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; ProgramT instr m a -&gt; ProgramT instr m b
+forall a b. (a -&gt; b) -&gt; ProgramT instr m a -&gt; ProgramT instr m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679039549"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramT instr m a -&gt; ProgramT instr m b)
+-&gt; (b -&gt; ProgramT instr m a) -&gt; b -&gt; ProgramT instr m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039552"><span class="hs-identifier hs-var">cont</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039357"><span id="local-6989586621679039358"><span id="local-6989586621679039559"><span id="local-6989586621679039563"><span id="local-6989586621679039566"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039357"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-type">ProgramViewT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039358"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039357"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-244"></span><span>    </span><span id="local-6989586621679039570"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; ProgramViewT instr m a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramViewT instr m a
+forall a. a -&gt; ProgramViewT instr m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-245"></span><span>    </span><span id="local-6989586621679039572"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b.
+ProgramViewT instr m (a -&gt; b)
+-&gt; ProgramViewT instr m a -&gt; ProgramViewT instr m b
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramViewT instr m (a -&gt; b)
+-&gt; ProgramViewT instr m a -&gt; ProgramViewT instr m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m (a -&gt; b) -&gt; m a -&gt; m b
+</span><span class="hs-identifier hs-var">ap</span></span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039359"><span id="local-6989586621679039360"><span id="local-6989586621679039578"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039359"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-type">ProgramViewT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039360"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039359"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-248"></span><span>    </span><span id="local-6989586621679039581"><span class="annot"><span class="annottext">return :: forall a. a -&gt; ProgramViewT instr m a
+</span><span class="hs-identifier hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramViewT instr m a
+forall a (instr :: * -&gt; *) (m :: * -&gt; *).
+a -&gt; ProgramViewT instr m a
+</span><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-var">Return</span></a></span><span>
+</span><span id="line-249"></span><span>    </span><span class="annot"><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-type">Return</span></a></span><span> </span><span id="local-6989586621679039582"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679039582"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679039583"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b.
+ProgramViewT instr m a
+-&gt; (a -&gt; ProgramViewT instr m b) -&gt; ProgramViewT instr m b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679039584"><span class="annot"><span class="annottext">a -&gt; ProgramViewT instr m b
+</span><a href="#local-6989586621679039584"><span class="hs-identifier hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramViewT instr m b
+</span><a href="#local-6989586621679039584"><span class="hs-identifier hs-var">cont</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679039582"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-250"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679039587"><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039587"><span class="hs-identifier hs-var">instr</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-type">:&gt;&gt;=</span></a></span><span> </span><span id="local-6989586621679039588"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039588"><span class="hs-identifier hs-var">cont1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span id="local-6989586621679039589"><span class="annot"><span class="annottext">a -&gt; ProgramViewT instr m b
+</span><a href="#local-6989586621679039589"><span class="hs-identifier hs-var">cont2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039587"><span class="hs-identifier hs-var">instr</span></a></span><span> </span><span class="annot"><span class="annottext">instr b -&gt; (b -&gt; ProgramT instr m b) -&gt; ProgramViewT instr m b
+forall (instr :: * -&gt; *) b (m :: * -&gt; *) a.
+instr b -&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramViewT instr m a
+</span><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-var">:&gt;&gt;=</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039588"><span class="hs-identifier hs-var">cont1</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; ProgramT instr m a)
+-&gt; (a -&gt; ProgramT instr m b) -&gt; b -&gt; ProgramT instr m b
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">ProgramViewT instr m b -&gt; ProgramT instr m b
+forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+ProgramViewT instr m a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#unviewT"><span class="hs-identifier hs-var">unviewT</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramViewT instr m b -&gt; ProgramT instr m b)
+-&gt; (a -&gt; ProgramViewT instr m b) -&gt; a -&gt; ProgramT instr m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramViewT instr m b
+</span><a href="#local-6989586621679039589"><span class="hs-identifier hs-var">cont2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-251"></span><span>
+</span><span id="line-252"></span><span class="annot"><span class="hs-comment">-- | View function for inspecting the first instruction.</span></span><span>
+</span><span id="line-253"></span><span id="local-6989586621679039254"><span id="local-6989586621679039255"><span id="local-6989586621679039256"><span class="annot"><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-type">viewT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039254"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039255"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039254"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039256"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679039254"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-type">ProgramViewT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039255"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039254"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039256"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-254"></span><span id="viewT"><span class="annot"><span class="annottext">viewT :: forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+ProgramT instr m a -&gt; m (ProgramViewT instr m a)
+</span><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var hs-var">viewT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-type">Lift</span></a></span><span> </span><span id="local-6989586621679039596"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679039596"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679039596"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+-&gt; (a -&gt; m (ProgramViewT instr m a)) -&gt; m (ProgramViewT instr m a)
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">ProgramViewT instr m a -&gt; m (ProgramViewT instr m a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(ProgramViewT instr m a -&gt; m (ProgramViewT instr m a))
+-&gt; (a -&gt; ProgramViewT instr m a) -&gt; a -&gt; m (ProgramViewT instr m a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramViewT instr m a
+forall a (instr :: * -&gt; *) (m :: * -&gt; *).
+a -&gt; ProgramViewT instr m a
+</span><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-var">Return</span></a></span><span>
+</span><span id="line-255"></span><span class="annot"><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var">viewT</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-type">Lift</span></a></span><span> </span><span id="local-6989586621679039599"><span class="annot"><span class="annottext">m b
+</span><a href="#local-6989586621679039599"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="annot"><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-type">`Bind`</span></a></span><span> </span><span id="local-6989586621679039600"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039600"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m b
+</span><a href="#local-6989586621679039599"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m b
+-&gt; (b -&gt; m (ProgramViewT instr m a)) -&gt; m (ProgramViewT instr m a)
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">ProgramT instr m a -&gt; m (ProgramViewT instr m a)
+forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+ProgramT instr m a -&gt; m (ProgramViewT instr m a)
+</span><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var">viewT</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramT instr m a -&gt; m (ProgramViewT instr m a))
+-&gt; (b -&gt; ProgramT instr m a) -&gt; b -&gt; m (ProgramViewT instr m a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039600"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-256"></span><span class="annot"><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var">viewT</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679039602"><span class="annot"><span class="annottext">ProgramT instr m b
+</span><a href="#local-6989586621679039602"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-type">`Bind`</span></a></span><span> </span><span id="local-6989586621679039603"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m b
+</span><a href="#local-6989586621679039603"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-type">`Bind`</span></a></span><span> </span><span id="local-6989586621679039604"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039604"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramT instr m a -&gt; m (ProgramViewT instr m a)
+forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+ProgramT instr m a -&gt; m (ProgramViewT instr m a)
+</span><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var">viewT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProgramT instr m b
+</span><a href="#local-6989586621679039602"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+forall (instr :: * -&gt; *) (m :: * -&gt; *) b a.
+ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-var">`Bind`</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679039605"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679039605"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m b
+</span><a href="#local-6989586621679039603"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679039605"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+forall (instr :: * -&gt; *) (m :: * -&gt; *) b a.
+ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-var">`Bind`</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039604"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span class="annot"><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var">viewT</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span> </span><span id="local-6989586621679039607"><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039607"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="annot"><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-type">`Bind`</span></a></span><span> </span><span id="local-6989586621679039608"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039608"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramViewT instr m a -&gt; m (ProgramViewT instr m a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039607"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">instr b -&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramViewT instr m a
+forall (instr :: * -&gt; *) b (m :: * -&gt; *) a.
+instr b -&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramViewT instr m a
+</span><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-var">:&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039608"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-258"></span><span class="annot"><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var">viewT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span> </span><span id="local-6989586621679039609"><span class="annot"><span class="annottext">instr a
+</span><a href="#local-6989586621679039609"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramViewT instr m a -&gt; m (ProgramViewT instr m a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">instr a
+</span><a href="#local-6989586621679039609"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">instr a -&gt; (a -&gt; ProgramT instr m a) -&gt; ProgramViewT instr m a
+forall (instr :: * -&gt; *) b (m :: * -&gt; *) a.
+instr b -&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramViewT instr m a
+</span><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-var">:&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramT instr m a
+forall a. a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span class="hs-special">)</span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span class="annot"><span class="hs-comment">{-| Lift a plain sequence of instructions to a sequence
+    of instructions over a monad 'm'.
+    This is the counterpart of the 'lift' function from 'MonadTrans'.
+
+    It can be defined as follows:
+
+@
+    liftProgram = eval . view
+        where
+        eval :: ProgramView instr a -&gt; ProgramT instr m a
+        eval (Return a) = return a
+        eval (i :&gt;&gt;= k) = singleton i &gt;&gt;= liftProgram . k
+@
+
+-}</span></span><span>
+</span><span id="line-275"></span><span id="local-6989586621679039384"><span id="local-6989586621679039385"><span id="local-6989586621679039386"><span class="annot"><a href="Control.Monad.Operational.html#liftProgram"><span class="hs-identifier hs-type">liftProgram</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039384"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#Program"><span class="hs-identifier hs-type">Program</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039385"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039386"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039385"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039384"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039386"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-276"></span><span id="liftProgram"><span class="annot"><span class="annottext">liftProgram :: forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+Program instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#liftProgram"><span class="hs-identifier hs-var hs-var">liftProgram</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-type">Lift</span></a></span><span> </span><span id="local-6989586621679039612"><span class="annot"><span class="annottext">Identity a
+</span><a href="#local-6989586621679039612"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramT instr m a
+forall a. a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">Identity a
+</span><a href="#local-6989586621679039612"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-277"></span><span class="annot"><a href="Control.Monad.Operational.html#liftProgram"><span class="hs-identifier hs-var">liftProgram</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679039615"><span class="annot"><span class="annottext">ProgramT instr Identity b
+</span><a href="#local-6989586621679039615"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-type">`Bind`</span></a></span><span> </span><span id="local-6989586621679039616"><span class="annot"><span class="annottext">b -&gt; ProgramT instr Identity a
+</span><a href="#local-6989586621679039616"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramT instr Identity b -&gt; ProgramT instr m b
+forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+Program instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#liftProgram"><span class="hs-identifier hs-var">liftProgram</span></a></span><span> </span><span class="annot"><span class="annottext">ProgramT instr Identity b
+</span><a href="#local-6989586621679039615"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+forall (instr :: * -&gt; *) (m :: * -&gt; *) b a.
+ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-var">`Bind`</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProgramT instr Identity a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+Program instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#liftProgram"><span class="hs-identifier hs-var">liftProgram</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramT instr Identity a -&gt; ProgramT instr m a)
+-&gt; (b -&gt; ProgramT instr Identity a) -&gt; b -&gt; ProgramT instr m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr Identity a
+</span><a href="#local-6989586621679039616"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-278"></span><span class="annot"><a href="Control.Monad.Operational.html#liftProgram"><span class="hs-identifier hs-var">liftProgram</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span> </span><span id="local-6989586621679039617"><span class="annot"><span class="annottext">instr a
+</span><a href="#local-6989586621679039617"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">instr a -&gt; ProgramT instr m a
+forall (instr :: * -&gt; *) a (m :: * -&gt; *).
+instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-var">Instr</span></a></span><span> </span><span class="annot"><span class="annottext">instr a
+</span><a href="#local-6989586621679039617"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-279"></span><span>
+</span><span id="line-280"></span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- | Utility function that extends</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- a given interpretation of instructions as monadic actions</span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- to an interpration of 'ProgramT's as monadic actions.</span><span>
+</span><span id="line-284"></span><span class="hs-comment">--</span><span>
+</span><span id="line-285"></span><span class="hs-comment">-- Ideally, you would not use another monad,</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- but write a custom interpreter directly with `viewT`.</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- See the remark at 'interpretWithMonad'.</span><span>
+</span><span id="line-288"></span><span id="local-6989586621679039391"><span id="local-6989586621679039392"><span id="local-6989586621679039394"><span class="annot"><a href="Control.Monad.Operational.html#interpretWithMonadT"><span class="hs-identifier hs-type">interpretWithMonadT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039391"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679039393"><span class="annot"><a href="#local-6989586621679039393"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679039392"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039393"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679039391"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039393"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039392"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039391"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039394"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679039391"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039394"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-289"></span><span id="interpretWithMonadT"><span class="annot"><span class="annottext">interpretWithMonadT :: forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+(forall x. instr x -&gt; m x) -&gt; ProgramT instr m a -&gt; m a
+</span><a href="Control.Monad.Operational.html#interpretWithMonadT"><span class="hs-identifier hs-var hs-var">interpretWithMonadT</span></a></span></span><span> </span><span id="local-6989586621679039623"><span class="annot"><span class="annottext">forall x. instr x -&gt; m x
+</span><a href="#local-6989586621679039623"><span class="hs-identifier hs-var">interpreter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramT instr m a -&gt; m a
+forall {b}. ProgramT instr m b -&gt; m b
+</span><a href="#local-6989586621679039624"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-290"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-291"></span><span>    </span><span id="local-6989586621679039624"><span class="annot"><span class="annottext">go :: ProgramT instr m b -&gt; m b
+</span><a href="#local-6989586621679039624"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679039630"><span class="annot"><span class="annottext">ProgramT instr m b
+</span><a href="#local-6989586621679039630"><span class="hs-identifier hs-var">program</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-292"></span><span>      </span><span id="local-6989586621679039631"><span class="annot"><a href="#local-6989586621679039631"><span class="hs-identifier hs-var">firstInstruction</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ProgramT instr m b -&gt; m (ProgramViewT instr m b)
+forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+ProgramT instr m a -&gt; m (ProgramViewT instr m a)
+</span><a href="Control.Monad.Operational.html#viewT"><span class="hs-identifier hs-var">viewT</span></a></span><span> </span><span class="annot"><span class="annottext">ProgramT instr m b
+</span><a href="#local-6989586621679039630"><span class="hs-identifier hs-var">program</span></a></span><span>
+</span><span id="line-293"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679039631"><span class="hs-identifier hs-type">firstInstruction</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-294"></span><span>        </span><span class="annot"><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-type">Return</span></a></span><span> </span><span id="local-6989586621679039632"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679039632"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; m b
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679039632"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-295"></span><span>        </span><span id="local-6989586621679039636"><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039636"><span class="hs-identifier hs-var">instruction</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-type">:&gt;&gt;=</span></a></span><span> </span><span id="local-6989586621679039637"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m b
+</span><a href="#local-6989586621679039637"><span class="hs-identifier hs-var">continuation</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">instr b -&gt; m b
+forall x. instr x -&gt; m x
+</span><a href="#local-6989586621679039623"><span class="hs-identifier hs-var">interpreter</span></a></span><span> </span><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039636"><span class="hs-identifier hs-var">instruction</span></a></span><span> </span><span class="annot"><span class="annottext">m b -&gt; (b -&gt; m b) -&gt; m b
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProgramT instr m b -&gt; m b
+</span><a href="#local-6989586621679039624"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramT instr m b -&gt; m b)
+-&gt; (b -&gt; ProgramT instr m b) -&gt; b -&gt; m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m b
+</span><a href="#local-6989586621679039637"><span class="hs-identifier hs-var">continuation</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- | Utilitiy function for mapping a 'ProgramViewT' back into a 'ProgramT'.</span><span>
+</span><span id="line-298"></span><span class="hs-comment">--</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- Semantically, the function 'unviewT' is an inverse of 'viewT',</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- e.g. we have</span><span>
+</span><span id="line-301"></span><span class="hs-comment">--</span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-303"></span><span class="hs-comment">--   viewT (singleton i) &gt;&gt;= unviewT = return (singleton i)</span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-305"></span><span id="local-6989586621679039374"><span id="local-6989586621679039375"><span id="local-6989586621679039376"><span class="annot"><a href="Control.Monad.Operational.html#unviewT"><span class="hs-identifier hs-type">unviewT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039374"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramViewT"><span class="hs-identifier hs-type">ProgramViewT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039375"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039374"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039376"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039375"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039374"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039376"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-306"></span><span id="unviewT"><span class="annot"><span class="annottext">unviewT :: forall (m :: * -&gt; *) (instr :: * -&gt; *) a.
+Monad m =&gt;
+ProgramViewT instr m a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#unviewT"><span class="hs-identifier hs-var hs-var">unviewT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Return"><span class="hs-identifier hs-type">Return</span></a></span><span> </span><span id="local-6989586621679039640"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679039640"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ProgramT instr m a
+forall a. a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679039640"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-307"></span><span class="annot"><a href="Control.Monad.Operational.html#unviewT"><span class="hs-identifier hs-var">unviewT</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679039641"><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039641"><span class="hs-identifier hs-var">instruction</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#%3A%3E%3E%3D"><span class="hs-operator hs-type">:&gt;&gt;=</span></a></span><span> </span><span id="local-6989586621679039642"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039642"><span class="hs-identifier hs-var">continuation</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-308"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">instr b -&gt; ProgramT instr m b
+forall (instr :: * -&gt; *) a (m :: * -&gt; *).
+instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-var">Instr</span></a></span><span> </span><span class="annot"><span class="annottext">instr b
+</span><a href="#local-6989586621679039641"><span class="hs-identifier hs-var">instruction</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+forall (instr :: * -&gt; *) (m :: * -&gt; *) b a.
+ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-var">`Bind`</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039642"><span class="hs-identifier hs-var">continuation</span></a></span><span>
+</span><span id="line-309"></span><span>
+</span><span id="line-310"></span><span class="annot"><span class="hs-comment">-- | Extend a mapping of instructions to a mapping of 'ProgramT'.</span></span><span>
+</span><span id="line-311"></span><span class="annot"><a href="Control.Monad.Operational.html#mapInstr"><span class="hs-identifier hs-type">mapInstr</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-312"></span><span>    </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679039405"><span class="annot"><a href="#local-6989586621679039405"><span class="hs-identifier hs-type">instr1</span></a></span></span><span> </span><span id="local-6989586621679039407"><span class="annot"><a href="#local-6989586621679039407"><span class="hs-identifier hs-type">instr2</span></a></span></span><span> </span><span id="local-6989586621679039404"><span class="annot"><a href="#local-6989586621679039404"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679039408"><span class="annot"><a href="#local-6989586621679039408"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679039404"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-313"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679039406"><span class="annot"><a href="#local-6989586621679039406"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679039405"><span class="hs-identifier hs-type">instr1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039406"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679039407"><span class="hs-identifier hs-type">instr2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039406"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-314"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039405"><span class="hs-identifier hs-type">instr1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039404"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039408"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039407"><span class="hs-identifier hs-type">instr2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039404"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039408"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-315"></span><span id="mapInstr"><span class="annot"><span class="annottext">mapInstr :: forall (instr1 :: * -&gt; *) (instr2 :: * -&gt; *) (m :: * -&gt; *) a.
+Monad m =&gt;
+(forall x. instr1 x -&gt; instr2 x)
+-&gt; ProgramT instr1 m a -&gt; ProgramT instr2 m a
+</span><a href="Control.Monad.Operational.html#mapInstr"><span class="hs-identifier hs-var hs-var">mapInstr</span></a></span></span><span> </span><span id="local-6989586621679039644"><span class="annot"><span class="annottext">forall x. instr1 x -&gt; instr2 x
+</span><a href="#local-6989586621679039644"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramT instr1 m a -&gt; ProgramT instr2 m a
+forall x. ProgramT instr1 m x -&gt; ProgramT instr2 m x
+</span><a href="#local-6989586621679039645"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-316"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-317"></span><span>        </span><span class="annot"><a href="#local-6989586621679039645"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679039413"><span class="annot"><a href="#local-6989586621679039413"><span class="hs-identifier hs-type">x</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039405"><span class="hs-identifier hs-type">instr1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039404"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039413"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039407"><span class="hs-identifier hs-type">instr2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039404"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039413"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-318"></span><span>        </span><span id="local-6989586621679039645"><span class="annot"><span class="annottext">go :: forall x. ProgramT instr1 m x -&gt; ProgramT instr2 m x
+</span><a href="#local-6989586621679039645"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-type">Lift</span></a></span><span> </span><span id="local-6989586621679039646"><span class="annot"><span class="annottext">m x
+</span><a href="#local-6989586621679039646"><span class="hs-identifier hs-var">action</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m x -&gt; ProgramT instr2 m x
+forall (m :: * -&gt; *) a (instr :: * -&gt; *). m a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-var">Lift</span></a></span><span> </span><span class="annot"><span class="annottext">m x
+</span><a href="#local-6989586621679039646"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-319"></span><span>        </span><span class="annot"><a href="#local-6989586621679039645"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Bind"><span class="hs-identifier hs-type">Bind</span></a></span><span> </span><span id="local-6989586621679039647"><span class="annot"><span class="annottext">ProgramT instr1 m b
+</span><a href="#local-6989586621679039647"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679039648"><span class="annot"><span class="annottext">b -&gt; ProgramT instr1 m x
+</span><a href="#local-6989586621679039648"><span class="hs-identifier hs-var">continuation</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgramT instr2 m b
+-&gt; (b -&gt; ProgramT instr2 m x) -&gt; ProgramT instr2 m x
+forall (instr :: * -&gt; *) (m :: * -&gt; *) b a.
+ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Bind"><span class="hs-identifier hs-var">Bind</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProgramT instr1 m b -&gt; ProgramT instr2 m b
+forall x. ProgramT instr1 m x -&gt; ProgramT instr2 m x
+</span><a href="#local-6989586621679039645"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ProgramT instr1 m b
+</span><a href="#local-6989586621679039647"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProgramT instr1 m x -&gt; ProgramT instr2 m x
+forall x. ProgramT instr1 m x -&gt; ProgramT instr2 m x
+</span><a href="#local-6989586621679039645"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramT instr1 m x -&gt; ProgramT instr2 m x)
+-&gt; (b -&gt; ProgramT instr1 m x) -&gt; b -&gt; ProgramT instr2 m x
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr1 m x
+</span><a href="#local-6989586621679039648"><span class="hs-identifier hs-var">continuation</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-320"></span><span>        </span><span class="annot"><a href="#local-6989586621679039645"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span> </span><span id="local-6989586621679039649"><span class="annot"><span class="annottext">instr1 x
+</span><a href="#local-6989586621679039649"><span class="hs-identifier hs-var">instruction</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">instr2 x -&gt; ProgramT instr2 m x
+forall (instr :: * -&gt; *) a (m :: * -&gt; *).
+instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-var">Instr</span></a></span><span> </span><span class="annot"><span class="annottext">(instr2 x -&gt; ProgramT instr2 m x)
+-&gt; instr2 x -&gt; ProgramT instr2 m x
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">instr1 x -&gt; instr2 x
+forall x. instr1 x -&gt; instr2 x
+</span><a href="#local-6989586621679039644"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">instr1 x
+</span><a href="#local-6989586621679039649"><span class="hs-identifier hs-var">instruction</span></a></span><span>
+</span><span id="line-321"></span><span>
+</span><span id="line-322"></span><span class="annot"><span class="hs-comment">{- $exampleT
+
+/Example usage/
+
+List monad transformer.
+
+&gt;    data PlusI m a where
+&gt;        Zero :: PlusI m a
+&gt;        Plus :: ListT m a -&gt; ListT m a -&gt; PlusI m a
+&gt;
+&gt;    type ListT m a = ProgramT (PlusI m) m a
+&gt;
+&gt;    runList :: Monad m =&gt; ListT m a -&gt; m [a]
+&gt;    runList = eval &lt;=&lt; viewT
+&gt;        where
+&gt;        eval :: Monad m =&gt; ProgramViewT (PlusI m) m a -&gt; m [a]
+&gt;        eval (Return x)        = return [x]
+&gt;        eval (Zero     :&gt;&gt;= k) = return []
+&gt;        eval (Plus m n :&gt;&gt;= k) =
+&gt;            liftM2 (++) (runList (m &gt;&gt;= k)) (runList (n &gt;&gt;= k))
+
+In this example, the type signature for the `eval` helper function is optional.
+
+-}</span></span><span>
+</span><span id="line-346"></span><span>
+</span><span id="line-347"></span><span class="hs-comment">{------------------------------------------------------------------------------
+    mtl instances
+
+  * All of these instances need UndecidableInstances,
+    because they do not satisfy the coverage condition.
+    Most of the instance in the  mtl  package itself have the same issue.
+
+  * Lifting algebraic operations is easy,
+    lifting control operations is more elaborate, but sometimes possible.
+    See the design notes in  `doc/design.md`.
+------------------------------------------------------------------------------}</span><span>
+</span><span id="line-358"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039423"><span id="local-6989586621679039424"><span id="local-6989586621679039425"><span id="local-6989586621679039657"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadState</span></span><span> </span><span class="annot"><a href="#local-6989586621679039423"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039424"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadState</span></span><span> </span><span class="annot"><a href="#local-6989586621679039423"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039425"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039424"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-359"></span><span>    </span><span id="local-6989586621679039665"><span class="annot"><span class="annottext">get :: ProgramT instr m s
+</span><a href="#local-6989586621679039665"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m s -&gt; ProgramT instr m s
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ProgramT instr m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">m s
+forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-360"></span><span>    </span><span id="local-6989586621679039670"><span class="annot"><span class="annottext">put :: s -&gt; ProgramT instr m ()
+</span><a href="#local-6989586621679039670"><span class="hs-identifier hs-var hs-var hs-var">put</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m () -&gt; ProgramT instr m ()
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ProgramT instr m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">(m () -&gt; ProgramT instr m ())
+-&gt; (s -&gt; m ()) -&gt; s -&gt; ProgramT instr m ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; m ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><span class="hs-identifier hs-var">put</span></span><span>
+</span><span id="line-361"></span><span>
+</span><span id="line-362"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039431"><span id="local-6989586621679039432"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679039431"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039432"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039431"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-363"></span><span>    </span><span id="local-6989586621679039683"><span class="annot"><span class="annottext">liftIO :: forall a. IO a -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039683"><span class="hs-identifier hs-var hs-var hs-var">liftIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ProgramT instr m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; ProgramT instr m a)
+-&gt; (IO a -&gt; m a) -&gt; IO a -&gt; ProgramT instr m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; m a
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span>
+</span><span id="line-364"></span><span>
+</span><span id="line-365"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679039442"><span id="local-6989586621679039443"><span id="local-6989586621679039444"><span id="local-6989586621679039692"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadReader</span></span><span> </span><span class="annot"><a href="#local-6989586621679039442"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039443"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadReader</span></span><span> </span><span class="annot"><a href="#local-6989586621679039442"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#ProgramT"><span class="hs-identifier hs-type">ProgramT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039444"><span class="hs-identifier hs-type">instr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679039443"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-366"></span><span>    </span><span id="local-6989586621679039700"><span class="annot"><span class="annottext">ask :: ProgramT instr m r
+</span><a href="#local-6989586621679039700"><span class="hs-identifier hs-var hs-var hs-var">ask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m r -&gt; ProgramT instr m r
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ProgramT instr m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">m r
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-367"></span><span>
+</span><span id="line-368"></span><span>    </span><span id="local-6989586621679039703"><span class="annot"><span class="annottext">local :: forall a. (r -&gt; r) -&gt; ProgramT instr m a -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039703"><span class="hs-identifier hs-var hs-var hs-var">local</span></a></span></span><span> </span><span id="local-6989586621679039705"><span class="annot"><span class="annottext">r -&gt; r
+</span><a href="#local-6989586621679039705"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-type">Lift</span></a></span><span> </span><span id="local-6989586621679039706"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679039706"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; ProgramT instr m a
+forall (m :: * -&gt; *) a (instr :: * -&gt; *). m a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Lift"><span class="hs-identifier hs-var">Lift</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(r -&gt; r) -&gt; m a -&gt; m a
+forall a. (r -&gt; r) -&gt; m a -&gt; m a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; r
+</span><a href="#local-6989586621679039705"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679039706"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-369"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">local</span></span><span> </span><span id="local-6989586621679039707"><span class="annot"><span class="annottext">r -&gt; r
+</span><a href="#local-6989586621679039707"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679039710"><span class="annot"><span class="annottext">ProgramT instr m b
+</span><a href="#local-6989586621679039710"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-type">`Bind`</span></a></span><span> </span><span id="local-6989586621679039711"><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039711"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(r -&gt; r) -&gt; ProgramT instr m b -&gt; ProgramT instr m b
+forall a. (r -&gt; r) -&gt; ProgramT instr m a -&gt; ProgramT instr m a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; r
+</span><a href="#local-6989586621679039707"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">ProgramT instr m b
+</span><a href="#local-6989586621679039710"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+forall (instr :: * -&gt; *) (m :: * -&gt; *) b a.
+ProgramT instr m b
+-&gt; (b -&gt; ProgramT instr m a) -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Bind"><span class="hs-operator hs-var">`Bind`</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(r -&gt; r) -&gt; ProgramT instr m a -&gt; ProgramT instr m a
+forall a. (r -&gt; r) -&gt; ProgramT instr m a -&gt; ProgramT instr m a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; r
+</span><a href="#local-6989586621679039707"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgramT instr m a -&gt; ProgramT instr m a)
+-&gt; (b -&gt; ProgramT instr m a) -&gt; b -&gt; ProgramT instr m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; ProgramT instr m a
+</span><a href="#local-6989586621679039711"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-370"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span> </span><span id="local-6989586621679039712"><span class="annot"><span class="annottext">instr a
+</span><a href="#local-6989586621679039712"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">instr a -&gt; ProgramT instr m a
+forall (instr :: * -&gt; *) a (m :: * -&gt; *).
+instr a -&gt; ProgramT instr m a
+</span><a href="Control.Monad.Operational.html#Instr"><span class="hs-identifier hs-var">Instr</span></a></span><span> </span><span class="annot"><span class="annottext">instr a
+</span><a href="#local-6989586621679039712"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-371"></span></pre></body></html>

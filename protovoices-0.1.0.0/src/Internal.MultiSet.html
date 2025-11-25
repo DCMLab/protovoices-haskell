@@ -1,0 +1,643 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TupleSections #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="annot"><span class="hs-comment">{- | A simple implementation of multisets as hash maps to counts.
+ Supports just what is needed for protovoice slices.
+-}</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Internal.MultiSet.html"><span class="hs-identifier">Internal.MultiSet</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">all</span></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldl'</span></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashMap.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HM</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashSet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HashSet</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hashable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">lookup</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><span class="hs-comment">{- | A hash multiset.
+ A unordered collection of items that can occur several times.
+-}</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">newtype</span><span> </span><span id="MultiSet"><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-var">MultiSet</span></a></span></span><span> </span><span id="local-6989586621679464651"><span class="annot"><a href="#local-6989586621679464651"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MS"><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unMS"><span class="annot"><span class="annottext">forall a. MultiSet a -&gt; HashMap a Int
+</span><a href="Internal.MultiSet.html#unMS"><span class="hs-identifier hs-var hs-var">unMS</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HM.HashMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679464651"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">}</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679464837"><span id="local-6989586621679464843"><span class="annot"><span class="annottext">MultiSet a -&gt; MultiSet a -&gt; Bool
+(MultiSet a -&gt; MultiSet a -&gt; Bool)
+-&gt; (MultiSet a -&gt; MultiSet a -&gt; Bool) -&gt; Eq (MultiSet a)
+forall a. Eq a =&gt; MultiSet a -&gt; MultiSet a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall a. Eq a =&gt; MultiSet a -&gt; MultiSet a -&gt; Bool
+== :: MultiSet a -&gt; MultiSet a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; MultiSet a -&gt; MultiSet a -&gt; Bool
+/= :: MultiSet a -&gt; MultiSet a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679464856"><span id="local-6989586621679464861"><span id="local-6989586621679464865"><span id="local-6989586621679464869"><span id="local-6989586621679464873"><span id="local-6989586621679464877"><span id="local-6989586621679464881"><span class="annot"><span class="annottext">Eq (MultiSet a)
+Eq (MultiSet a) =&gt;
+(MultiSet a -&gt; MultiSet a -&gt; Ordering)
+-&gt; (MultiSet a -&gt; MultiSet a -&gt; Bool)
+-&gt; (MultiSet a -&gt; MultiSet a -&gt; Bool)
+-&gt; (MultiSet a -&gt; MultiSet a -&gt; Bool)
+-&gt; (MultiSet a -&gt; MultiSet a -&gt; Bool)
+-&gt; (MultiSet a -&gt; MultiSet a -&gt; MultiSet a)
+-&gt; (MultiSet a -&gt; MultiSet a -&gt; MultiSet a)
+-&gt; Ord (MultiSet a)
+MultiSet a -&gt; MultiSet a -&gt; Bool
+MultiSet a -&gt; MultiSet a -&gt; Ordering
+MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall a. Ord a =&gt; Eq (MultiSet a)
+forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; Bool
+forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; Ordering
+forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+$ccompare :: forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; Ordering
+compare :: MultiSet a -&gt; MultiSet a -&gt; Ordering
+$c&lt; :: forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; Bool
+&lt; :: MultiSet a -&gt; MultiSet a -&gt; Bool
+$c&lt;= :: forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; Bool
+&lt;= :: MultiSet a -&gt; MultiSet a -&gt; Bool
+$c&gt; :: forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; Bool
+&gt; :: MultiSet a -&gt; MultiSet a -&gt; Bool
+$c&gt;= :: forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; Bool
+&gt;= :: MultiSet a -&gt; MultiSet a -&gt; Bool
+$cmax :: forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+max :: MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+$cmin :: forall a. Ord a =&gt; MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+min :: MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679464895"><span id="local-6989586621679464901"><span id="local-6989586621679464905"><span class="annot"><span class="annottext">Int -&gt; MultiSet a -&gt; ShowS
+[MultiSet a] -&gt; ShowS
+MultiSet a -&gt; String
+(Int -&gt; MultiSet a -&gt; ShowS)
+-&gt; (MultiSet a -&gt; String)
+-&gt; ([MultiSet a] -&gt; ShowS)
+-&gt; Show (MultiSet a)
+forall a. Show a =&gt; Int -&gt; MultiSet a -&gt; ShowS
+forall a. Show a =&gt; [MultiSet a] -&gt; ShowS
+forall a. Show a =&gt; MultiSet a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; MultiSet a -&gt; ShowS
+showsPrec :: Int -&gt; MultiSet a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; MultiSet a -&gt; String
+show :: MultiSet a -&gt; String
+$cshowList :: forall a. Show a =&gt; [MultiSet a] -&gt; ShowS
+showList :: [MultiSet a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679464911"><span id="local-6989586621679464913"><span class="annot"><span class="annottext">(forall x. MultiSet a -&gt; Rep (MultiSet a) x)
+-&gt; (forall x. Rep (MultiSet a) x -&gt; MultiSet a)
+-&gt; Generic (MultiSet a)
+forall x. Rep (MultiSet a) x -&gt; MultiSet a
+forall x. MultiSet a -&gt; Rep (MultiSet a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (MultiSet a) x -&gt; MultiSet a
+forall a x. MultiSet a -&gt; Rep (MultiSet a) x
+$cfrom :: forall a x. MultiSet a -&gt; Rep (MultiSet a) x
+from :: forall x. MultiSet a -&gt; Rep (MultiSet a) x
+$cto :: forall a x. Rep (MultiSet a) x -&gt; MultiSet a
+to :: forall x. Rep (MultiSet a) x -&gt; MultiSet a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679464923"><span id="local-6989586621679464929"><span class="annot"><span class="annottext">Eq (MultiSet a)
+Eq (MultiSet a) =&gt;
+(Int -&gt; MultiSet a -&gt; Int)
+-&gt; (MultiSet a -&gt; Int) -&gt; Hashable (MultiSet a)
+Int -&gt; MultiSet a -&gt; Int
+MultiSet a -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+forall a. Hashable a =&gt; Eq (MultiSet a)
+forall a. Hashable a =&gt; Int -&gt; MultiSet a -&gt; Int
+forall a. Hashable a =&gt; MultiSet a -&gt; Int
+$chashWithSalt :: forall a. Hashable a =&gt; Int -&gt; MultiSet a -&gt; Int
+hashWithSalt :: Int -&gt; MultiSet a -&gt; Int
+$chash :: forall a. Hashable a =&gt; MultiSet a -&gt; Int
+hash :: MultiSet a -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679464941"><span class="annot"><span class="annottext">MultiSet a -&gt; ()
+(MultiSet a -&gt; ()) -&gt; NFData (MultiSet a)
+forall a. NFData a =&gt; MultiSet a -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: forall a. NFData a =&gt; MultiSet a -&gt; ()
+rnf :: MultiSet a -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679464695"><span id="local-6989586621679464954"><span id="local-6989586621679464958"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464695"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464695"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464695"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679464965"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464965"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679464966"><span class="annot"><span class="annottext">&lt;&gt; :: MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679464967"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464967"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int)
+-&gt; HashMap a Int -&gt; HashMap a Int -&gt; HashMap a Int
+forall k v.
+Eq k =&gt;
+(v -&gt; v -&gt; v) -&gt; HashMap k v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.unionWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464965"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464967"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- instance Foldable MultiSet where</span><span>
+</span><span id="line-32"></span><span id="local-6989586621679464703"><span class="annot"><a href="Internal.MultiSet.html#toList"><span class="hs-identifier hs-type">toList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464703"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679464703"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-33"></span><span id="toList"><span class="annot"><span class="annottext">toList :: forall a. MultiSet a -&gt; [a]
+</span><a href="Internal.MultiSet.html#toList"><span class="hs-identifier hs-var hs-var">toList</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679464973"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464973"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a [a] -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">(HashMap a [a] -&gt; [a]) -&gt; HashMap a [a] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Int -&gt; [a]) -&gt; HashMap a Int -&gt; HashMap a [a]
+forall k v1 v2. (k -&gt; v1 -&gt; v2) -&gt; HashMap k v1 -&gt; HashMap k v2
+</span><span class="hs-identifier hs-var">HM.mapWithKey</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; [a]) -&gt; a -&gt; Int -&gt; [a]
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; [a]
+forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464973"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span id="local-6989586621679464715"><span class="annot"><a href="Internal.MultiSet.html#all"><span class="hs-identifier hs-type">all</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679464715"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464715"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-36"></span><span id="all"><span class="annot"><span class="annottext">all :: forall a. (a -&gt; Bool) -&gt; MultiSet a -&gt; Bool
+</span><a href="Internal.MultiSet.html#all"><span class="hs-identifier hs-var hs-var">all</span></a></span></span><span> </span><span id="local-6989586621679464981"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679464981"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679464982"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464982"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; HashSet a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">Data.Foldable.all</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679464981"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">(HashSet a -&gt; Bool) -&gt; HashSet a -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; HashSet a
+forall k a. HashMap k a -&gt; HashSet k
+</span><span class="hs-identifier hs-var">HM.keysSet</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464982"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span id="local-6989586621679464722"><span class="annot"><a href="Internal.MultiSet.html#toOccurList"><span class="hs-identifier hs-type">toOccurList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464722"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679464722"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span></span><span>
+</span><span id="line-39"></span><span id="toOccurList"><span class="annot"><span class="annottext">toOccurList :: forall k. MultiSet k -&gt; [(k, Int)]
+</span><a href="Internal.MultiSet.html#toOccurList"><span class="hs-identifier hs-var hs-var">toOccurList</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679464985"><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679464985"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap k Int -&gt; [(k, Int)]
+forall k v. HashMap k v -&gt; [(k, v)]
+</span><span class="hs-identifier hs-var">HM.toList</span></span><span> </span><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679464985"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span id="local-6989586621679464987"><span class="annot"><a href="Internal.MultiSet.html#distinctElems"><span class="hs-identifier hs-type">distinctElems</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464987"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679464987"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-42"></span><span id="distinctElems"><span class="annot"><span class="annottext">distinctElems :: forall a. MultiSet a -&gt; [a]
+</span><a href="Internal.MultiSet.html#distinctElems"><span class="hs-identifier hs-var hs-var">distinctElems</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679464989"><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679464989"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap k Int -&gt; [k]
+forall k v. HashMap k v -&gt; [k]
+</span><span class="hs-identifier hs-var">HM.keys</span></span><span> </span><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679464989"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span id="local-6989586621679464991"><span class="annot"><a href="Internal.MultiSet.html#union"><span class="hs-identifier hs-type">union</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464991"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464991"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464991"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464991"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464991"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-45"></span><span id="union"><span class="annot"><span class="annottext">union :: forall a.
+(Eq a, Hashable a) =&gt;
+MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#union"><span class="hs-identifier hs-var hs-var">union</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679464997"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464997"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679464998"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464998"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int)
+-&gt; HashMap a Int -&gt; HashMap a Int -&gt; HashMap a Int
+forall k v.
+Eq k =&gt;
+(v -&gt; v -&gt; v) -&gt; HashMap k v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.unionWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464997"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679464998"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span id="local-6989586621679464730"><span id="local-6989586621679464731"><span class="annot"><a href="Internal.MultiSet.html#unions"><span class="hs-identifier hs-type">unions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464730"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464731"><span class="hs-identifier hs-type">a0</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464731"><span class="hs-identifier hs-type">a0</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464730"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464731"><span class="hs-identifier hs-type">a0</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464731"><span class="hs-identifier hs-type">a0</span></a></span></span></span><span>
+</span><span id="line-48"></span><span id="unions"><span class="annot"><span class="annottext">unions :: forall (t :: * -&gt; *) a0.
+(Foldable t, Eq a0, Hashable a0) =&gt;
+t (MultiSet a0) -&gt; MultiSet a0
+</span><a href="Internal.MultiSet.html#unions"><span class="hs-identifier hs-var hs-var">unions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(MultiSet a0 -&gt; MultiSet a0 -&gt; MultiSet a0)
+-&gt; MultiSet a0 -&gt; t (MultiSet a0) -&gt; MultiSet a0
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">MultiSet a0 -&gt; MultiSet a0 -&gt; MultiSet a0
+forall a.
+(Eq a, Hashable a) =&gt;
+MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#union"><span class="hs-identifier hs-var">union</span></a></span><span> </span><span class="annot"><span class="annottext">MultiSet a0
+forall a. MultiSet a
+</span><a href="Internal.MultiSet.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span id="local-6989586621679465007"><span class="annot"><a href="Internal.MultiSet.html#maxUnion"><span class="hs-identifier hs-type">maxUnion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679465007"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679465007"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465007"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465007"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465007"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-51"></span><span id="maxUnion"><span class="annot"><span class="annottext">maxUnion :: forall a.
+(Eq a, Hashable a) =&gt;
+MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#maxUnion"><span class="hs-identifier hs-var hs-var">maxUnion</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465013"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465013"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465014"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465014"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int)
+-&gt; HashMap a Int -&gt; HashMap a Int -&gt; HashMap a Int
+forall k v.
+Eq k =&gt;
+(v -&gt; v -&gt; v) -&gt; HashMap k v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.unionWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465013"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465014"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="annot"><a href="Internal.MultiSet.html#deleteN"><span class="hs-identifier hs-type">deleteN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-54"></span><span id="deleteN"><span class="annot"><span class="annottext">deleteN :: Int -&gt; Int -&gt; Maybe Int
+</span><a href="Internal.MultiSet.html#deleteN"><span class="hs-identifier hs-var hs-var">deleteN</span></a></span></span><span> </span><span id="local-6989586621679465016"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465016"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679465017"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465017"><span class="hs-identifier hs-var">m</span></a></span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465017"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465016"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465017"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465016"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621679465018"><span class="annot"><a href="Internal.MultiSet.html#%5C%5C"><span class="hs-operator hs-type">(\\)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679465018"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679465018"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465018"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465018"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465018"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-59"></span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465024"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465024"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="%5C%5C"><span class="annot"><span class="annottext">\\ :: forall a.
+(Eq a, Hashable a) =&gt;
+MultiSet a -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#%5C%5C"><span class="hs-operator hs-var hs-var">\\</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465025"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465025"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Maybe Int)
+-&gt; HashMap a Int -&gt; HashMap a Int -&gt; HashMap a Int
+forall k v w.
+(Eq k, Hashable k) =&gt;
+(v -&gt; w -&gt; Maybe v) -&gt; HashMap k v -&gt; HashMap k w -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.differenceWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Maybe Int) -&gt; Int -&gt; Int -&gt; Maybe Int
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe Int
+</span><a href="Internal.MultiSet.html#deleteN"><span class="hs-identifier hs-var">deleteN</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465024"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465025"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span id="local-6989586621679464743"><span class="annot"><a href="Internal.MultiSet.html#toSet"><span class="hs-identifier hs-type">toSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464743"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HashSet</span></span><span> </span><span class="annot"><a href="#local-6989586621679464743"><span class="hs-identifier hs-type">k</span></a></span></span><span>
+</span><span id="line-62"></span><span id="toSet"><span class="annot"><span class="annottext">toSet :: forall k. MultiSet k -&gt; HashSet k
+</span><a href="Internal.MultiSet.html#toSet"><span class="hs-identifier hs-var hs-var">toSet</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465028"><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679465028"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap k Int -&gt; HashSet k
+forall k a. HashMap k a -&gt; HashSet k
+</span><span class="hs-identifier hs-var">HM.keysSet</span></span><span> </span><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679465028"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="local-6989586621679464745"><span class="annot"><a href="Internal.MultiSet.html#size"><span class="hs-identifier hs-type">size</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464745"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-65"></span><span id="size"><span class="annot"><span class="annottext">size :: forall a. MultiSet a -&gt; Int
+</span><a href="Internal.MultiSet.html#size"><span class="hs-identifier hs-var hs-var">size</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465033"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465033"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; Int -&gt; HashMap a Int -&gt; Int
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashMap a a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465033"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span id="local-6989586621679465034"><span class="annot"><a href="Internal.MultiSet.html#cardinality"><span class="hs-identifier hs-type">cardinality</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465034"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-68"></span><span id="cardinality"><span class="annot"><span class="annottext">cardinality :: forall a. MultiSet a -&gt; Int
+</span><a href="Internal.MultiSet.html#cardinality"><span class="hs-identifier hs-var hs-var">cardinality</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465039"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465039"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; Int -&gt; HashMap a Int -&gt; Int
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashMap a a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465039"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span id="local-6989586621679464748"><span id="local-6989586621679464749"><span class="annot"><a href="Internal.MultiSet.html#map"><span class="hs-identifier hs-type">map</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464748"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464748"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679464749"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464748"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464749"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464748"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-71"></span><span id="map"><span class="annot"><span class="annottext">map :: forall b a.
+(Eq b, Hashable b) =&gt;
+(a -&gt; b) -&gt; MultiSet a -&gt; MultiSet b
+</span><a href="Internal.MultiSet.html#map"><span class="hs-identifier hs-var hs-var">map</span></a></span></span><span> </span><span id="local-6989586621679465046"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679465046"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465047"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465047"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><span class="annottext">HashMap b Int -&gt; MultiSet b
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap b Int -&gt; MultiSet b) -&gt; HashMap b Int -&gt; MultiSet b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(HashMap b Int -&gt; a -&gt; Int -&gt; HashMap b Int)
+-&gt; HashMap b Int -&gt; HashMap a Int -&gt; HashMap b Int
+forall a k v. (a -&gt; k -&gt; v -&gt; a) -&gt; a -&gt; HashMap k v -&gt; a
+</span><span class="hs-identifier hs-var">HM.foldlWithKey'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679465049"><span class="annot"><span class="annottext">HashMap b Int
+</span><a href="#local-6989586621679465049"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679465050"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465050"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679465051"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465051"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; b -&gt; Int -&gt; HashMap b Int -&gt; HashMap b Int
+forall k v.
+(Eq k, Hashable k) =&gt;
+(v -&gt; v -&gt; v) -&gt; k -&gt; v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.insertWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679465046"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465050"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465051"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap b Int
+</span><a href="#local-6989586621679465049"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashMap b Int
+forall k v. HashMap k v
+</span><span class="hs-identifier hs-var">HM.empty</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465047"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span id="local-6989586621679464759"><span id="local-6989586621679464760"><span id="local-6989586621679464761"><span class="annot"><a href="Internal.MultiSet.html#traverse"><span class="hs-identifier hs-type">traverse</span></a></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464759"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464759"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679464760"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679464761"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464760"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464759"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464761"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464760"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464759"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-79"></span><span id="traverse"><span class="annot"><span class="annottext">traverse :: forall b (f :: * -&gt; *) a.
+(Eq b, Hashable b, Applicative f) =&gt;
+(a -&gt; f b) -&gt; MultiSet a -&gt; f (MultiSet b)
+</span><a href="Internal.MultiSet.html#traverse"><span class="hs-identifier hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679465068"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679465068"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465069"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465069"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><span class="annottext">HashMap b Int -&gt; MultiSet b
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap b Int -&gt; MultiSet b)
+-&gt; ([(b, Int)] -&gt; HashMap b Int) -&gt; [(b, Int)] -&gt; MultiSet b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; [(b, Int)] -&gt; HashMap b Int
+forall k v.
+(Eq k, Hashable k) =&gt;
+(v -&gt; v -&gt; v) -&gt; [(k, v)] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.fromListWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">([(b, Int)] -&gt; MultiSet b) -&gt; f [(b, Int)] -&gt; f (MultiSet b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">((a, Int) -&gt; f (b, Int)) -&gt; [(a, Int)] -&gt; f [(b, Int)]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">Prelude.traverse</span></span><span>
+</span><span id="line-82"></span><span>      </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679465074"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465074"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679465075"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465075"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465075"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(b -&gt; (b, Int)) -&gt; f b -&gt; f (b, Int)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679465068"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465074"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HashMap a Int -&gt; [(a, Int)]
+forall k v. HashMap k v -&gt; [(k, v)]
+</span><span class="hs-identifier hs-var">HM.toList</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465069"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span id="local-6989586621679464778"><span class="annot"><a href="Internal.MultiSet.html#filter"><span class="hs-identifier hs-type">filter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679464778"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464778"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464778"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-86"></span><span id="filter"><span class="annot"><span class="annottext">filter :: forall a. (a -&gt; Bool) -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#filter"><span class="hs-identifier hs-var hs-var">filter</span></a></span></span><span> </span><span id="local-6989586621679465077"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679465077"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465078"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465078"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Int -&gt; Bool) -&gt; HashMap a Int -&gt; HashMap a Int
+forall k v. (k -&gt; v -&gt; Bool) -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.filterWithKey</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679465080"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465080"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679465077"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465080"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465078"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span id="local-6989586621679464782"><span id="local-6989586621679464783"><span class="annot"><a href="Internal.MultiSet.html#fromList"><span class="hs-identifier hs-type">fromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464782"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464783"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464783"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464782"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464783"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464783"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-89"></span><span id="fromList"><span class="annot"><span class="annottext">fromList :: forall (t :: * -&gt; *) a.
+(Foldable t, Eq a, Hashable a) =&gt;
+t a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#fromList"><span class="hs-identifier hs-var hs-var">fromList</span></a></span></span><span> </span><span id="local-6989586621679465090"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679465090"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; a -&gt; HashMap a Int)
+-&gt; HashMap a Int -&gt; t a -&gt; HashMap a Int
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679465091"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465091"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679465092"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465092"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; a -&gt; Int -&gt; HashMap a Int -&gt; HashMap a Int
+forall k v.
+(Eq k, Hashable k) =&gt;
+(v -&gt; v -&gt; v) -&gt; k -&gt; v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.insertWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465092"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465091"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+forall k v. HashMap k v
+</span><span class="hs-identifier hs-var">HM.empty</span></span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679465090"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span id="local-6989586621679465093"><span id="local-6989586621679465094"><span class="annot"><a href="Internal.MultiSet.html#fromSet"><span class="hs-identifier hs-type">fromSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679465093"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679465094"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679465094"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679465093"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465094"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465094"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-92"></span><span id="fromSet"><span class="annot"><span class="annottext">fromSet :: forall (t :: * -&gt; *) a.
+(Foldable t, Eq a, Hashable a) =&gt;
+t a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#fromSet"><span class="hs-identifier hs-var hs-var">fromSet</span></a></span></span><span> </span><span id="local-6989586621679465103"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679465103"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; a -&gt; HashMap a Int)
+-&gt; HashMap a Int -&gt; t a -&gt; HashMap a Int
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679465104"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465104"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679465105"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465105"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; HashMap a Int -&gt; HashMap a Int
+forall k v.
+(Eq k, Hashable k) =&gt;
+k -&gt; v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.insert</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465105"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465104"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+forall k v. HashMap k v
+</span><span class="hs-identifier hs-var">HM.empty</span></span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679465103"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span id="local-6989586621679464790"><span class="annot"><a href="Internal.MultiSet.html#null"><span class="hs-identifier hs-type">null</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464790"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-95"></span><span id="null"><span class="annot"><span class="annottext">null :: forall k. MultiSet k -&gt; Bool
+</span><a href="Internal.MultiSet.html#null"><span class="hs-identifier hs-var hs-var">null</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465108"><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679465108"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap k Int -&gt; Bool
+forall k v. HashMap k v -&gt; Bool
+</span><span class="hs-identifier hs-var">HM.null</span></span><span> </span><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679465108"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span id="local-6989586621679464794"><span class="annot"><a href="Internal.MultiSet.html#delete"><span class="hs-identifier hs-type">delete</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464794"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464794"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464794"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464794"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464794"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-98"></span><span id="delete"><span class="annot"><span class="annottext">delete :: forall a. (Eq a, Hashable a) =&gt; a -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#delete"><span class="hs-identifier hs-var hs-var">delete</span></a></span></span><span> </span><span id="local-6989586621679465115"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465115"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a)
+-&gt; (MultiSet a -&gt; HashMap a Int) -&gt; MultiSet a -&gt; MultiSet a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Int) -&gt; a -&gt; HashMap a Int -&gt; HashMap a Int
+forall k a.
+(Eq k, Hashable k) =&gt;
+(a -&gt; Maybe a) -&gt; k -&gt; HashMap k a -&gt; HashMap k a
+</span><span class="hs-identifier hs-var">HM.update</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe Int
+</span><a href="Internal.MultiSet.html#deleteN"><span class="hs-identifier hs-var">deleteN</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465115"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; HashMap a Int)
+-&gt; (MultiSet a -&gt; HashMap a Int) -&gt; MultiSet a -&gt; HashMap a Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">MultiSet a -&gt; HashMap a Int
+forall a. MultiSet a -&gt; HashMap a Int
+</span><a href="Internal.MultiSet.html#unMS"><span class="hs-identifier hs-var">unMS</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span id="local-6989586621679464737"><span class="annot"><a href="Internal.MultiSet.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464737"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-101"></span><span id="empty"><span class="annot"><span class="annottext">empty :: forall a. MultiSet a
+</span><a href="Internal.MultiSet.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+forall k v. HashMap k v
+</span><span class="hs-identifier hs-var">HM.empty</span></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span id="local-6989586621679464799"><span id="local-6989586621679464800"><span id="local-6989586621679464801"><span class="annot"><a href="Internal.MultiSet.html#foldM"><span class="hs-identifier hs-type">foldM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679464799"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679464800"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464801"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464799"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464800"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464800"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464801"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464799"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464800"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-104"></span><span id="foldM"><span class="annot"><span class="annottext">foldM :: forall (m :: * -&gt; *) b a.
+Monad m =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; MultiSet a -&gt; m b
+</span><a href="Internal.MultiSet.html#foldM"><span class="hs-identifier hs-var hs-var">foldM</span></a></span></span><span> </span><span id="local-6989586621679465123"><span class="annot"><span class="annottext">b -&gt; a -&gt; m b
+</span><a href="#local-6989586621679465123"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679465124"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679465124"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465125"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465125"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m b -&gt; a -&gt; Int -&gt; m b) -&gt; m b -&gt; HashMap a Int -&gt; m b
+forall a k v. (a -&gt; k -&gt; v -&gt; a) -&gt; a -&gt; HashMap k v -&gt; a
+</span><span class="hs-identifier hs-var">HM.foldlWithKey'</span></span><span> </span><span class="annot"><span class="annottext">m b -&gt; a -&gt; Int -&gt; m b
+</span><a href="#local-6989586621679465126"><span class="hs-identifier hs-var">doFold</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; m b
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679465124"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465125"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-105"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621679465126"><span class="annot"><span class="annottext">doFold :: m b -&gt; a -&gt; Int -&gt; m b
+</span><a href="#local-6989586621679465126"><span class="hs-identifier hs-var hs-var">doFold</span></a></span></span><span> </span><span id="local-6989586621679465133"><span class="annot"><span class="annottext">m b
+</span><a href="#local-6989586621679465133"><span class="hs-identifier hs-var">mb</span></a></span></span><span> </span><span id="local-6989586621679465134"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465134"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679465135"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465135"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679465136"><span class="annot"><a href="#local-6989586621679465136"><span class="hs-identifier hs-var">b'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m b
+</span><a href="#local-6989586621679465133"><span class="hs-identifier hs-var">mb</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">M.foldM</span></span><span> </span><span class="annot"><a href="#local-6989586621679465123"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465136"><span class="hs-identifier hs-type">b'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">replicate</span></span><span> </span><span class="annot"><a href="#local-6989586621679465135"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465134"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span id="local-6989586621679464811"><span class="annot"><a href="Internal.MultiSet.html#insertMany"><span class="hs-identifier hs-type">insertMany</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464811"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464811"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464811"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464811"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464811"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-111"></span><span id="insertMany"><span class="annot"><span class="annottext">insertMany :: forall a.
+(Eq a, Hashable a) =&gt;
+a -&gt; Int -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#insertMany"><span class="hs-identifier hs-var hs-var">insertMany</span></a></span></span><span> </span><span id="local-6989586621679465146"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465146"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679465147"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465147"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465148"><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465148"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465147"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465148"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; a -&gt; Int -&gt; HashMap a Int -&gt; HashMap a Int
+forall k v.
+(Eq k, Hashable k) =&gt;
+(v -&gt; v -&gt; v) -&gt; k -&gt; v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.insertWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465146"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679465147"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap a Int
+</span><a href="#local-6989586621679465148"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span id="local-6989586621679465149"><span class="annot"><a href="Internal.MultiSet.html#insert"><span class="hs-identifier hs-type">insert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679465149"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679465149"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679465149"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465149"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679465149"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-116"></span><span id="insert"><span class="annot"><span class="annottext">insert :: forall a. (Eq a, Hashable a) =&gt; a -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#insert"><span class="hs-identifier hs-var hs-var">insert</span></a></span></span><span> </span><span id="local-6989586621679465155"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465155"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; MultiSet a -&gt; MultiSet a
+forall a.
+(Eq a, Hashable a) =&gt;
+a -&gt; Int -&gt; MultiSet a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#insertMany"><span class="hs-identifier hs-var">insertMany</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465155"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span id="local-6989586621679464814"><span class="annot"><a href="Internal.MultiSet.html#singleton"><span class="hs-identifier hs-type">singleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464814"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464814"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464814"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-119"></span><span id="singleton"><span class="annot"><span class="annottext">singleton :: forall a. Hashable a =&gt; a -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#singleton"><span class="hs-identifier hs-var hs-var">singleton</span></a></span></span><span> </span><span id="local-6989586621679465160"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465160"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap a Int -&gt; MultiSet a
+forall a. HashMap a Int -&gt; MultiSet a
+</span><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-var">MS</span></a></span><span> </span><span class="annot"><span class="annottext">(HashMap a Int -&gt; MultiSet a) -&gt; HashMap a Int -&gt; MultiSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; HashMap a Int
+forall k v. Hashable k =&gt; k -&gt; v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.singleton</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679465160"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span id="local-6989586621679464818"><span class="annot"><a href="Internal.MultiSet.html#member"><span class="hs-identifier hs-type">member</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464818"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464818"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464818"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464818"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-122"></span><span id="member"><span class="annot"><span class="annottext">member :: forall k. (Eq k, Hashable k) =&gt; k -&gt; MultiSet k -&gt; Bool
+</span><a href="Internal.MultiSet.html#member"><span class="hs-identifier hs-var hs-var">member</span></a></span></span><span> </span><span id="local-6989586621679465169"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679465169"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679465170"><span class="annot"><span class="annottext">MultiSet k
+</span><a href="#local-6989586621679465170"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">k -&gt; MultiSet k -&gt; Int
+forall k. (Eq k, Hashable k) =&gt; k -&gt; MultiSet k -&gt; Int
+</span><a href="Internal.MultiSet.html#lookup"><span class="hs-identifier hs-var">lookup</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679465169"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">MultiSet k
+</span><a href="#local-6989586621679465170"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span id="local-6989586621679464820"><span class="annot"><a href="Internal.MultiSet.html#lookup"><span class="hs-identifier hs-type">lookup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464820"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464820"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464820"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464820"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-125"></span><span id="lookup"><span class="annot"><span class="annottext">lookup :: forall k. (Eq k, Hashable k) =&gt; k -&gt; MultiSet k -&gt; Int
+</span><a href="Internal.MultiSet.html#lookup"><span class="hs-identifier hs-var hs-var">lookup</span></a></span></span><span> </span><span id="local-6989586621679465177"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679465177"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Internal.MultiSet.html#MS"><span class="hs-identifier hs-type">MS</span></a></span><span> </span><span id="local-6989586621679465178"><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679465178"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; k -&gt; HashMap k Int -&gt; Int
+forall k v. (Eq k, Hashable k) =&gt; v -&gt; k -&gt; HashMap k v -&gt; v
+</span><span class="hs-identifier hs-var">HM.lookupDefault</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679465177"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap k Int
+</span><a href="#local-6989586621679465178"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span id="local-6989586621679464824"><span class="annot"><a href="Internal.MultiSet.html#%21"><span class="hs-operator hs-type">(!)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679464824"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="#local-6989586621679464824"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Internal.MultiSet.html#MultiSet"><span class="hs-identifier hs-type">MultiSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679464824"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679464824"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-128"></span><span id="local-6989586621679465185"><span class="annot"><span class="annottext">MultiSet k
+</span><a href="#local-6989586621679465185"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span id="%21"><span class="annot"><span class="annottext">! :: forall k. (Eq k, Hashable k) =&gt; MultiSet k -&gt; k -&gt; Int
+</span><a href="Internal.MultiSet.html#%21"><span class="hs-operator hs-var hs-var">!</span></a></span></span><span> </span><span id="local-6989586621679465186"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679465186"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">k -&gt; MultiSet k -&gt; Int
+forall k. (Eq k, Hashable k) =&gt; k -&gt; MultiSet k -&gt; Int
+</span><a href="Internal.MultiSet.html#lookup"><span class="hs-identifier hs-var">lookup</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679465186"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">MultiSet k
+</span><a href="#local-6989586621679465185"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-129"></span></pre></body></html>

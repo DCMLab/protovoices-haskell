@@ -1,0 +1,343 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/Rendering/Pango/Markup.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) Markup</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Axel Simon</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 5 June 2001</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 1999-2005 Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- This module defines some helper functions for generating texts with</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- embedded attributes. Note that there is no need to use these functions.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- In particular, if you set markup in labels that are subject to</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- internationalization, it can be of advantage to write out the markup</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- instead of using the functions in this module.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- In order to display a string that may contain markup characters, use</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- 'Graphics.UI.Gtk.Pango.Layout.escapeMarkup'.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- When you write markup directly, you can make use of the following</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- convenience tags:</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- [@b@] Bold</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- [@big@] Makes font relatively larger</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- [@i@] Italic</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- [@s@] Strikethrough</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- [@sub@] Subscript</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- [@sup@] Superscript</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- [@small@] Makes font relatively smaller</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- [@tt@] Monospace font</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- [@u@] Underline</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html"><span class="hs-identifier">Graphics.Rendering.Pango.Markup</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#SpanAttribute"><span class="hs-identifier">SpanAttribute</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#markSpan"><span class="hs-identifier">markSpan</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="Graphics.Rendering.Pango.Attributes.html#parseMarkup"><span class="hs-identifier">parseMarkup</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.Enums.html"><span class="hs-identifier">Graphics.Rendering.Pango.Enums</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Pango</span></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.Attributes.html"><span class="hs-identifier">Graphics.Rendering.Pango.Attributes</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.Attributes.html#parseMarkup"><span class="hs-identifier">parseMarkup</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | These are all the attributes the 'markSpan' function can express.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">data</span><span> </span><span id="SpanAttribute"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#SpanAttribute"><span class="hs-identifier hs-var">SpanAttribute</span></a></span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-comment">-- | Choose a font by textual description.</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-comment">-- * Takes a string to completely describe the font, example:</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-comment">-- @FontDescr@ \&quot;Sans Italic 12\&quot;</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="FontDescr"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontDescr"><span class="hs-identifier hs-var">FontDescr</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-comment">-- | Specify the family of font to use.</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-comment">-- * Example: @FontFamily@ \&quot;Sans\&quot;</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontFamily"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontFamily"><span class="hs-identifier hs-var">FontFamily</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-comment">-- | Change the size of the current font.</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-comment">-- * The constructor takes the size in points (pt) or a predefined</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-comment">-- sizes. Setting the absolute size 12.5pt can be achieved by passing</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-comment">-- 'FontSize' ('SizePoint' 12.5) to 'markSpan'. Next to predefined</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-comment">-- absolute sizes such as 'Pango.SizeSmall' the size can be changed by</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-comment">-- asking for the next larger or smaller front with</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-comment">-- 'Pango.SizeLarger' and 'Pango.SizeSmaller', respectively.</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontSize"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontSize"><span class="hs-identifier hs-var">FontSize</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.Enums.html#Size"><span class="hs-identifier hs-type">Pango.Size</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-comment">-- | Change the slant of the current font.</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontStyle"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontStyle"><span class="hs-identifier hs-var">FontStyle</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.BasicTypes.html#FontStyle"><span class="hs-identifier hs-type">Pango.FontStyle</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-comment">-- | Change the thickness of the current font.</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-comment">-- * The constructor takes one of the six predefined weights. Most likely to</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-comment">-- be supported: 'Pango.WeightBold'.</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontWeight"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontWeight"><span class="hs-identifier hs-var">FontWeight</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.BasicTypes.html#Weight"><span class="hs-identifier hs-type">Pango.Weight</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-comment">-- | Choosing an alternative rendering for lower case letters.</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-comment">-- * The argument 'Pango.VariantSmallCaps' will display lower case letters</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-comment">-- as smaller upper case letters, if this option is available.</span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontVariant"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontVariant"><span class="hs-identifier hs-var">FontVariant</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.BasicTypes.html#Variant"><span class="hs-identifier hs-type">Pango.Variant</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-comment">-- | Choose a different width.</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-comment">-- * Takes one of nine font widths, e.g. 'Pango.WidthExpanded'.</span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontStretch"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontStretch"><span class="hs-identifier hs-var">FontStretch</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.BasicTypes.html#Stretch"><span class="hs-identifier hs-type">Pango.Stretch</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-comment">-- | Foreground color.</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-comment">-- * This constructor and 'FontBackground' take both a description</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-comment">-- of the color to be used for rendering. The name is either a</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-comment">-- hex code of the form \&quot;#RRGGBB\&quot; or an X11 color name like</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-comment">-- \&quot;dark olive green\&quot;.</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontForeground"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontForeground"><span class="hs-identifier hs-var">FontForeground</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-comment">-- FIXME: should be ColorName from GDK or so</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Background color.</span></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontBackground"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontBackground"><span class="hs-identifier hs-var">FontBackground</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-comment">-- | Specify underlining of text.</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontUnderline"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontUnderline"><span class="hs-identifier hs-var">FontUnderline</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.BasicTypes.html#Underline"><span class="hs-identifier hs-type">Pango.Underline</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-comment">-- | Specify a vertical displacement.</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-comment">-- * Takes the vertical displacement in em (the width of the \'m\' character</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-comment">-- in the current font).</span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontRise"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontRise"><span class="hs-identifier hs-var">FontRise</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-comment">-- | Give a hint about the language to be displayed.</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-comment">-- * This hint might help the system rendering a particular piece of text</span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-comment">-- with different fonts that are more suitable for the given language.</span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontLang"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontLang"><span class="hs-identifier hs-var">FontLang</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.BasicTypes.html#Language"><span class="hs-identifier hs-type">Pango.Language</span></a></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Gravity of text, use for ratation.</span></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontGravity"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontGravity"><span class="hs-identifier hs-var">FontGravity</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.BasicTypes.html#PangoGravity"><span class="hs-identifier hs-type">Pango.PangoGravity</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Intensity of gravity.</span></span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FontGravityHint"><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontGravityHint"><span class="hs-identifier hs-var">FontGravityHint</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.BasicTypes.html#PangoGravityHint"><span class="hs-identifier hs-type">Pango.PangoGravityHint</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679101410"><span id="local-6989586621679101413"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#SpanAttribute"><span class="hs-identifier hs-type">SpanAttribute</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>  </span><span id="local-6989586621679101461"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; SpanAttribute -&gt; ShowS
+</span><a href="#local-6989586621679101461"><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontDescr"><span class="hs-identifier hs-type">FontDescr</span></a></span><span> </span><span id="local-6989586621679101463"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101463"><span class="hs-identifier hs-var">str</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; font_desc=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101463"><span class="hs-identifier hs-var">str</span></a></span><span>
+</span><span id="line-151"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontFamily"><span class="hs-identifier hs-type">FontFamily</span></a></span><span> </span><span id="local-6989586621679101467"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101467"><span class="hs-identifier hs-var">str</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; font_family=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101467"><span class="hs-identifier hs-var">str</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontSize"><span class="hs-identifier hs-type">FontSize</span></a></span><span> </span><span id="local-6989586621679101468"><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679101468"><span class="hs-identifier hs-var">size</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; size=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">Size -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679101468"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontStyle"><span class="hs-identifier hs-type">FontStyle</span></a></span><span> </span><span id="local-6989586621679101469"><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679101469"><span class="hs-identifier hs-var">style</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; style=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">FontStyle -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">FontStyle
+</span><a href="#local-6989586621679101469"><span class="hs-identifier hs-var">style</span></a></span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontWeight"><span class="hs-identifier hs-type">FontWeight</span></a></span><span> </span><span id="local-6989586621679101470"><span class="annot"><span class="annottext">Weight
+</span><a href="#local-6989586621679101470"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; weight=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">Weight -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">Weight
+</span><a href="#local-6989586621679101470"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-155"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontVariant"><span class="hs-identifier hs-type">FontVariant</span></a></span><span> </span><span id="local-6989586621679101471"><span class="annot"><span class="annottext">Variant
+</span><a href="#local-6989586621679101471"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; variant=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">Variant -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">Variant
+</span><a href="#local-6989586621679101471"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontStretch"><span class="hs-identifier hs-type">FontStretch</span></a></span><span> </span><span id="local-6989586621679101472"><span class="annot"><span class="annottext">Stretch
+</span><a href="#local-6989586621679101472"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; stretch=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">Stretch -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">Stretch
+</span><a href="#local-6989586621679101472"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontForeground"><span class="hs-identifier hs-type">FontForeground</span></a></span><span> </span><span id="local-6989586621679101473"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101473"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; foreground=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101473"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-158"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontBackground"><span class="hs-identifier hs-type">FontBackground</span></a></span><span> </span><span id="local-6989586621679101474"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101474"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; background=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101474"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontUnderline"><span class="hs-identifier hs-type">FontUnderline</span></a></span><span> </span><span id="local-6989586621679101475"><span class="annot"><span class="annottext">Underline
+</span><a href="#local-6989586621679101475"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; underline=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">Underline -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">Underline
+</span><a href="#local-6989586621679101475"><span class="hs-identifier hs-var">u</span></a></span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontRise"><span class="hs-identifier hs-type">FontRise</span></a></span><span> </span><span id="local-6989586621679101476"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679101476"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; rise=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span>
+</span><span id="line-161"></span><span>                                   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Integer
+forall b. Integral b =&gt; Double -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">round</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679101476"><span class="hs-identifier hs-var">r</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">10000</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontLang"><span class="hs-identifier hs-type">FontLang</span></a></span><span> </span><span id="local-6989586621679101480"><span class="annot"><span class="annottext">Language
+</span><a href="#local-6989586621679101480"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; lang=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">Language -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">Language
+</span><a href="#local-6989586621679101480"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontGravity"><span class="hs-identifier hs-type">FontGravity</span></a></span><span> </span><span id="local-6989586621679101481"><span class="annot"><span class="annottext">PangoGravity
+</span><a href="#local-6989586621679101481"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; gravity=&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">PangoGravity -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">PangoGravity
+</span><a href="#local-6989586621679101481"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-165"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#FontGravityHint"><span class="hs-identifier hs-type">FontGravityHint</span></a></span><span> </span><span id="local-6989586621679101482"><span class="annot"><span class="annottext">PangoGravityHint
+</span><a href="#local-6989586621679101482"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; gravity_hint&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">PangoGravityHint -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">PangoGravityHint
+</span><a href="#local-6989586621679101482"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- | Create the most generic span attribute.</span><span>
+</span><span id="line-169"></span><span class="hs-comment">--</span><span>
+</span><span id="line-170"></span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#markSpan"><span class="hs-identifier hs-type">markSpan</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Graphics.Rendering.Pango.Markup.html#SpanAttribute"><span class="hs-identifier hs-type">SpanAttribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-171"></span><span id="markSpan"><span class="annot"><span class="annottext">markSpan :: [SpanAttribute] -&gt; ShowS
+</span><a href="Graphics.Rendering.Pango.Markup.html#markSpan"><span class="hs-identifier hs-var hs-var">markSpan</span></a></span></span><span> </span><span id="local-6989586621679101483"><span class="annot"><span class="annottext">[SpanAttribute]
+</span><a href="#local-6989586621679101483"><span class="hs-identifier hs-var">attrs</span></a></span></span><span> </span><span id="local-6989586621679101484"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101484"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&lt;span&quot;</span></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span>
+</span><span id="line-172"></span><span>                      </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS -&gt; ShowS) -&gt; ShowS -&gt; [ShowS] -&gt; ShowS
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">(.)</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'&gt;'</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(SpanAttribute -&gt; ShowS) -&gt; [SpanAttribute] -&gt; [ShowS]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">SpanAttribute -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">[SpanAttribute]
+</span><a href="#local-6989586621679101483"><span class="hs-identifier hs-var">attrs</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span>
+</span><span id="line-173"></span><span>                      </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679101484"><span class="hs-identifier hs-var">text</span></a></span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span>
+</span><span id="line-174"></span><span>                      </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&lt;/span&gt;&quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-175"></span></pre></body></html>

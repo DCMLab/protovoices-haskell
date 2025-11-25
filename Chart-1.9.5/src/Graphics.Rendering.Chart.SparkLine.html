@@ -1,0 +1,604 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">---------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module      : Graphics.Rendering.Chart.Sparkline</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright   : (c) Hitesh Jasani, 2008, Malcolm Wallace 2011, Tim Docker 2014</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     : BSD3</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Sparklines are mini graphs inspired by Edward Tufte; see</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- &lt;http://www.edwardtufte.com/bboard/q-and-a-fetch-msg?msg_id=0001OR&gt;</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- and</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- &lt;http://en.wikipedia.org/wiki/Sparkline&gt; for more information.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- The original implementation (by Hitesh Jasani) used the gd</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- package as a backend renderer, and is still available at</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- &lt;http://hackage.haskell.org/package/hsparklines&gt;.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- The present version integrates with</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- the Chart package, in the sense that Sparklines are just another</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- kind of (@ToRenderable a =&gt; a@), so they can be composed into grids</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- and used with the rest of Chart.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- &gt; dp :: [Double]</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- &gt; dp = [24,21,32.3,24,15,34,43,55,57,72,74,75,73,72,55,44]</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- &gt; sl = SparkLine barSpark dp</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- &gt; fopts = FileOptions (sparkSize sl) PNG</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- &gt; renderableToFile fopts (sparkLineToRenderable sl) &quot;bar_spark.png&quot; </span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-28"></span><span class="hs-comment">---------------------------------------------------------------</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html"><span class="hs-identifier">Graphics.Rendering.Chart.SparkLine</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * SparkLine type</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier">SparkLine</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Drawing options</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkOptions"><span class="hs-identifier">SparkOptions</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#smoothSpark"><span class="hs-identifier">smoothSpark</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#barSpark"><span class="hs-identifier">barSpark</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Size calculation</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#sparkSize"><span class="hs-identifier">sparkSize</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Rendering function</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#renderSparkLine"><span class="hs-identifier">renderSparkLine</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#sparkLineToRenderable"><span class="hs-identifier">sparkLineToRenderable</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#sparkWidth"><span class="hs-identifier">sparkWidth</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Ord</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html"><span class="hs-identifier">Graphics.Rendering.Chart.Geometry</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Drawing.html"><span class="hs-identifier">Graphics.Rendering.Chart.Drawing</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Renderable.html"><span class="hs-identifier">Graphics.Rendering.Chart.Renderable</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour</span></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour.Names</span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | A sparkline is a single sequence of data values, treated as y-values.</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--   The x-values are anonymous and implicit in the sequence.</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">data</span><span> </span><span id="SparkLine"><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-var">SparkLine</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SparkLine"><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-var">SparkLine</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="sl_options"><span class="annot"><span class="annottext">SparkLine -&gt; SparkOptions
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sl_options"><span class="hs-identifier hs-var hs-var">sl_options</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkOptions"><span class="hs-identifier hs-type">SparkOptions</span></a></span><span>
+</span><span id="line-57"></span><span>                           </span><span class="hs-special">,</span><span> </span><span id="sl_data"><span class="annot"><span class="annottext">SparkLine -&gt; [Double]
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sl_data"><span class="hs-identifier hs-var hs-var">sl_data</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">]</span><span>
+</span><span id="line-58"></span><span>                           </span><span class="hs-special">}</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- | Options to render the sparklines in different ways.</span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">data</span><span> </span><span id="SparkOptions"><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkOptions"><span class="hs-identifier hs-var">SparkOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SparkOptions"><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkOptions"><span class="hs-identifier hs-var">SparkOptions</span></a></span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="so_smooth"><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_smooth"><span class="hs-identifier hs-var hs-var">so_smooth</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ smooth or bars</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_step"><span class="annot"><span class="annottext">SparkOptions -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_step"><span class="hs-identifier hs-var hs-var">so_step</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ step size</span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_height"><span class="annot"><span class="annottext">SparkOptions -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_height"><span class="hs-identifier hs-var hs-var">so_height</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ graph height (pixels)</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_limits"><span class="annot"><span class="annottext">SparkOptions -&gt; (Double, Double)
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_limits"><span class="hs-identifier hs-var hs-var">so_limits</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ data point limits</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_bgColor"><span class="annot"><span class="annottext">SparkOptions -&gt; Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_bgColor"><span class="hs-identifier hs-var hs-var">so_bgColor</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Colour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ background color</span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_minColor"><span class="annot"><span class="annottext">SparkOptions -&gt; Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_minColor"><span class="hs-identifier hs-var hs-var">so_minColor</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Colour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ color of minimum datapoint</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_maxColor"><span class="annot"><span class="annottext">SparkOptions -&gt; Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_maxColor"><span class="hs-identifier hs-var hs-var">so_maxColor</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Colour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ color of maximum datapoint</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_lastColor"><span class="annot"><span class="annottext">SparkOptions -&gt; Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_lastColor"><span class="hs-identifier hs-var hs-var">so_lastColor</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Colour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ color of last datapoint</span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_minMarker"><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_minMarker"><span class="hs-identifier hs-var hs-var">so_minMarker</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ display minimum marker</span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_maxMarker"><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_maxMarker"><span class="hs-identifier hs-var hs-var">so_maxMarker</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ display maximum marker</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="so_lastMarker"><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_lastMarker"><span class="hs-identifier hs-var hs-var">so_lastMarker</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ display last marker</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679424655"><span id="local-6989586621679424677"><span id="local-6989586621679424681"><span class="annot"><span class="annottext">Int -&gt; SparkOptions -&gt; ShowS
+[SparkOptions] -&gt; ShowS
+SparkOptions -&gt; String
+(Int -&gt; SparkOptions -&gt; ShowS)
+-&gt; (SparkOptions -&gt; String)
+-&gt; ([SparkOptions] -&gt; ShowS)
+-&gt; Show SparkOptions
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SparkOptions -&gt; ShowS
+showsPrec :: Int -&gt; SparkOptions -&gt; ShowS
+$cshow :: SparkOptions -&gt; String
+show :: SparkOptions -&gt; String
+$cshowList :: [SparkOptions] -&gt; ShowS
+showList :: [SparkOptions] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><span class="hs-comment">-- | Default options for a smooth sparkline.</span></span><span>
+</span><span id="line-76"></span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#smoothSpark"><span class="hs-identifier hs-type">smoothSpark</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkOptions"><span class="hs-identifier hs-type">SparkOptions</span></a></span><span>
+</span><span id="line-77"></span><span id="smoothSpark"><span class="annot"><span class="annottext">smoothSpark :: SparkOptions
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#smoothSpark"><span class="hs-identifier hs-var hs-var">smoothSpark</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkOptions"><span class="hs-identifier hs-type">SparkOptions</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">so_smooth :: Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_smooth"><span class="hs-identifier hs-var">so_smooth</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_step :: Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_step"><span class="hs-identifier hs-var">so_step</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_height :: Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_height"><span class="hs-identifier hs-var">so_height</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">20</span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_limits :: (Double, Double)
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_limits"><span class="hs-identifier hs-var">so_limits</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">100</span></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_bgColor :: Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_bgColor"><span class="hs-identifier hs-var">so_bgColor</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">white</span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_minColor :: Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_minColor"><span class="hs-identifier hs-var">so_minColor</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">red</span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_maxColor :: Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_maxColor"><span class="hs-identifier hs-var">so_maxColor</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">green</span></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_lastColor :: Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_lastColor"><span class="hs-identifier hs-var">so_lastColor</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">blue</span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_minMarker :: Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_minMarker"><span class="hs-identifier hs-var">so_minMarker</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_maxMarker :: Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_maxMarker"><span class="hs-identifier hs-var">so_maxMarker</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_lastMarker :: Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_lastMarker"><span class="hs-identifier hs-var">so_lastMarker</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><span class="hs-comment">-- | Default options for a barchart sparkline.</span></span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#barSpark"><span class="hs-identifier hs-type">barSpark</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkOptions"><span class="hs-identifier hs-type">SparkOptions</span></a></span><span>
+</span><span id="line-93"></span><span id="barSpark"><span class="annot"><span class="annottext">barSpark :: SparkOptions
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#barSpark"><span class="hs-identifier hs-var hs-var">barSpark</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#smoothSpark"><span class="hs-identifier hs-var">smoothSpark</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#so_smooth"><span class="hs-identifier hs-var">so_smooth</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="annot"><span class="hs-comment">-- | Create a renderable from a SparkLine.</span></span><span>
+</span><span id="line-96"></span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#sparkLineToRenderable"><span class="hs-identifier hs-type">sparkLineToRenderable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-type">SparkLine</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Renderable.html#Renderable"><span class="hs-identifier hs-type">Renderable</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span id="sparkLineToRenderable"><span class="annot"><span class="annottext">sparkLineToRenderable :: SparkLine -&gt; Renderable ()
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sparkLineToRenderable"><span class="hs-identifier hs-var hs-var">sparkLineToRenderable</span></a></span></span><span> </span><span id="local-6989586621679424691"><span class="annot"><span class="annottext">SparkLine
+</span><a href="#local-6989586621679424691"><span class="hs-identifier hs-var">sp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Renderable.html#Renderable"><span class="hs-identifier hs-type">Renderable</span></a></span><span>
+</span><span id="line-98"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">minsize :: BackendProgram (Double, Double)
+</span><a href="Graphics.Rendering.Chart.Renderable.html#minsize"><span class="hs-identifier hs-var">minsize</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679424694"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424694"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679424695"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424695"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SparkLine -&gt; (Int, Int)
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sparkSize"><span class="hs-identifier hs-var">sparkSize</span></a></span><span> </span><span class="annot"><span class="annottext">SparkLine
+</span><a href="#local-6989586621679424691"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(Double, Double) -&gt; BackendProgram (Double, Double)
+forall a. a -&gt; ProgramT ChartBackendInstr Identity a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424694"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424695"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">render :: (Double, Double) -&gt; BackendProgram (PickFn ())
+</span><a href="Graphics.Rendering.Chart.Renderable.html#render"><span class="hs-identifier hs-var">render</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679424697"><span class="annot"><span class="annottext">(Double, Double)
+</span><a href="#local-6989586621679424697"><span class="hs-identifier hs-var">_rect</span></a></span></span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SparkLine -&gt; BackendProgram (PickFn ())
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#renderSparkLine"><span class="hs-identifier hs-var">renderSparkLine</span></a></span><span> </span><span class="annot"><span class="annottext">SparkLine
+</span><a href="#local-6989586621679424691"><span class="hs-identifier hs-var">sp</span></a></span><span>
+</span><span id="line-100"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Renderable.html#ToRenderable"><span class="hs-identifier hs-type">ToRenderable</span></a></span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-type">SparkLine</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679424701"><span class="annot"><span class="annottext">toRenderable :: SparkLine -&gt; Renderable ()
+</span><a href="#local-6989586621679424701"><span class="hs-identifier hs-var hs-var hs-var">toRenderable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SparkLine -&gt; Renderable ()
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sparkLineToRenderable"><span class="hs-identifier hs-var">sparkLineToRenderable</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="annot"><span class="hs-comment">-- | Compute the width of a SparkLine, for rendering purposes.</span></span><span>
+</span><span id="line-106"></span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#sparkWidth"><span class="hs-identifier hs-type">sparkWidth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-type">SparkLine</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-107"></span><span id="sparkWidth"><span class="annot"><span class="annottext">sparkWidth :: SparkLine -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sparkWidth"><span class="hs-identifier hs-var hs-var">sparkWidth</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-type">SparkLine</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">sl_options :: SparkLine -&gt; SparkOptions
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sl_options"><span class="hs-identifier hs-var">sl_options</span></a></span><span class="hs-glyph">=</span><span id="local-6989586621679424703"><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424703"><span class="hs-identifier hs-var">opt</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sl_data :: SparkLine -&gt; [Double]
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sl_data"><span class="hs-identifier hs-var">sl_data</span></a></span><span class="hs-glyph">=</span><span id="local-6989586621679424704"><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679424704"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679424713"><span class="annot"><span class="annottext">w :: Int
+</span><a href="#local-6989586621679424713"><span class="hs-identifier hs-var hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_step"><span class="hs-identifier hs-var">so_step</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424703"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Double] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679424704"><span class="hs-identifier hs-var">ds</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424717"><span class="hs-identifier hs-var">extrawidth</span></a></span><span>
+</span><span id="line-109"></span><span>      </span><span id="local-6989586621679424717"><span class="annot"><span class="annottext">extrawidth :: Int
+</span><a href="#local-6989586621679424717"><span class="hs-identifier hs-var hs-var">extrawidth</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_smooth"><span class="hs-identifier hs-var">so_smooth</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424703"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-110"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424721"><span class="hs-identifier hs-var">bw</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">[Double] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679424704"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-111"></span><span>      </span><span id="local-6989586621679424721"><span class="annot"><span class="annottext">bw :: Int
+</span><a href="#local-6989586621679424721"><span class="hs-identifier hs-var hs-var">bw</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_smooth"><span class="hs-identifier hs-var">so_smooth</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424703"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-112"></span><span>         </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424713"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="annot"><span class="hs-comment">-- | Return the width and height of the SparkLine.</span></span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#sparkSize"><span class="hs-identifier hs-type">sparkSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-type">SparkLine</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span id="sparkSize"><span class="annot"><span class="annottext">sparkSize :: SparkLine -&gt; (Int, Int)
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sparkSize"><span class="hs-identifier hs-var hs-var">sparkSize</span></a></span></span><span> </span><span id="local-6989586621679424724"><span class="annot"><span class="annottext">SparkLine
+</span><a href="#local-6989586621679424724"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkLine -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sparkWidth"><span class="hs-identifier hs-var">sparkWidth</span></a></span><span> </span><span class="annot"><span class="annottext">SparkLine
+</span><a href="#local-6989586621679424724"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SparkOptions -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_height"><span class="hs-identifier hs-var">so_height</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkLine -&gt; SparkOptions
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sl_options"><span class="hs-identifier hs-var">sl_options</span></a></span><span> </span><span class="annot"><span class="annottext">SparkLine
+</span><a href="#local-6989586621679424724"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="annot"><span class="hs-comment">-- | Render a SparkLine to a drawing surface.</span></span><span>
+</span><span id="line-120"></span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#renderSparkLine"><span class="hs-identifier hs-type">renderSparkLine</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-type">SparkLine</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Impl.html#BackendProgram"><span class="hs-identifier hs-type">BackendProgram</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Renderable.html#PickFn"><span class="hs-identifier hs-type">PickFn</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span id="renderSparkLine"><span class="annot"><span class="annottext">renderSparkLine :: SparkLine -&gt; BackendProgram (PickFn ())
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#renderSparkLine"><span class="hs-identifier hs-var hs-var">renderSparkLine</span></a></span></span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.SparkLine.html#SparkLine"><span class="hs-identifier hs-type">SparkLine</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">sl_options :: SparkLine -&gt; SparkOptions
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sl_options"><span class="hs-identifier hs-var">sl_options</span></a></span><span class="hs-glyph">=</span><span id="local-6989586621679424725"><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sl_data :: SparkLine -&gt; [Double]
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#sl_data"><span class="hs-identifier hs-var">sl_data</span></a></span><span class="hs-glyph">=</span><span id="local-6989586621679424726"><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679424726"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679424734"><span class="annot"><span class="annottext">w :: Int
+</span><a href="#local-6989586621679424734"><span class="hs-identifier hs-var hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_step"><span class="hs-identifier hs-var">so_step</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Double] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679424726"><span class="hs-identifier hs-var">ds</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424735"><span class="hs-identifier hs-var">extrawidth</span></a></span><span>
+</span><span id="line-123"></span><span>      </span><span id="local-6989586621679424735"><span class="annot"><span class="annottext">extrawidth :: Int
+</span><a href="#local-6989586621679424735"><span class="hs-identifier hs-var hs-var">extrawidth</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_smooth"><span class="hs-identifier hs-var">so_smooth</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-124"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424739"><span class="hs-identifier hs-var">bw</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">[Double] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679424726"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-125"></span><span>      </span><span id="local-6989586621679424739"><span class="annot"><span class="annottext">bw :: Int
+</span><a href="#local-6989586621679424739"><span class="hs-identifier hs-var hs-var">bw</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_smooth"><span class="hs-identifier hs-var">so_smooth</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-126"></span><span>         </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-127"></span><span>      </span><span id="local-6989586621679424742"><span class="annot"><span class="annottext">h :: Int
+</span><a href="#local-6989586621679424742"><span class="hs-identifier hs-var hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SparkOptions -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_height"><span class="hs-identifier hs-var">so_height</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span>
+</span><span id="line-128"></span><span>      </span><span id="local-6989586621679424743"><span class="annot"><span class="annottext">dmin :: Double
+</span><a href="#local-6989586621679424743"><span class="hs-identifier hs-var hs-var">dmin</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Double, Double) -&gt; Double
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; (Double, Double)
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_limits"><span class="hs-identifier hs-var">so_limits</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>      </span><span id="local-6989586621679424745"><span class="annot"><span class="annottext">dmax :: Double
+</span><a href="#local-6989586621679424745"><span class="hs-identifier hs-var hs-var">dmax</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Double, Double) -&gt; Double
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; (Double, Double)
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_limits"><span class="hs-identifier hs-var">so_limits</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>      </span><span id="local-6989586621679424773"><span class="annot"><span class="annottext">coords :: [Point]
+</span><a href="#local-6989586621679424773"><span class="hs-identifier hs-var hs-var">coords</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Double -&gt; Point) -&gt; [Int] -&gt; [Double] -&gt; [Point]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679424775"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424775"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679424776"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424776"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Double
+forall b a. (Num b, Integral a) =&gt; a -&gt; b
+</span><a href="#local-6989586621679424778"><span class="hs-identifier hs-var">fi</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424775"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424776"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>                       </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424739"><span class="hs-identifier hs-var">bw</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">SparkOptions -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_step"><span class="hs-identifier hs-var">so_step</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span class="hs-glyph">..</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Int
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_step"><span class="hs-identifier hs-var">so_step</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424739"><span class="hs-identifier hs-var">bw</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Double] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679424726"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-132"></span><span>                       </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Double
+forall b a. (Num b, Integral a) =&gt; a -&gt; b
+</span><a href="#local-6989586621679424778"><span class="hs-identifier hs-var">fi</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424742"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424779"><span class="hs-identifier hs-var">y</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424743"><span class="hs-identifier hs-var">dmin</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span>
+</span><span id="line-133"></span><span>                                  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424745"><span class="hs-identifier hs-var">dmax</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424743"><span class="hs-identifier hs-var">dmin</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Double
+forall b a. (Num b, Integral a) =&gt; a -&gt; b
+</span><a href="#local-6989586621679424778"><span class="hs-identifier hs-var">fi</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424742"><span class="hs-identifier hs-var">h</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>                         </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679424779"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424779"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679424726"><span class="hs-identifier hs-var">ds</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-135"></span><span>      </span><span class="hs-comment">-- remember y increases as we go down the page</span><span>
+</span><span id="line-136"></span><span>      </span><span id="local-6989586621679424783"><span class="annot"><span class="annottext">minpt :: Point
+</span><a href="#local-6989586621679424783"><span class="hs-identifier hs-var hs-var">minpt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Point -&gt; Point -&gt; Ordering) -&gt; [Point] -&gt; Point
+forall (t :: * -&gt; *) a.
+Foldable t =&gt;
+(a -&gt; a -&gt; Ordering) -&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">maximumBy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Point -&gt; Double) -&gt; Point -&gt; Point -&gt; Ordering
+forall a b. Ord a =&gt; (b -&gt; a) -&gt; b -&gt; b -&gt; Ordering
+</span><span class="hs-identifier hs-var">comparing</span></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#p_y"><span class="hs-identifier hs-var">p_y</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Point]
+</span><a href="#local-6989586621679424773"><span class="hs-identifier hs-var">coords</span></a></span><span>
+</span><span id="line-137"></span><span>      </span><span id="local-6989586621679424789"><span class="annot"><span class="annottext">maxpt :: Point
+</span><a href="#local-6989586621679424789"><span class="hs-identifier hs-var hs-var">maxpt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Point -&gt; Point -&gt; Ordering) -&gt; [Point] -&gt; Point
+forall (t :: * -&gt; *) a.
+Foldable t =&gt;
+(a -&gt; a -&gt; Ordering) -&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">minimumBy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Point -&gt; Double) -&gt; Point -&gt; Point -&gt; Ordering
+forall a b. Ord a =&gt; (b -&gt; a) -&gt; b -&gt; b -&gt; Ordering
+</span><span class="hs-identifier hs-var">comparing</span></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Double
+</span><a href="Graphics.Rendering.Chart.Geometry.html#p_y"><span class="hs-identifier hs-var">p_y</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Point]
+</span><a href="#local-6989586621679424773"><span class="hs-identifier hs-var">coords</span></a></span><span>
+</span><span id="line-138"></span><span>      </span><span id="local-6989586621679424793"><span class="annot"><span class="annottext">endpt :: Point
+</span><a href="#local-6989586621679424793"><span class="hs-identifier hs-var hs-var">endpt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Point] -&gt; Point
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[Point]
+</span><a href="#local-6989586621679424773"><span class="hs-identifier hs-var">coords</span></a></span><span>
+</span><span id="line-139"></span><span>      </span><span class="annot"><a href="#local-6989586621679424795"><span class="hs-identifier hs-type">boxpt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-type">Point</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#Rect"><span class="hs-identifier hs-type">Rect</span></a></span><span>
+</span><span id="line-140"></span><span>      </span><span id="local-6989586621679424795"><span class="annot"><span class="annottext">boxpt :: Point -&gt; Rect
+</span><a href="#local-6989586621679424795"><span class="hs-identifier hs-var hs-var">boxpt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-type">Point</span></a></span><span> </span><span id="local-6989586621679424796"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424796"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679424797"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424797"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Point -&gt; Point -&gt; Rect
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Rect"><span class="hs-identifier hs-var">Rect</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424796"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424797"><span class="hs-identifier hs-var">y</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424796"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424797"><span class="hs-identifier hs-var">y</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>      </span><span id="local-6989586621679424538"><span id="local-6989586621679424539"><span class="annot"><a href="#local-6989586621679424778"><span class="hs-identifier hs-type">fi</span></a></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679424538"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679424539"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679424539"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679424538"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-142"></span><span>      </span><span id="local-6989586621679424778"><span class="annot"><span class="annottext">fi :: forall b a. (Num b, Integral a) =&gt; a -&gt; b
+</span><a href="#local-6989586621679424778"><span class="hs-identifier hs-var hs-var">fi</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>  </span><span class="annot"><span class="annottext">FillStyle -&gt; BackendProgram () -&gt; BackendProgram ()
+forall a. FillStyle -&gt; BackendProgram a -&gt; BackendProgram a
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#withFillStyle"><span class="hs-identifier hs-var">withFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlphaColour Double -&gt; FillStyle
+</span><a href="Graphics.Rendering.Chart.Drawing.html#solidFillStyle"><span class="hs-identifier hs-var">solidFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_bgColor"><span class="hs-identifier hs-var">so_bgColor</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><span class="annottext">Path -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#fillPath"><span class="hs-identifier hs-var">fillPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Rect -&gt; Path
+</span><a href="Graphics.Rendering.Chart.Geometry.html#rectPath"><span class="hs-identifier hs-var">rectPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Point -&gt; Rect
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Rect"><span class="hs-identifier hs-var">Rect</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Double
+forall b a. (Num b, Integral a) =&gt; a -&gt; b
+</span><a href="#local-6989586621679424778"><span class="hs-identifier hs-var">fi</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424734"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Double
+forall b a. (Num b, Integral a) =&gt; a -&gt; b
+</span><a href="#local-6989586621679424778"><span class="hs-identifier hs-var">fi</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424742"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_smooth"><span class="hs-identifier hs-var">so_smooth</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-149"></span><span>      </span><span class="annot"><span class="annottext">LineStyle -&gt; BackendProgram () -&gt; BackendProgram ()
+forall a. LineStyle -&gt; BackendProgram a -&gt; BackendProgram a
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#withLineStyle"><span class="hs-identifier hs-var">withLineStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; AlphaColour Double -&gt; LineStyle
+</span><a href="Graphics.Rendering.Chart.Drawing.html#solidLine"><span class="hs-identifier hs-var">solidLine</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">grey</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>        </span><span id="local-6989586621679424811"><span class="annot"><a href="#local-6989586621679424811"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Point] -&gt; BackendProgram [Point]
+</span><a href="Graphics.Rendering.Chart.Drawing.html#alignStrokePoints"><span class="hs-identifier hs-var">alignStrokePoints</span></a></span><span> </span><span class="annot"><span class="annottext">[Point]
+</span><a href="#local-6989586621679424773"><span class="hs-identifier hs-var">coords</span></a></span><span>
+</span><span id="line-151"></span><span>        </span><span class="annot"><a href="Graphics.Rendering.Chart.Drawing.html#strokePointPath"><span class="hs-identifier hs-type">strokePointPath</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679424811"><span class="hs-identifier hs-type">p</span></a></span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-153"></span><span>      </span><span class="annot"><span class="annottext">FillStyle -&gt; BackendProgram () -&gt; BackendProgram ()
+forall a. FillStyle -&gt; BackendProgram a -&gt; BackendProgram a
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#withFillStyle"><span class="hs-identifier hs-var">withFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlphaColour Double -&gt; FillStyle
+</span><a href="Graphics.Rendering.Chart.Drawing.html#solidFillStyle"><span class="hs-identifier hs-var">solidFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="annot"><span class="annottext">Colour Double
+forall a. (Ord a, Floating a) =&gt; Colour a
+</span><span class="hs-identifier hs-var">grey</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-154"></span><span>        </span><span class="annot"><span class="annottext">[Point] -&gt; (Point -&gt; BackendProgram ()) -&gt; BackendProgram ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="annot"><span class="annottext">[Point]
+</span><a href="#local-6989586621679424773"><span class="hs-identifier hs-var">coords</span></a></span><span> </span><span class="annot"><span class="annottext">((Point -&gt; BackendProgram ()) -&gt; BackendProgram ())
+-&gt; (Point -&gt; BackendProgram ()) -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-type">Point</span></a></span><span> </span><span id="local-6989586621679424815"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424815"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679424816"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424816"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-155"></span><span>          </span><span class="annot"><span class="annottext">Path -&gt; BackendProgram ()
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#fillPath"><span class="hs-identifier hs-var">fillPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Rect -&gt; Path
+</span><a href="Graphics.Rendering.Chart.Geometry.html#rectPath"><span class="hs-identifier hs-var">rectPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Point -&gt; Rect
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Rect"><span class="hs-identifier hs-var">Rect</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424815"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424816"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Point
+</span><a href="Graphics.Rendering.Chart.Geometry.html#Point"><span class="hs-identifier hs-var">Point</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679424815"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Double
+forall b a. (Num b, Integral a) =&gt; a -&gt; b
+</span><a href="#local-6989586621679424778"><span class="hs-identifier hs-var">fi</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679424742"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; BackendProgram () -&gt; BackendProgram ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_minMarker"><span class="hs-identifier hs-var">so_minMarker</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-157"></span><span>      </span><span class="annot"><span class="annottext">FillStyle -&gt; BackendProgram () -&gt; BackendProgram ()
+forall a. FillStyle -&gt; BackendProgram a -&gt; BackendProgram a
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#withFillStyle"><span class="hs-identifier hs-var">withFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlphaColour Double -&gt; FillStyle
+</span><a href="Graphics.Rendering.Chart.Drawing.html#solidFillStyle"><span class="hs-identifier hs-var">solidFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_minColor"><span class="hs-identifier hs-var">so_minColor</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-158"></span><span>        </span><span id="local-6989586621679424818"><span class="annot"><a href="#local-6989586621679424818"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Path -&gt; BackendProgram Path
+</span><a href="Graphics.Rendering.Chart.Drawing.html#alignFillPath"><span class="hs-identifier hs-var">alignFillPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Rect -&gt; Path
+</span><a href="Graphics.Rendering.Chart.Geometry.html#rectPath"><span class="hs-identifier hs-var">rectPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Rect
+</span><a href="#local-6989586621679424795"><span class="hs-identifier hs-var">boxpt</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679424783"><span class="hs-identifier hs-var">minpt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>        </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Impl.html#fillPath"><span class="hs-identifier hs-type">fillPath</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679424818"><span class="hs-identifier hs-type">p</span></a></span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; BackendProgram () -&gt; BackendProgram ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_maxMarker"><span class="hs-identifier hs-var">so_maxMarker</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-161"></span><span>      </span><span class="annot"><span class="annottext">FillStyle -&gt; BackendProgram () -&gt; BackendProgram ()
+forall a. FillStyle -&gt; BackendProgram a -&gt; BackendProgram a
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#withFillStyle"><span class="hs-identifier hs-var">withFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlphaColour Double -&gt; FillStyle
+</span><a href="Graphics.Rendering.Chart.Drawing.html#solidFillStyle"><span class="hs-identifier hs-var">solidFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_maxColor"><span class="hs-identifier hs-var">so_maxColor</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-162"></span><span>        </span><span id="local-6989586621679424820"><span class="annot"><a href="#local-6989586621679424820"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Path -&gt; BackendProgram Path
+</span><a href="Graphics.Rendering.Chart.Drawing.html#alignFillPath"><span class="hs-identifier hs-var">alignFillPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Rect -&gt; Path
+</span><a href="Graphics.Rendering.Chart.Geometry.html#rectPath"><span class="hs-identifier hs-var">rectPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Rect
+</span><a href="#local-6989586621679424795"><span class="hs-identifier hs-var">boxpt</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679424789"><span class="hs-identifier hs-var">maxpt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>        </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Impl.html#fillPath"><span class="hs-identifier hs-type">fillPath</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679424820"><span class="hs-identifier hs-type">p</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; BackendProgram () -&gt; BackendProgram ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Bool
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_lastMarker"><span class="hs-identifier hs-var">so_lastMarker</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-165"></span><span>      </span><span class="annot"><span class="annottext">FillStyle -&gt; BackendProgram () -&gt; BackendProgram ()
+forall a. FillStyle -&gt; BackendProgram a -&gt; BackendProgram a
+</span><a href="Graphics.Rendering.Chart.Backend.Impl.html#withFillStyle"><span class="hs-identifier hs-var">withFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AlphaColour Double -&gt; FillStyle
+</span><a href="Graphics.Rendering.Chart.Drawing.html#solidFillStyle"><span class="hs-identifier hs-var">solidFillStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Colour Double -&gt; AlphaColour Double
+forall a. Num a =&gt; Colour a -&gt; AlphaColour a
+</span><span class="hs-identifier hs-var">opaque</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SparkOptions -&gt; Colour Double
+</span><a href="Graphics.Rendering.Chart.SparkLine.html#so_lastColor"><span class="hs-identifier hs-var">so_lastColor</span></a></span><span> </span><span class="annot"><span class="annottext">SparkOptions
+</span><a href="#local-6989586621679424725"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(BackendProgram () -&gt; BackendProgram ())
+-&gt; BackendProgram () -&gt; BackendProgram ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-166"></span><span>        </span><span id="local-6989586621679424821"><span class="annot"><a href="#local-6989586621679424821"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Path -&gt; BackendProgram Path
+</span><a href="Graphics.Rendering.Chart.Drawing.html#alignFillPath"><span class="hs-identifier hs-var">alignFillPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Rect -&gt; Path
+</span><a href="Graphics.Rendering.Chart.Geometry.html#rectPath"><span class="hs-identifier hs-var">rectPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Point -&gt; Rect
+</span><a href="#local-6989586621679424795"><span class="hs-identifier hs-var">boxpt</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621679424793"><span class="hs-identifier hs-var">endpt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>        </span><span class="annot"><a href="Graphics.Rendering.Chart.Backend.Impl.html#fillPath"><span class="hs-identifier hs-type">fillPath</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679424821"><span class="hs-identifier hs-type">p</span></a></span><span>
+</span><span id="line-168"></span><span>  </span><span class="annot"><span class="annottext">PickFn () -&gt; BackendProgram (PickFn ())
+forall a. a -&gt; ProgramT ChartBackendInstr Identity a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">PickFn ()
+forall a. PickFn a
+</span><a href="Graphics.Rendering.Chart.Renderable.html#nullPickFn"><span class="hs-identifier hs-var">nullPickFn</span></a></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span></pre></body></html>

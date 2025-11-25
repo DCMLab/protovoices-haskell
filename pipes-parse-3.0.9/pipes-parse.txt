@@ -31,11 +31,11 @@ module Pipes.Parse
 
 -- | A <a>Parser</a> is an action that reads from and writes to a stored
 --   <a>Producer</a>
-type Parser a m r = forall x. StateT (Producer a m x) m r
+type Parser a (m :: Type -> Type) r = forall x. () => StateT Producer a m x m r
 
 -- | Draw one element from the underlying <a>Producer</a>, returning
 --   <a>Nothing</a> if the <a>Producer</a> is empty
-draw :: Monad m => Parser a m (Maybe a)
+draw :: forall (m :: Type -> Type) a. Monad m => Parser a m (Maybe a)
 
 -- | Skip one element from the underlying <a>Producer</a>, returning
 --   <a>True</a> if successful or <a>False</a> if the <a>Producer</a> is
@@ -44,7 +44,7 @@ draw :: Monad m => Parser a m (Maybe a)
 --   <pre>
 --   skip = fmap isJust draw
 --   </pre>
-skip :: Monad m => Parser a m Bool
+skip :: forall (m :: Type -> Type) a. Monad m => Parser a m Bool
 
 -- | Draw all elements from the underlying <a>Producer</a>
 --   
@@ -54,13 +54,13 @@ skip :: Monad m => Parser a m Bool
 --   as they are generated instead of loading all elements into memory. For
 --   example, you can use <a>foldAll</a> or <a>foldAllM</a> for this
 --   purpose.
-drawAll :: Monad m => Parser a m [a]
+drawAll :: forall (m :: Type -> Type) a. Monad m => Parser a m [a]
 
 -- | Drain all elements from the underlying <a>Producer</a>
-skipAll :: Monad m => Parser a m ()
+skipAll :: forall (m :: Type -> Type) a. Monad m => Parser a m ()
 
 -- | Push back an element onto the underlying <a>Producer</a>
-unDraw :: Monad m => a -> Parser a m ()
+unDraw :: forall (m :: Type -> Type) a. Monad m => a -> Parser a m ()
 
 -- | <a>peek</a> checks the first element of the stream, but uses
 --   <a>unDraw</a> to push the element back so that it is available for the
@@ -74,21 +74,21 @@ unDraw :: Monad m => a -> Parser a m ()
 --           Just a  -&gt; unDraw a
 --       return x
 --   </pre>
-peek :: Monad m => Parser a m (Maybe a)
+peek :: forall (m :: Type -> Type) a. Monad m => Parser a m (Maybe a)
 
 -- | Check if the underlying <a>Producer</a> is empty
 --   
 --   <pre>
 --   isEndOfInput = fmap isNothing peek
 --   </pre>
-isEndOfInput :: Monad m => Parser a m Bool
+isEndOfInput :: forall (m :: Type -> Type) a. Monad m => Parser a m Bool
 
 -- | Fold all input values
 --   
 --   <pre>
 --   Control.Foldl.purely foldAll :: Monad m =&gt; Fold a b -&gt; Parser a m b
 --   </pre>
-foldAll :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Parser a m b
+foldAll :: forall (m :: Type -> Type) x a b. Monad m => (x -> a -> x) -> x -> (x -> b) -> Parser a m b
 
 -- | Fold all input values monadically
 --   
@@ -100,56 +100,70 @@ foldAllM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> Parser a m b
 -- | <a>span</a> is an improper lens that splits the <a>Producer</a> into
 --   two <a>Producer</a>s, where the outer <a>Producer</a> is the longest
 --   consecutive group of elements that satisfy the predicate
-span :: Monad m => (a -> Bool) -> Lens' (Producer a m x) (Producer a m (Producer a m x))
+span :: forall (m :: Type -> Type) a x. Monad m => (a -> Bool) -> Lens' (Producer a m x) (Producer a m (Producer a m x))
 
 -- | <a>splitAt</a> is an improper lens that splits a <a>Producer</a> into
 --   two <a>Producer</a>s after a fixed number of elements
-splitAt :: Monad m => Int -> Lens' (Producer a m x) (Producer a m (Producer a m x))
+splitAt :: forall (m :: Type -> Type) a x. Monad m => Int -> Lens' (Producer a m x) (Producer a m (Producer a m x))
 
 -- | <a>groupBy</a> splits a <a>Producer</a> into two <a>Producer</a>s
 --   after the first group of elements that are equal according to the
 --   equality predicate
-groupBy :: Monad m => (a -> a -> Bool) -> Lens' (Producer a m x) (Producer a m (Producer a m x))
+groupBy :: forall (m :: Type -> Type) a x. Monad m => (a -> a -> Bool) -> Lens' (Producer a m x) (Producer a m (Producer a m x))
 
 -- | Like <a>groupBy</a>, where the equality predicate is (<a>==</a>)
-group :: (Monad m, Eq a) => Lens' (Producer a m x) (Producer a m (Producer a m x))
+group :: forall (m :: Type -> Type) a x. (Monad m, Eq a) => Lens' (Producer a m x) (Producer a m (Producer a m x))
 
 -- | Convert a <a>Consumer</a> to a <a>Parser</a>
 --   
 --   <a>Nothing</a> signifies end of input
-toParser :: Monad m => Consumer (Maybe a) m r -> Parser a m r
+toParser :: forall (m :: Type -> Type) a r. Monad m => Consumer (Maybe a) m r -> Parser a m r
 
 -- | Convert a never-ending <a>Consumer</a> to a <a>Parser</a>
-toParser_ :: Monad m => Consumer a m X -> Parser a m ()
+toParser_ :: forall (m :: Type -> Type) a. Monad m => Consumer a m X -> Parser a m ()
 
 -- | Run a <a>Parser</a> repeatedly on a <a>Producer</a>, <a>yield</a>ing
 --   each `Right result
 --   
 --   Returns the remainder of the <a>Producer</a> when the <a>Parser</a>
 --   returns <a>Left</a>
-parsed :: Monad m => Parser a m (Either e b) -> Producer a m r -> Producer b m (e, Producer a m r)
+parsed :: forall (m :: Type -> Type) a e b r. Monad m => Parser a m (Either e b) -> Producer a m r -> Producer b m (e, Producer a m r)
 
 -- | Run a <a>Parser</a> repeatedly on a <a>Producer</a>, <a>yield</a>ing
 --   each <a>Just</a> result
 --   
 --   Returns the remainder of the <a>Producer</a> when the <a>Parser</a>
 --   returns <a>Nothing</a>
-parsed_ :: Monad m => Parser a m (Maybe b) -> Producer a m r -> Producer b m (Producer a m r)
+parsed_ :: forall (m :: Type -> Type) a b r. Monad m => Parser a m (Maybe b) -> Producer a m r -> Producer b m (Producer a m r)
 
 -- | Convert a <a>Parser</a> to a <a>Pipe</a> by running it repeatedly on
 --   the input
 
 -- | <i>Deprecated: Use <a>parsed</a> instead</i>
-parseForever :: Monad m => (forall n. Monad n => Parser a n (Either r b)) -> Pipe a b m r
+parseForever :: forall (m :: Type -> Type) a r b. Monad m => (forall (n :: Type -> Type). Monad n => Parser a n (Either r b)) -> Pipe a b m r
 
 -- | Variant of <a>parseForever</a> for parsers which return a Maybe
 --   instead of an Either
 
 -- | <i>Deprecated: Use <a>parsed_</a> instead</i>
-parseForever_ :: Monad m => (forall n. Monad n => Parser a n (Maybe b)) -> Pipe a b m ()
+parseForever_ :: forall (m :: Type -> Type) a b. Monad m => (forall (n :: Type -> Type). Monad n => Parser a n (Maybe b)) -> Pipe a b m ()
 
 -- | Lift a computation from the argument monad to the constructed monad.
 lift :: (MonadTrans t, Monad m) => m a -> t m a
+
+-- | A state transformer monad parameterized by:
+--   
+--   <ul>
+--   <li><tt>s</tt> - The state.</li>
+--   <li><tt>m</tt> - The inner monad.</li>
+--   </ul>
+--   
+--   The <a>return</a> function leaves the state unchanged, while
+--   <tt>&gt;&gt;=</tt> uses the final state of the first computation as
+--   the initial state of the second.
+newtype StateT s (m :: Type -> Type) a
+StateT :: (s -> m (a, s)) -> StateT s (m :: Type -> Type) a
+[runStateT] :: StateT s (m :: Type -> Type) a -> s -> m (a, s)
 
 -- | Evaluate a state computation with the given initial state and return
 --   the final value, discarding the final state.
@@ -169,27 +183,6 @@ evalStateT :: Monad m => StateT s m a -> s -> m a
 --   </ul>
 execStateT :: Monad m => StateT s m a -> s -> m s
 
--- | A state transformer monad parameterized by:
---   
---   <ul>
---   <li><tt>s</tt> - The state.</li>
---   <li><tt>m</tt> - The inner monad.</li>
---   </ul>
---   
---   The <a>return</a> function leaves the state unchanged, while
---   <tt>&gt;&gt;=</tt> uses the final state of the first computation as
---   the initial state of the second.
-newtype StateT s (m :: Type -> Type) a
-StateT :: (s -> m (a, s)) -> StateT s (m :: Type -> Type) a
-[runStateT] :: StateT s (m :: Type -> Type) a -> s -> m (a, s)
-
--- | Consume the first value from a <a>Producer</a>
---   
---   <a>next</a> either fails with a <a>Left</a> if the <a>Producer</a>
---   terminates or succeeds with a <a>Right</a> providing the next value
---   and the remainder of the <a>Producer</a>.
-next :: Monad m => Producer a m r -> m (Either r (a, Producer a m r))
-
 -- | Produce a value
 --   
 --   <pre>
@@ -200,6 +193,13 @@ yield :: forall (m :: Type -> Type) a x' x. Functor m => a -> Proxy x' x () a m 
 
 -- | <a>Producer</a>s can only <a>yield</a>
 type Producer b = Proxy X () () b
+
+-- | Consume the first value from a <a>Producer</a>
+--   
+--   <a>next</a> either fails with a <a>Left</a> if the <a>Producer</a>
+--   terminates or succeeds with a <a>Right</a> providing the next value
+--   and the remainder of the <a>Producer</a>.
+next :: Monad m => Producer a m r -> m (Either r (a, Producer a m r))
 
 
 -- | <tt>pipes-parse</tt> builds upon <tt>pipes</tt> to add several missing

@@ -17,9 +17,9 @@
 --   enforces them by some other means, e.g. ARec's type index
 module Data.Vinyl.ARec.Internal.SmallArray
 data SmallArray
-SmallArray :: !SmallArray# Any -> SmallArray
+SmallArray :: !SmallArray# (Any :: Type) -> SmallArray
 data SmallMutableArray s
-SmallMutableArray :: !SmallMutableArray# s Any -> SmallMutableArray s
+SmallMutableArray :: !SmallMutableArray# s (Any :: Type) -> SmallMutableArray s
 indexSmallArray :: SmallArray -> Int -> a
 withNewSmallArray :: Int -> (SmallMutableArray s -> ST s ()) -> ST s SmallArray
 writeSmallArray :: SmallMutableArray s -> Int -> a -> ST s ()
@@ -43,11 +43,11 @@ class IndexWitnesses (is :: [Nat])
 indexWitnesses :: IndexWitnesses is => [Int]
 
 -- | Project the first component of a type-level tuple.
-type family Fst (a :: (k1, k2))
+type family Fst (a :: (k1, k2)) :: k1
 
 -- | Project the second component of a type-level tuple.
-type family Snd (a :: (k1, k2))
-type family RLength xs
+type family Snd (a :: (k1, k2)) :: k2
+type family RLength (xs :: [a]) :: Nat
 
 -- | A partial relation that gives the index of a value in a list.
 type family RIndex (r :: k) (rs :: [k]) :: Nat
@@ -57,20 +57,20 @@ type family RIndex (r :: k) (rs :: [k]) :: Nat
 type family RImage (rs :: [k]) (ss :: [k]) :: [Nat]
 
 -- | Remove the first occurrence of a type from a type-level list.
-type family RDelete r rs
+type family RDelete (r :: a) (rs :: [a]) :: [a]
 
 -- | A constraint-former which applies to every field in a record.
-type family RecAll (f :: u -> *) (rs :: [u]) (c :: * -> Constraint) :: Constraint
+type family RecAll (f :: u -> Type) (rs :: [u]) (c :: Type -> Constraint)
 
 -- | Append for type-level lists.
 type family (as :: [k]) ++ (bs :: [k]) :: [k]
 
 -- | Constraint that all types in a type-level list satisfy a constraint.
-type family AllConstrained (c :: u -> Constraint) (ts :: [u]) :: Constraint
+type family AllConstrained (c :: u -> Constraint) (ts :: [u])
 
 -- | Constraint that each Constraint in a type-level list is satisfied by a
 --   particular type.
-class AllSatisfied cs t
+class AllSatisfied (cs :: k) (t :: k1)
 
 -- | Constraint that all types in a type-level list satisfy each constraint
 --   from a list of constraints.
@@ -78,28 +78,28 @@ class AllSatisfied cs t
 --   <tt>AllAllSat cs ts</tt> should be equivalent to <tt>AllConstrained
 --   (AllSatisfied cs) ts</tt> if partial application of type families were
 --   legal.
-type family AllAllSat cs ts :: Constraint
+type family AllAllSat (cs :: k) (ts :: [k1])
 
 -- | Apply a type constructor to a record index. Record indexes are either
 --   <a>Type</a> or <tt>(<tt>Symbol</tt>, <a>Type</a>)</tt>. In the latter
 --   case, the type constructor is applied to the second component of the
 --   tuple.
-type family ApplyToField (t :: Type -> Type) (a :: k1) = (r :: k1) | r -> t a
+type family ApplyToField (t :: Type -> Type) (a :: k1) = (r :: k1) | r -> k1 t a
 
 -- | Apply a type constructor to each element of a type level list using
 --   <tt>ApplyOn</tt>.
-type family MapTyCon t xs = r | r -> xs
+type family MapTyCon (t :: Type -> Type) (xs :: [a]) = (r :: [a]) | r -> a xs
 
 -- | This class is used for <tt>consMatchCoercion</tt> with older versions
 --   of GHC.
-class Coercible (f x) (g x) => Similar f g (x :: k)
-instance forall k1 k2 (f :: k2 -> k1) (x :: k2) (g :: k2 -> k1). GHC.Types.Coercible (f x) (g x) => Data.Vinyl.TypeLevel.Similar f g x
-instance forall k1 k2 (t :: k1). Data.Vinyl.TypeLevel.AllSatisfied '[] t
+class Coercible f x g x => Similar (f :: k1 -> k) (g :: k1 -> k) (x :: k1)
 instance forall k (c :: k -> GHC.Types.Constraint) (t :: k) (cs :: [k -> GHC.Types.Constraint]). (c t, Data.Vinyl.TypeLevel.AllSatisfied cs t) => Data.Vinyl.TypeLevel.AllSatisfied (c : cs) t
-instance Data.Vinyl.TypeLevel.IndexWitnesses '[]
+instance forall k a (t :: k). Data.Vinyl.TypeLevel.AllSatisfied '[] t
 instance (Data.Vinyl.TypeLevel.IndexWitnesses is, Data.Vinyl.TypeLevel.NatToInt i) => Data.Vinyl.TypeLevel.IndexWitnesses (i : is)
-instance Data.Vinyl.TypeLevel.NatToInt 'Data.Vinyl.TypeLevel.Z
+instance Data.Vinyl.TypeLevel.IndexWitnesses '[]
 instance Data.Vinyl.TypeLevel.NatToInt n => Data.Vinyl.TypeLevel.NatToInt ('Data.Vinyl.TypeLevel.S n)
+instance Data.Vinyl.TypeLevel.NatToInt 'Data.Vinyl.TypeLevel.Z
+instance forall k1 k2 (f :: k2 -> k1) (x :: k2) (g :: k2 -> k1). GHC.Types.Coercible (f x) (g x) => Data.Vinyl.TypeLevel.Similar f g x
 
 module Data.Vinyl.Functor
 
@@ -115,9 +115,9 @@ Identity :: a -> Identity a
 data Thunk a
 Thunk :: a -> Thunk a
 [getThunk] :: Thunk a -> a
-newtype Lift (op :: l -> l' -> *) (f :: k -> l) (g :: k -> l') (x :: k)
-Lift :: op (f x) (g x) -> Lift (op :: l -> l' -> *) (f :: k -> l) (g :: k -> l') (x :: k)
-[getLift] :: Lift (op :: l -> l' -> *) (f :: k -> l) (g :: k -> l') (x :: k) -> op (f x) (g x)
+newtype Lift (op :: l -> l' -> Type) (f :: k -> l) (g :: k -> l') (x :: k)
+Lift :: op (f x) (g x) -> Lift (op :: l -> l' -> Type) (f :: k -> l) (g :: k -> l') (x :: k)
+[getLift] :: Lift (op :: l -> l' -> Type) (f :: k -> l) (g :: k -> l') (x :: k) -> op (f x) (g x)
 
 -- | A value with a phantom <a>Symbol</a> label. It is not a Haskell
 --   <a>Functor</a>, but it is used in many of the same places a
@@ -126,66 +126,66 @@ Lift :: op (f x) (g x) -> Lift (op :: l -> l' -> *) (f :: k -> l) (g :: k -> l')
 --   Morally: newtype ElField (s, t) = Field t But GHC doesn't allow that
 newtype ElField (t :: (Symbol, Type))
 Field :: Snd t -> ElField (t :: (Symbol, Type))
-newtype Compose (f :: l -> *) (g :: k -> l) (x :: k)
-Compose :: f (g x) -> Compose (f :: l -> *) (g :: k -> l) (x :: k)
-[getCompose] :: Compose (f :: l -> *) (g :: k -> l) (x :: k) -> f (g x)
+newtype Compose (f :: l -> Type) (g :: k -> l) (x :: k)
+Compose :: f (g x) -> Compose (f :: l -> Type) (g :: k -> l) (x :: k)
+[getCompose] :: Compose (f :: l -> Type) (g :: k -> l) (x :: k) -> f (g x)
 
 -- | Apply a function to a value whose type is the application of the
 --   <a>Compose</a> type constructor. This works under the <a>Compose</a>
 --   newtype wrapper.
-onCompose :: (f (g a) -> h (k a)) -> (f :. g) a -> (h :. k) a
-type f :. g = Compose f g
+onCompose :: forall {l1} {k1} {l2} f (g :: k1 -> l1) (a :: k1) h (k2 :: k1 -> l2). (f (g a) -> h (k2 a)) -> (f :. g) a -> (h :. k2) a
+type (f :: l -> Type) :. (g :: k -> l) = Compose f g
 infixr 9 :.
-newtype Const (a :: *) (b :: k)
-Const :: a -> Const (a :: *) (b :: k)
-[getConst] :: Const (a :: *) (b :: k) -> a
-instance GHC.Generics.Generic (Data.Vinyl.Functor.Identity a)
-instance GHC.Classes.Ord a => GHC.Classes.Ord (Data.Vinyl.Functor.Identity a)
-instance GHC.Classes.Eq a => GHC.Classes.Eq (Data.Vinyl.Functor.Identity a)
-instance Foreign.Storable.Storable a => Foreign.Storable.Storable (Data.Vinyl.Functor.Identity a)
-instance Data.Traversable.Traversable Data.Vinyl.Functor.Identity
-instance Data.Foldable.Foldable Data.Vinyl.Functor.Identity
-instance GHC.Base.Functor Data.Vinyl.Functor.Identity
-instance Data.Traversable.Traversable Data.Vinyl.Functor.Thunk
-instance Data.Foldable.Foldable Data.Vinyl.Functor.Thunk
-instance GHC.Base.Functor Data.Vinyl.Functor.Thunk
-instance forall l (f :: l -> *) k (g :: k -> l) (x :: k). GHC.Generics.Generic (Data.Vinyl.Functor.Compose f g x)
-instance forall l (f :: l -> *) k (g :: k -> l) (x :: k). Foreign.Storable.Storable (f (g x)) => Foreign.Storable.Storable (Data.Vinyl.Functor.Compose f g x)
-instance forall a k (b :: k). GHC.Generics.Generic (Data.Vinyl.Functor.Const a b)
-instance forall a k (b :: k). Foreign.Storable.Storable a => Foreign.Storable.Storable (Data.Vinyl.Functor.Const a b)
-instance Data.Traversable.Traversable (Data.Vinyl.Functor.Const a)
-instance Data.Foldable.Foldable (Data.Vinyl.Functor.Const a)
-instance GHC.Base.Functor (Data.Vinyl.Functor.Const a)
-instance GHC.Classes.Eq t => GHC.Classes.Eq (Data.Vinyl.Functor.ElField '(s, t))
-instance GHC.Classes.Ord t => GHC.Classes.Ord (Data.Vinyl.Functor.ElField '(s, t))
-instance GHC.TypeLits.KnownSymbol s => GHC.Generics.Generic (Data.Vinyl.Functor.ElField '(s, a))
-instance (GHC.Num.Num t, GHC.TypeLits.KnownSymbol s) => GHC.Num.Num (Data.Vinyl.Functor.ElField '(s, t))
-instance GHC.Base.Semigroup t => GHC.Base.Semigroup (Data.Vinyl.Functor.ElField '(s, t))
-instance (GHC.TypeLits.KnownSymbol s, GHC.Base.Monoid t) => GHC.Base.Monoid (Data.Vinyl.Functor.ElField '(s, t))
-instance (GHC.Real.Real t, GHC.TypeLits.KnownSymbol s) => GHC.Real.Real (Data.Vinyl.Functor.ElField '(s, t))
-instance (GHC.Real.Fractional t, GHC.TypeLits.KnownSymbol s) => GHC.Real.Fractional (Data.Vinyl.Functor.ElField '(s, t))
-instance (GHC.Float.Floating t, GHC.TypeLits.KnownSymbol s) => GHC.Float.Floating (Data.Vinyl.Functor.ElField '(s, t))
-instance (GHC.Real.RealFrac t, GHC.TypeLits.KnownSymbol s) => GHC.Real.RealFrac (Data.Vinyl.Functor.ElField '(s, t))
-instance (GHC.Show.Show t, GHC.TypeLits.KnownSymbol s) => GHC.Show.Show (Data.Vinyl.Functor.ElField '(s, t))
-instance (GHC.TypeLits.KnownSymbol s, Foreign.Storable.Storable t) => Foreign.Storable.Storable (Data.Vinyl.Functor.ElField '(s, t))
-instance forall k a (b :: k). GHC.Show.Show a => GHC.Show.Show (Data.Vinyl.Functor.Const a b)
+newtype Const a (b :: k)
+Const :: a -> Const a (b :: k)
+[getConst] :: Const a (b :: k) -> a
+instance (GHC.Internal.Base.Applicative f, GHC.Internal.Base.Applicative g) => GHC.Internal.Base.Applicative (Data.Vinyl.Functor.Compose f g)
+instance GHC.Internal.Base.Applicative Data.Vinyl.Functor.Identity
+instance (GHC.Internal.Base.Applicative f, GHC.Internal.Base.Applicative g) => GHC.Internal.Base.Applicative (Data.Vinyl.Functor.Lift (,) f g)
+instance GHC.Internal.Base.Applicative Data.Vinyl.Functor.Thunk
 instance forall k a (b :: k). GHC.Classes.Eq a => GHC.Classes.Eq (Data.Vinyl.Functor.Const a b)
-instance forall l k (f :: l -> *) (g :: k -> l) (a :: k). GHC.Base.Semigroup (f (g a)) => GHC.Base.Semigroup (Data.Vinyl.Functor.Compose f g a)
-instance forall l k (f :: l -> *) (g :: k -> l) (a :: k). GHC.Base.Monoid (f (g a)) => GHC.Base.Monoid (Data.Vinyl.Functor.Compose f g a)
-instance (GHC.Base.Functor f, GHC.Base.Functor g) => GHC.Base.Functor (Data.Vinyl.Functor.Compose f g)
-instance (Data.Foldable.Foldable f, Data.Foldable.Foldable g) => Data.Foldable.Foldable (Data.Vinyl.Functor.Compose f g)
-instance (Data.Traversable.Traversable f, Data.Traversable.Traversable g) => Data.Traversable.Traversable (Data.Vinyl.Functor.Compose f g)
-instance (GHC.Base.Applicative f, GHC.Base.Applicative g) => GHC.Base.Applicative (Data.Vinyl.Functor.Compose f g)
-instance forall l k (f :: l -> *) (g :: k -> l) (a :: k). GHC.Show.Show (f (g a)) => GHC.Show.Show (Data.Vinyl.Functor.Compose f g a)
-instance (GHC.Base.Functor f, GHC.Base.Functor g) => GHC.Base.Functor (Data.Vinyl.Functor.Lift (,) f g)
-instance (GHC.Base.Functor f, GHC.Base.Functor g) => GHC.Base.Functor (Data.Vinyl.Functor.Lift Data.Either.Either f g)
-instance (GHC.Base.Applicative f, GHC.Base.Applicative g) => GHC.Base.Applicative (Data.Vinyl.Functor.Lift (,) f g)
-instance GHC.Base.Applicative Data.Vinyl.Functor.Thunk
-instance GHC.Base.Monad Data.Vinyl.Functor.Thunk
-instance GHC.Show.Show a => GHC.Show.Show (Data.Vinyl.Functor.Thunk a)
-instance GHC.Base.Applicative Data.Vinyl.Functor.Identity
-instance GHC.Base.Monad Data.Vinyl.Functor.Identity
-instance GHC.Show.Show a => GHC.Show.Show (Data.Vinyl.Functor.Identity a)
+instance GHC.Classes.Eq t => GHC.Classes.Eq (Data.Vinyl.Functor.ElField '(s, t))
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Data.Vinyl.Functor.Identity a)
+instance (GHC.Internal.Float.Floating t, GHC.Internal.TypeLits.KnownSymbol s) => GHC.Internal.Float.Floating (Data.Vinyl.Functor.ElField '(s, t))
+instance (GHC.Internal.Data.Foldable.Foldable f, GHC.Internal.Data.Foldable.Foldable g) => GHC.Internal.Data.Foldable.Foldable (Data.Vinyl.Functor.Compose f g)
+instance GHC.Internal.Data.Foldable.Foldable (Data.Vinyl.Functor.Const a)
+instance GHC.Internal.Data.Foldable.Foldable Data.Vinyl.Functor.Identity
+instance GHC.Internal.Data.Foldable.Foldable Data.Vinyl.Functor.Thunk
+instance (GHC.Internal.Real.Fractional t, GHC.Internal.TypeLits.KnownSymbol s) => GHC.Internal.Real.Fractional (Data.Vinyl.Functor.ElField '(s, t))
+instance (GHC.Internal.Base.Functor f, GHC.Internal.Base.Functor g) => GHC.Internal.Base.Functor (Data.Vinyl.Functor.Compose f g)
+instance GHC.Internal.Base.Functor (Data.Vinyl.Functor.Const a)
+instance GHC.Internal.Base.Functor Data.Vinyl.Functor.Identity
+instance (GHC.Internal.Base.Functor f, GHC.Internal.Base.Functor g) => GHC.Internal.Base.Functor (Data.Vinyl.Functor.Lift (,) f g)
+instance (GHC.Internal.Base.Functor f, GHC.Internal.Base.Functor g) => GHC.Internal.Base.Functor (Data.Vinyl.Functor.Lift GHC.Internal.Data.Either.Either f g)
+instance GHC.Internal.Base.Functor Data.Vinyl.Functor.Thunk
+instance forall l (f :: l -> *) k (g :: k -> l) (x :: k). GHC.Internal.Generics.Generic (Data.Vinyl.Functor.Compose f g x)
+instance forall a k (b :: k). GHC.Internal.Generics.Generic (Data.Vinyl.Functor.Const a b)
+instance GHC.Internal.TypeLits.KnownSymbol s => GHC.Internal.Generics.Generic (Data.Vinyl.Functor.ElField '(s, a))
+instance GHC.Internal.Generics.Generic (Data.Vinyl.Functor.Identity a)
+instance GHC.Internal.Base.Monad Data.Vinyl.Functor.Identity
+instance GHC.Internal.Base.Monad Data.Vinyl.Functor.Thunk
+instance forall l k (f :: l -> *) (g :: k -> l) (a :: k). GHC.Internal.Base.Monoid (f (g a)) => GHC.Internal.Base.Monoid (Data.Vinyl.Functor.Compose f g a)
+instance (GHC.Internal.TypeLits.KnownSymbol s, GHC.Internal.Base.Monoid t) => GHC.Internal.Base.Monoid (Data.Vinyl.Functor.ElField '(s, t))
+instance (GHC.Internal.Num.Num t, GHC.Internal.TypeLits.KnownSymbol s) => GHC.Internal.Num.Num (Data.Vinyl.Functor.ElField '(s, t))
+instance GHC.Classes.Ord t => GHC.Classes.Ord (Data.Vinyl.Functor.ElField '(s, t))
+instance GHC.Classes.Ord a => GHC.Classes.Ord (Data.Vinyl.Functor.Identity a)
+instance (GHC.Internal.Real.Real t, GHC.Internal.TypeLits.KnownSymbol s) => GHC.Internal.Real.Real (Data.Vinyl.Functor.ElField '(s, t))
+instance (GHC.Internal.Real.RealFrac t, GHC.Internal.TypeLits.KnownSymbol s) => GHC.Internal.Real.RealFrac (Data.Vinyl.Functor.ElField '(s, t))
+instance forall l k (f :: l -> *) (g :: k -> l) (a :: k). GHC.Internal.Base.Semigroup (f (g a)) => GHC.Internal.Base.Semigroup (Data.Vinyl.Functor.Compose f g a)
+instance GHC.Internal.Base.Semigroup t => GHC.Internal.Base.Semigroup (Data.Vinyl.Functor.ElField '(s, t))
+instance forall l k (f :: l -> *) (g :: k -> l) (a :: k). GHC.Internal.Show.Show (f (g a)) => GHC.Internal.Show.Show (Data.Vinyl.Functor.Compose f g a)
+instance forall k a (b :: k). GHC.Internal.Show.Show a => GHC.Internal.Show.Show (Data.Vinyl.Functor.Const a b)
+instance (GHC.Internal.Show.Show t, GHC.Internal.TypeLits.KnownSymbol s) => GHC.Internal.Show.Show (Data.Vinyl.Functor.ElField '(s, t))
+instance GHC.Internal.Show.Show a => GHC.Internal.Show.Show (Data.Vinyl.Functor.Identity a)
+instance GHC.Internal.Show.Show a => GHC.Internal.Show.Show (Data.Vinyl.Functor.Thunk a)
+instance forall l (f :: l -> *) k (g :: k -> l) (x :: k). GHC.Internal.Foreign.Storable.Storable (f (g x)) => GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Functor.Compose f g x)
+instance forall a k (b :: k). GHC.Internal.Foreign.Storable.Storable a => GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Functor.Const a b)
+instance (GHC.Internal.TypeLits.KnownSymbol s, GHC.Internal.Foreign.Storable.Storable t) => GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Functor.ElField '(s, t))
+instance GHC.Internal.Foreign.Storable.Storable a => GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Functor.Identity a)
+instance (GHC.Internal.Data.Traversable.Traversable f, GHC.Internal.Data.Traversable.Traversable g) => GHC.Internal.Data.Traversable.Traversable (Data.Vinyl.Functor.Compose f g)
+instance GHC.Internal.Data.Traversable.Traversable (Data.Vinyl.Functor.Const a)
+instance GHC.Internal.Data.Traversable.Traversable Data.Vinyl.Functor.Identity
+instance GHC.Internal.Data.Traversable.Traversable Data.Vinyl.Functor.Thunk
 
 
 -- | Core vinyl definitions. The <a>Rec</a> data type is defined here, but
@@ -209,16 +209,16 @@ module Data.Vinyl.Core
 --   the record are given by inhabitants of the kind <tt>u</tt>; the type
 --   of values at any label <tt>r :: u</tt> is given by its interpretation
 --   <tt>f r :: *</tt>.
-data Rec :: (u -> *) -> [u] -> *
-[RNil] :: Rec f '[]
-[:&] :: !f r -> !Rec f rs -> Rec f (r : rs)
+data Rec (a :: u -> Type) (b :: [u])
+[RNil] :: forall {u} (a :: u -> Type). Rec a ('[] :: [u])
+[:&] :: forall {u} (a :: u -> Type) (r :: u) (rs :: [u]). !a r -> !Rec a rs -> Rec a (r ': rs)
 infixr 7 :&
 
 -- | Two records may be pasted together.
-rappend :: Rec f as -> Rec f bs -> Rec f (as ++ bs)
+rappend :: forall {k} (f :: k -> Type) (as :: [k]) (bs :: [k]). Rec f as -> Rec f bs -> Rec f (as ++ bs)
 
 -- | A shorthand for <a>rappend</a>.
-(<+>) :: Rec f as -> Rec f bs -> Rec f (as ++ bs)
+(<+>) :: forall {k} (f :: k -> Type) (as :: [k]) (bs :: [k]). Rec f as -> Rec f bs -> Rec f (as ++ bs)
 infixr 5 <+>
 
 -- | Combine two records by combining their fields using the given
@@ -226,41 +226,41 @@ infixr 5 <+>
 --   values (e.g. <a>(&lt;&gt;)</a>), the second argument takes a record
 --   field into the type equipped with the desired operation, the third
 --   argument takes the combined value back to a result type.
-rcombine :: (RMap rs, RApply rs) => (forall a. m a -> m a -> m a) -> (forall a. f a -> m a) -> (forall a. m a -> g a) -> Rec f rs -> Rec f rs -> Rec g rs
+rcombine :: forall {u} (rs :: [u]) m f g. (RMap rs, RApply rs) => (forall (a :: u). () => m a -> m a -> m a) -> (forall (a :: u). () => f a -> m a) -> (forall (a :: u). () => m a -> g a) -> Rec f rs -> Rec f rs -> Rec g rs
 
 -- | <a>Rec</a> <tt>_ rs</tt> with labels in kind <tt>u</tt> gives rise to
 --   a functor <tt>Hask^u -&gt; Hask</tt>; that is, a natural
 --   transformation between two interpretation functors <tt>f,g</tt> may be
 --   used to transport a value from <a>Rec</a> <tt>f rs</tt> to <a>Rec</a>
 --   <tt>g rs</tt>.
-class RMap rs
-rmap :: RMap rs => (forall x. f x -> g x) -> Rec f rs -> Rec g rs
+class RMap (rs :: [u])
+rmap :: RMap rs => (forall (x :: u). () => f x -> g x) -> Rec f rs -> Rec g rs
 
 -- | A shorthand for <a>rmap</a>.
-(<<$>>) :: RMap rs => (forall x. f x -> g x) -> Rec f rs -> Rec g rs
+(<<$>>) :: forall {u} (rs :: [u]) f g. RMap rs => (forall (x :: u). () => f x -> g x) -> Rec f rs -> Rec g rs
 infixl 8 <<$>>
 
 -- | An inverted shorthand for <a>rmap</a>.
-(<<&>>) :: RMap rs => Rec f rs -> (forall x. f x -> g x) -> Rec g rs
+(<<&>>) :: forall {u} (rs :: [u]) f g. RMap rs => Rec f rs -> (forall (x :: u). () => f x -> g x) -> Rec g rs
 
 -- | A record of components <tt>f r -&gt; g r</tt> may be applied to a
 --   record of <tt>f</tt> to get a record of <tt>g</tt>.
-class RApply rs
-rapply :: RApply rs => Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
+class RApply (rs :: [u])
+rapply :: forall (f :: u -> Type) (g :: u -> Type). RApply rs => Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
 
 -- | A shorthand for <a>rapply</a>.
-(<<*>>) :: RApply rs => Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
+(<<*>>) :: forall {u} (rs :: [u]) (f :: u -> Type) (g :: u -> Type). RApply rs => Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
 infixl 8 <<*>>
 
 -- | Given a section of some functor, records in that functor of any size
 --   are inhabited.
-class RecApplicative rs
-rpure :: RecApplicative rs => (forall x. f x) -> Rec f rs
+class RecApplicative (rs :: [u])
+rpure :: RecApplicative rs => (forall (x :: u). () => f x) -> Rec f rs
 
 -- | A record may be traversed with respect to its interpretation functor.
 --   This can be used to yank (some or all) effects from the fields of the
 --   record to the outside of the record.
-rtraverse :: Applicative h => (forall x. f x -> h (g x)) -> Rec f rs -> h (Rec g rs)
+rtraverse :: forall {u} h f g (rs :: [u]). Applicative h => (forall (x :: u). () => f x -> h (g x)) -> Rec f rs -> h (Rec g rs)
 
 -- | While <a>rtraverse</a> pulls the interpretation functor out of the
 --   record, <a>rtraverseIn</a> pushes the interpretation functor in to
@@ -269,10 +269,10 @@ rtraverse :: Applicative h => (forall x. f x -> h (g x)) -> Rec f rs -> h (Rec g
 --   rather than a <tt>Rec IO '[a,b]</tt>, you may wish to have a <tt>Rec
 --   Identity '[IO a, IO b]</tt> so that you can evaluate a single field to
 --   obtain a value of type <tt>Rec Identity '[a, IO b]</tt>.
-rtraverseIn :: forall h f g rs. (forall a. f a -> g (ApplyToField h a)) -> Rec f rs -> Rec g (MapTyCon h rs)
+rtraverseIn :: forall {u} (h :: Type -> Type) f g (rs :: [u]). (forall (a :: u). () => f a -> g (ApplyToField h a)) -> Rec f rs -> Rec g (MapTyCon h rs)
 
 -- | Push an outer layer of interpretation functor into each field.
-rsequenceIn :: forall f g (rs :: [Type]). (Traversable f, Applicative g) => Rec (f :. g) rs -> Rec g (MapTyCon f rs)
+rsequenceIn :: forall (f :: Type -> Type) (g :: Type -> Type) (rs :: [Type]). (Traversable f, Applicative g) => Rec (f :. g) rs -> Rec g (MapTyCon f rs)
 
 -- | Given a natural transformation from the product of <tt>f</tt> and
 --   <tt>g</tt> to <tt>h</tt>, we have a natural transformation from the
@@ -280,20 +280,20 @@ rsequenceIn :: forall f g (rs :: [Type]). (Traversable f, Applicative g) => Rec 
 --   <tt><a>Rec</a> h</tt>. You can also think about this operation as
 --   zipping two records with the same element types but different
 --   interpretations.
-rzipWith :: (RMap xs, RApply xs) => (forall x. f x -> g x -> h x) -> Rec f xs -> Rec g xs -> Rec h xs
+rzipWith :: forall {u} (xs :: [u]) f g h. (RMap xs, RApply xs) => (forall (x :: u). () => f x -> g x -> h x) -> Rec f xs -> Rec g xs -> Rec h xs
 
 -- | Map each element of a record to a monoid and combine the results.
-class RFoldMap rs
-rfoldMapAux :: (RFoldMap rs, Monoid m) => (forall x. f x -> m) -> m -> Rec f rs -> m
-rfoldMap :: forall rs m f. (Monoid m, RFoldMap rs) => (forall x. f x -> m) -> Rec f rs -> m
+class RFoldMap (rs :: [u])
+rfoldMapAux :: (RFoldMap rs, Monoid m) => (forall (x :: u). () => f x -> m) -> m -> Rec f rs -> m
+rfoldMap :: forall {u} (rs :: [u]) m f. (Monoid m, RFoldMap rs) => (forall (x :: u). () => f x -> m) -> Rec f rs -> m
 
 -- | A record with uniform fields may be turned into a list.
-class RecordToList rs
-recordToList :: RecordToList rs => Rec (Const a) rs -> [a]
+class RecordToList (rs :: [u])
+recordToList :: RecordToList rs => Rec (Const a :: u -> Type) rs -> [a]
 
 -- | Wrap up a value with a capability given by its type
-data Dict c a
-[Dict] :: c a => a -> Dict c a
+data Dict (c :: Type -> Constraint) a
+[Dict] :: forall (c :: Type -> Constraint) a. c a => a -> Dict c a
 
 -- | Sometimes we may know something for <i>all</i> fields of a record, but
 --   when you expect to be able to <i>each</i> of the fields, you are then
@@ -301,32 +301,32 @@ data Dict c a
 --   recover <tt>x:u ⊢ φ(x)</tt>! Sadly, the constraint solver is not quite
 --   smart enough to realize this and we must make it patently obvious by
 --   reifying the constraint pointwise with proof.
-class ReifyConstraint c f rs
+class ReifyConstraint (c :: Type -> Constraint) (f :: u -> Type) (rs :: [u])
 reifyConstraint :: ReifyConstraint c f rs => Rec f rs -> Rec (Dict c :. f) rs
 
 -- | Build a record whose elements are derived solely from a constraint
 --   satisfied by each.
-class RPureConstrained c ts
-rpureConstrained :: RPureConstrained c ts => (forall a. c a => f a) -> Rec f ts
+class RPureConstrained (c :: k -> Constraint) (ts :: [k])
+rpureConstrained :: RPureConstrained c ts => (forall (a :: k). c a => f a) -> Rec f ts
 
 -- | Capture a type class instance dictionary. See <a>getDict</a> for a way
 --   to obtain a <a>DictOnly</a> value from an <a>RPureConstrained</a>
 --   constraint.
-data DictOnly (c :: k -> Constraint) a
-[DictOnly] :: forall c a. c a => DictOnly c a
+data DictOnly (c :: k -> Constraint) (a :: k)
+[DictOnly] :: forall {k} (c :: k -> Constraint) (a :: k). c a => DictOnly c a
 
 -- | A useful technique is to use 'rmap (Pair (DictOnly <tt>MyClass))' on a
 --   <a>Rec</a> to pair each field with a type class dictionary for
 --   </tt>MyClass@. This helper can then be used to eliminate the original.
-withPairedDict :: (c a => f a -> r) -> Product (DictOnly c) f a -> r
+withPairedDict :: forall {k} c (a :: k) f r. (c a => f a -> r) -> Product (DictOnly c) f a -> r
 
 -- | Build a record whose elements are derived solely from a list of
 --   constraint constructors satisfied by each.
-class RPureConstraints cs ts
-rpureConstraints :: RPureConstraints cs ts => (forall a. AllSatisfied cs a => f a) -> Rec f ts
-type family Head xs
-type family Tail xs
-type family AllRepsMatch_ (f :: j -> *) (xs :: [j]) (g :: k -> *) (ys :: [k]) :: Constraint
+class RPureConstraints (cs :: k) (ts :: [u])
+rpureConstraints :: RPureConstraints cs ts => (forall (a :: u). AllSatisfied cs a => f a) -> Rec f ts
+type family Head (xs :: [k]) :: k
+type family Tail (xs :: [a]) :: [a]
+type family AllRepsMatch_ (f :: j -> Type) (xs :: [j]) (g :: k -> Type) (ys :: [k])
 
 -- | <tt>AllRepsMatch f xs g ys</tt> means that <tt>xs</tt> and <tt>ys</tt>
 --   have the same lengths, and that mapping <tt>f</tt> over <tt>xs</tt>
@@ -336,43 +336,43 @@ type family AllRepsMatch_ (f :: j -> *) (xs :: [j]) (g :: k -> *) (ys :: [k]) ::
 --   
 --   <tt>AllRepsMatch Proxy '[1,2,3] Proxy '[4,5,6]</tt> <tt>AllRepsMatch
 --   Sum '[Int,Word] Identity '[Min Int, Max Word]</tt>
-type AllRepsMatch f xs g ys = (AllRepsMatch_ f xs g ys, AllRepsMatch_ g ys f xs)
+type AllRepsMatch (f :: k -> Type) (xs :: [k]) (g :: j -> Type) (ys :: [j]) = (AllRepsMatch_ f xs g ys, AllRepsMatch_ g ys f xs)
 
 -- | Given that for each element <tt>x</tt> in the list <tt>xs</tt>,
-repsMatchCoercion :: AllRepsMatch f xs g ys => Coercion (Rec f xs) (Rec g ys)
-consMatchCoercion :: (forall (x :: k). Coercible (f x) (g x)) => Coercion (Rec f xs) (Rec g xs)
-instance forall k u (cs :: k). Data.Vinyl.Core.RPureConstraints cs '[]
-instance forall k u (cs :: k) (t :: u) (ts :: [u]). (Data.Vinyl.TypeLevel.AllSatisfied cs t, Data.Vinyl.Core.RPureConstraints cs ts) => Data.Vinyl.Core.RPureConstraints cs (t : ts)
-instance forall k (c :: k -> GHC.Types.Constraint). Data.Vinyl.Core.RPureConstrained c '[]
-instance forall a (c :: a -> GHC.Types.Constraint) (x :: a) (xs :: [a]). (c x, Data.Vinyl.Core.RPureConstrained c xs) => Data.Vinyl.Core.RPureConstrained c (x : xs)
-instance forall u (c :: * -> GHC.Types.Constraint) (f :: u -> *). Data.Vinyl.Core.ReifyConstraint c f '[]
-instance forall a (c :: * -> GHC.Types.Constraint) (f :: a -> *) (x :: a) (xs :: [a]). (c (f x), Data.Vinyl.Core.ReifyConstraint c f xs) => Data.Vinyl.Core.ReifyConstraint c f (x : xs)
-instance forall u (rs :: [u]) (f :: u -> *). (Data.Vinyl.Core.RMap rs, Data.Vinyl.Core.ReifyConstraint GHC.Show.Show f rs, Data.Vinyl.Core.RecordToList rs) => GHC.Show.Show (Data.Vinyl.Core.Rec f rs)
-instance forall u (f :: u -> *) (xs :: [u]). Data.Vinyl.Core.ReifyConstraint Control.DeepSeq.NFData f xs => Control.DeepSeq.NFData (Data.Vinyl.Core.Rec f xs)
-instance Data.Vinyl.Core.RecordToList '[]
-instance forall u (xs :: [u]) (x :: u). Data.Vinyl.Core.RecordToList xs => Data.Vinyl.Core.RecordToList (x : xs)
-instance Data.Vinyl.Core.RFoldMap '[]
-instance forall u (xs :: [u]) (x :: u). Data.Vinyl.Core.RFoldMap xs => Data.Vinyl.Core.RFoldMap (x : xs)
-instance Data.Vinyl.Core.RecApplicative '[]
-instance forall u (rs :: [u]) (r :: u). Data.Vinyl.Core.RecApplicative rs => Data.Vinyl.Core.RecApplicative (r : rs)
-instance Data.Vinyl.Core.RApply '[]
-instance forall u (xs :: [u]) (x :: u). Data.Vinyl.Core.RApply xs => Data.Vinyl.Core.RApply (x : xs)
-instance Data.Vinyl.Core.RMap '[]
-instance forall u (xs :: [u]) (x :: u). Data.Vinyl.Core.RMap xs => Data.Vinyl.Core.RMap (x : xs)
-instance forall u (f :: u -> *). Data.Type.Equality.TestEquality f => Data.Type.Equality.TestEquality (Data.Vinyl.Core.Rec f)
-instance forall u (f :: u -> *). Data.Type.Coercion.TestCoercion f => Data.Type.Coercion.TestCoercion (Data.Vinyl.Core.Rec f)
-instance forall u (f :: u -> *). GHC.Base.Semigroup (Data.Vinyl.Core.Rec f '[])
-instance forall a (f :: a -> *) (r :: a) (rs :: [a]). (GHC.Base.Semigroup (f r), GHC.Base.Semigroup (Data.Vinyl.Core.Rec f rs)) => GHC.Base.Semigroup (Data.Vinyl.Core.Rec f (r : rs))
-instance forall u (f :: u -> *). GHC.Base.Monoid (Data.Vinyl.Core.Rec f '[])
-instance forall a (f :: a -> *) (r :: a) (rs :: [a]). (GHC.Base.Monoid (f r), GHC.Base.Monoid (Data.Vinyl.Core.Rec f rs)) => GHC.Base.Monoid (Data.Vinyl.Core.Rec f (r : rs))
+repsMatchCoercion :: forall {u1} {u2} (f :: u1 -> Type) (xs :: [u1]) (g :: u2 -> Type) (ys :: [u2]). AllRepsMatch f xs g ys => Coercion (Rec f xs) (Rec g ys)
+consMatchCoercion :: forall k (f :: k -> Type) (g :: k -> Type) (xs :: [k]). (forall (x :: k). () => Coercible (f x) (g x)) => Coercion (Rec f xs) (Rec g xs)
 instance forall u (f :: u -> *). GHC.Classes.Eq (Data.Vinyl.Core.Rec f '[])
 instance forall a (f :: a -> *) (r :: a) (rs :: [a]). (GHC.Classes.Eq (f r), GHC.Classes.Eq (Data.Vinyl.Core.Rec f rs)) => GHC.Classes.Eq (Data.Vinyl.Core.Rec f (r : rs))
+instance forall u (f :: u -> *). GHC.Internal.Generics.Generic (Data.Vinyl.Core.Rec f '[])
+instance forall a (f :: a -> *) (rs :: [a]) (r :: a). GHC.Internal.Generics.Generic (Data.Vinyl.Core.Rec f rs) => GHC.Internal.Generics.Generic (Data.Vinyl.Core.Rec f (r : rs))
+instance forall u (f :: u -> *). GHC.Internal.Base.Monoid (Data.Vinyl.Core.Rec f '[])
+instance forall a (f :: a -> *) (r :: a) (rs :: [a]). (GHC.Internal.Base.Monoid (f r), GHC.Internal.Base.Monoid (Data.Vinyl.Core.Rec f rs)) => GHC.Internal.Base.Monoid (Data.Vinyl.Core.Rec f (r : rs))
+instance forall u (f :: u -> *) (xs :: [u]). Data.Vinyl.Core.ReifyConstraint Control.DeepSeq.NFData f xs => Control.DeepSeq.NFData (Data.Vinyl.Core.Rec f xs)
 instance forall u (f :: u -> *). GHC.Classes.Ord (Data.Vinyl.Core.Rec f '[])
 instance forall a (f :: a -> *) (r :: a) (rs :: [a]). (GHC.Classes.Ord (f r), GHC.Classes.Ord (Data.Vinyl.Core.Rec f rs)) => GHC.Classes.Ord (Data.Vinyl.Core.Rec f (r : rs))
-instance forall u (f :: u -> *). Foreign.Storable.Storable (Data.Vinyl.Core.Rec f '[])
-instance forall a (f :: a -> *) (r :: a) (rs :: [a]). (Foreign.Storable.Storable (f r), Foreign.Storable.Storable (Data.Vinyl.Core.Rec f rs)) => Foreign.Storable.Storable (Data.Vinyl.Core.Rec f (r : rs))
-instance forall u (f :: u -> *). GHC.Generics.Generic (Data.Vinyl.Core.Rec f '[])
-instance forall a (f :: a -> *) (rs :: [a]) (r :: a). GHC.Generics.Generic (Data.Vinyl.Core.Rec f rs) => GHC.Generics.Generic (Data.Vinyl.Core.Rec f (r : rs))
+instance forall u (xs :: [u]) (x :: u). Data.Vinyl.Core.RApply xs => Data.Vinyl.Core.RApply (x : xs)
+instance Data.Vinyl.Core.RApply '[]
+instance forall u (xs :: [u]) (x :: u). Data.Vinyl.Core.RFoldMap xs => Data.Vinyl.Core.RFoldMap (x : xs)
+instance Data.Vinyl.Core.RFoldMap '[]
+instance forall u (xs :: [u]) (x :: u). Data.Vinyl.Core.RMap xs => Data.Vinyl.Core.RMap (x : xs)
+instance Data.Vinyl.Core.RMap '[]
+instance forall a (c :: a -> GHC.Types.Constraint) (x :: a) (xs :: [a]). (c x, Data.Vinyl.Core.RPureConstrained c xs) => Data.Vinyl.Core.RPureConstrained c (x : xs)
+instance forall k (c :: k -> GHC.Types.Constraint). Data.Vinyl.Core.RPureConstrained c '[]
+instance forall k u (cs :: k) (t :: u) (ts :: [u]). (Data.Vinyl.TypeLevel.AllSatisfied cs t, Data.Vinyl.Core.RPureConstraints cs ts) => Data.Vinyl.Core.RPureConstraints cs (t : ts)
+instance forall k u (cs :: k). Data.Vinyl.Core.RPureConstraints cs '[]
+instance forall u (rs :: [u]) (r :: u). Data.Vinyl.Core.RecApplicative rs => Data.Vinyl.Core.RecApplicative (r : rs)
+instance Data.Vinyl.Core.RecApplicative '[]
+instance forall u (xs :: [u]) (x :: u). Data.Vinyl.Core.RecordToList xs => Data.Vinyl.Core.RecordToList (x : xs)
+instance Data.Vinyl.Core.RecordToList '[]
+instance forall a (c :: * -> GHC.Types.Constraint) (f :: a -> *) (x :: a) (xs :: [a]). (c (f x), Data.Vinyl.Core.ReifyConstraint c f xs) => Data.Vinyl.Core.ReifyConstraint c f (x : xs)
+instance forall u (c :: * -> GHC.Types.Constraint) (f :: u -> *). Data.Vinyl.Core.ReifyConstraint c f '[]
+instance forall u (f :: u -> *). GHC.Internal.Base.Semigroup (Data.Vinyl.Core.Rec f '[])
+instance forall a (f :: a -> *) (r :: a) (rs :: [a]). (GHC.Internal.Base.Semigroup (f r), GHC.Internal.Base.Semigroup (Data.Vinyl.Core.Rec f rs)) => GHC.Internal.Base.Semigroup (Data.Vinyl.Core.Rec f (r : rs))
+instance forall u (rs :: [u]) (f :: u -> *). (Data.Vinyl.Core.RMap rs, Data.Vinyl.Core.ReifyConstraint GHC.Internal.Show.Show f rs, Data.Vinyl.Core.RecordToList rs) => GHC.Internal.Show.Show (Data.Vinyl.Core.Rec f rs)
+instance forall u (f :: u -> *). GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec f '[])
+instance forall a (f :: a -> *) (r :: a) (rs :: [a]). (GHC.Internal.Foreign.Storable.Storable (f r), GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec f rs)) => GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec f (r : rs))
+instance forall u (f :: u -> *). GHC.Internal.Data.Type.Coercion.TestCoercion f => GHC.Internal.Data.Type.Coercion.TestCoercion (Data.Vinyl.Core.Rec f)
+instance forall u (f :: u -> *). GHC.Internal.Data.Type.Equality.TestEquality f => GHC.Internal.Data.Type.Equality.TestEquality (Data.Vinyl.Core.Rec f)
 
 
 -- | Recursive definitions of various core vinyl functions. These are
@@ -382,35 +382,35 @@ instance forall a (f :: a -> *) (rs :: [a]) (r :: a). GHC.Generics.Generic (Data
 module Data.Vinyl.Recursive
 
 -- | Two records may be pasted together.
-rappend :: Rec f as -> Rec f bs -> Rec f (as ++ bs)
+rappend :: forall {k} (f :: k -> Type) (as :: [k]) (bs :: [k]). Rec f as -> Rec f bs -> Rec f (as ++ bs)
 
 -- | A shorthand for <a>rappend</a>.
-(<+>) :: Rec f as -> Rec f bs -> Rec f (as ++ bs)
+(<+>) :: forall {k} (f :: k -> Type) (as :: [k]) (bs :: [k]). Rec f as -> Rec f bs -> Rec f (as ++ bs)
 
 -- | <a>Rec</a> <tt>_ rs</tt> with labels in kind <tt>u</tt> gives rise to
 --   a functor <tt>Hask^u -&gt; Hask</tt>; that is, a natural
 --   transformation between two interpretation functors <tt>f,g</tt> may be
 --   used to transport a value from <a>Rec</a> <tt>f rs</tt> to <a>Rec</a>
 --   <tt>g rs</tt>.
-rmap :: (forall x. f x -> g x) -> Rec f rs -> Rec g rs
+rmap :: forall {u} f g (rs :: [u]). (forall (x :: u). () => f x -> g x) -> Rec f rs -> Rec g rs
 
 -- | A shorthand for <a>rmap</a>.
-(<<$>>) :: (forall x. f x -> g x) -> Rec f rs -> Rec g rs
+(<<$>>) :: forall {u} f g (rs :: [u]). (forall (x :: u). () => f x -> g x) -> Rec f rs -> Rec g rs
 
 -- | An inverted shorthand for <a>rmap</a>.
-(<<&>>) :: Rec f rs -> (forall x. f x -> g x) -> Rec g rs
+(<<&>>) :: forall {u} f (rs :: [u]) g. Rec f rs -> (forall (x :: u). () => f x -> g x) -> Rec g rs
 
 -- | A record of components <tt>f r -&gt; g r</tt> may be applied to a
 --   record of <tt>f</tt> to get a record of <tt>g</tt>.
-rapply :: Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
+rapply :: forall {u} (f :: u -> Type) (g :: u -> Type) (rs :: [u]). Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
 
 -- | A shorthand for <a>rapply</a>.
-(<<*>>) :: Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
+(<<*>>) :: forall {u} (f :: u -> Type) (g :: u -> Type) (rs :: [u]). Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
 
 -- | A record may be traversed with respect to its interpretation functor.
 --   This can be used to yank (some or all) effects from the fields of the
 --   record to the outside of the record.
-rtraverse :: Applicative h => (forall x. f x -> h (g x)) -> Rec f rs -> h (Rec g rs)
+rtraverse :: forall {u} h f g (rs :: [u]). Applicative h => (forall (x :: u). () => f x -> h (g x)) -> Rec f rs -> h (Rec g rs)
 
 -- | Given a natural transformation from the product of <tt>f</tt> and
 --   <tt>g</tt> to <tt>h</tt>, we have a natural transformation from the
@@ -418,13 +418,13 @@ rtraverse :: Applicative h => (forall x. f x -> h (g x)) -> Rec f rs -> h (Rec g
 --   <tt><a>Rec</a> h</tt>. You can also think about this operation as
 --   zipping two records with the same element types but different
 --   interpretations.
-rzipWith :: (forall x. f x -> g x -> h x) -> forall xs. Rec f xs -> Rec g xs -> Rec h xs
+rzipWith :: (forall (x :: k). () => f x -> g x -> h x) -> forall (xs :: [k]). () => Rec f xs -> Rec g xs -> Rec h xs
 
 -- | Map each element of a record to a monoid and combine the results.
-rfoldMap :: forall f m rs. Monoid m => (forall x. f x -> m) -> Rec f rs -> m
+rfoldMap :: forall {u} f m (rs :: [u]). Monoid m => (forall (x :: u). () => f x -> m) -> Rec f rs -> m
 
 -- | A record with uniform fields may be turned into a list.
-recordToList :: Rec (Const a) rs -> [a]
+recordToList :: forall {u} a (rs :: [u]). Rec (Const a :: u -> Type) rs -> [a]
 
 -- | Sometimes we may know something for <i>all</i> fields of a record, but
 --   when you expect to be able to <i>each</i> of the fields, you are then
@@ -432,15 +432,15 @@ recordToList :: Rec (Const a) rs -> [a]
 --   recover <tt>x:u ⊢ φ(x)</tt>! Sadly, the constraint solver is not quite
 --   smart enough to realize this and we must make it patently obvious by
 --   reifying the constraint pointwise with proof.
-reifyConstraint :: RecAll f rs c => proxy c -> Rec f rs -> Rec (Dict c :. f) rs
+reifyConstraint :: forall {u} (f :: u -> Type) (rs :: [u]) (c :: Type -> Constraint) proxy. RecAll f rs c => proxy c -> Rec f rs -> Rec (Dict c :. f) rs
 
 -- | Build a record whose elements are derived solely from a constraint
 --   satisfied by each.
-rpureConstrained :: forall u c (f :: u -> *) proxy ts. (AllConstrained c ts, RecApplicative ts) => proxy c -> (forall a. c a => f a) -> Rec f ts
+rpureConstrained :: forall u c f proxy (ts :: [u]). (AllConstrained c ts, RecApplicative ts) => proxy c -> (forall (a :: u). c a => f a) -> Rec f ts
 
 -- | Build a record whose elements are derived solely from a list of
 --   constraint constructors satisfied by each.
-rpureConstraints :: forall cs (f :: * -> *) proxy ts. (AllAllSat cs ts, RecApplicative ts) => proxy cs -> (forall a. AllSatisfied cs a => f a) -> Rec f ts
+rpureConstraints :: forall {k} (cs :: k) f proxy (ts :: [Type]). (AllAllSat cs ts, RecApplicative ts) => proxy cs -> (forall a. AllSatisfied cs a => f a) -> Rec f ts
 
 
 -- | Lenses into record fields.
@@ -450,12 +450,12 @@ module Data.Vinyl.Lens
 --   value. The fifth parameter to <a>RecElem</a>, <tt>i</tt>, is there to
 --   help the constraint solver realize that this is a decidable predicate
 --   with respect to the judgemental equality in <tt>k</tt>.
-class (i ~ RIndex r rs, NatToInt i) => RecElem (record :: (k -> *) -> [k] -> *) (r :: k) (r' :: k) (rs :: [k]) (rs' :: [k]) (i :: Nat) | r r' rs i -> rs' where {
+class (i ~ RIndex r rs, NatToInt i) => RecElem (record :: k -> Type -> [k] -> Type) (r :: k) (r' :: k) (rs :: [k]) (rs' :: [k]) (i :: Nat) | r r' rs i -> rs' where {
     
     -- | An opportunity for instances to generate constraints based on the
     --   functor parameter of records passed to class methods.
-    type RecElemFCtx record (f :: k -> *) :: Constraint;
-    type RecElemFCtx record f = ();
+    type RecElemFCtx (record :: k -> Type -> [k] -> Type) (f :: k -> Type);
+    type RecElemFCtx record :: k -> Type -> [k] -> Type f :: k -> Type = ();
 }
 
 -- | We can get a lens for getting and setting the value of a field which
@@ -476,11 +476,11 @@ rgetC :: (RecElem record r r' rs rs' i, RecElemFCtx record f, r ~ r') => record 
 --   provide a setter. In general, it will be unambiguous what field is
 --   being written to, and so we do not take a proxy argument here.
 rputC :: (RecElem record r r' rs rs' i, RecElemFCtx record f) => f r' -> record f rs -> record f rs'
-rget :: forall r rs f record. (RecElem record r r rs rs (RIndex r rs), RecElemFCtx record f) => record f rs -> f r
+rget :: forall {k} (r :: k) (rs :: [k]) f record. (RecElem record r r rs rs (RIndex r rs), RecElemFCtx record f) => record f rs -> f r
 
 -- | Type-preserving field setter. This type is simpler to work with than
 --   that of <a>rput'</a>.
-rput :: forall k (r :: k) rs record f. (RecElem record r r rs rs (RIndex r rs), RecElemFCtx record f) => f r -> record f rs -> record f rs
+rput :: forall k (r :: k) (rs :: [k]) record f. (RecElem record r r rs rs (RIndex r rs), RecElemFCtx record f) => f r -> record f rs -> record f rs
 
 -- | The type-changing field setter <a>rputC</a> with the type arguments
 --   re-ordered for more convenient usage with <tt>TypeApplications</tt>.
@@ -488,25 +488,25 @@ rput' :: forall k (r :: k) (r' :: k) (rs :: [k]) (rs' :: [k]) record f. (RecElem
 
 -- | Type-preserving field lens. This type is simpler to work with than
 --   that of <a>rlens'</a>.
-rlens :: forall r record rs f g. (RecElem record r r rs rs (RIndex r rs), RecElemFCtx record f, Functor g) => (f r -> g (f r)) -> record f rs -> g (record f rs)
+rlens :: forall {k} (r :: k) record (rs :: [k]) f g. (RecElem record r r rs rs (RIndex r rs), RecElemFCtx record f, Functor g) => (f r -> g (f r)) -> record f rs -> g (record f rs)
 
 -- | Type-changing field lens <a>rlensC</a> with the type arguments
 --   re-ordered for more convenient usage with <tt>TypeApplications</tt>.
-rlens' :: forall r r' record rs rs' f g. (RecElem record r r' rs rs' (RIndex r rs), RecElemFCtx record f, Functor g) => (f r -> g (f r')) -> record f rs -> g (record f rs')
+rlens' :: forall {k} (r :: k) (r' :: k) record (rs :: [k]) (rs' :: [k]) f g. (RecElem record r r' rs rs' (RIndex r rs), RecElemFCtx record f, Functor g) => (f r -> g (f r')) -> record f rs -> g (record f rs')
 
 -- | <a>RecElem</a> for classic vinyl <a>Rec</a> types.
-type RElem x rs = RecElem Rec x x rs rs
+type RElem (x :: k) (rs :: [k]) = RecElem Rec :: k -> Type -> [k] -> Type x x rs rs
 
 -- | If one field set is a subset another, then a lens of from the latter's
 --   record to the former's is evident. That is, we can either cast a
 --   larger record to a smaller one, or we may replace the values in a
 --   slice of a record.
-class is ~ RImage rs ss => RecSubset record rs ss is where {
+class is ~ RImage rs ss => RecSubset (record :: k -> Type -> [k1] -> Type) (rs :: [k1]) (ss :: [k1]) (is :: [Nat]) where {
     
     -- | An opportunity for instances to generate constraints based on the
     --   functor parameter of records passed to class methods.
-    type RecSubsetFCtx record (f :: k -> *) :: Constraint;
-    type RecSubsetFCtx record f = ();
+    type RecSubsetFCtx (record :: k -> Type -> [k1] -> Type) (f :: k -> Type);
+    type RecSubsetFCtx record :: k -> Type -> [k1] -> Type f :: k -> Type = ();
 }
 
 -- | This is a lens into a slice of the larger record. Morally, we have:
@@ -514,58 +514,58 @@ class is ~ RImage rs ss => RecSubset record rs ss is where {
 --   <pre>
 --   rsubset :: Lens' (Rec f ss) (Rec f rs)
 --   </pre>
-rsubsetC :: (RecSubset record rs ss is, Functor g, RecSubsetFCtx record f) => (record f rs -> g (record f rs)) -> record f ss -> g (record f ss)
+rsubsetC :: forall g (f :: k -> Type). (RecSubset record rs ss is, Functor g, RecSubsetFCtx record f) => (record f rs -> g (record f rs)) -> record f ss -> g (record f ss)
 
 -- | The getter of the <a>rsubset</a> lens is <a>rcast</a>, which takes a
 --   larger record to a smaller one by forgetting fields.
-rcastC :: (RecSubset record rs ss is, RecSubsetFCtx record f) => record f ss -> record f rs
+rcastC :: forall (f :: k -> Type). (RecSubset record rs ss is, RecSubsetFCtx record f) => record f ss -> record f rs
 
 -- | The setter of the <a>rsubset</a> lens is <a>rreplace</a>, which allows
 --   a slice of a record to be replaced with different values.
-rreplaceC :: (RecSubset record rs ss is, RecSubsetFCtx record f) => record f rs -> record f ss -> record f ss
+rreplaceC :: forall (f :: k -> Type). (RecSubset record rs ss is, RecSubsetFCtx record f) => record f rs -> record f ss -> record f ss
 
 -- | A lens into a slice of the larger record. This is <a>rsubsetC</a> with
 --   the type arguments reordered for more convenient usage with
 --   <tt>TypeApplications</tt>.
-rsubset :: forall k rs ss f g record is. (RecSubset record (rs :: [k]) (ss :: [k]) is, Functor g, RecSubsetFCtx record f) => (record f rs -> g (record f rs)) -> record f ss -> g (record f ss)
+rsubset :: forall {k1} k2 (rs :: [k2]) (ss :: [k2]) (f :: k1 -> Type) g record (is :: [Nat]). (RecSubset record rs ss is, Functor g, RecSubsetFCtx record f) => (record f rs -> g (record f rs)) -> record f ss -> g (record f ss)
 
 -- | Takes a larger record to a smaller one by forgetting fields. This is
 --   <a>rcastC</a> with the type arguments reordered for more convenient
 --   usage with <tt>TypeApplications</tt>.
-rcast :: forall rs ss f record is. (RecSubset record rs ss is, RecSubsetFCtx record f) => record f ss -> record f rs
+rcast :: forall {k1} {k2} (rs :: [k1]) (ss :: [k1]) (f :: k2 -> Type) record (is :: [Nat]). (RecSubset record rs ss is, RecSubsetFCtx record f) => record f ss -> record f rs
 
 -- | Allows a slice of a record to be replaced with different values. This
 --   is <a>rreplaceC</a> with the type arguments reordered for more
 --   convenient usage with <tt>TypeApplications</tt>.
-rreplace :: forall rs ss f record is. (RecSubset record rs ss is, RecSubsetFCtx record f) => record f rs -> record f ss -> record f ss
+rreplace :: forall {k1} {k2} (rs :: [k1]) (ss :: [k1]) (f :: k2 -> Type) record (is :: [Nat]). (RecSubset record rs ss is, RecSubsetFCtx record f) => record f rs -> record f ss -> record f ss
 
 -- | Takes a smaller record to a larger one, a <i>downcast</i>, by layering
 --   a <a>Maybe</a> interpretation that lets us use <a>Nothing</a> for the
 --   fields not present in the smaller record.
-rdowncast :: (RecApplicative ss, RMap rs, rs ⊆ ss) => Rec f rs -> Rec (Maybe :. f) ss
-type RSubset = RecSubset Rec
+rdowncast :: forall {u} (ss :: [u]) (rs :: [u]) (f :: u -> Type). (RecApplicative ss, RMap rs, rs ⊆ ss) => Rec f rs -> Rec (Maybe :. f) ss
+type RSubset = RecSubset Rec :: k -> Type -> [k] -> Type
 
 -- | Two record types are equivalent when they are subtypes of each other.
-type REquivalent rs ss is js = (RSubset rs ss is, RSubset ss rs js)
+type REquivalent (rs :: [k]) (ss :: [k]) (is :: [Nat]) (js :: [Nat]) = (RSubset rs ss is, RSubset ss rs js)
 
 -- | A shorthand for <a>RElem</a> which supplies its index.
-type r ∈ rs = RElem r rs (RIndex r rs)
+type (r :: k) ∈ (rs :: [k]) = RElem r rs RIndex r rs
 
 -- | A shorthand for <a>RSubset</a> which supplies its image.
-type rs ⊆ ss = RSubset rs ss (RImage rs ss)
+type (rs :: [k]) ⊆ (ss :: [k]) = RSubset rs ss RImage rs ss
 
 -- | A shorthand for <a>REquivalent</a> which supplies its images.
-type rs ≅ ss = REquivalent rs ss (RImage rs ss) (RImage ss rs)
+type (rs :: [k]) ≅ (ss :: [k]) = REquivalent rs ss RImage rs ss RImage ss rs
 
 -- | A non-unicode equivalent of <tt>(⊆)</tt>.
-type rs <: ss = rs ⊆ ss
+type (rs :: [k]) <: (ss :: [k]) = rs ⊆ ss
 
 -- | A non-unicode equivalent of <tt>(≅)</tt>.
-type rs :~: ss = rs ≅ ss
+type (rs :: [k]) :~: (ss :: [k]) = rs ≅ ss
+instance forall a (r :: a) (s :: a) (rs :: [a]) (i :: Data.Vinyl.TypeLevel.Nat) (r' :: a) (rs' :: [a]). (Data.Vinyl.TypeLevel.RIndex r (s : rs) GHC.Types.~ 'Data.Vinyl.TypeLevel.S i, Data.Vinyl.Lens.RecElem Data.Vinyl.Core.Rec r r' rs rs' i) => Data.Vinyl.Lens.RecElem Data.Vinyl.Core.Rec r r' (s : rs) (s : rs') ('Data.Vinyl.TypeLevel.S i)
+instance forall a (r :: a) (r' :: a) (rs :: [a]). Data.Vinyl.Lens.RecElem Data.Vinyl.Core.Rec r r' (r : rs) (r' : rs) 'Data.Vinyl.TypeLevel.Z
 instance forall k (r :: k) (ss :: [k]) (i :: Data.Vinyl.TypeLevel.Nat) (rs :: [k]) (is :: [Data.Vinyl.TypeLevel.Nat]). (Data.Vinyl.Lens.RElem r ss i, Data.Vinyl.Lens.RSubset rs ss is) => Data.Vinyl.Lens.RecSubset Data.Vinyl.Core.Rec (r : rs) ss (i : is)
 instance forall k (ss :: [k]). Data.Vinyl.Lens.RecSubset Data.Vinyl.Core.Rec '[] ss '[]
-instance forall a (r :: a) (r' :: a) (rs :: [a]). Data.Vinyl.Lens.RecElem Data.Vinyl.Core.Rec r r' (r : rs) (r' : rs) 'Data.Vinyl.TypeLevel.Z
-instance forall a (r :: a) (s :: a) (rs :: [a]) (i :: Data.Vinyl.TypeLevel.Nat) (r' :: a) (rs' :: [a]). (Data.Vinyl.TypeLevel.RIndex r (s : rs) GHC.Types.~ 'Data.Vinyl.TypeLevel.S i, Data.Vinyl.Lens.RecElem Data.Vinyl.Core.Rec r r' rs rs' i) => Data.Vinyl.Lens.RecElem Data.Vinyl.Core.Rec r r' (s : rs) (s : rs') ('Data.Vinyl.TypeLevel.S i)
 
 
 -- | Vinyl is a general solution to the records problem in Haskell using
@@ -989,38 +989,38 @@ module Data.Vinyl.SRec
 -- | A simpler type for <a>SRec2</a> whose <a>RecElem</a> and
 --   <a>RecSubset</a> instances are specialized to the <a>ElField</a>
 --   functor.
-newtype SRec f ts
-SRecNT :: SRec2 f f ts -> SRec f ts
-[getSRecNT] :: SRec f ts -> SRec2 f f ts
+newtype SRec (f :: k -> Type) (ts :: [k])
+SRecNT :: SRec2 f f ts -> SRec (f :: k -> Type) (ts :: [k])
+[getSRecNT] :: SRec (f :: k -> Type) (ts :: [k]) -> SRec2 f f ts
 
 -- | Create an <a>SRec</a> from a <a>Rec</a>. This should offer very fast
 --   field access, but note that its lens API (via <a>RecElem</a> and
 --   <a>RecSubset</a>) is restricted to the <a>ElField</a> functor.
-toSRec :: Storable (Rec f ts) => Rec f ts -> SRec f ts
+toSRec :: forall {k} (f :: k -> Type) (ts :: [k]). Storable (Rec f ts) => Rec f ts -> SRec f ts
 
 -- | Create a <a>Rec</a> from an <a>SRec</a>.
-fromSRec :: Storable (Rec f ts) => SRec f ts -> Rec f ts
+fromSRec :: forall {u} (f :: u -> Type) (ts :: [u]). Storable (Rec f ts) => SRec f ts -> Rec f ts
 
 -- | Get a field from an <a>SRec</a>.
-sget :: forall f t ts. FieldOffset f ts t => SRec2 f f ts -> f t
+sget :: forall {k} f (t :: k) (ts :: [k]). FieldOffset f ts t => SRec2 f f ts -> f t
 
 -- | Set a field.
-sput :: forall u (f :: u -> *) (t :: u) (ts :: [u]). (FieldOffset f ts t, Storable (Rec f ts), AllConstrained (FieldOffset f ts) ts) => f t -> SRec2 f f ts -> SRec2 f f ts
+sput :: forall u f (t :: u) (ts :: [u]). (FieldOffset f ts t, Storable (Rec f ts), AllConstrained (FieldOffset f ts) ts) => f t -> SRec2 f f ts -> SRec2 f f ts
 
 -- | A lens for a field of an <a>SRec2</a>.
-slens :: (Functor g, FieldOffset f ts t, Storable (Rec f ts), AllConstrained (FieldOffset f ts) ts) => (f t -> g (f t)) -> SRec2 f f ts -> g (SRec2 f f ts)
+slens :: forall {k} g f (ts :: [k]) (t :: k). (Functor g, FieldOffset f ts t, Storable (Rec f ts), AllConstrained (FieldOffset f ts) ts) => (f t -> g (f t)) -> SRec2 f f ts -> g (SRec2 f f ts)
 
 -- | Get a subset of a record's fields.
-srecGetSubset :: forall u (ss :: [u]) (rs :: [u]) (f :: u -> *). (RPureConstrained (FieldOffset f ss) rs, RPureConstrained (FieldOffset f rs) rs, RFoldMap rs, RMap rs, RApply rs, Storable (Rec f rs)) => SRec2 f f ss -> SRec2 f f rs
+srecGetSubset :: forall u (ss :: [u]) (rs :: [u]) (f :: u -> Type). (RPureConstrained (FieldOffset f ss) rs, RPureConstrained (FieldOffset f rs) rs, RFoldMap rs, RMap rs, RApply rs, Storable (Rec f rs)) => SRec2 f f ss -> SRec2 f f rs
 
 -- | Set a subset of a record's fields.
-srecSetSubset :: forall u (f :: u -> *) (ss :: [u]) (rs :: [u]). (rs ⊆ ss, RPureConstrained (FieldOffset f ss) rs, RPureConstrained (FieldOffset f rs) rs, RFoldMap rs, RMap rs, RApply rs, Storable (Rec f ss)) => SRec2 f f ss -> SRec2 f f rs -> SRec2 f f ss
+srecSetSubset :: forall u (f :: u -> Type) (ss :: [u]) (rs :: [u]). (rs ⊆ ss, RPureConstrained (FieldOffset f ss) rs, RPureConstrained (FieldOffset f rs) rs, RFoldMap rs, RMap rs, RApply rs, Storable (Rec f ss)) => SRec2 f f ss -> SRec2 f f rs -> SRec2 f f ss
 
 -- | Create an <a>SRec2</a> from a <a>Rec</a>.
-toSRec2 :: forall f ts. Storable (Rec f ts) => Rec f ts -> SRec2 f f ts
+toSRec2 :: forall {k} (f :: k -> Type) (ts :: [k]). Storable (Rec f ts) => Rec f ts -> SRec2 f f ts
 
 -- | Create a <a>Rec</a> from an <a>SRec2</a>.
-fromSRec2 :: Storable (Rec f ts) => SRec2 g f ts -> Rec f ts
+fromSRec2 :: forall {u} (f :: u -> Type) (ts :: [u]) (g :: u -> Type). Storable (Rec f ts) => SRec2 g f ts -> Rec f ts
 
 -- | A <a>Storable</a>-backed <a>Rec</a>. Each field of such a value has
 --   statically known size, allowing for a very efficient representation
@@ -1033,15 +1033,15 @@ fromSRec2 :: Storable (Rec f ts) => SRec2 g f ts -> Rec f ts
 --   wish to use it at a different type, consider using <a>sget</a>,
 --   <a>sput</a>, and <a>slens</a> which work with any functor given that
 --   the necessary <a>Storable</a> instances exist.
-newtype SRec2 (g :: k -> *) (f :: k -> *) (ts :: [k])
-SRec2 :: ForeignPtr (Rec f ts) -> SRec2 (g :: k -> *) (f :: k -> *) (ts :: [k])
+newtype SRec2 (g :: k -> Type) (f :: k -> Type) (ts :: [k])
+SRec2 :: ForeignPtr (Rec f ts) -> SRec2 (g :: k -> Type) (f :: k -> Type) (ts :: [k])
 
 -- | A more concise constraint equivalent to <a>FieldOffsetAux</a>.
-class FieldOffsetAux f ts t (RIndex t ts) => FieldOffset f ts t
+class FieldOffsetAux f ts t RIndex t ts => FieldOffset (f :: k -> Type) (ts :: [k]) (t :: k)
 
 -- | The ability to work with a particular field of a <a>Rec</a> stored at
 --   a <a>Ptr</a>.
-class (RIndex t ts ~ i, RecAll f ts Storable) => FieldOffsetAux f ts t i
+class (RIndex t ts ~ i, RecAll f ts Storable) => FieldOffsetAux (f :: k -> Type) (ts :: [k]) (t :: k) (i :: Nat)
 
 -- | Get the byte offset of a field from the given origin and the
 --   <a>Storable</a> dictionary needed to work with that field.
@@ -1049,62 +1049,62 @@ fieldOffset :: FieldOffsetAux f ts t i => Int -> StorableAt f t
 
 -- | Capture a <a>Storable</a> dictionary along with a byte offset from
 --   some origin address.
-data StorableAt f a
-[StorableAt] :: Storable (f a) => {-# UNPACK #-} !Int -> StorableAt f a
+data StorableAt (f :: k -> Type) (a :: k)
+[StorableAt] :: forall {k} (f :: k -> Type) (a :: k). Storable (f a) => {-# UNPACK #-} !Int -> StorableAt f a
 
 -- | Get a field in a record stored at a <a>ForeignPtr</a>.
-peekField :: forall f t ts. FieldOffset f ts t => ForeignPtr (Rec f ts) -> IO (f t)
+peekField :: forall {u} f (t :: u) (ts :: [u]). FieldOffset f ts t => ForeignPtr (Rec f ts) -> IO (f t)
 
 -- | Set a field in a record stored at a <a>ForeignPtr</a>.
-pokeField :: forall f t ts. FieldOffset f ts t => ForeignPtr (Rec f ts) -> f t -> IO ()
+pokeField :: forall {u} f (t :: u) (ts :: [u]). FieldOffset f ts t => ForeignPtr (Rec f ts) -> f t -> IO ()
+instance forall a (t :: a) (s :: a) (ts :: [a]) (i :: Data.Vinyl.TypeLevel.Nat) (f :: a -> *). (Data.Vinyl.TypeLevel.RIndex t (s : ts) GHC.Types.~ 'Data.Vinyl.TypeLevel.S i, Data.Vinyl.SRec.FieldOffsetAux f ts t i, Data.Vinyl.TypeLevel.RecAll f (s : ts) GHC.Internal.Foreign.Storable.Storable) => Data.Vinyl.SRec.FieldOffsetAux f (s : ts) t ('Data.Vinyl.TypeLevel.S i)
+instance forall a (f :: a -> *) (t :: a) (ts :: [a]). Data.Vinyl.TypeLevel.RecAll f (t : ts) GHC.Internal.Foreign.Storable.Storable => Data.Vinyl.SRec.FieldOffsetAux f (t : ts) t 'Data.Vinyl.TypeLevel.Z
 instance forall k (f :: k -> *) (ts :: [k]) (t :: k). Data.Vinyl.SRec.FieldOffsetAux f ts t (Data.Vinyl.TypeLevel.RIndex t ts) => Data.Vinyl.SRec.FieldOffset f ts t
-instance (i GHC.Types.~ Data.Vinyl.TypeLevel.RIndex t ts, Data.Vinyl.TypeLevel.NatToInt i, Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ts t, Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField ts), Data.Vinyl.TypeLevel.AllConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ts) ts) => Data.Vinyl.Lens.RecElem (Data.Vinyl.SRec.SRec2 Data.Vinyl.Functor.ElField) t t ts ts i
-instance (i GHC.Types.~ Data.Vinyl.TypeLevel.RIndex t ts, Data.Vinyl.TypeLevel.NatToInt i, Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ts t, Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField ts), Data.Vinyl.TypeLevel.AllConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ts) ts) => Data.Vinyl.Lens.RecElem Data.Vinyl.SRec.SRec t t ts ts i
-instance (is GHC.Types.~ Data.Vinyl.TypeLevel.RImage rs ss, Data.Vinyl.Lens.RecSubset Data.Vinyl.Core.Rec rs ss is, Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField rs), Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField ss), Data.Vinyl.Core.RPureConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ss) rs, Data.Vinyl.Core.RPureConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField rs) rs, Data.Vinyl.Core.RFoldMap rs, Data.Vinyl.Core.RMap rs, Data.Vinyl.Core.RApply rs) => Data.Vinyl.Lens.RecSubset (Data.Vinyl.SRec.SRec2 Data.Vinyl.Functor.ElField) rs ss is
-instance (is GHC.Types.~ Data.Vinyl.TypeLevel.RImage rs ss, Data.Vinyl.Lens.RecSubset Data.Vinyl.Core.Rec rs ss is, Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField rs), Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField ss), Data.Vinyl.Core.RPureConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ss) rs, Data.Vinyl.Core.RPureConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField rs) rs, Data.Vinyl.Core.RFoldMap rs, Data.Vinyl.Core.RMap rs, Data.Vinyl.Core.RApply rs) => Data.Vinyl.Lens.RecSubset Data.Vinyl.SRec.SRec rs ss is
-instance forall a (f :: a -> *) (t :: a) (ts :: [a]). Data.Vinyl.TypeLevel.RecAll f (t : ts) Foreign.Storable.Storable => Data.Vinyl.SRec.FieldOffsetAux f (t : ts) t 'Data.Vinyl.TypeLevel.Z
-instance forall a (t :: a) (s :: a) (ts :: [a]) (i :: Data.Vinyl.TypeLevel.Nat) (f :: a -> *). (Data.Vinyl.TypeLevel.RIndex t (s : ts) GHC.Types.~ 'Data.Vinyl.TypeLevel.S i, Data.Vinyl.SRec.FieldOffsetAux f ts t i, Data.Vinyl.TypeLevel.RecAll f (s : ts) Foreign.Storable.Storable) => Data.Vinyl.SRec.FieldOffsetAux f (s : ts) t ('Data.Vinyl.TypeLevel.S i)
+instance (i GHC.Types.~ Data.Vinyl.TypeLevel.RIndex t ts, Data.Vinyl.TypeLevel.NatToInt i, Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ts t, GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField ts), Data.Vinyl.TypeLevel.AllConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ts) ts) => Data.Vinyl.Lens.RecElem (Data.Vinyl.SRec.SRec2 Data.Vinyl.Functor.ElField) t t ts ts i
+instance (i GHC.Types.~ Data.Vinyl.TypeLevel.RIndex t ts, Data.Vinyl.TypeLevel.NatToInt i, Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ts t, GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField ts), Data.Vinyl.TypeLevel.AllConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ts) ts) => Data.Vinyl.Lens.RecElem Data.Vinyl.SRec.SRec t t ts ts i
+instance (is GHC.Types.~ Data.Vinyl.TypeLevel.RImage rs ss, Data.Vinyl.Lens.RecSubset Data.Vinyl.Core.Rec rs ss is, GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField rs), GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField ss), Data.Vinyl.Core.RPureConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ss) rs, Data.Vinyl.Core.RPureConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField rs) rs, Data.Vinyl.Core.RFoldMap rs, Data.Vinyl.Core.RMap rs, Data.Vinyl.Core.RApply rs) => Data.Vinyl.Lens.RecSubset (Data.Vinyl.SRec.SRec2 Data.Vinyl.Functor.ElField) rs ss is
+instance (is GHC.Types.~ Data.Vinyl.TypeLevel.RImage rs ss, Data.Vinyl.Lens.RecSubset Data.Vinyl.Core.Rec rs ss is, GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField rs), GHC.Internal.Foreign.Storable.Storable (Data.Vinyl.Core.Rec Data.Vinyl.Functor.ElField ss), Data.Vinyl.Core.RPureConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField ss) rs, Data.Vinyl.Core.RPureConstrained (Data.Vinyl.SRec.FieldOffset Data.Vinyl.Functor.ElField rs) rs, Data.Vinyl.Core.RFoldMap rs, Data.Vinyl.Core.RMap rs, Data.Vinyl.Core.RApply rs) => Data.Vinyl.Lens.RecSubset Data.Vinyl.SRec.SRec rs ss is
 
 module Data.Vinyl.Notation
 
 -- | A shorthand for <a>rappend</a>.
-(<+>) :: Rec f as -> Rec f bs -> Rec f (as ++ bs)
+(<+>) :: forall {k} (f :: k -> Type) (as :: [k]) (bs :: [k]). Rec f as -> Rec f bs -> Rec f (as ++ bs)
 infixr 5 <+>
 
 -- | A shorthand for <a>rapply</a>.
-(<<*>>) :: RApply rs => Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
+(<<*>>) :: forall {u} (rs :: [u]) (f :: u -> Type) (g :: u -> Type). RApply rs => Rec (Lift (->) f g) rs -> Rec f rs -> Rec g rs
 infixl 8 <<*>>
 
 -- | A shorthand for <a>rmap</a>.
-(<<$>>) :: RMap rs => (forall x. f x -> g x) -> Rec f rs -> Rec g rs
+(<<$>>) :: forall {u} (rs :: [u]) f g. RMap rs => (forall (x :: u). () => f x -> g x) -> Rec f rs -> Rec g rs
 infixl 8 <<$>>
 
 -- | An inverted shorthand for <a>rmap</a>.
-(<<&>>) :: RMap rs => Rec f rs -> (forall x. f x -> g x) -> Rec g rs
+(<<&>>) :: forall {u} (rs :: [u]) f g. RMap rs => Rec f rs -> (forall (x :: u). () => f x -> g x) -> Rec g rs
 
 -- | A record is parameterized by a universe <tt>u</tt>, an interpretation
 --   <tt>f</tt> and a list of rows <tt>rs</tt>. The labels or indices of
 --   the record are given by inhabitants of the kind <tt>u</tt>; the type
 --   of values at any label <tt>r :: u</tt> is given by its interpretation
 --   <tt>f r :: *</tt>.
-data Rec :: (u -> *) -> [u] -> *
-[:&] :: !f r -> !Rec f rs -> Rec f (r : rs)
+data Rec (a :: u -> Type) (b :: [u])
+[:&] :: forall {u} (a :: u -> Type) (r :: u) (rs :: [u]). !a r -> !Rec a rs -> Rec a (r ': rs)
 infixr 7 :&
 
 -- | A shorthand for <a>RElem</a> which supplies its index.
-type r ∈ rs = RElem r rs (RIndex r rs)
+type (r :: k) ∈ (rs :: [k]) = RElem r rs RIndex r rs
 
 -- | A shorthand for <a>RSubset</a> which supplies its image.
-type rs ⊆ ss = RSubset rs ss (RImage rs ss)
+type (rs :: [k]) ⊆ (ss :: [k]) = RSubset rs ss RImage rs ss
 
 -- | A shorthand for <a>REquivalent</a> which supplies its images.
-type rs ≅ ss = REquivalent rs ss (RImage rs ss) (RImage ss rs)
+type (rs :: [k]) ≅ (ss :: [k]) = REquivalent rs ss RImage rs ss RImage ss rs
 
 -- | A non-unicode equivalent of <tt>(⊆)</tt>.
-type rs <: ss = rs ⊆ ss
+type (rs :: [k]) <: (ss :: [k]) = rs ⊆ ss
 
 -- | A non-unicode equivalent of <tt>(≅)</tt>.
-type rs :~: ss = rs ≅ ss
+type (rs :: [k]) :~: (ss :: [k]) = rs ≅ ss
 
 
 -- | Constant-time field accessors for extensible records. The trade-off is
@@ -1130,18 +1130,18 @@ type rs :~: ss = rs ≅ ss
 module Data.Vinyl.ARec.Internal
 
 -- | An array-backed extensible record with constant-time field access.
-newtype ARec (f :: k -> *) (ts :: [k])
-ARec :: SmallArray -> ARec (f :: k -> *) (ts :: [k])
+newtype ARec (f :: k -> Type) (ts :: [k])
+ARec :: SmallArray -> ARec (f :: k -> Type) (ts :: [k])
 class ToARec (us :: [k])
 
 -- | Defines a constraint that lets us index into an <a>ARec</a> in order
 --   to produce a <a>Rec</a> using <a>fromARec</a>.
-class (NatToInt (RIndex t ts)) => IndexableField ts t
+class NatToInt RIndex t ts => IndexableField (ts :: [k]) (t :: k)
 
 -- | Turn an ARecBuilder into an ARec
 --   
 --   See <a>ARecBuilder</a>
-arec :: forall k (us :: [k]) f. NatToInt (RLength us) => ARecBuilder f us -> ARec f us
+arec :: forall k (us :: [k]) (f :: k -> Type). NatToInt (RLength us) => ARecBuilder f us -> ARec f us
 
 -- | An efficient builder for ARec values
 --   
@@ -1161,15 +1161,15 @@ arec :: forall k (us :: [k]) f. NatToInt (RLength us) => ARecBuilder f us -> ARe
 --               `arcons` arnil
 --               )
 --   </pre>
-newtype ARecBuilder f us
-ARecBuilder :: (forall s. Int -> SmallMutableArray s -> ST s ()) -> ARecBuilder f us
+newtype ARecBuilder (f :: k) (us :: k1)
+ARecBuilder :: (forall s. () => Int -> SmallMutableArray s -> ST s ()) -> ARecBuilder (f :: k) (us :: k1)
 
 -- | Pseudo-constructor for an ARecBuilder
 --   
 --   <a>Cons</a> a field to an ARec under construction
 --   
 --   See <a>ARecBuilder</a>
-arcons :: f u -> ARecBuilder f us -> ARecBuilder f (u : us)
+arcons :: forall {a} f (u :: a) (us :: [a]). f u -> ARecBuilder f us -> ARecBuilder f (u ': us)
 infixr 1 `arcons`
 
 -- | Pseudo-constructor for <a>ARecBuilder</a>
@@ -1177,51 +1177,51 @@ infixr 1 `arcons`
 --   Build an ARec without fields
 --   
 --   See <a>ARecBuilder</a>
-arnil :: ARecBuilder f '[]
+arnil :: forall {k} {a} (f :: k). ARecBuilder f ('[] :: [a])
 
 -- | Convert a <a>Rec</a> into an <a>ARec</a> for constant-time field
 --   access.
-toARec :: forall f ts. (NatToInt (RLength ts), ToARec ts) => Rec f ts -> ARec f ts
+toARec :: forall {k} (f :: k -> Type) (ts :: [k]). (NatToInt (RLength ts), ToARec ts) => Rec f ts -> ARec f ts
 
 -- | Convert an <a>ARec</a> into a <a>Rec</a>.
-fromARec :: forall f ts. (RecApplicative ts, RPureConstrained (IndexableField ts) ts) => ARec f ts -> Rec f ts
+fromARec :: forall {u} (f :: u -> Type) (ts :: [u]). (RecApplicative ts, RPureConstrained (IndexableField ts) ts) => ARec f ts -> Rec f ts
 
 -- | Get a field from an <a>ARec</a>.
-aget :: forall t f ts. NatToInt (RIndex t ts) => ARec f ts -> f t
+aget :: forall {k} (t :: k) f (ts :: [k]). NatToInt (RIndex t ts) => ARec f ts -> f t
 
 -- | Set a field in an <a>ARec</a>.
-unsafeAput :: forall t t' f ts ts'. NatToInt (RIndex t ts) => f t' -> ARec f ts -> ARec f ts'
+unsafeAput :: forall {k} (t :: k) (t' :: k) f (ts :: [k]) (ts' :: [k]). NatToInt (RIndex t ts) => f t' -> ARec f ts -> ARec f ts'
 
 -- | Define a lens for a field of an <a>ARec</a>.
-unsafeAlens :: forall f g t t' ts ts'. (Functor g, NatToInt (RIndex t ts)) => (f t -> g (f t')) -> ARec f ts -> g (ARec f ts')
+unsafeAlens :: forall {k} f g (t :: k) (t' :: k) (ts :: [k]) (ts' :: [k]). (Functor g, NatToInt (RIndex t ts)) => (f t -> g (f t')) -> ARec f ts -> g (ARec f ts')
 
 -- | Get a subset of a record's fields.
-arecGetSubset :: forall rs ss f. (IndexWitnesses (RImage rs ss), NatToInt (RLength rs)) => ARec f ss -> ARec f rs
+arecGetSubset :: forall {k} (rs :: [k]) (ss :: [k]) (f :: k -> Type). (IndexWitnesses (RImage rs ss), NatToInt (RLength rs)) => ARec f ss -> ARec f rs
 
 -- | Set a subset of a larger record's fields to all of the fields of a
 --   smaller record.
-arecSetSubset :: forall rs ss f. IndexWitnesses (RImage rs ss) => ARec f ss -> ARec f rs -> ARec f ss
+arecSetSubset :: forall {k} (rs :: [k]) (ss :: [k]) (f :: k -> Type). IndexWitnesses (RImage rs ss) => ARec f ss -> ARec f rs -> ARec f ss
 
 -- | Given that <tt>xs</tt> and <tt>ys</tt> have the same length, and
 --   mapping <tt>f</tt> over <tt>xs</tt> and <tt>g</tt> over <tt>ys</tt>
 --   produces lists whose elements are pairwise <a>Coercible</a>, <tt>ARec
 --   f xs</tt> and <tt>ARec g ys</tt> are <a>Coercible</a>.
-arecRepsMatchCoercion :: AllRepsMatch f xs g ys => Coercion (ARec f xs) (ARec g ys)
+arecRepsMatchCoercion :: forall {k1} {k2} (f :: k1 -> Type) (xs :: [k1]) (g :: k2 -> Type) (ys :: [k2]). AllRepsMatch f xs g ys => Coercion (ARec f xs) (ARec g ys)
 
 -- | Given that <tt>forall x. Coercible (f x) (g x)</tt>, produce a
 --   coercion from <tt>ARec f xs</tt> to <tt>ARec g xs</tt>. While the
 --   constraint looks a lot like <tt>Coercible f g</tt>, it is actually
 --   weaker.
-arecConsMatchCoercion :: (forall (x :: k). Coercible (f x) (g x)) => Coercion (ARec f xs) (ARec g xs)
-instance forall k (t :: k) (ts :: [k]). Data.Vinyl.TypeLevel.NatToInt (Data.Vinyl.TypeLevel.RIndex t ts) => Data.Vinyl.ARec.Internal.IndexableField ts t
-instance forall k (rs :: [k]) (f :: k -> *). (Data.Vinyl.Core.RPureConstrained (Data.Vinyl.ARec.Internal.IndexableField rs) rs, Data.Vinyl.Core.RecApplicative rs, GHC.Show.Show (Data.Vinyl.Core.Rec f rs)) => GHC.Show.Show (Data.Vinyl.ARec.Internal.ARec f rs)
+arecConsMatchCoercion :: forall k (f :: k -> Type) (g :: k -> Type) (xs :: [k]). (forall (x :: k). () => Coercible (f x) (g x)) => Coercion (ARec f xs) (ARec g xs)
 instance forall k (rs :: [k]) (f :: k -> *). (Data.Vinyl.Core.RPureConstrained (Data.Vinyl.ARec.Internal.IndexableField rs) rs, Data.Vinyl.Core.RecApplicative rs, GHC.Classes.Eq (Data.Vinyl.Core.Rec f rs)) => GHC.Classes.Eq (Data.Vinyl.ARec.Internal.ARec f rs)
+instance forall k (t :: k) (ts :: [k]). Data.Vinyl.TypeLevel.NatToInt (Data.Vinyl.TypeLevel.RIndex t ts) => Data.Vinyl.ARec.Internal.IndexableField ts t
 instance forall k (rs :: [k]) (f :: k -> *). (Data.Vinyl.Core.RPureConstrained (Data.Vinyl.ARec.Internal.IndexableField rs) rs, Data.Vinyl.Core.RecApplicative rs, GHC.Classes.Ord (Data.Vinyl.Core.Rec f rs)) => GHC.Classes.Ord (Data.Vinyl.ARec.Internal.ARec f rs)
-instance Data.Vinyl.ARec.Internal.ToARec '[]
-instance forall k (us :: [k]) (u :: k). Data.Vinyl.ARec.Internal.ToARec us => Data.Vinyl.ARec.Internal.ToARec (u : us)
-instance forall a (t :: a) (t' :: a) (ts :: [a]). Data.Vinyl.Lens.RecElem Data.Vinyl.ARec.Internal.ARec t t' (t : ts) (t' : ts) 'Data.Vinyl.TypeLevel.Z
 instance forall a (t :: a) (s :: a) (ts :: [a]) (i :: Data.Vinyl.TypeLevel.Nat) (t' :: a) (ts' :: [a]). (Data.Vinyl.TypeLevel.RIndex t (s : ts) GHC.Types.~ 'Data.Vinyl.TypeLevel.S i, Data.Vinyl.TypeLevel.NatToInt i, Data.Vinyl.Lens.RecElem Data.Vinyl.ARec.Internal.ARec t t' ts ts' i) => Data.Vinyl.Lens.RecElem Data.Vinyl.ARec.Internal.ARec t t' (s : ts) (s : ts') ('Data.Vinyl.TypeLevel.S i)
-instance forall k (is :: [Data.Vinyl.TypeLevel.Nat]) (rs :: [k]) (ss :: [k]). (is GHC.Types.~ Data.Vinyl.TypeLevel.RImage rs ss, Data.Vinyl.TypeLevel.IndexWitnesses is, Data.Vinyl.TypeLevel.NatToInt (Data.Vinyl.TypeLevel.RLength rs)) => Data.Vinyl.Lens.RecSubset Data.Vinyl.ARec.Internal.ARec rs ss is
+instance forall a (t :: a) (t' :: a) (ts :: [a]). Data.Vinyl.Lens.RecElem Data.Vinyl.ARec.Internal.ARec t t' (t : ts) (t' : ts) 'Data.Vinyl.TypeLevel.Z
+instance forall k1 (is :: [Data.Vinyl.TypeLevel.Nat]) (rs :: [k1]) (ss :: [k1]). (is GHC.Types.~ Data.Vinyl.TypeLevel.RImage rs ss, Data.Vinyl.TypeLevel.IndexWitnesses is, Data.Vinyl.TypeLevel.NatToInt (Data.Vinyl.TypeLevel.RLength rs)) => Data.Vinyl.Lens.RecSubset Data.Vinyl.ARec.Internal.ARec rs ss is
+instance forall k (rs :: [k]) (f :: k -> *). (Data.Vinyl.Core.RPureConstrained (Data.Vinyl.ARec.Internal.IndexableField rs) rs, Data.Vinyl.Core.RecApplicative rs, GHC.Internal.Show.Show (Data.Vinyl.Core.Rec f rs)) => GHC.Internal.Show.Show (Data.Vinyl.ARec.Internal.ARec f rs)
+instance forall k (us :: [k]) (u :: k). Data.Vinyl.ARec.Internal.ToARec us => Data.Vinyl.ARec.Internal.ToARec (u : us)
+instance Data.Vinyl.ARec.Internal.ToARec '[]
 
 
 -- | Constant-time field accessors for extensible records. The trade-off is
@@ -1231,54 +1231,54 @@ instance forall k (is :: [Data.Vinyl.TypeLevel.Nat]) (rs :: [k]) (ss :: [k]). (i
 module Data.Vinyl.ARec
 
 -- | An array-backed extensible record with constant-time field access.
-data ARec (f :: k -> *) (ts :: [k])
+data ARec (f :: k -> Type) (ts :: [k])
 
 -- | Defines a constraint that lets us index into an <a>ARec</a> in order
 --   to produce a <a>Rec</a> using <a>fromARec</a>.
-class (NatToInt (RIndex t ts)) => IndexableField ts t
+class NatToInt RIndex t ts => IndexableField (ts :: [k]) (t :: k)
 class ToARec (us :: [k])
 
 -- | Convert a <a>Rec</a> into an <a>ARec</a> for constant-time field
 --   access.
-toARec :: forall f ts. (NatToInt (RLength ts), ToARec ts) => Rec f ts -> ARec f ts
+toARec :: forall {k} (f :: k -> Type) (ts :: [k]). (NatToInt (RLength ts), ToARec ts) => Rec f ts -> ARec f ts
 
 -- | Convert an <a>ARec</a> into a <a>Rec</a>.
-fromARec :: forall f ts. (RecApplicative ts, RPureConstrained (IndexableField ts) ts) => ARec f ts -> Rec f ts
+fromARec :: forall {u} (f :: u -> Type) (ts :: [u]). (RecApplicative ts, RPureConstrained (IndexableField ts) ts) => ARec f ts -> Rec f ts
 
 -- | Get a field from an <a>ARec</a>.
-aget :: forall t f ts. NatToInt (RIndex t ts) => ARec f ts -> f t
+aget :: forall {k} (t :: k) f (ts :: [k]). NatToInt (RIndex t ts) => ARec f ts -> f t
 
 -- | Get a subset of a record's fields.
-arecGetSubset :: forall rs ss f. (IndexWitnesses (RImage rs ss), NatToInt (RLength rs)) => ARec f ss -> ARec f rs
+arecGetSubset :: forall {k} (rs :: [k]) (ss :: [k]) (f :: k -> Type). (IndexWitnesses (RImage rs ss), NatToInt (RLength rs)) => ARec f ss -> ARec f rs
 
 -- | Set a subset of a larger record's fields to all of the fields of a
 --   smaller record.
-arecSetSubset :: forall rs ss f. IndexWitnesses (RImage rs ss) => ARec f ss -> ARec f rs -> ARec f ss
+arecSetSubset :: forall {k} (rs :: [k]) (ss :: [k]) (f :: k -> Type). IndexWitnesses (RImage rs ss) => ARec f ss -> ARec f rs -> ARec f ss
 
 -- | Given that <tt>xs</tt> and <tt>ys</tt> have the same length, and
 --   mapping <tt>f</tt> over <tt>xs</tt> and <tt>g</tt> over <tt>ys</tt>
 --   produces lists whose elements are pairwise <a>Coercible</a>, <tt>ARec
 --   f xs</tt> and <tt>ARec g ys</tt> are <a>Coercible</a>.
-arecRepsMatchCoercion :: AllRepsMatch f xs g ys => Coercion (ARec f xs) (ARec g ys)
+arecRepsMatchCoercion :: forall {k1} {k2} (f :: k1 -> Type) (xs :: [k1]) (g :: k2 -> Type) (ys :: [k2]). AllRepsMatch f xs g ys => Coercion (ARec f xs) (ARec g ys)
 
 -- | Given that <tt>forall x. Coercible (f x) (g x)</tt>, produce a
 --   coercion from <tt>ARec f xs</tt> to <tt>ARec g xs</tt>. While the
 --   constraint looks a lot like <tt>Coercible f g</tt>, it is actually
 --   weaker.
-arecConsMatchCoercion :: (forall (x :: k). Coercible (f x) (g x)) => Coercion (ARec f xs) (ARec g xs)
+arecConsMatchCoercion :: forall k (f :: k -> Type) (g :: k -> Type) (xs :: [k]). (forall (x :: k). () => Coercible (f x) (g x)) => Coercion (ARec f xs) (ARec g xs)
 
 
 -- | Commonly used <a>Rec</a> instantiations.
 module Data.Vinyl.Derived
 
 -- | Alias for Field spec
-type a ::: b = '(a, b)
+type (a :: k) ::: (b :: k1) = '(a, b)
 
 -- | A record of named fields.
 type FieldRec = Rec ElField
 
 -- | An <a>ARec</a> of named fields to provide constant-time field access.
-type AFieldRec ts = ARec ElField ts
+type AFieldRec (ts :: [(Symbol, Type)]) = ARec ElField ts
 
 -- | Heterogeneous list whose elements are evaluated during list
 --   construction.
@@ -1289,68 +1289,68 @@ type HList = Rec Identity
 type LazyHList = Rec Thunk
 
 -- | Get the data payload of an <a>ElField</a>.
-getField :: ElField '(s, t) -> t
+getField :: forall (s :: Symbol) t. ElField '(s, t) -> t
 
 -- | Get the label name of an <a>ElField</a>.
-getLabel :: forall s t. KnownSymbol s => ElField '(s, t) -> String
+getLabel :: forall (s :: Symbol) t. KnownSymbol s => ElField '(s, t) -> String
 
 -- | <a>ElField</a> is isomorphic to a functor something like <tt>Compose
 --   ElField ('(,) s)</tt>.
-fieldMap :: (a -> b) -> ElField '(s, a) -> ElField '(s, b)
+fieldMap :: forall a b (s :: Symbol). (a -> b) -> ElField '(s, a) -> ElField '(s, b)
 
 -- | Something in the spirit of <a>traverse</a> for <a>ElField</a> whose
 --   kind fights the standard library.
-traverseField :: (KnownSymbol s, Functor f) => (a -> b) -> f (ElField '(s, a)) -> ElField '(s, f b)
+traverseField :: forall (s :: Symbol) f a b. (KnownSymbol s, Functor f) => (a -> b) -> f (ElField '(s, a)) -> ElField '(s, f b)
 
 -- | Lens for an <tt>ElField'</tt>s data payload.
-rfield :: Functor f => (a -> f b) -> ElField '(s, a) -> f (ElField '(s, b))
+rfield :: forall f a b (s :: Symbol). Functor f => (a -> f b) -> ElField '(s, a) -> f (ElField '(s, b))
 
 -- | Operator for creating an <a>ElField</a>. With the
 --   <tt>-XOverloadedLabels</tt> extension, this permits usage such as,
 --   <tt>#foo =: 23</tt> to produce a value of type <tt>ElField ("foo" :::
 --   Int)</tt>.
-(=:) :: KnownSymbol l => Label (l :: Symbol) -> (v :: *) -> ElField (l ::: v)
+(=:) :: forall (l :: Symbol) v. KnownSymbol l => Label l -> v -> ElField (l ::: v)
 infix 8 =:
 
 -- | Get a named field from a record.
-rgetf :: forall l f v record us. (HasField record l us us v v, RecElemFCtx record f) => Label l -> record f us -> f (l ::: v)
+rgetf :: forall {k} (l :: Symbol) f (v :: k) record (us :: [(Symbol, k)]). (HasField record l us us v v, RecElemFCtx record f) => Label l -> record f us -> f (l ::: v)
 
 -- | Get the value associated with a named field from a record.
-rvalf :: (HasField record l us us v v, RecElemFCtx record ElField) => Label l -> record ElField us -> v
+rvalf :: forall record (l :: Symbol) (us :: [(Symbol, Type)]) v. (HasField record l us us v v, RecElemFCtx record ElField) => Label l -> record ElField us -> v
 
 -- | Set a named field. <tt>rputf' #foo 23</tt> sets the field named
 --   <tt>#foo</tt> to <tt>23</tt>.
-rputf' :: forall l v v' record us us'. (HasField record l us us' v v', KnownSymbol l, RecElemFCtx record ElField) => Label l -> v' -> record ElField us -> record ElField us'
+rputf' :: forall (l :: Symbol) v v' record (us :: [(Symbol, Type)]) (us' :: [(Symbol, Type)]). (HasField record l us us' v v', KnownSymbol l, RecElemFCtx record ElField) => Label l -> v' -> record ElField us -> record ElField us'
 
 -- | Set a named field without changing its type. <tt>rputf #foo 23</tt>
 --   sets the field named <tt>#foo</tt> to <tt>23</tt>.
-rputf :: forall l v record us. (HasField record l us us v v, KnownSymbol l, RecElemFCtx record ElField) => Label l -> v -> record ElField us -> record ElField us
+rputf :: forall (l :: Symbol) v record (us :: [(Symbol, Type)]). (HasField record l us us v v, KnownSymbol l, RecElemFCtx record ElField) => Label l -> v -> record ElField us -> record ElField us
 
 -- | A lens into a <a>Rec</a> identified by a <a>Label</a>.
-rlensfL' :: forall l v v' record g f us us'. (Functor g, HasField record l us us' v v', RecElemFCtx record f) => Label l -> (f (l ::: v) -> g (f (l ::: v'))) -> record f us -> g (record f us')
+rlensfL' :: forall {k} (l :: Symbol) (v :: k) (v' :: k) record g f (us :: [(Symbol, k)]) (us' :: [(Symbol, k)]). (Functor g, HasField record l us us' v v', RecElemFCtx record f) => Label l -> (f (l ::: v) -> g (f (l ::: v'))) -> record f us -> g (record f us')
 
 -- | A type-preserving lens into a <a>Rec</a> identified by a <a>Label</a>.
-rlensfL :: forall l v record g f us. (Functor g, HasField record l us us v v, RecElemFCtx record f) => Label l -> (f (l ::: v) -> g (f (l ::: v))) -> record f us -> g (record f us)
+rlensfL :: forall {k} (l :: Symbol) (v :: k) record g f (us :: [(Symbol, k)]). (Functor g, HasField record l us us v v, RecElemFCtx record f) => Label l -> (f (l ::: v) -> g (f (l ::: v))) -> record f us -> g (record f us)
 
 -- | A lens into the payload value of a <a>Rec</a> field identified by a
 --   <a>Label</a>.
-rlensf' :: forall l v v' record g us us'. (Functor g, HasField record l us us' v v', RecElemFCtx record ElField) => Label l -> (v -> g v') -> record ElField us -> g (record ElField us')
+rlensf' :: forall (l :: Symbol) v v' record g (us :: [(Symbol, Type)]) (us' :: [(Symbol, Type)]). (Functor g, HasField record l us us' v v', RecElemFCtx record ElField) => Label l -> (v -> g v') -> record ElField us -> g (record ElField us')
 
 -- | A type-preserving lens into the payload value of a <a>Rec</a> field
 --   identified by a <a>Label</a>.
-rlensf :: forall l v record g us. (Functor g, HasField record l us us v v, RecElemFCtx record ElField) => Label l -> (v -> g v) -> record ElField us -> g (record ElField us)
+rlensf :: forall (l :: Symbol) v record g (us :: [(Symbol, Type)]). (Functor g, HasField record l us us v v, RecElemFCtx record ElField) => Label l -> (v -> g v) -> record ElField us -> g (record ElField us)
 
 -- | Shorthand for a <a>FieldRec</a> with a single field.
-(=:=) :: KnownSymbol s => Label (s :: Symbol) -> a -> FieldRec '[ '(s, a)]
+(=:=) :: forall (s :: Symbol) a. KnownSymbol s => Label s -> a -> FieldRec '[ '(s, a)]
 
 -- | A proxy for field types.
 data SField (field :: k)
 SField :: SField (field :: k)
-type family FieldType l fs
+type family FieldType (l :: k1) (fs :: [(k1, k)]) :: k
 
 -- | Constraint that a label is associated with a particular type in a
 --   record.
-type HasField record l fs fs' v v' = (RecElem record (l ::: v) (l ::: v') fs fs' (RIndex (l ::: v) fs), FieldType l fs ~ v, FieldType l fs' ~ v')
+type HasField (record :: (k, k1) -> Type -> [(k, k1)] -> Type) (l :: k) (fs :: [(k, k1)]) (fs' :: [(k, k1)]) (v :: k1) (v' :: k1) = (RecElem record l ::: v l ::: v' fs fs' RIndex l ::: v fs, FieldType l fs ~ v, FieldType l fs' ~ v')
 
 -- | Proxy for label type
 data Label (a :: Symbol)
@@ -1358,45 +1358,45 @@ Label :: Label (a :: Symbol)
 
 -- | Defines a constraint that lets us extract the label from an
 --   <a>ElField</a>. Used in <a>rmapf</a> and <a>rpuref</a>.
-class (KnownSymbol (Fst a), a ~ '(Fst a, Snd a)) => KnownField a
+class (KnownSymbol Fst a, a ~ '(Fst a, Snd a)) => KnownField (a :: (Symbol, k))
 
 -- | Shorthand for working with records of fields as in <a>rmapf</a> and
 --   <a>rpuref</a>.
-type AllFields fs = (RPureConstrained KnownField fs, RecApplicative fs, RApply fs)
+type AllFields (fs :: [(Symbol, k)]) = (RPureConstrained KnownField :: (Symbol, k) -> Constraint fs, RecApplicative fs, RApply fs)
 
 -- | Map a function between functors across a <a>Rec</a> taking advantage
 --   of knowledge that each element is an <a>ElField</a>.
-rmapf :: AllFields fs => (forall a. KnownField a => f a -> g a) -> Rec f fs -> Rec g fs
+rmapf :: forall {k} (fs :: [(Symbol, k)]) f g. AllFields fs => (forall (a :: (Symbol, k)). KnownField a => f a -> g a) -> Rec f fs -> Rec g fs
 
 -- | Remove the first component (e.g. the label) from a type-level list of
 --   pairs.
-type family Unlabeled ts
+type family Unlabeled (ts :: [(k, a)]) :: [a]
 
 -- | Facilities for removing and replacing the type-level label, or column
 --   name, part of a record.
-class StripFieldNames ts
+class StripFieldNames (ts :: [(Symbol, Type)])
 stripNames :: StripFieldNames ts => Rec ElField ts -> Rec Identity (Unlabeled ts)
-stripNames' :: (StripFieldNames ts, Functor f) => Rec (f :. ElField) ts -> Rec f (Unlabeled ts)
+stripNames' :: forall (f :: Type -> Type). (StripFieldNames ts, Functor f) => Rec (f :. ElField) ts -> Rec f (Unlabeled ts)
 withNames :: StripFieldNames ts => Rec Identity (Unlabeled ts) -> Rec ElField ts
-withNames' :: (StripFieldNames ts, Functor f) => Rec f (Unlabeled ts) -> Rec (f :. ElField) ts
+withNames' :: forall (f :: Type -> Type). (StripFieldNames ts, Functor f) => Rec f (Unlabeled ts) -> Rec (f :. ElField) ts
 
 -- | Construct a <a>Rec</a> with <a>ElField</a> elements.
-rpuref :: AllFields fs => (forall a. KnownField a => f a) -> Rec f fs
+rpuref :: forall {k} (fs :: [(Symbol, k)]) f. AllFields fs => (forall (a :: (Symbol, k)). KnownField a => f a) -> Rec f fs
 
 -- | Operator synonym for <a>rmapf</a>.
-(<<$$>>) :: AllFields fs => (forall a. KnownField a => f a -> g a) -> Rec f fs -> Rec g fs
+(<<$$>>) :: forall {k} (fs :: [(Symbol, k)]) f g. AllFields fs => (forall (a :: (Symbol, k)). KnownField a => f a -> g a) -> Rec f fs -> Rec g fs
 
 -- | Produce a <a>Rec</a> of the labels of a <a>Rec</a> of <a>ElField</a>s.
-rlabels :: AllFields fs => Rec (Const String) fs
-instance GHC.Show.Show (Data.Vinyl.Derived.Label a)
+rlabels :: forall {k} (fs :: [(Symbol, k)]). AllFields fs => Rec (Const String :: (Symbol, k) -> Type) fs
 instance GHC.Classes.Eq (Data.Vinyl.Derived.Label a)
-instance Data.Vinyl.Derived.StripFieldNames '[]
-instance (GHC.TypeLits.KnownSymbol s, Data.Vinyl.Derived.StripFieldNames ts) => Data.Vinyl.Derived.StripFieldNames ('(s, t) : ts)
-instance forall k (l :: GHC.Types.Symbol) (v :: k). GHC.TypeLits.KnownSymbol l => Data.Vinyl.Derived.KnownField (l Data.Vinyl.Derived.::: v)
-instance (s GHC.Types.~ s') => GHC.OverloadedLabels.IsLabel s (Data.Vinyl.Derived.Label s')
 instance forall k (a :: k). GHC.Classes.Eq (Data.Vinyl.Derived.SField a)
+instance (s GHC.Types.~ s') => GHC.Internal.OverloadedLabels.IsLabel s (Data.Vinyl.Derived.Label s')
+instance forall k (l :: GHC.Types.Symbol) (v :: k). GHC.Internal.TypeLits.KnownSymbol l => Data.Vinyl.Derived.KnownField (l Data.Vinyl.Derived.::: v)
 instance forall k (a :: k). GHC.Classes.Ord (Data.Vinyl.Derived.SField a)
-instance forall k (s :: GHC.Types.Symbol) (t :: k). GHC.TypeLits.KnownSymbol s => GHC.Show.Show (Data.Vinyl.Derived.SField '(s, t))
+instance GHC.Internal.Show.Show (Data.Vinyl.Derived.Label a)
+instance forall k (s :: GHC.Types.Symbol) (t :: k). GHC.Internal.TypeLits.KnownSymbol s => GHC.Internal.Show.Show (Data.Vinyl.Derived.SField '(s, t))
+instance (GHC.Internal.TypeLits.KnownSymbol s, Data.Vinyl.Derived.StripFieldNames ts) => Data.Vinyl.Derived.StripFieldNames ('(s, t) : ts)
+instance Data.Vinyl.Derived.StripFieldNames '[]
 
 
 -- | Concise vinyl record field lens syntax. This module exports an orphan
@@ -1409,7 +1409,7 @@ instance forall k (s :: GHC.Types.Symbol) (t :: k). GHC.TypeLits.KnownSymbol s =
 --   '("x", Bool), '("y", Char) ]</tt> <tt>fieldRec (#x =: True, #y =:
 --   <tt>b</tt>) &amp; #x %~ not</tt>
 module Data.Vinyl.Syntax
-instance (Data.Vinyl.Derived.HasField record s ts ts' t t', GHC.Base.Functor f, Data.Vinyl.Lens.RecElemFCtx record Data.Vinyl.Functor.ElField, a' GHC.Types.~ (t -> f t'), b' GHC.Types.~ (record Data.Vinyl.Functor.ElField ts -> f (record Data.Vinyl.Functor.ElField ts'))) => GHC.OverloadedLabels.IsLabel s (a' -> b')
+instance (Data.Vinyl.Derived.HasField record s ts ts' t t', GHC.Internal.Base.Functor f, Data.Vinyl.Lens.RecElemFCtx record Data.Vinyl.Functor.ElField, a' GHC.Types.~ (t -> f t'), b' GHC.Types.~ (record Data.Vinyl.Functor.ElField ts -> f (record Data.Vinyl.Functor.ElField ts'))) => GHC.Internal.OverloadedLabels.IsLabel s (a' -> b')
 
 
 -- | Consider a record with three fields <tt>A</tt>, <tt>B</tt>, and
@@ -1421,18 +1421,18 @@ instance (Data.Vinyl.Derived.HasField record s ts ts' t t', GHC.Base.Functor f, 
 module Data.Vinyl.CoRec
 
 -- | Generalize algebraic sum types.
-data CoRec :: (k -> *) -> [k] -> *
-[CoRec] :: RElem a ts (RIndex a ts) => !f a -> CoRec f ts
+data CoRec (a :: k -> Type) (b :: [k])
+[CoRec] :: forall {k} (a1 :: k) (b :: [k]) (a :: k -> Type). RElem a1 b (RIndex a1 b) => !a a1 -> CoRec a b
 
 -- | A <a>CoRec</a> constructor with better inference. If you have a label
 --   that should pick out a type from the list of types that index a
 --   <a>CoRec</a>, this function will help you more so than the raw
 --   <a>CoRec</a> data constructor.
-corec :: forall (l :: Symbol) (ts :: [(Symbol, Type)]) (f :: (Symbol, Type) -> Type). (KnownSymbol l, (l ::: FieldType l ts) ∈ ts) => f (l ::: FieldType l ts) -> CoRec f ts
+corec :: forall (l :: Symbol) (ts :: [(Symbol, Type)]) f. (KnownSymbol l, (l ::: FieldType l ts) ∈ ts) => f (l ::: FieldType l ts) -> CoRec f ts
 
 -- | Apply a function to a <a>CoRec</a> value. The function must accept
 --   <i>any</i> variant.
-foldCoRec :: (forall a. RElem a ts (RIndex a ts) => f a -> b) -> CoRec f ts -> b
+foldCoRec :: forall {k} (ts :: [k]) f b. (forall (a :: k). RElem a ts (RIndex a ts) => f a -> b) -> CoRec f ts -> b
 
 -- | A Field of a <a>Rec</a> <a>Identity</a> is a <a>CoRec</a>
 --   <a>Identity</a>.
@@ -1447,64 +1447,64 @@ Op :: (a -> b) -> Op b a
 -- | Helper for writing a <a>Show</a> instance for <a>CoRec</a>. This lets
 --   us ask for a <a>Show</a> constraint on the type formed by applying a
 --   type constructor to a type index.
-class ShowF f a
+class ShowF (f :: k -> Type) (a :: k)
 showf :: ShowF f a => f a -> String
 
 -- | We can inject a a <a>CoRec</a> into a <a>Rec</a> where every field of
 --   the <a>Rec</a> is <a>Nothing</a> except for the one whose type
 --   corresponds to the type of the given <a>CoRec</a> variant.
-coRecToRec :: forall f ts. RecApplicative ts => CoRec f ts -> Rec (Maybe :. f) ts
+coRecToRec :: forall {u} (f :: u -> Type) (ts :: [u]). RecApplicative ts => CoRec f ts -> Rec (Maybe :. f) ts
 
 -- | Shorthand for applying <a>coRecToRec</a> with common functors.
-coRecToRec' :: (RecApplicative ts, RMap ts) => CoRec Identity ts -> Rec Maybe ts
+coRecToRec' :: forall (ts :: [Type]). (RecApplicative ts, RMap ts) => CoRec Identity ts -> Rec Maybe ts
 
 -- | Fold a field selection function over a <a>Rec</a>.
-class FoldRec ss ts
-foldRec :: FoldRec ss ts => (CoRec f ss -> CoRec f ss -> CoRec f ss) -> CoRec f ss -> Rec f ts -> CoRec f ss
+class FoldRec (ss :: [k]) (ts :: [k])
+foldRec :: forall (f :: k -> Type). FoldRec ss ts => (CoRec f ss -> CoRec f ss -> CoRec f ss) -> CoRec f ss -> Rec f ts -> CoRec f ss
 
 -- | Apply a natural transformation to a variant.
-coRecMap :: (forall x. f x -> g x) -> CoRec f ts -> CoRec g ts
+coRecMap :: forall {k} f g (ts :: [k]). (forall (x :: k). () => f x -> g x) -> CoRec f ts -> CoRec g ts
 
 -- | Get a <a>DictOnly</a> from an <a>RPureConstrained</a> instance.
-getDict :: forall c ts a proxy. (a ∈ ts, RPureConstrained c ts) => proxy a -> DictOnly c a
+getDict :: forall {k} (c :: k -> Constraint) (ts :: [k]) (a :: k) proxy. (a ∈ ts, RPureConstrained c ts) => proxy a -> DictOnly c a
 
 -- | Like <a>coRecMap</a>, but the function mapped over the <a>CoRec</a>
 --   can have a constraint.
-coRecMapC :: forall c ts f g. RPureConstrained c ts => (forall x. (x ∈ ts, c x) => f x -> g x) -> CoRec f ts -> CoRec g ts
+coRecMapC :: forall {k} c (ts :: [k]) f g. RPureConstrained c ts => (forall (x :: k). (x ∈ ts, c x) => f x -> g x) -> CoRec f ts -> CoRec g ts
 
 -- | This can be used to pull effects out of a <a>CoRec</a>.
-coRecTraverse :: Functor h => (forall x. f x -> h (g x)) -> CoRec f ts -> h (CoRec g ts)
+coRecTraverse :: forall {k} h f g (ts :: [k]). Functor h => (forall (x :: k). () => f x -> h (g x)) -> CoRec f ts -> h (CoRec g ts)
 
 -- | Fold a field selection function over a non-empty <a>Rec</a>.
-foldRec1 :: FoldRec (t : ts) ts => (CoRec f (t : ts) -> CoRec f (t : ts) -> CoRec f (t : ts)) -> Rec f (t : ts) -> CoRec f (t : ts)
+foldRec1 :: forall {a} (t :: a) (ts :: [a]) (f :: a -> Type). FoldRec (t ': ts) ts => (CoRec f (t ': ts) -> CoRec f (t ': ts) -> CoRec f (t ': ts)) -> Rec f (t ': ts) -> CoRec f (t ': ts)
 
 -- | Similar to <a>First</a>: find the first field that is not
 --   <a>Nothing</a>.
-firstField :: FoldRec ts ts => Rec (Maybe :. f) ts -> Maybe (CoRec f ts)
+firstField :: forall {k} (ts :: [k]) (f :: k -> Type). FoldRec ts ts => Rec (Maybe :. f) ts -> Maybe (CoRec f ts)
 
 -- | Similar to <a>Last</a>: find the last field that is not
 --   <a>Nothing</a>.
-lastField :: FoldRec ts ts => Rec (Maybe :. f) ts -> Maybe (CoRec f ts)
+lastField :: forall {k} (ts :: [k]) (f :: k -> Type). FoldRec ts ts => Rec (Maybe :. f) ts -> Maybe (CoRec f ts)
 
 -- | Apply methods from a type class to a <a>CoRec</a>. Intended for use
 --   with <tt>TypeApplications</tt>, e.g. <tt>onCoRec @Show show r</tt>
-onCoRec :: forall c f ts b g. RPureConstrained c ts => (forall a. (a ∈ ts, c a) => f a -> g b) -> CoRec f ts -> g b
+onCoRec :: forall {k1} {k2} c f (ts :: [k1]) (b :: k2) g. RPureConstrained c ts => (forall (a :: k1). (a ∈ ts, c a) => f a -> g b) -> CoRec f ts -> g b
 
 -- | Apply a type class method to a <a>Field</a>. Intended for use with
 --   <tt>TypeApplications</tt>, e.g. <tt>onField @Show show r</tt>.
-onField :: forall c ts b. RPureConstrained c ts => (forall a. (a ∈ ts, c a) => a -> b) -> Field ts -> b
+onField :: forall c (ts :: [Type]) b. RPureConstrained c ts => (forall a. (a ∈ ts, c a) => a -> b) -> Field ts -> b
 
 -- | Compute a runtime <a>Int</a> index identifying the position of the
 --   variant held by a <tt>CoRec f ts</tt> in the type-level list
 --   <tt>ts</tt>.
-variantIndexOf :: forall f ts. CoRec f ts -> Int
+variantIndexOf :: forall {k} (f :: k -> Type) (ts :: [k]). CoRec f ts -> Int
 
 -- | If a <a>CoRec</a> is a variant of the requested type, return
 --   <a>Just</a> that value; otherwise return <a>Nothing</a>.
-asA :: NatToInt (RIndex t ts) => CoRec Identity ts -> Maybe t
+asA :: forall t (ts :: [Type]). NatToInt (RIndex t ts) => CoRec Identity ts -> Maybe t
 
 -- | Like <a>asA</a>, but for any interpretation functor.
-asA' :: forall t ts f. NatToInt (RIndex t ts) => CoRec f ts -> Maybe (f t)
+asA' :: forall {k} (t :: k) (ts :: [k]) f. NatToInt (RIndex t ts) => CoRec f ts -> Maybe (f t)
 
 -- | Pattern match on a CoRec by specifying handlers for each case. Note
 --   that the order of the Handlers has to match the type level list
@@ -1521,21 +1521,21 @@ asA' :: forall t ts f. NatToInt (RIndex t ts) => CoRec f ts -> Maybe (f t)
 --   :}
 --   "my Bool is not: True thus it is False"
 --   </pre>
-match :: forall ts b. CoRec Identity ts -> Handlers ts b -> b
+match :: forall (ts :: [Type]) b. CoRec Identity ts -> Handlers ts b -> b
 
 -- | Helper for handling a variant of a <a>CoRec</a>: either the function
 --   is applied to the variant or the type of the <a>CoRec</a> is refined
 --   to reflect the fact that the variant is <i>not</i> compatible with the
 --   type of the would-be handler.
-class RIndex t ts ~ i => Match1 t ts i
+class RIndex t ts ~ i => Match1 t (ts :: [Type]) (i :: Nat)
 match1' :: Match1 t ts i => Handler r t -> Rec Maybe ts -> Either r (Rec Maybe (RDelete t ts))
 
 -- | Handle a single variant of a <a>CoRec</a>: either the function is
 --   applied to the variant or the type of the <a>CoRec</a> is refined to
 --   reflect the fact that the variant is <i>not</i> compatible with the
 --   type of the would-be handler
-match1 :: (Match1 t ts (RIndex t ts), RecApplicative ts, RMap ts, RMap (RDelete t ts), FoldRec (RDelete t ts) (RDelete t ts)) => Handler r t -> CoRec Identity ts -> Either r (CoRec Identity (RDelete t ts))
-matchNil :: CoRec f '[] -> r
+match1 :: forall t (ts :: [Type]) r. (Match1 t ts (RIndex t ts), RecApplicative ts, RMap ts, RMap (RDelete t ts), FoldRec (RDelete t ts) (RDelete t ts)) => Handler r t -> CoRec Identity ts -> Either r (CoRec Identity (RDelete t ts))
+matchNil :: forall {k} (f :: k -> Type) r. CoRec f ('[] :: [k]) -> r
 
 -- | Newtype around functions for a to b
 newtype Handler b a
@@ -1545,33 +1545,33 @@ H :: (a -> b) -> Handler b a
 --   in ts. All functions produce a value of type <tt>b</tt>. Hence,
 --   'Handlers ts b' would represent something like the type-level list: [t
 --   -&gt; b | t in ts ]
-type Handlers ts b = Rec (Handler b) ts
+type Handlers (ts :: [Type]) b = Rec Handler b ts
 
 -- | A <a>CoRec</a> is either the first possible variant indicated by its
 --   type, or a <a>CoRec</a> that must be one of the remaining types.
-restrictCoRec :: forall t ts f. (RecApplicative ts, FoldRec ts ts) => CoRec f (t : ts) -> Either (f t) (CoRec f ts)
+restrictCoRec :: forall {k} (t :: k) (ts :: [k]) f. (RecApplicative ts, FoldRec ts ts) => CoRec f (t ': ts) -> Either (f t) (CoRec f ts)
 
 -- | A <a>CoRec</a> whose possible types are <tt>ts</tt> may be used at a
 --   type of <a>CoRec</a> whose possible types are <tt>t:ts</tt>.
-weakenCoRec :: (RecApplicative ts, FoldRec (t : ts) (t : ts)) => CoRec f ts -> CoRec f (t : ts)
+weakenCoRec :: forall {a} (ts :: [a]) (t :: a) (f :: a -> Type). (RecApplicative ts, FoldRec (t ': ts) (t ': ts)) => CoRec f ts -> CoRec f (t ': ts)
 
 -- | A <a>CoRec</a> is either the first possible variant indicated by its
 --   type, or a <a>CoRec</a> that must be one of the remaining types. The
 --   safety is related to that of <a>asASafe</a>.
-restrictCoRecSafe :: forall t ts f. (RecApplicative ts, FoldRec ts ts) => CoRec f (t : ts) -> Either (f t) (CoRec f ts)
+restrictCoRecSafe :: forall {k} (t :: k) (ts :: [k]) f. (RecApplicative ts, FoldRec ts ts) => CoRec f (t ': ts) -> Either (f t) (CoRec f ts)
 
 -- | Like <a>asA</a>, but implemented more safely and typically slower.
-asASafe :: (t ∈ ts, RecApplicative ts, RMap ts) => CoRec Identity ts -> Maybe t
+asASafe :: forall t (ts :: [Type]). (t ∈ ts, RecApplicative ts, RMap ts) => CoRec Identity ts -> Maybe t
 
 -- | Like <a>asASafe</a>, but for any interpretation functor.
-asA'Safe :: (t ∈ ts, RecApplicative ts, RMap ts) => CoRec f ts -> (Maybe :. f) t
-instance Data.Vinyl.CoRec.Match1 t (t : ts) 'Data.Vinyl.TypeLevel.Z
-instance (Data.Vinyl.CoRec.Match1 t ts i, Data.Vinyl.TypeLevel.RIndex t (s : ts) GHC.Types.~ 'Data.Vinyl.TypeLevel.S i, Data.Vinyl.TypeLevel.RDelete t (s : ts) GHC.Types.~ (s : Data.Vinyl.TypeLevel.RDelete t ts)) => Data.Vinyl.CoRec.Match1 t (s : ts) ('Data.Vinyl.TypeLevel.S i)
-instance forall k (ss :: [k]). Data.Vinyl.CoRec.FoldRec ss '[]
+asA'Safe :: forall {k} (t :: k) (ts :: [k]) (f :: k -> Type). (t ∈ ts, RecApplicative ts, RMap ts) => CoRec f ts -> (Maybe :. f) t
+instance (Data.Vinyl.Core.RecApplicative ts, Data.Vinyl.Core.RecordToList ts, Data.Vinyl.Core.RApply ts, Data.Vinyl.Core.ReifyConstraint GHC.Classes.Eq GHC.Internal.Maybe.Maybe ts, Data.Vinyl.Core.RMap ts) => GHC.Classes.Eq (Data.Vinyl.CoRec.CoRec Data.Vinyl.Functor.Identity ts)
 instance forall a (t :: a) (ss :: [a]) (ts :: [a]). (t Data.Vinyl.Lens.∈ ss, Data.Vinyl.CoRec.FoldRec ss ts) => Data.Vinyl.CoRec.FoldRec ss (t : ts)
-instance forall k (f :: k -> *) (a :: k). GHC.Show.Show (f a) => Data.Vinyl.CoRec.ShowF f a
-instance forall k (f :: k -> *) (ts :: [k]). Data.Vinyl.Core.RPureConstrained (Data.Vinyl.CoRec.ShowF f) ts => GHC.Show.Show (Data.Vinyl.CoRec.CoRec f ts)
-instance (Data.Vinyl.Core.RecApplicative ts, Data.Vinyl.Core.RecordToList ts, Data.Vinyl.Core.RApply ts, Data.Vinyl.Core.ReifyConstraint GHC.Classes.Eq GHC.Maybe.Maybe ts, Data.Vinyl.Core.RMap ts) => GHC.Classes.Eq (Data.Vinyl.CoRec.CoRec Data.Vinyl.Functor.Identity ts)
+instance forall k (ss :: [k]). Data.Vinyl.CoRec.FoldRec ss '[]
+instance (Data.Vinyl.CoRec.Match1 t ts i, Data.Vinyl.TypeLevel.RIndex t (s : ts) GHC.Types.~ 'Data.Vinyl.TypeLevel.S i, Data.Vinyl.TypeLevel.RDelete t (s : ts) GHC.Types.~ (s : Data.Vinyl.TypeLevel.RDelete t ts)) => Data.Vinyl.CoRec.Match1 t (s : ts) ('Data.Vinyl.TypeLevel.S i)
+instance Data.Vinyl.CoRec.Match1 t (t : ts) 'Data.Vinyl.TypeLevel.Z
+instance forall k (f :: k -> *) (ts :: [k]). Data.Vinyl.Core.RPureConstrained (Data.Vinyl.CoRec.ShowF f) ts => GHC.Internal.Show.Show (Data.Vinyl.CoRec.CoRec f ts)
+instance forall k (f :: k -> *) (a :: k). GHC.Internal.Show.Show (f a) => Data.Vinyl.CoRec.ShowF f a
 
 
 -- | This module uses <a>RecAll</a> to extend common typeclass methods to
@@ -1585,35 +1585,35 @@ module Data.Vinyl.Class.Method
 
 -- | Apply a typeclass method to each field of a <a>Rec</a> where the class
 --   constrains the index of the field, but not its interpretation functor.
-class RecMapMethod c f ts
-rmapMethod :: RecMapMethod c f ts => (forall a. c (PayloadType f a) => f a -> g a) -> Rec f ts -> Rec g ts
+class RecMapMethod (c :: Type -> Constraint) (f :: u -> Type) (ts :: [u])
+rmapMethod :: RecMapMethod c f ts => (forall (a :: u). c (PayloadType f a) => f a -> g a) -> Rec f ts -> Rec g ts
 
 -- | Apply a typeclass method to each field of a <tt>Rec f ts</tt> using
 --   the <a>Functor</a> instance for <tt>f</tt> to lift the function into
 --   the functor. This is a commonly-used specialization of
 --   <a>rmapMethod</a> composed with <a>fmap</a>.
-rmapMethodF :: forall c f ts. (Functor f, FieldPayload f ~ 'FieldId, RecMapMethod c f ts) => (forall a. c a => a -> a) -> Rec f ts -> Rec f ts
+rmapMethodF :: forall c (f :: Type -> Type) (ts :: [Type]). (Functor f, FieldPayload f ~ 'FieldId, RecMapMethod c f ts) => (forall a. c a => a -> a) -> Rec f ts -> Rec f ts
 
 -- | Apply a typeclass method to each field of a <a>FieldRec</a>. This is a
 --   specialization of <a>rmapMethod</a>.
-mapFields :: forall c ts. RecMapMethod c ElField ts => (forall a. c a => a -> a) -> FieldRec ts -> FieldRec ts
+mapFields :: forall c (ts :: [(Symbol, Type)]). RecMapMethod c ElField ts => (forall a. c a => a -> a) -> FieldRec ts -> FieldRec ts
 
 -- | Apply a typeclass method to each field of a <a>Rec</a> where the class
 --   constrains the field when considered as a value interpreted by the
 --   record's interpretation functor.
-class RecMapMethod1 c f ts
-rmapMethod1 :: RecMapMethod1 c f ts => (forall a. c (f a) => f a -> g a) -> Rec f ts -> Rec g ts
+class RecMapMethod1 (c :: Type -> Constraint) (f :: u -> Type) (ts :: [u])
+rmapMethod1 :: RecMapMethod1 c f ts => (forall (a :: u). c (f a) => f a -> g a) -> Rec f ts -> Rec g ts
 
 -- | Generate a record from fields derived from type class instances.
-class RecPointed c f ts
-rpointMethod :: RecPointed c f ts => (forall a. c (f a) => f a) -> Rec f ts
+class RecPointed (c :: Type -> Constraint) (f :: u -> Type) (ts :: [u])
+rpointMethod :: RecPointed c f ts => (forall (a :: u). c (f a) => f a) -> Rec f ts
 
 -- | Like <a>rtraverseIn</a>, but the function between functors may be
 --   constrained.
-rtraverseInMethod :: forall c h f g rs. (RMap rs, RPureConstrained c rs, RApply rs) => (forall a. c a => f a -> g (ApplyToField h a)) -> Rec f rs -> Rec g (MapTyCon h rs)
+rtraverseInMethod :: forall {u} c (h :: Type -> Type) f g (rs :: [u]). (RMap rs, RPureConstrained c rs, RApply rs) => (forall (a :: u). c a => f a -> g (ApplyToField h a)) -> Rec f rs -> Rec g (MapTyCon h rs)
 
 -- | Push an outer layer of interpretation functor into each named field.
-rsequenceInFields :: forall f rs. (Functor f, AllFields rs, RMap rs) => Rec (f :. ElField) rs -> Rec ElField (MapTyCon f rs)
+rsequenceInFields :: forall (f :: Type -> Type) (rs :: [(Symbol, Type)]). (Functor f, AllFields rs, RMap rs) => Rec (f :. ElField) rs -> Rec ElField (MapTyCon f rs)
 
 -- | When we wish to apply a typeclass method to each field of a
 --   <a>Rec</a>, we typically care about typeclass instances of the record
@@ -1624,13 +1624,13 @@ rsequenceInFields :: forall f rs. (Functor f, AllFields rs, RMap rs) => Rec (f :
 data FieldTyper
 
 -- | The interpretation function of the <a>FieldTyper</a> symbols.
-type family ApplyFieldTyper (f :: FieldTyper) (a :: k) :: *
+type family ApplyFieldTyper (f :: FieldTyper) (a :: k)
 
 -- | Shorthand for combining <a>ApplyFieldTyper</a> and
 --   <a>FieldPayload</a>.
-type family PayloadType f (a :: u) :: *
-recEq :: RecAll f rs Eq => Rec f rs -> Rec f rs -> Bool
-recCompare :: RecAll f rs Ord => Rec f rs -> Rec f rs -> Ordering
+type family PayloadType (f :: u -> Type) (a :: u1)
+recEq :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Eq => Rec f rs -> Rec f rs -> Bool
+recCompare :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Ord => Rec f rs -> Rec f rs -> Ordering
 
 -- | This function differs from the original <a>mempty</a> in that it takes
 --   an argument. In some cases, you will already have a record of the type
@@ -1639,32 +1639,32 @@ recCompare :: RecAll f rs Ord => Rec f rs -> Rec f rs -> Ordering
 --   interpretation function of the argument record to be <tt>Const ()</tt>
 --   or <tt>Proxy</tt> so the you can generate the argument with
 --   <a>rpure</a>.
-recMempty :: RecAll f rs Monoid => Rec proxy rs -> Rec f rs
-recMappend :: RecAll f rs Monoid => Rec f rs -> Rec f rs -> Rec f rs
+recMempty :: forall {u} (f :: u -> Type) (rs :: [u]) (proxy :: u -> Type). RecAll f rs Monoid => Rec proxy rs -> Rec f rs
+recMappend :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Monoid => Rec f rs -> Rec f rs -> Rec f rs
 
 -- | This function differs from the original <a>mconcat</a>. See
 --   <a>recMempty</a>.
-recMconcat :: RecAll f rs Monoid => Rec proxy rs -> [Rec f rs] -> Rec f rs
-recAdd :: RecAll f rs Num => Rec f rs -> Rec f rs -> Rec f rs
-recSubtract :: RecAll f rs Num => Rec f rs -> Rec f rs -> Rec f rs
-recMultiply :: RecAll f rs Num => Rec f rs -> Rec f rs -> Rec f rs
-recAbs :: RecAll f rs Num => Rec f rs -> Rec f rs
-recSignum :: RecAll f rs Num => Rec f rs -> Rec f rs
-recNegate :: RecAll f rs Num => Rec f rs -> Rec f rs
+recMconcat :: forall {u} (f :: u -> Type) (rs :: [u]) (proxy :: u -> Type). RecAll f rs Monoid => Rec proxy rs -> [Rec f rs] -> Rec f rs
+recAdd :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Num => Rec f rs -> Rec f rs -> Rec f rs
+recSubtract :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Num => Rec f rs -> Rec f rs -> Rec f rs
+recMultiply :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Num => Rec f rs -> Rec f rs -> Rec f rs
+recAbs :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Num => Rec f rs -> Rec f rs
+recSignum :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Num => Rec f rs -> Rec f rs
+recNegate :: forall {u} (f :: u -> Type) (rs :: [u]). RecAll f rs Num => Rec f rs -> Rec f rs
 
 -- | This function differs from the original <a>minBound</a>. See
 --   <a>recMempty</a>.
-recMinBound :: RecAll f rs Bounded => Rec proxy rs -> Rec f rs
+recMinBound :: forall {u} (f :: u -> Type) (rs :: [u]) (proxy :: u -> Type). RecAll f rs Bounded => Rec proxy rs -> Rec f rs
 
 -- | This function differs from the original <a>maxBound</a>. See
 --   <a>recMempty</a>.
-recMaxBound :: RecAll f rs Bounded => Rec proxy rs -> Rec f rs
-instance forall u (c :: * -> GHC.Types.Constraint) (f :: u -> *). Data.Vinyl.Class.Method.RecMapMethod1 c f '[]
+recMaxBound :: forall {u} (f :: u -> Type) (rs :: [u]) (proxy :: u -> Type). RecAll f rs Bounded => Rec proxy rs -> Rec f rs
 instance forall a (c :: * -> GHC.Types.Constraint) (f :: a -> *) (t :: a) (ts :: [a]). (c (f t), Data.Vinyl.Class.Method.RecMapMethod1 c f ts) => Data.Vinyl.Class.Method.RecMapMethod1 c f (t : ts)
-instance forall u (c :: * -> GHC.Types.Constraint) (f :: u -> *). Data.Vinyl.Class.Method.RecMapMethod c f '[]
+instance forall u (c :: * -> GHC.Types.Constraint) (f :: u -> *). Data.Vinyl.Class.Method.RecMapMethod1 c f '[]
 instance forall a (c :: * -> GHC.Types.Constraint) (f :: a -> *) (t :: a) (ts :: [a]). (c (Data.Vinyl.Class.Method.PayloadType f t), Data.Vinyl.Class.Method.RecMapMethod c f ts) => Data.Vinyl.Class.Method.RecMapMethod c f (t : ts)
-instance forall u (c :: * -> GHC.Types.Constraint) (f :: u -> *). Data.Vinyl.Class.Method.RecPointed c f '[]
+instance forall u (c :: * -> GHC.Types.Constraint) (f :: u -> *). Data.Vinyl.Class.Method.RecMapMethod c f '[]
 instance forall a (c :: * -> GHC.Types.Constraint) (f :: a -> *) (t :: a) (ts :: [a]). (c (f t), Data.Vinyl.Class.Method.RecPointed c f ts) => Data.Vinyl.Class.Method.RecPointed c f (t : ts)
+instance forall u (c :: * -> GHC.Types.Constraint) (f :: u -> *). Data.Vinyl.Class.Method.RecPointed c f '[]
 
 
 -- | A variant of <a>Rec</a> whose values have eliminated common syntactic
@@ -1681,50 +1681,50 @@ instance forall a (c :: * -> GHC.Types.Constraint) (f :: a -> *) (t :: a) (ts ::
 --   API is available even if you choose to use <a>XRec</a> for
 --   construction or pattern matching.
 module Data.Vinyl.XRec
-type XRec f = Rec (XData f)
-pattern (::&) :: HKD f r -> XRec f rs -> XRec f (r : rs)
+type XRec (f :: u -> Type) = Rec XData f
+pattern (::&) :: forall {a} (f :: a -> Type) (r :: a) rs. HKD f r -> XRec f rs -> XRec f (r ': rs)
 infixr 7 ::&
-pattern XRNil :: XRec f '[]
+pattern XRNil :: forall {u} (f :: u -> Type). XRec f ('[] :: [u])
 
 -- | Like <tt>rmap</tt>, but the supplied function is written against the
 --   <a>HKD</a>-simplified types. This is <a>xrmap</a> sandwiched in
 --   between <a>fromXRec</a> and <a>toXRec</a>.
-rmapX :: forall f g rs. (XRMap f g rs, IsoXRec f rs, IsoXRec g rs) => (forall a. HKD f a -> HKD g a) -> Rec f rs -> Rec g rs
+rmapX :: forall {u} (f :: u -> Type) (g :: u -> Type) (rs :: [u]). (XRMap f g rs, IsoXRec f rs, IsoXRec g rs) => (forall (a :: u). () => HKD f a -> HKD g a) -> Rec f rs -> Rec g rs
 
 -- | This is <a>rmapX</a> specialized to a type at which it does not change
 --   interpretation functor. This can help with type inference.
-rmapXEndo :: forall f rs. (XRMap f f rs, IsoXRec f rs) => (forall a. HKD f a -> HKD f a) -> Rec f rs -> Rec f rs
+rmapXEndo :: forall {u} (f :: u -> Type) (rs :: [u]). (XRMap f f rs, IsoXRec f rs) => (forall (a :: u). () => HKD f a -> HKD f a) -> Rec f rs -> Rec f rs
 
 -- | This is <tt>rmap</tt> for <a>XRec</a>. We apply a natural
 --   transformation between interpretation functors to transport a record
 --   value between interpretations.
-xrmap :: forall f g rs. XRMap f g rs => (forall a. HKD f a -> HKD g a) -> XRec f rs -> XRec g rs
+xrmap :: forall {u} (f :: u -> Type) (g :: u -> Type) (rs :: [u]). XRMap f g rs => (forall (a :: u). () => HKD f a -> HKD g a) -> XRec f rs -> XRec g rs
 
 -- | A wrapper for an <a>HKD</a>-simplified value. That is, noisy value
 --   constructors like <a>Identity</a> and <a>Compose</a> are ellided. This
 --   is used in the <a>xrmapAux</a> type class method, but may be ignored
 --   by users whose needs are met by <a>xrmap</a> and <a>rmapX</a>.
-newtype XData t a
-XData :: HKD t a -> XData t a
-[unX] :: XData t a -> HKD t a
+newtype XData (t :: k -> Type) (a :: k)
+XData :: HKD t a -> XData (t :: k -> Type) (a :: k)
+[unX] :: XData (t :: k -> Type) (a :: k) -> HKD t a
 
 -- | The implementation of <a>xrmap</a> is broken into a type class to
 --   permit unrolling of the recursion across a record. The function mapped
 --   across the vector hides the <a>HKD</a> type family under a newtype
 --   constructor to help the type checker.
-class XRMap f g rs
-xrmapAux :: XRMap f g rs => (forall a. XData f a -> XData g a) -> XRec f rs -> XRec g rs
+class XRMap (f :: u -> Type) (g :: u -> Type) (rs :: [u])
+xrmapAux :: XRMap f g rs => (forall (a :: u). () => XData f a -> XData g a) -> XRec f rs -> XRec g rs
 
 -- | Like <tt>rapply</tt>: record of components <tt>f r -&gt; g r</tt> may
 --   be applied to a record of <tt>f</tt> to get a record of <tt>g</tt>.
-class XRApply f g rs
+class XRApply (f :: u -> Type) (g :: u -> Type) (rs :: [u])
 xrapply :: XRApply f g rs => XRec (Lift (->) f g) rs -> XRec f rs -> XRec g rs
 
 -- | Conversion between <a>XRec</a> and <a>Rec</a>. It is convenient to
 --   build and consume <a>XRec</a> values to reduce syntactic noise, but
 --   <a>Rec</a> has a richer API that is difficult to build around the
 --   <a>HKD</a> type family.
-class IsoXRec f ts
+class IsoXRec (f :: u -> Type) (ts :: [u])
 fromXRec :: IsoXRec f ts => XRec f ts -> Rec f ts
 toXRec :: IsoXRec f ts => Rec f ts -> XRec f ts
 
@@ -1737,38 +1737,38 @@ toXRec :: IsoXRec f ts => Rec f ts -> XRec f ts
 --   This involves the so-called <i>higher-kinded data</i> type family. See
 --   <a>http://reasonablypolymorphic.com/blog/higher-kinded-data</a> for
 --   more discussion.
-class IsoHKD f a where {
-    type HKD f a;
-    type HKD f a = f a;
+class IsoHKD (f :: k -> Type) (a :: k) where {
+    type HKD (f :: k -> Type) (a :: k);
+    type HKD f :: k -> Type a :: k = f a;
 }
 unHKD :: IsoHKD f a => HKD f a -> f a
-unHKD :: (IsoHKD f a, HKD f a ~ f a) => HKD f a -> f a
+($dmunHKD) :: (IsoHKD f a, HKD f a ~ f a) => HKD f a -> f a
 toHKD :: IsoHKD f a => f a -> HKD f a
-toHKD :: (IsoHKD f a, HKD f a ~ f a) => f a -> HKD f a
+($dmtoHKD) :: (IsoHKD f a, HKD f a ~ f a) => f a -> HKD f a
 
 -- | Record field getter that pipes the field value through <a>HKD</a> to
 --   eliminate redundant newtype wrappings. Usage will typically involve a
 --   visible type application to the field type. The definition is similar
 --   to, <tt>getHKD = toHKD . rget</tt>.
-rgetX :: forall a record f rs. (RecElem record a a rs rs (RIndex a rs), RecElemFCtx record f, IsoHKD f a) => record f rs -> HKD f a
-instance forall u (f :: u -> *) (g :: u -> *). Data.Vinyl.XRec.XRMap f g '[]
-instance forall a (f :: a -> *) (g :: a -> *) (r :: a) (rs :: [a]). (Data.Vinyl.XRec.XRMap f g rs, Data.Vinyl.XRec.IsoHKD f r, Data.Vinyl.XRec.IsoHKD g r) => Data.Vinyl.XRec.XRMap f g (r : rs)
-instance forall u (f :: u -> *) (g :: u -> *). Data.Vinyl.XRec.XRApply f g '[]
-instance forall a (f :: a -> *) (g :: a -> *) (rs :: [a]) (r :: a). Data.Vinyl.XRec.XRApply f g rs => Data.Vinyl.XRec.XRApply f g (r : rs)
-instance forall u (f :: u -> *). Data.Vinyl.XRec.IsoXRec f '[]
-instance forall a (f :: a -> *) (ts :: [a]) (t :: a). (Data.Vinyl.XRec.IsoXRec f ts, Data.Vinyl.XRec.IsoHKD f t) => Data.Vinyl.XRec.IsoXRec f (t : ts)
-instance Data.Vinyl.XRec.IsoHKD Data.Vinyl.Functor.Identity a
-instance GHC.TypeLits.KnownSymbol s => Data.Vinyl.XRec.IsoHKD Data.Vinyl.Functor.ElField '(s, a)
-instance forall k (f :: * -> *) (g :: k -> *) (a :: k). (Data.Vinyl.XRec.IsoHKD f (Data.Vinyl.XRec.HKD g a), Data.Vinyl.XRec.IsoHKD g a, GHC.Base.Functor f) => Data.Vinyl.XRec.IsoHKD (Data.Vinyl.Functor.Compose f g) a
-instance forall k (f :: k -> *) (a :: k) (g :: k -> *). (Data.Vinyl.XRec.IsoHKD f a, Data.Vinyl.XRec.IsoHKD g a) => Data.Vinyl.XRec.IsoHKD (Data.Vinyl.Functor.Lift (->) f g) a
+rgetX :: forall {k} (a :: k) record (f :: k -> Type) (rs :: [k]). (RecElem record a a rs rs (RIndex a rs), RecElemFCtx record f, IsoHKD f a) => record f rs -> HKD f a
+instance Data.Vinyl.XRec.IsoHKD (GHC.Internal.Data.Either.Either a) b
+instance Data.Vinyl.XRec.IsoHKD GHC.Internal.Data.Monoid.First a
 instance Data.Vinyl.XRec.IsoHKD GHC.Types.IO a
-instance Data.Vinyl.XRec.IsoHKD (Data.Either.Either a) b
-instance Data.Vinyl.XRec.IsoHKD GHC.Maybe.Maybe a
-instance Data.Vinyl.XRec.IsoHKD Data.Monoid.First a
-instance Data.Vinyl.XRec.IsoHKD Data.Monoid.Last a
+instance Data.Vinyl.XRec.IsoHKD Data.Vinyl.Functor.Identity a
+instance Data.Vinyl.XRec.IsoHKD GHC.Internal.Data.Monoid.Last a
+instance Data.Vinyl.XRec.IsoHKD GHC.Internal.Maybe.Maybe a
+instance Data.Vinyl.XRec.IsoHKD GHC.Internal.Data.Semigroup.Internal.Product a
+instance Data.Vinyl.XRec.IsoHKD GHC.Internal.Data.Semigroup.Internal.Sum a
 instance Data.Vinyl.XRec.IsoHKD ((,) a) b
-instance Data.Vinyl.XRec.IsoHKD Data.Semigroup.Internal.Sum a
-instance Data.Vinyl.XRec.IsoHKD Data.Semigroup.Internal.Product a
+instance GHC.Internal.TypeLits.KnownSymbol s => Data.Vinyl.XRec.IsoHKD Data.Vinyl.Functor.ElField '(s, a)
+instance forall k (f :: * -> *) (g :: k -> *) (a :: k). (Data.Vinyl.XRec.IsoHKD f (Data.Vinyl.XRec.HKD g a), Data.Vinyl.XRec.IsoHKD g a, GHC.Internal.Base.Functor f) => Data.Vinyl.XRec.IsoHKD (Data.Vinyl.Functor.Compose f g) a
+instance forall k (f :: k -> *) (a :: k) (g :: k -> *). (Data.Vinyl.XRec.IsoHKD f a, Data.Vinyl.XRec.IsoHKD g a) => Data.Vinyl.XRec.IsoHKD (Data.Vinyl.Functor.Lift (->) f g) a
+instance forall a (f :: a -> *) (ts :: [a]) (t :: a). (Data.Vinyl.XRec.IsoXRec f ts, Data.Vinyl.XRec.IsoHKD f t) => Data.Vinyl.XRec.IsoXRec f (t : ts)
+instance forall u (f :: u -> *). Data.Vinyl.XRec.IsoXRec f '[]
+instance forall a (f :: a -> *) (g :: a -> *) (rs :: [a]) (r :: a). Data.Vinyl.XRec.XRApply f g rs => Data.Vinyl.XRec.XRApply f g (r : rs)
+instance forall u (f :: u -> *) (g :: u -> *). Data.Vinyl.XRec.XRApply f g '[]
+instance forall a (f :: a -> *) (g :: a -> *) (r :: a) (rs :: [a]). (Data.Vinyl.XRec.XRMap f g rs, Data.Vinyl.XRec.IsoHKD f r, Data.Vinyl.XRec.IsoHKD g r) => Data.Vinyl.XRec.XRMap f g (r : rs)
+instance forall u (f :: u -> *) (g :: u -> *). Data.Vinyl.XRec.XRMap f g '[]
 
 
 -- | Concise vinyl record construction from tuples up to size 8. An example
@@ -1781,18 +1781,18 @@ module Data.Vinyl.FromTuple
 --   constructor to a tuple of the common type constructor and a list of
 --   the types to which it is applied in the original tuple. E.g.
 --   <tt>TupleToRecArgs f (f a, f b) ~ (f, [a,b])</tt>.
-type family TupleToRecArgs f t = (r :: (u -> Type, [u])) | r -> t
+type family TupleToRecArgs (f :: u -> Type) t = (r :: (u -> Type, [u])) | r -> t
 
 -- | Apply the <a>Rec</a> type constructor to a type-level tuple of its
 --   arguments.
-type family UncurriedRec (t :: (u -> Type, [u])) = r | r -> t
+type family UncurriedRec (t :: (u -> Type, [u])) = (r :: Type) | r -> u t
 
 -- | Apply the <a>XRec</a> type constructor to a type-level tuple of its
 --   arguments.
-type family UncurriedXRec (t :: (u -> Type, [u])) = r | r -> t
+type family UncurriedXRec (t :: (u -> Type, [u])) = (r :: Type) | r -> u t
 
 -- | Convert between an <a>XRec</a> and an isomorphic tuple.
-class TupleXRec f t
+class TupleXRec (f :: u -> Type) (t :: [u])
 
 -- | Convert an <a>XRec</a> to a tuple. Useful for pattern matching on an
 --   entire record.
@@ -1800,21 +1800,21 @@ xrecTuple :: TupleXRec f t => XRec f t -> ListToHKDTuple f t
 
 -- | Build an <a>XRec</a> from a tuple.
 xrecX :: TupleXRec f t => ListToHKDTuple f t -> XRec f t
-type family ListToHKDTuple (f :: u -> Type) (ts :: [u]) :: Type
+type family ListToHKDTuple (f :: u -> Type) (ts :: [u])
 
 -- | Convert a <a>Rec</a> to a tuple going through <a>HKD</a> to reduce
 --   syntactic noise. Useful for pattern matching on an entire <a>Rec</a>.
-ruple :: (IsoXRec f ts, TupleXRec f ts) => Rec f ts -> ListToHKDTuple f ts
+ruple :: forall {u} (f :: u -> Type) (ts :: [u]). (IsoXRec f ts, TupleXRec f ts) => Rec f ts -> ListToHKDTuple f ts
 
 -- | Build a <a>Rec</a> from a tuple passing through <a>XRec</a>. This
 --   admits the most concise syntax for building a <a>Rec</a>. For example,
 --   <tt>xrec ("joe", 23) :: Rec Identity '[String, Int]</tt>.
-xrec :: (IsoXRec f t, TupleXRec f t) => ListToHKDTuple f t -> Rec f t
+xrec :: forall {u} (f :: u -> Type) (t :: [u]). (IsoXRec f t, TupleXRec f t) => ListToHKDTuple f t -> Rec f t
 
 -- | Build a <a>Rec</a> from a tuple. An example would be building a value
 --   of type <tt>Rec f '[a,b]</tt> from a tuple of values with type <tt>'(f
 --   a, f b)</tt>.
-class TupleRec f t
+class TupleRec (f :: u -> Type) t
 record :: TupleRec f t => t -> UncurriedRec (TupleToRecArgs f t)
 
 -- | Build a <tt>FieldRec</tt> from a tuple of <a>ElField</a> values.
@@ -1825,13 +1825,12 @@ fieldRec :: TupleRec ElField t => t -> UncurriedRec (TupleToRecArgs ElField t)
 --   for re-ordering fields. For example, <tt>namedArgs (#name =: "joe",
 --   #age =: 23)</tt> can supply arguments for a function expecting a
 --   record of arguments with its fields in the opposite order.
-namedArgs :: (TupleRec ElField t, ss ~ Snd (TupleToRecArgs ElField t), RecSubset Rec rs (Snd (TupleToRecArgs ElField t)) (RImage rs ss), UncurriedRec (TupleToRecArgs ElField t) ~ Rec ElField ss, RecSubsetFCtx Rec ElField) => t -> Rec ElField rs
+namedArgs :: forall t (ss :: [(Symbol, Type)]) (rs :: [(Symbol, Type)]). (TupleRec ElField t, ss ~ Snd (TupleToRecArgs ElField t), RecSubset (Rec :: ((Symbol, Type) -> Type) -> [(Symbol, Type)] -> Type) rs (Snd (TupleToRecArgs ElField t)) (RImage rs ss), UncurriedRec (TupleToRecArgs ElField t) ~ Rec ElField ss, RecSubsetFCtx (Rec :: ((Symbol, Type) -> Type) -> [(Symbol, Type)] -> Type) ElField) => t -> Rec ElField rs
 
 -- | Override a record with fields from a possibly narrower record. A
 --   typical use is to supply default values as the first argument, and
 --   overrides for those defaults as the second.
-withDefaults :: (RMap rs, RApply rs, ss ⊆ rs, RMap ss, RecApplicative rs) => Rec f rs -> Rec f ss -> Rec f rs
-instance forall u (f :: u -> *). Data.Vinyl.FromTuple.TupleRec f ()
+withDefaults :: forall {u} (rs :: [u]) (ss :: [u]) (f :: u -> Type). (RMap rs, RApply rs, ss ⊆ rs, RMap ss, RecApplicative rs) => Rec f rs -> Rec f ss -> Rec f rs
 instance forall u (f :: u -> *) (a :: u) (b :: u). Data.Vinyl.FromTuple.TupleRec f (f a, f b)
 instance forall u (f :: u -> *) (a :: u) (b :: u) (c :: u). Data.Vinyl.FromTuple.TupleRec f (f a, f b, f c)
 instance forall u (f :: u -> *) (a :: u) (b :: u) (c :: u) (d :: u). Data.Vinyl.FromTuple.TupleRec f (f a, f b, f c, f d)
@@ -1839,6 +1838,7 @@ instance forall u (f :: u -> *) (a :: u) (b :: u) (c :: u) (d :: u) (e :: u). Da
 instance forall u (f :: u -> *) (a :: u) (b :: u) (c :: u) (d :: u) (e :: u) (z :: u). Data.Vinyl.FromTuple.TupleRec f (f a, f b, f c, f d, f e, f z)
 instance forall u (f :: u -> *) (a :: u) (b :: u) (c :: u) (d :: u) (e :: u) (z :: u) (g :: u). Data.Vinyl.FromTuple.TupleRec f (f a, f b, f c, f d, f e, f z, f g)
 instance forall u (f :: u -> *) (a :: u) (b :: u) (c :: u) (d :: u) (e :: u) (z :: u) (g :: u) (h :: u). Data.Vinyl.FromTuple.TupleRec f (f a, f b, f c, f d, f e, f z, f g, f h)
+instance forall u (f :: u -> *). Data.Vinyl.FromTuple.TupleRec f ()
 instance forall u (f :: u -> *) (a :: u) (b :: u). Data.Vinyl.FromTuple.TupleXRec f '[a, b]
 instance forall u (f :: u -> *) (a :: u) (b :: u) (c :: u). Data.Vinyl.FromTuple.TupleXRec f '[a, b, c]
 instance forall u (f :: u -> *) (a :: u) (b :: u) (c :: u) (d :: u). Data.Vinyl.FromTuple.TupleXRec f '[a, b, c, d]
@@ -1851,40 +1851,52 @@ module Data.Vinyl
 
 -- | Apply a typeclass method to each field of a <a>Rec</a> where the class
 --   constrains the index of the field, but not its interpretation functor.
-class RecMapMethod c f ts
-rmapMethod :: RecMapMethod c f ts => (forall a. c (PayloadType f a) => f a -> g a) -> Rec f ts -> Rec g ts
+class RecMapMethod (c :: Type -> Constraint) (f :: u -> Type) (ts :: [u])
+rmapMethod :: RecMapMethod c f ts => (forall (a :: u). c (PayloadType f a) => f a -> g a) -> Rec f ts -> Rec g ts
 
 -- | Generate a record from fields derived from type class instances.
-class RecPointed c f ts
-rpointMethod :: RecPointed c f ts => (forall a. c (f a) => f a) -> Rec f ts
+class RecPointed (c :: Type -> Constraint) (f :: u -> Type) (ts :: [u])
+rpointMethod :: RecPointed c f ts => (forall (a :: u). c (f a) => f a) -> Rec f ts
 
 -- | Apply a typeclass method to each field of a <tt>Rec f ts</tt> using
 --   the <a>Functor</a> instance for <tt>f</tt> to lift the function into
 --   the functor. This is a commonly-used specialization of
 --   <a>rmapMethod</a> composed with <a>fmap</a>.
-rmapMethodF :: forall c f ts. (Functor f, FieldPayload f ~ 'FieldId, RecMapMethod c f ts) => (forall a. c a => a -> a) -> Rec f ts -> Rec f ts
+rmapMethodF :: forall c (f :: Type -> Type) (ts :: [Type]). (Functor f, FieldPayload f ~ 'FieldId, RecMapMethod c f ts) => (forall a. c a => a -> a) -> Rec f ts -> Rec f ts
 
 -- | Apply a typeclass method to each field of a <a>FieldRec</a>. This is a
 --   specialization of <a>rmapMethod</a>.
-mapFields :: forall c ts. RecMapMethod c ElField ts => (forall a. c a => a -> a) -> FieldRec ts -> FieldRec ts
+mapFields :: forall c (ts :: [(Symbol, Type)]). RecMapMethod c ElField ts => (forall a. c a => a -> a) -> FieldRec ts -> FieldRec ts
 
 -- | Like <a>rtraverseIn</a>, but the function between functors may be
 --   constrained.
-rtraverseInMethod :: forall c h f g rs. (RMap rs, RPureConstrained c rs, RApply rs) => (forall a. c a => f a -> g (ApplyToField h a)) -> Rec f rs -> Rec g (MapTyCon h rs)
+rtraverseInMethod :: forall {u} c (h :: Type -> Type) f g (rs :: [u]). (RMap rs, RPureConstrained c rs, RApply rs) => (forall (a :: u). c a => f a -> g (ApplyToField h a)) -> Rec f rs -> Rec g (MapTyCon h rs)
 
 -- | Push an outer layer of interpretation functor into each named field.
-rsequenceInFields :: forall f rs. (Functor f, AllFields rs, RMap rs) => Rec (f :. ElField) rs -> Rec ElField (MapTyCon f rs)
+rsequenceInFields :: forall (f :: Type -> Type) (rs :: [(Symbol, Type)]). (Functor f, AllFields rs, RMap rs) => Rec (f :. ElField) rs -> Rec ElField (MapTyCon f rs)
 
 -- | An array-backed extensible record with constant-time field access.
-data ARec (f :: k -> *) (ts :: [k])
+data ARec (f :: k -> Type) (ts :: [k])
 
 -- | Convert a <a>Rec</a> into an <a>ARec</a> for constant-time field
 --   access.
-toARec :: forall f ts. (NatToInt (RLength ts), ToARec ts) => Rec f ts -> ARec f ts
+toARec :: forall {k} (f :: k -> Type) (ts :: [k]). (NatToInt (RLength ts), ToARec ts) => Rec f ts -> ARec f ts
 
 -- | Convert an <a>ARec</a> into a <a>Rec</a>.
-fromARec :: forall f ts. (RecApplicative ts, RPureConstrained (IndexableField ts) ts) => ARec f ts -> Rec f ts
+fromARec :: forall {u} (f :: u -> Type) (ts :: [u]). (RecApplicative ts, RPureConstrained (IndexableField ts) ts) => ARec f ts -> Rec f ts
 record :: TupleRec f t => t -> UncurriedRec (TupleToRecArgs f t)
+
+-- | Build a <tt>FieldRec</tt> from a tuple of <a>ElField</a> values.
+fieldRec :: TupleRec ElField t => t -> UncurriedRec (TupleToRecArgs ElField t)
+
+-- | Convert a <a>Rec</a> to a tuple going through <a>HKD</a> to reduce
+--   syntactic noise. Useful for pattern matching on an entire <a>Rec</a>.
+ruple :: forall {u} (f :: u -> Type) (ts :: [u]). (IsoXRec f ts, TupleXRec f ts) => Rec f ts -> ListToHKDTuple f ts
+
+-- | Build a <a>Rec</a> from a tuple passing through <a>XRec</a>. This
+--   admits the most concise syntax for building a <a>Rec</a>. For example,
+--   <tt>xrec ("joe", 23) :: Rec Identity '[String, Int]</tt>.
+xrec :: forall {u} (f :: u -> Type) (t :: [u]). (IsoXRec f t, TupleXRec f t) => ListToHKDTuple f t -> Rec f t
 
 -- | Build an <a>XRec</a> from a tuple.
 xrecX :: TupleXRec f t => ListToHKDTuple f t -> XRec f t
@@ -1892,18 +1904,6 @@ xrecX :: TupleXRec f t => ListToHKDTuple f t -> XRec f t
 -- | Convert an <a>XRec</a> to a tuple. Useful for pattern matching on an
 --   entire record.
 xrecTuple :: TupleXRec f t => XRec f t -> ListToHKDTuple f t
-
--- | Convert a <a>Rec</a> to a tuple going through <a>HKD</a> to reduce
---   syntactic noise. Useful for pattern matching on an entire <a>Rec</a>.
-ruple :: (IsoXRec f ts, TupleXRec f ts) => Rec f ts -> ListToHKDTuple f ts
-
--- | Build a <a>Rec</a> from a tuple passing through <a>XRec</a>. This
---   admits the most concise syntax for building a <a>Rec</a>. For example,
---   <tt>xrec ("joe", 23) :: Rec Identity '[String, Int]</tt>.
-xrec :: (IsoXRec f t, TupleXRec f t) => ListToHKDTuple f t -> Rec f t
-
--- | Build a <tt>FieldRec</tt> from a tuple of <a>ElField</a> values.
-fieldRec :: TupleRec ElField t => t -> UncurriedRec (TupleToRecArgs ElField t)
 
 -- | A value with a phantom <a>Symbol</a> label. It is not a Haskell
 --   <a>Functor</a>, but it is used in many of the same places a
@@ -1916,54 +1916,54 @@ Field :: Snd t -> ElField (t :: (Symbol, Type))
 -- | A simpler type for <a>SRec2</a> whose <a>RecElem</a> and
 --   <a>RecSubset</a> instances are specialized to the <a>ElField</a>
 --   functor.
-data SRec f ts
+data SRec (f :: k -> Type) (ts :: [k])
 
 -- | Create an <a>SRec</a> from a <a>Rec</a>. This should offer very fast
 --   field access, but note that its lens API (via <a>RecElem</a> and
 --   <a>RecSubset</a>) is restricted to the <a>ElField</a> functor.
-toSRec :: Storable (Rec f ts) => Rec f ts -> SRec f ts
+toSRec :: forall {k} (f :: k -> Type) (ts :: [k]). Storable (Rec f ts) => Rec f ts -> SRec f ts
 
 -- | Create a <a>Rec</a> from an <a>SRec</a>.
-fromSRec :: Storable (Rec f ts) => SRec f ts -> Rec f ts
+fromSRec :: forall {u} (f :: u -> Type) (ts :: [u]). Storable (Rec f ts) => SRec f ts -> Rec f ts
+type XRec (f :: u -> Type) = Rec XData f
+pattern (::&) :: forall {a} (f :: a -> Type) (r :: a) rs. HKD f r -> XRec f rs -> XRec f (r ': rs)
+infixr 7 ::&
+pattern XRNil :: forall {u} (f :: u -> Type). XRec f ('[] :: [u])
 
 -- | Conversion between <a>XRec</a> and <a>Rec</a>. It is convenient to
 --   build and consume <a>XRec</a> values to reduce syntactic noise, but
 --   <a>Rec</a> has a richer API that is difficult to build around the
 --   <a>HKD</a> type family.
-class IsoXRec f ts
+class IsoXRec (f :: u -> Type) (ts :: [u])
 fromXRec :: IsoXRec f ts => XRec f ts -> Rec f ts
 toXRec :: IsoXRec f ts => Rec f ts -> XRec f ts
 
+-- | This is <tt>rmap</tt> for <a>XRec</a>. We apply a natural
+--   transformation between interpretation functors to transport a record
+--   value between interpretations.
+xrmap :: forall {u} (f :: u -> Type) (g :: u -> Type) (rs :: [u]). XRMap f g rs => (forall (a :: u). () => HKD f a -> HKD g a) -> XRec f rs -> XRec g rs
+
 -- | Like <tt>rapply</tt>: record of components <tt>f r -&gt; g r</tt> may
 --   be applied to a record of <tt>f</tt> to get a record of <tt>g</tt>.
-class XRApply f g rs
+class XRApply (f :: u -> Type) (g :: u -> Type) (rs :: [u])
 xrapply :: XRApply f g rs => XRec (Lift (->) f g) rs -> XRec f rs -> XRec g rs
+
+-- | Like <tt>rmap</tt>, but the supplied function is written against the
+--   <a>HKD</a>-simplified types. This is <a>xrmap</a> sandwiched in
+--   between <a>fromXRec</a> and <a>toXRec</a>.
+rmapX :: forall {u} (f :: u -> Type) (g :: u -> Type) (rs :: [u]). (XRMap f g rs, IsoXRec f rs, IsoXRec g rs) => (forall (a :: u). () => HKD f a -> HKD g a) -> Rec f rs -> Rec g rs
 
 -- | The implementation of <a>xrmap</a> is broken into a type class to
 --   permit unrolling of the recursion across a record. The function mapped
 --   across the vector hides the <a>HKD</a> type family under a newtype
 --   constructor to help the type checker.
-class XRMap f g rs
-type XRec f = Rec (XData f)
-pattern XRNil :: XRec f '[]
-pattern (::&) :: HKD f r -> XRec f rs -> XRec f (r : rs)
-infixr 7 ::&
-
--- | Like <tt>rmap</tt>, but the supplied function is written against the
---   <a>HKD</a>-simplified types. This is <a>xrmap</a> sandwiched in
---   between <a>fromXRec</a> and <a>toXRec</a>.
-rmapX :: forall f g rs. (XRMap f g rs, IsoXRec f rs, IsoXRec g rs) => (forall a. HKD f a -> HKD g a) -> Rec f rs -> Rec g rs
-
--- | This is <tt>rmap</tt> for <a>XRec</a>. We apply a natural
---   transformation between interpretation functors to transport a record
---   value between interpretations.
-xrmap :: forall f g rs. XRMap f g rs => (forall a. HKD f a -> HKD g a) -> XRec f rs -> XRec g rs
+class XRMap (f :: u -> Type) (g :: u -> Type) (rs :: [u])
 
 
 -- | Provides combinators for currying and uncurrying functions over
 --   arbitrary vinyl records.
 module Data.Vinyl.Curry
-class RecordCurry ts
+class RecordCurry (ts :: [u])
 
 -- | N-ary version of <a>curry</a> over functorial records.
 --   
@@ -1975,8 +1975,8 @@ class RecordCurry ts
 --   rcurry :: (Rec f '[] -&gt; Bool) -&gt; Bool
 --   
 --   </pre>
-rcurry :: RecordCurry ts => (Rec f ts -> a) -> CurriedF f ts a
-class RecordCurry' ts
+rcurry :: forall (f :: u -> Type) a. RecordCurry ts => (Rec f ts -> a) -> CurriedF f ts a
+class RecordCurry' (ts :: [Type])
 
 -- | N-ary version of <a>curry</a> over pure records.
 --   
@@ -1999,7 +1999,7 @@ rcurry' :: RecordCurry' ts => (Rec Identity ts -> a) -> Curried ts a
 --   runcurry :: (IO FilePath -&gt; String) -&gt; Rec IO '[FilePath] -&gt; String
 --   runcurry :: Int -&gt; Rec f '[] -&gt; Int
 --   </pre>
-runcurry :: CurriedF f ts a -> Rec f ts -> a
+runcurry :: forall {u} (f :: u -> Type) (ts :: [u]) a. CurriedF f ts a -> Rec f ts -> a
 
 -- | N-ary version of <a>uncurry</a> over pure records.
 --   
@@ -2016,16 +2016,16 @@ runcurry :: CurriedF f ts a -> Rec f ts -> a
 --   f :: Rec Identity '[Bool, Int, Double] -&gt; Either Int Double
 --   f = runcurry' $ b x y -&gt; if b then Left x else Right y
 --   </pre>
-runcurry' :: Curried ts a -> Rec Identity ts -> a
+runcurry' :: forall (ts :: [Type]) a. Curried ts a -> Rec Identity ts -> a
 
 -- | Apply an uncurried function to an <a>XRec</a>.
-xruncurry :: CurriedX f ts a -> XRec f ts -> a
+xruncurry :: forall {u} (f :: u -> Type) (ts :: [u]) a. CurriedX f ts a -> XRec f ts -> a
 
 -- | Apply an uncurried function to a <a>Rec</a> like <a>runcurry</a>
 --   except the function enjoys a type simplified by the <a>XData</a>
 --   machinery that strips away type-induced noise like <a>Identity</a>,
 --   <a>Compose</a>, and <a>ElField</a>.
-runcurryX :: IsoXRec f ts => CurriedX f ts a -> Rec f ts -> a
+runcurryX :: forall {u} (f :: u -> Type) (ts :: [u]) a. IsoXRec f ts => CurriedX f ts a -> Rec f ts -> a
 
 -- | Lift an N-ary function to work over a record of <a>Applicative</a>
 --   computations.
@@ -2039,7 +2039,7 @@ runcurryX :: IsoXRec f ts => CurriedX f ts a -> Rec f ts -> a
 --   &gt;&gt;&gt; runcurryA' (+) (Nothing :&amp; Just 3 :&amp; RNil)
 --   Nothing
 --   </pre>
-runcurryA' :: Applicative f => Curried ts a -> Rec f ts -> f a
+runcurryA' :: forall f (ts :: [Type]) a. Applicative f => Curried ts a -> Rec f ts -> f a
 
 -- | Lift an N-ary function over types in <tt>g</tt> to work over a record
 --   of <a>Compose</a>d <a>Applicative</a> computations. A more general
@@ -2050,7 +2050,7 @@ runcurryA' :: Applicative f => Curried ts a -> Rec f ts -> f a
 --   <pre>
 --   runcurryA :: (g x -&gt; g y -&gt; a) -&gt; Rec (Compose Maybe g) '[x, y] -&gt; Maybe a
 --   </pre>
-runcurryA :: Applicative f => CurriedF g ts a -> Rec (Compose f g) ts -> f a
+runcurryA :: forall {u} f (g :: u -> Type) (ts :: [u]) a. Applicative f => CurriedF g ts a -> Rec (Compose f g) ts -> f a
 
 -- | For the list of types <tt>ts</tt>, <tt><a>Curried</a> ts a</tt> is a
 --   curried function type from arguments of types in <tt>ts</tt> to a
@@ -2061,7 +2061,7 @@ runcurryA :: Applicative f => CurriedF g ts a -> Rec (Compose f g) ts -> f a
 --   Curried '[Int, Bool, String] Int :: *
 --   = Int -&gt; Bool -&gt; [Char] -&gt; Int
 --   </pre>
-type family Curried ts a
+type family Curried (ts :: [Type]) a
 
 -- | For the type-level list <tt>ts</tt>, <tt><a>CurriedF</a> f ts a</tt>
 --   is a curried function type from arguments of type <tt>f t</tt> for
@@ -2086,7 +2086,7 @@ type family CurriedF (f :: u -> Type) (ts :: [u]) a
 --   = Maybe Int -&gt; Maybe Bool -&gt; Maybe [Char] -&gt; Int
 --   </pre>
 type family CurriedX (f :: u -> Type) (ts :: [u]) a
-instance Data.Vinyl.Curry.RecordCurry '[]
-instance forall u (ts :: [u]) (t :: u). Data.Vinyl.Curry.RecordCurry ts => Data.Vinyl.Curry.RecordCurry (t : ts)
-instance Data.Vinyl.Curry.RecordCurry' '[]
 instance Data.Vinyl.Curry.RecordCurry' ts => Data.Vinyl.Curry.RecordCurry' (t : ts)
+instance Data.Vinyl.Curry.RecordCurry' '[]
+instance forall u (ts :: [u]) (t :: u). Data.Vinyl.Curry.RecordCurry ts => Data.Vinyl.Curry.RecordCurry (t : ts)
+instance Data.Vinyl.Curry.RecordCurry '[]

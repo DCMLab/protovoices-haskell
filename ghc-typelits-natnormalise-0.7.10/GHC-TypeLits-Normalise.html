@@ -1,0 +1,54 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>GHC.TypeLits.Normalise</title><link href="linuwial.css" rel="stylesheet" type="text/css" title="Linuwial" /><link rel="stylesheet" type="text/css" href="quick-jump.css" /><link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400i,700" /><script src="haddock-bundle.min.js" async="async" type="text/javascript"></script><script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { processClass: "mathjax", ignoreClass: ".*" } });</script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script></head><body><div id="package-header"><span class="caption">ghc-typelits-natnormalise-0.7.10: GHC typechecker plugin for types of kind GHC.TypeLits.Nat</span><ul class="links" id="page-menu"><li><a href="src/GHC.TypeLits.Normalise.html">Source</a></li><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul></div><div id="content"><div id="module-header"><table class="info"><tr><th valign="top">Copyright</th><td>(C) 2015-2016 University of Twente<br />2017      QBayLogic B.V.</td></tr><tr><th>License</th><td>BSD2 (see the file LICENSE)</td></tr><tr><th>Maintainer</th><td>Christiaan Baaij &lt;christiaan.baaij@gmail.com&gt;</td></tr><tr><th>Safe Haskell</th><td>None</td></tr><tr><th>Language</th><td>Haskell2010</td></tr><tr><th>Extensions</th><td><ul class="extension-list"><li>Cpp</li><li>TemplateHaskellQuotes</li><li>DisambiguateRecordFields</li><li>RecordWildCards</li><li>NamedFieldPuns</li><li>ViewPatterns</li><li>TupleSections</li><li>LambdaCase</li></ul></td></tr></table><p class="caption">GHC.TypeLits.Normalise</p></div><div id="description"><p class="caption">Description</p><div class="doc"><p>A type checker plugin for GHC that can solve <em>equalities</em> of types of kind
+<code><a href="../base-4.20.2.0/GHC-TypeLits.html#v:Nat" title="GHC.TypeLits">Nat</a></code>, where these types are either:</p><ul><li>Type-level naturals</li><li>Type variables</li><li>Applications of the arithmetic expressions <code>(+,-,*,^)</code>.</li></ul><p>It solves these equalities by normalising them to <em>sort-of</em>
+<code><a href="GHC-TypeLits-Normalise-SOP.html#v:SOP" title="GHC.TypeLits.Normalise.SOP">SOP</a></code> (Sum-of-Products) form, and then perform a
+simple syntactic equality.</p><p>For example, this solver can prove the equality between:</p><pre>(x + 2)^(y + 2)
+</pre><p>and</p><pre>4*x*(2 + x)^y + 4*(2 + x)^y + (2 + x)^y*x^2
+</pre><p>Because the latter is actually the <code><a href="GHC-TypeLits-Normalise-SOP.html#v:SOP" title="GHC.TypeLits.Normalise.SOP">SOP</a></code> normal form
+of the former.</p><p>To use the plugin, add</p><pre>{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+</pre><p>To the header of your file.</p><h2>Treating subtraction as addition with a negated number</h2><p>If you are absolutely sure that your subtractions can <em>never</em> lead to (a locally)
+negative number, you can ask the plugin to treat subtraction as addition with
+a negated operand by additionally adding:</p><pre>{-# OPTIONS_GHC -fplugin-opt GHC.TypeLits.Normalise:allow-negated-numbers #-}
+</pre><p>to the header of your file, thereby allowing to use associativity and
+commutativity rules when proving constraints involving subtractions. Note that
+this option can lead to unsound behaviour and should be handled with extreme
+care.</p><h3>When it leads to unsound behaviour</h3><p>For example, enabling the <em>allow-negated-numbers</em> feature would allow
+you to prove:</p><pre>(n - 1) + 1 ~ n
+</pre><p><em>without</em> a <code>(1 &lt;= n)</code> constraint, even though when <em>n</em> is set to <em>0</em> the
+subtraction <code>n-1</code> would be locally negative and hence not be a natural number.</p><p>This would allow the following erroneous definition:</p><pre>data Fin (n :: Nat) where
+  FZ :: Fin (n + 1)
+  FS :: Fin n -&gt; Fin (n + 1)
+
+f :: forall n . Natural -&gt; Fin n
+f n = case of
+  0 -&gt; FZ
+  x -&gt; FS (f @(n-1) (x - 1))
+
+fs :: [Fin 0]
+fs = f &lt;$&gt; [0..]
+</pre><h3>When it might be Okay</h3><p>This example is taken from the <a href="http://hackage.haskell.org/package/mezzo">mezzo</a>
+library.</p><p>When you have:</p><pre>-- | Singleton type for the number of repetitions of an element.
+data Times (n :: Nat) where
+    T :: Times n
+
+-- | An element of a &quot;run-length encoded&quot; vector, containing the value and
+-- the number of repetitions
+data Elem :: Type -&gt; Nat -&gt; Type where
+    (:*) :: t -&gt; Times n -&gt; Elem t n
+
+-- | A length-indexed vector, optimised for repetitions.
+data OptVector :: Type -&gt; Nat -&gt; Type where
+    End  :: OptVector t 0
+    (:-) :: Elem t l -&gt; OptVector t (n - l) -&gt; OptVector t n
+</pre><p>And you want to define:</p><pre>-- | Append two optimised vectors.
+type family (x :: OptVector t n) ++ (y :: OptVector t m) :: OptVector t (n + m) where
+    ys        ++ End = ys
+    End       ++ ys = ys
+    (x :- xs) ++ ys = x :- (xs ++ ys)
+</pre><p>then the last line will give rise to the constraint:</p><pre>(n-l)+m ~ (n+m)-l
+</pre><p>because:</p><pre>x  :: Elem t l
+xs :: OptVector t (n-l)
+ys :: OptVector t m
+</pre><p>In this case it's okay to add</p><pre>{-# OPTIONS_GHC -fplugin-opt GHC.TypeLits.Normalise:allow-negated-numbers #-}
+</pre><p>if you can convince yourself you will never be able to construct a:</p><pre>xs :: OptVector t (n-l)
+</pre><p>where <em>n-l</em> is a negative number.</p></div></div><div id="synopsis"><details id="syn"><summary>Synopsis</summary><ul class="details-toggle" data-details-id="syn"><li class="src short"><a href="#v:plugin">plugin</a> :: <a href="../ghc-9.10.3/GHC-Driver-Plugins.html#t:Plugin" title="GHC.Driver.Plugins">Plugin</a></li></ul></details></div><div id="interface"><h1>Documentation</h1><div class="top"><p class="src"><a id="v:plugin" class="def">plugin</a> :: <a href="../ghc-9.10.3/GHC-Driver-Plugins.html#t:Plugin" title="GHC.Driver.Plugins">Plugin</a> <a href="src/GHC.TypeLits.Normalise.html#plugin" class="link">Source</a> <a href="#v:plugin" class="selflink">#</a></p><div class="doc"><p>To use the plugin, add</p><pre>{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+</pre><p>To the header of your file.</p></div></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.31.1</p></div></body></html>

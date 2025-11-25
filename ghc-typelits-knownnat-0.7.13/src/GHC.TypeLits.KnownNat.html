@@ -1,0 +1,471 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">{-|
+Copyright  :  (C) 2016     , University of Twente,
+                  2017-2018, QBayLogic B.V.,
+                  2017     , Google Inc.
+License    :  BSD2 (see the file LICENSE)
+Maintainer :  Christiaan Baaij &lt;christiaan.baaij@gmail.com&gt;
+
+Some \&quot;magic\&quot; classes and instances to get the &quot;GHC.TypeLits.KnownNat.Solver&quot;
+type checker plugin working.
+
+= Usage
+
+Let's say you defined a closed type family @Max@:
+
+@
+import Data.Type.Bool (If)
+import GHC.TypeLits
+
+type family Max (a :: Nat) (b :: Nat) :: Nat where
+  Max 0 b = b
+  Max a b = If (a &lt;=? b) b a
+@
+
+if you then want the &quot;GHC.TypeLits.KnownNat.Solver&quot; to solve 'KnownNat'
+constraints over @Max@, given just 'KnownNat' constraints for the arguments
+of @Max@, then you must define:
+
+@
+\{\-# LANGUAGE DataKinds, FlexibleInstances, GADTs, KindSignatures,
+             MultiParamTypeClasses, ScopedTypeVariables, TemplateHaskell,
+             TypeApplications, TypeFamilies, TypeOperators,
+             UndecidableInstances \#-\}
+
+import Data.Proxy            (Proxy (..))
+import GHC.TypeLits.KnownNat
+
+instance (KnownNat a, KnownNat b) =&gt; 'KnownNat2' $('nameToSymbol' ''Max) a b where
+  natSing2 = let x = natVal (Proxy @a)
+                 y = natVal (Proxy @b)
+                 z = max x y
+             in  'SNatKn' z
+  \{\-# INLINE natSing2 \#-\}
+@
+
+= FAQ
+
+==== 1. &quot;GHC.TypeLits.KnownNat.Solver&quot; does not seem to find the corresponding 'KnownNat2' instance for my type-level operation
+At the Core-level, GHCs internal mini-Haskell, type families that only have a
+single equation are treated like type synonyms.
+
+For example, let's say we defined a closed type family @Max@:
+
+@
+import Data.Type.Bool (If)
+import GHC.TypeLits
+
+type family Max (a :: Nat) (b :: Nat) :: Nat where
+  Max a b = If (a &lt;=? b) b a
+@
+
+Now, a Haskell-level program might contain a constraint
+
+@
+KnownNat (Max a b)
+@
+
+, however, at the Core-level, this constraint is expanded to:
+
+@
+KnownNat (If (a &lt;=? b) b a)
+@
+
+&quot;GHC.TypeLits.KnownNat.Solver&quot; never sees any reference to the @Max@ type
+family, so it will not look for the corresponding 'KnownNat2' instance either.
+To fix this, ensure that your type-level operations always have at
+least two equations. For @Max@ this means we have to redefine it as:
+
+@
+type family Max (a :: Nat) (b :: Nat) :: Nat where
+  Max 0 b = b
+  Max a b = If (a &lt;=? b) b a
+@
+-}</span></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-pragma">{-# LANGUAGE AllowAmbiguousTypes   #-}</span><span>
+</span><span id="line-86"></span><span class="hs-pragma">{-# LANGUAGE CPP                   #-}</span><span>
+</span><span id="line-87"></span><span class="hs-pragma">{-# LANGUAGE DataKinds             #-}</span><span>
+</span><span id="line-88"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances     #-}</span><span>
+</span><span id="line-89"></span><span class="hs-pragma">{-# LANGUAGE GADTs                 #-}</span><span>
+</span><span id="line-90"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures        #-}</span><span>
+</span><span id="line-91"></span><span class="hs-pragma">{-# LANGUAGE MagicHash             #-}</span><span>
+</span><span id="line-92"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-93"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds             #-}</span><span>
+</span><span id="line-94"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables   #-}</span><span>
+</span><span id="line-95"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell       #-}</span><span>
+</span><span id="line-96"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications      #-}</span><span>
+</span><span id="line-97"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators         #-}</span><span>
+</span><span id="line-98"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies          #-}</span><span class="hs-cpp">
+#if MIN_VERSION_ghc(8,6,0)
+</span><span class="hs-pragma">{-# LANGUAGE NoStarIsType #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if !MIN_VERSION_ghc(8,2,0)
+</span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-106"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-top-binds -fexpose-all-unfoldings #-}</span><span>
+</span><span id="line-109"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK show-extensions #-}</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html"><span class="hs-identifier">GHC.TypeLits.KnownNat</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Singleton natural number</span></span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier">SNatKn</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Constraint-level arithmetic classes</span></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat1"><span class="hs-identifier">KnownNat1</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2"><span class="hs-identifier">KnownNat2</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat3"><span class="hs-identifier">KnownNat3</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Singleton boolean</span></span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBool"><span class="hs-identifier">SBool</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#boolVal"><span class="hs-identifier">boolVal</span></a></span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><span class="hs-comment">-- * KnownBool</span></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBool"><span class="hs-identifier">KnownBool</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Constraint-level boolean functions</span></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBoolKb"><span class="hs-identifier">SBoolKb</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2Bool"><span class="hs-identifier">KnownNat2Bool</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBoolNat2"><span class="hs-identifier">KnownBoolNat2</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Template Haskell helper</span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier">nameToSymbol</span></a></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Natural</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">shiftLNatural</span></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Type.Bool</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">If</span></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Prim</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.TypeNats</span></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">KnownNat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Nat</span></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><span class="hs-operator">(+)</span></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><span class="hs-operator">(*)</span></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><span class="hs-operator">(^)</span></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><span class="hs-operator">(&lt;=?)</span></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><span class="hs-operator">(&lt;=)</span></span><span class="hs-special">,</span><span>
+</span><span id="line-138"></span><span>   </span><span class="hs-keyword">type</span><span> </span><span class="annot"><span class="hs-identifier">Mod</span></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><span class="hs-identifier">Div</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">natVal</span></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Symbol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Numeric.Natural</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Natural</span></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Type.Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">OrdCond</span></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Constraint</span></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html"><span class="hs-identifier">GHC.TypeLits.KnownNat.TH</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="annot"><span class="hs-comment">-- | Singleton natural number</span></span><span>
+</span><span id="line-147"></span><span class="hs-keyword">newtype</span><span> </span><span id="SNatKn"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223251"><span class="annot"><a href="#local-6989586621679223251"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SNatKn"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- | Class for arithmetic functions with /one/ argument.</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- The 'Symbol' /f/ must correspond to the fully qualified name of the</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- type-level operation. Use 'nameToSymbol' to get the fully qualified</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- TH Name as a 'Symbol'</span><span>
+</span><span id="line-154"></span><span class="hs-keyword">class</span><span> </span><span id="KnownNat1"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat1"><span class="hs-identifier hs-var">KnownNat1</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223332"><span class="annot"><a href="#local-6989586621679223332"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223333"><span class="annot"><a href="#local-6989586621679223333"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-155"></span><span>  </span><span id="natSing1"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing1"><span class="hs-identifier hs-type">natSing1</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-type">SNatKn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223332"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- | Class for arithmetic functions with /two/ arguments.</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- The 'Symbol' /f/ must correspond to the fully qualified name of the</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- type-level operation. Use 'nameToSymbol' to get the fully qualified</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- TH Name as a 'Symbol'</span><span>
+</span><span id="line-162"></span><span class="hs-keyword">class</span><span> </span><span id="KnownNat2"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2"><span class="hs-identifier hs-var">KnownNat2</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223246"><span class="annot"><a href="#local-6989586621679223246"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223247"><span class="annot"><a href="#local-6989586621679223247"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223248"><span class="annot"><a href="#local-6989586621679223248"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-163"></span><span>  </span><span id="natSing2"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-identifier hs-type">natSing2</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-type">SNatKn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223246"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- | Class for arithmetic functions with /three/ arguments.</span><span>
+</span><span id="line-166"></span><span class="hs-comment">--</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- The 'Symbol' /f/ must correspond to the fully qualified name of the</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- type-level operation. Use 'nameToSymbol' to get the fully qualified</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- TH Name as a 'Symbol'</span><span>
+</span><span id="line-170"></span><span class="hs-keyword">class</span><span> </span><span id="KnownNat3"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat3"><span class="hs-identifier hs-var">KnownNat3</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223336"><span class="annot"><a href="#local-6989586621679223336"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223337"><span class="annot"><a href="#local-6989586621679223337"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223338"><span class="annot"><a href="#local-6989586621679223338"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223339"><span class="annot"><a href="#local-6989586621679223339"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-171"></span><span>  </span><span id="natSing3"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing3"><span class="hs-identifier hs-type">natSing3</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-type">SNatKn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223336"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="annot"><span class="hs-comment">-- | 'KnownNat2' instance for &quot;GHC.TypeLits&quot;' 'GHC.TypeLits.+'</span></span><span>
+</span><span id="line-174"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223249"><span id="local-6989586621679223250"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223249"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223250"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2"><span class="hs-identifier hs-type">KnownNat2</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-special">(</span><span class="hs-operator">+</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223249"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223250"><span class="hs-identifier hs-type">b</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-175"></span><span>  </span><span id="local-6989586621679223350"><span class="annot"><span class="annottext">natSing2 :: SNatKn &quot;GHC.Internal.TypeNats.+&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-identifier hs-var hs-var hs-var">natSing2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; SNatKn &quot;GHC.Internal.TypeNats.+&quot;
+forall (f :: Symbol). Nat -&gt; SNatKn f
+</span><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy a -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223249"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Nat
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223250"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-pragma hs-type">natSing2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="annot"><span class="hs-comment">-- | 'KnownNat2' instance for &quot;GHC.TypeLits&quot;' 'GHC.TypeLits.*'</span></span><span>
+</span><span id="line-179"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223260"><span id="local-6989586621679223261"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223260"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223261"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2"><span class="hs-identifier hs-type">KnownNat2</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-special">(</span><span class="hs-operator">*</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223260"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223261"><span class="hs-identifier hs-type">b</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-180"></span><span>  </span><span id="local-6989586621679223360"><span class="annot"><span class="annottext">natSing2 :: SNatKn &quot;GHC.Internal.TypeNats.*&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-identifier hs-var hs-var hs-var">natSing2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; SNatKn &quot;GHC.Internal.TypeNats.*&quot;
+forall (f :: Symbol). Nat -&gt; SNatKn f
+</span><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy a -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223260"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Nat
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223261"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-pragma hs-type">natSing2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="annot"><span class="hs-comment">-- | 'KnownNat2' instance for &quot;GHC.TypeLits&quot;' 'GHC.TypeLits.^'</span></span><span>
+</span><span id="line-184"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223264"><span id="local-6989586621679223265"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223264"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223265"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2"><span class="hs-identifier hs-type">KnownNat2</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-special">(</span><span class="hs-operator">^</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223264"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223265"><span class="hs-identifier hs-type">b</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-185"></span><span>  </span><span id="local-6989586621679223378"><span class="annot"><span class="annottext">natSing2 :: SNatKn &quot;GHC.Internal.TypeNats.^&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-identifier hs-var hs-var hs-var">natSing2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679223379"><span class="annot"><span class="annottext">x :: Nat
+</span><a href="#local-6989586621679223379"><span class="hs-identifier hs-var hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy a -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223264"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>                 </span><span id="local-6989586621679223380"><span class="annot"><span class="annottext">y :: Nat
+</span><a href="#local-6989586621679223380"><span class="hs-identifier hs-var hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223265"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>                 </span><span id="local-6989586621679223381"><span class="annot"><span class="annottext">z :: Nat
+</span><a href="#local-6989586621679223381"><span class="hs-identifier hs-var hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621679223379"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-188"></span><span>                       </span><span class="annot"><span class="annottext">Nat
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Int -&gt; Nat
+</span><span class="hs-identifier hs-var">shiftLNatural</span></span><span> </span><span class="annot"><span class="annottext">Nat
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621679223380"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>                       </span><span class="annot"><span class="annottext">Nat
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621679223379"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Nat
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621679223380"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-190"></span><span>             </span><span class="hs-keyword">in</span><span>  </span><span class="annot"><span class="annottext">Nat -&gt; SNatKn &quot;GHC.Internal.TypeNats.^&quot;
+forall (f :: Symbol). Nat -&gt; SNatKn f
+</span><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621679223381"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-pragma hs-type">natSing2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="annot"><span class="hs-comment">-- | 'KnownNat2' instance for &quot;GHC.TypeLits&quot;' 'GHC.TypeLits.-'</span></span><span>
+</span><span id="line-194"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223274"><span id="local-6989586621679223275"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223274"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223275"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679223275"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;=</span></span><span> </span><span class="annot"><a href="#local-6989586621679223274"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Constraint</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2"><span class="hs-identifier hs-type">KnownNat2</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223274"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223275"><span class="hs-identifier hs-type">b</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-195"></span><span>  </span><span id="local-6989586621679223391"><span class="annot"><span class="annottext">natSing2 :: SNatKn &quot;GHC.Internal.TypeNats.-&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-identifier hs-var hs-var hs-var">natSing2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; SNatKn &quot;GHC.Internal.TypeNats.-&quot;
+forall (f :: Symbol). Nat -&gt; SNatKn f
+</span><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy a -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223274"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Nat
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223275"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-pragma hs-type">natSing2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223278"><span id="local-6989586621679223279"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223278"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223279"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;=</span></span><span> </span><span class="annot"><a href="#local-6989586621679223279"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Constraint</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2"><span class="hs-identifier hs-type">KnownNat2</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Div</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223278"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223279"><span class="hs-identifier hs-type">y</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-199"></span><span>  </span><span id="local-6989586621679223400"><span class="annot"><span class="annottext">natSing2 :: SNatKn &quot;GHC.Internal.TypeNats.Div&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-identifier hs-var hs-var hs-var">natSing2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; SNatKn &quot;GHC.Internal.TypeNats.Div&quot;
+forall (f :: Symbol). Nat -&gt; SNatKn f
+</span><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Nat
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">quot</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy x -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223278"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy y -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223279"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-pragma hs-type">natSing2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223283"><span id="local-6989586621679223284"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223283"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223284"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;=</span></span><span> </span><span class="annot"><a href="#local-6989586621679223284"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Constraint</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2"><span class="hs-identifier hs-type">KnownNat2</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Mod</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223283"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223284"><span class="hs-identifier hs-type">y</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-203"></span><span>  </span><span id="local-6989586621679223410"><span class="annot"><span class="annottext">natSing2 :: SNatKn &quot;GHC.Internal.TypeNats.Mod&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-identifier hs-var hs-var hs-var">natSing2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; SNatKn &quot;GHC.Internal.TypeNats.Mod&quot;
+forall (f :: Symbol). Nat -&gt; SNatKn f
+</span><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Nat
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">rem</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy x -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223283"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy y -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223284"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natSing2"><span class="hs-pragma hs-type">natSing2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span class="annot"><span class="hs-comment">-- | Singleton version of 'Bool'</span></span><span>
+</span><span id="line-207"></span><span class="hs-keyword">data</span><span> </span><span id="SBool"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBool"><span class="hs-identifier hs-var">SBool</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223412"><span class="annot"><a href="#local-6989586621679223412"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-208"></span><span>  </span><span id="SFalse"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SFalse"><span class="hs-identifier hs-var">SFalse</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBool"><span class="hs-identifier hs-type">SBool</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span>
+</span><span id="line-209"></span><span>  </span><span id="STrue"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#STrue"><span class="hs-identifier hs-var">STrue</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBool"><span class="hs-identifier hs-type">SBool</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-keyword">class</span><span> </span><span id="KnownBool"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBool"><span class="hs-identifier hs-var">KnownBool</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223287"><span class="annot"><a href="#local-6989586621679223287"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-212"></span><span>  </span><span id="boolSing"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#boolSing"><span class="hs-identifier hs-type">boolSing</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBool"><span class="hs-identifier hs-type">SBool</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223287"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBool"><span class="hs-identifier hs-type">KnownBool</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-215"></span><span>  </span><span id="local-6989586621679223419"><span class="annot"><span class="annottext">boolSing :: SBool 'False
+</span><a href="GHC.TypeLits.KnownNat.html#boolSing"><span class="hs-identifier hs-var hs-var hs-var">boolSing</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SBool 'False
+</span><a href="GHC.TypeLits.KnownNat.html#SFalse"><span class="hs-identifier hs-var">SFalse</span></a></span><span>
+</span><span id="line-216"></span><span>
+</span><span id="line-217"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBool"><span class="hs-identifier hs-type">KnownBool</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-218"></span><span>  </span><span id="local-6989586621679223422"><span class="annot"><span class="annottext">boolSing :: SBool 'True
+</span><a href="GHC.TypeLits.KnownNat.html#boolSing"><span class="hs-identifier hs-var hs-var hs-var">boolSing</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SBool 'True
+</span><a href="GHC.TypeLits.KnownNat.html#STrue"><span class="hs-identifier hs-var">STrue</span></a></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- | Get the 'Bool' value associated with a type-level 'Bool'</span><span>
+</span><span id="line-221"></span><span class="hs-comment">--</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- Use 'boolVal' if you want to perform the standard boolean operations on the</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- reified type-level 'Bool'.</span><span>
+</span><span id="line-224"></span><span class="hs-comment">--</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- Use 'boolSing' if you need a context in which the type-checker needs the</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- type-level 'Bool' to be either 'True' or 'False'</span><span>
+</span><span id="line-227"></span><span class="hs-comment">--</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- f :: forall proxy b r . KnownBool b =&gt; r</span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- f = case boolSing @b of</span><span>
+</span><span id="line-231"></span><span class="hs-comment">--   SFalse -&gt; -- context with b ~ False</span><span>
+</span><span id="line-232"></span><span class="hs-comment">--   STrue  -&gt; -- context with b ~ True</span><span>
+</span><span id="line-233"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-234"></span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#boolVal"><span class="hs-identifier hs-type">boolVal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679223288"><span class="annot"><a href="#local-6989586621679223288"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span id="local-6989586621679223289"><span class="annot"><a href="#local-6989586621679223289"><span class="hs-identifier hs-type">proxy</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBool"><span class="hs-identifier hs-type">KnownBool</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223288"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679223289"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223288"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-235"></span><span id="boolVal"><span class="annot"><span class="annottext">boolVal :: forall (b :: Bool) (proxy :: Bool -&gt; Type).
+KnownBool b =&gt;
+proxy b -&gt; Bool
+</span><a href="GHC.TypeLits.KnownNat.html#boolVal"><span class="hs-identifier hs-var hs-var">boolVal</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SBool b
+forall (b :: Bool). KnownBool b =&gt; SBool b
+</span><a href="GHC.TypeLits.KnownNat.html#boolSing"><span class="hs-identifier hs-var">boolSing</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBool"><span class="hs-identifier hs-type">SBool</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223288"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-236"></span><span>  </span><span class="annot"><span class="annottext">SBool b
+</span><a href="GHC.TypeLits.KnownNat.html#SFalse"><span class="hs-identifier hs-var">SFalse</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-237"></span><span>  </span><span class="annot"><span class="annottext">SBool b
+</span><span class="hs-identifier">_</span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- | Get the `Bool` value associated with a type-level `Bool`. See also</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- 'boolVal' and 'Proxy#'.</span><span>
+</span><span id="line-241"></span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#boolVal%27"><span class="hs-identifier hs-type">boolVal'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679223292"><span class="annot"><a href="#local-6989586621679223292"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBool"><span class="hs-identifier hs-type">KnownBool</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223292"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy#</span></span><span> </span><span class="annot"><a href="#local-6989586621679223292"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-242"></span><span id="boolVal%27"><span class="annot"><span class="annottext">boolVal' :: forall (b :: Bool). KnownBool b =&gt; Proxy# b -&gt; Bool
+</span><a href="GHC.TypeLits.KnownNat.html#boolVal%27"><span class="hs-identifier hs-var hs-var">boolVal'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy# b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SBool b
+forall (b :: Bool). KnownBool b =&gt; SBool b
+</span><a href="GHC.TypeLits.KnownNat.html#boolSing"><span class="hs-identifier hs-var">boolSing</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBool"><span class="hs-identifier hs-type">SBool</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223292"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-243"></span><span>  </span><span class="annot"><span class="annottext">SBool b
+</span><a href="GHC.TypeLits.KnownNat.html#SFalse"><span class="hs-identifier hs-var">SFalse</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-244"></span><span>  </span><span class="annot"><span class="annottext">SBool b
+</span><span class="hs-identifier">_</span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- | A type &quot;representationally equal&quot; to 'SBool', used for simpler</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- implementation of constraint-level functions that need to create instances of</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- 'KnownBool'</span><span>
+</span><span id="line-249"></span><span class="hs-keyword">newtype</span><span> </span><span id="SBoolKb"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBoolKb"><span class="hs-identifier hs-var">SBoolKb</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223304"><span class="annot"><a href="#local-6989586621679223304"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SBoolKb"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBoolKb"><span class="hs-identifier hs-var">SBoolKb</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- | Class for binary functions with a Boolean result.</span><span>
+</span><span id="line-252"></span><span class="hs-comment">--</span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- The 'Symbol' /f/ must correspond to the fully qualified name of the</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- type-level operation. Use 'nameToSymbol' to get the fully qualified</span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- TH Name as a 'Symbol'</span><span>
+</span><span id="line-256"></span><span class="hs-keyword">class</span><span> </span><span id="KnownBoolNat2"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBoolNat2"><span class="hs-identifier hs-var">KnownBoolNat2</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223299"><span class="annot"><a href="#local-6989586621679223299"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span id="local-6989586621679223298"><span> </span><span class="hs-special">(</span><span id="local-6989586621679223300"><span class="annot"><a href="#local-6989586621679223300"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679223298"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">k</span></span><span id="local-6989586621679223298"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-257"></span><span>  </span><span id="boolNatSing2"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#boolNatSing2"><span class="hs-identifier hs-type">boolNatSing2</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SBoolKb"><span class="hs-identifier hs-type">SBoolKb</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223299"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-258"></span><span>
+</span><span id="line-259"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223302"><span id="local-6989586621679223303"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223302"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223303"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBoolNat2"><span class="hs-identifier hs-type">KnownBoolNat2</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-special">(</span><span class="hs-operator">&lt;=?</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223302"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223303"><span class="hs-identifier hs-type">b</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-260"></span><span>  </span><span id="local-6989586621679223441"><span class="annot"><span class="annottext">boolNatSing2 :: SBoolKb &quot;GHC.Internal.Data.Type.Ord.&lt;=?&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#boolNatSing2"><span class="hs-identifier hs-var hs-var hs-var">boolNatSing2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SBoolKb &quot;GHC.Internal.Data.Type.Ord.&lt;=?&quot;
+forall (f :: Symbol). Bool -&gt; SBoolKb f
+</span><a href="GHC.TypeLits.KnownNat.html#SBoolKb"><span class="hs-identifier hs-var">SBoolKb</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy a -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223302"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223303"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-261"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#boolNatSing2"><span class="hs-pragma hs-type">boolNatSing2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-262"></span><span>
+</span><span id="line-263"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223308"><span id="local-6989586621679223309"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223308"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223309"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBoolNat2"><span class="hs-identifier hs-type">KnownBoolNat2</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-identifier">OrdCond</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223308"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223309"><span class="hs-identifier hs-type">b</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-264"></span><span>  </span><span id="local-6989586621679223450"><span class="annot"><span class="annottext">boolNatSing2 :: SBoolKb &quot;GHC.Internal.Data.Type.Ord.OrdCond&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#boolNatSing2"><span class="hs-identifier hs-var hs-var hs-var">boolNatSing2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SBoolKb &quot;GHC.Internal.Data.Type.Ord.OrdCond&quot;
+forall (f :: Symbol). Bool -&gt; SBoolKb f
+</span><a href="GHC.TypeLits.KnownNat.html#SBoolKb"><span class="hs-identifier hs-var">SBoolKb</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy a -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223308"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223309"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-265"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#boolNatSing2"><span class="hs-pragma hs-type">boolNatSing2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-266"></span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- | Class for ternary functions with a Natural result.</span><span>
+</span><span id="line-268"></span><span class="hs-comment">--</span><span>
+</span><span id="line-269"></span><span class="hs-comment">-- The 'Symbol' /f/ must correspond to the fully qualified name of the</span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- type-level operation. Use 'nameToSymbol' to get the fully qualified</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- TH Name as a 'Symbol'</span><span>
+</span><span id="line-272"></span><span class="hs-keyword">class</span><span> </span><span id="KnownNat2Bool"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2Bool"><span class="hs-identifier hs-var">KnownNat2Bool</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223315"><span class="annot"><a href="#local-6989586621679223315"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223316"><span class="annot"><a href="#local-6989586621679223316"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223317"><span class="annot"><a href="#local-6989586621679223317"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679223314"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679223318"><span class="annot"><a href="#local-6989586621679223318"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679223314"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-273"></span><span>  </span><span id="natBoolSing3"><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natBoolSing3"><span class="hs-identifier hs-type">natBoolSing3</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-type">SNatKn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223315"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-274"></span><span>
+</span><span id="line-275"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679223319"><span id="local-6989586621679223320"><span id="local-6989586621679223321"><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownBool"><span class="hs-identifier hs-type">KnownBool</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223319"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223320"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679223321"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#KnownNat2Bool"><span class="hs-identifier hs-type">KnownNat2Bool</span></a></span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><a href="GHC.TypeLits.KnownNat.TH.html#nameToSymbol"><span class="hs-identifier hs-type">nameToSymbol</span></a></span><span> </span><span class="hs-special">''</span><span class="hs-identifier">If</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679223319"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223320"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679223321"><span class="hs-identifier hs-type">c</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-276"></span><span>  </span><span id="local-6989586621679223461"><span class="annot"><span class="annottext">natBoolSing3 :: SNatKn &quot;GHC.Internal.Data.Type.Bool.If&quot;
+</span><a href="GHC.TypeLits.KnownNat.html#natBoolSing3"><span class="hs-identifier hs-var hs-var hs-var">natBoolSing3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; SNatKn &quot;GHC.Internal.Data.Type.Bool.If&quot;
+forall (f :: Symbol). Nat -&gt; SNatKn f
+</span><a href="GHC.TypeLits.KnownNat.html#SNatKn"><span class="hs-identifier hs-var">SNatKn</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Proxy a -&gt; Bool
+forall (b :: Bool) (proxy :: Bool -&gt; Type).
+KnownBool b =&gt;
+proxy b -&gt; Bool
+</span><a href="GHC.TypeLits.KnownNat.html#boolVal"><span class="hs-identifier hs-var">boolVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Bool). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223319"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223320"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Proxy c -&gt; Nat
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Nat
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679223321"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-277"></span><span>  </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.TypeLits.KnownNat.html#natBoolSing3"><span class="hs-pragma hs-type">natBoolSing3</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-278"></span></pre></body></html>

@@ -1,0 +1,736 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE QuasiQuotes #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- | Enable painless embedding of C code in Haskell code. If you're interested</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- in how to use the library, skip to the &quot;Inline C&quot; section. To build, read the</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- first two sections.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- This module is intended to be imported qualified:</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- import qualified &quot;Language.C.Inline&quot; as C</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.C.Inline.html"><span class="hs-identifier">Language.C.Inline</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * GHCi</span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-comment">-- $building</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Contexts</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="Language.C.Inline.Context.html#Context"><span class="hs-identifier">Context</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Context.html#baseCtx"><span class="hs-identifier">baseCtx</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Context.html#fptrCtx"><span class="hs-identifier">fptrCtx</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Context.html#funCtx"><span class="hs-identifier">funCtx</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Context.html#vecCtx"><span class="hs-identifier">vecCtx</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Context.html#bsCtx"><span class="hs-identifier">bsCtx</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#context"><span class="hs-identifier">context</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Substitution</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Internal.html#substitute"><span class="hs-identifier">substitute</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Internal.html#getHaskellType"><span class="hs-identifier">getHaskellType</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Inline C</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-comment">-- $quoting</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#exp"><span class="hs-identifier">exp</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#pure"><span class="hs-identifier">pure</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#block"><span class="hs-identifier">block</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#include"><span class="hs-identifier">include</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#verbatim"><span class="hs-identifier">verbatim</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.Internal.html#emitBlock"><span class="hs-identifier">emitBlock</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-comment">-- * 'Ptr' utils</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier">withPtr</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#withPtr_"><span class="hs-identifier">withPtr_</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#WithPtrs"><span class="hs-identifier">WithPtrs</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="hs-comment">-- * 'FunPtr' utils</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.html#funPtr"><span class="hs-identifier">funPtr</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** 'FunPtr' conversion</span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-comment">-- Functions to quickly convert from/to 'FunPtr's. They're provided here</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-comment">-- since they can be useful to work with Haskell functions in C, and</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-comment">-- vice-versa. However, consider using 'funCtx' if you're doing this</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-comment">-- a lot.</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.FunPtr.html#mkFunPtr"><span class="hs-identifier">mkFunPtr</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.FunPtr.html#mkFunPtrFromName"><span class="hs-identifier">mkFunPtrFromName</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.C.Inline.FunPtr.html#peekFunPtr"><span class="hs-identifier">peekFunPtr</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="hs-comment">-- * C types re-exports</span></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-comment">-- Re-export these to avoid errors when `inline-c` generates FFI calls GHC</span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-comment">-- needs the constructors for those types.</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.Types</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Prelude</span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">exp</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">exp</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">pure</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-77"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">void</span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.C.Types</span></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Alloc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">alloca</span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">peek</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Storable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TH</span></span><span>
+</span><span id="line-83"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH.Quote</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TH</span></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.C.Inline.Context.html"><span class="hs-identifier">Language.C.Inline.Context</span></a></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.C.Inline.Internal.html"><span class="hs-identifier">Language.C.Inline.Internal</span></a></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.C.Inline.FunPtr.html"><span class="hs-identifier">Language.C.Inline.FunPtr</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- $building</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- Currently @inline-c@ does not work in interpreted mode. However, GHCi</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- can still be used using the @-fobject-code@ flag. For speed, we</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- reccomend passing @-fobject-code -O0@, for example</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- stack ghci --ghci-options='-fobject-code -O0'</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- or</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- cabal repl --ghc-options='-fobject-code -O0'</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- Quoting sugar</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- $quoting</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- The quasiquoters below are the main interface to this library, for inlining</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- C code into Haskell source files.</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- In general, quasiquoters are used like so:</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- [C.XXX| int { \&lt;C code\&gt; } |]</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- Where @C.XXX@ is one of the quasi-quoters defined in this section.</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- This syntax stands for a piece of typed C, decorated with a type:</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- * The first type to appear (@int@ in the example) is the type of said C code.</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- * The syntax of the @\&lt;C code\&gt;@ depends on on the quasi-quoter used, and the</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--   anti-quoters available. The @exp@ quasi-quoter expects a C expression. The</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--   @block@ quasi-quoter expects a list of statements, like the body of</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--   a function. Just like a C function, a block has a return type, matching the</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--   type of any values in any @return@ statements appearing in the block.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- See also the @README.md@ file for more documentation.</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- === Anti-quoters</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- Haskell variables can be captured using anti-quoters.  @inline-c@</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- provides a basic anti-quoting mechanism extensible with user-defined</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- anti-quoters (see &quot;Language.C.Inline.Context&quot;).  The basic</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- anti-quoter lets you capture Haskell variables, for</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- example we might say</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- let x = pi / 3 in ['C.exp'| double { cos($(double x)) } |]</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- Which would capture the Haskell variable @x@ of type @'CDouble'@.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- In C expressions the @$@ character is denoted using @$$@.</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- === Variable capture and the typing relation</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- The Haskell type of the inlined expression is determined by the specified</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- C return type. The relation between the C type and the Haskell type is</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- defined in the current 'Context' -- see 'convertCType'. C pointers and</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- arrays are both converted to Haskell @'Ptr'@s, and function pointers are</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- converted to @'FunPtr'@s. Sized arrays are not supported.</span><span>
+</span><span id="line-156"></span><span class="hs-comment">--</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- Similarly, when capturing Haskell variables using anti-quoting, their</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- type is assumed to be of the Haskell type corresponding to the C type</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- provided.  For example, if we capture variable @x@ using @double x@</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- in the parameter list, the code will expect a variable @x@ of type</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- 'CDouble' in Haskell (when using 'baseCtx').</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- === Purity</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- The 'exp' and 'block' quasi-quotes denote computations in the 'IO' monad.</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- 'pure' denotes a pure value, expressed as a C expression.</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- === Safe and @unsafe@ calls</span><span>
+</span><span id="line-169"></span><span class="hs-comment">--</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- @unsafe@ variants of the quasi-quoters are provided in</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- &quot;Language.C.Inline.Unsafe&quot; to call the C code unsafely, in the sense that the</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- C code will block the RTS, but with the advantage of a faster call to the</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- foreign code. See</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- &lt;https://www.haskell.org/onlinereport/haskell2010/haskellch8.html#x15-1590008.4.3&gt;.</span><span>
+</span><span id="line-175"></span><span class="hs-comment">--</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- == Examples</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- === Inline C expression</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- {-\# LANGUAGE QuasiQuotes \#-}</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- import qualified &quot;Language.C.Inline&quot; as C</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- import qualified &quot;Language.C.Inline.Unsafe&quot; as CU</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- import           &quot;Foreign.C.Types&quot;</span><span>
+</span><span id="line-185"></span><span class="hs-comment">--</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- C.'include' &quot;\&lt;math.h\&gt;&quot;</span><span>
+</span><span id="line-187"></span><span class="hs-comment">--</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- c_cos :: 'CDouble' -&gt; IO 'CDouble'</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- c_cos x = [C.exp| double { cos($(double x)) } |]</span><span>
+</span><span id="line-190"></span><span class="hs-comment">--</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- faster_c_cos :: 'CDouble' -&gt; IO 'CDouble'</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- faster_c_cos x = [CU.exp| double { cos($(double x)) } |]</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-194"></span><span class="hs-comment">--</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- === Inline C statements</span><span>
+</span><span id="line-196"></span><span class="hs-comment">--</span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- {-\# LANGUAGE QuasiQuotes \#-}</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- {-\# LANGUAGE TemplateHaskell \#-}</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- import qualified Data.Vector.Storable.Mutable as V</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- import qualified &quot;Language.C.Inline&quot; as C</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- import           &quot;Foreign.C.Types&quot;</span><span>
+</span><span id="line-203"></span><span class="hs-comment">--</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- C.'include' &quot;\&lt;stdio.h\&gt;&quot;</span><span>
+</span><span id="line-205"></span><span class="hs-comment">--</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- parseVector :: 'CInt' -&gt; 'IO' (V.IOVector 'CDouble')</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- parseVector len = do</span><span>
+</span><span id="line-208"></span><span class="hs-comment">--   vec &lt;- V.new $ 'fromIntegral' len0</span><span>
+</span><span id="line-209"></span><span class="hs-comment">--   V.unsafeWith vec $ \\ptr -&gt; [C.'block'| void {</span><span>
+</span><span id="line-210"></span><span class="hs-comment">--     int i;</span><span>
+</span><span id="line-211"></span><span class="hs-comment">--     for (i = 0; i &lt; $(int len); i++) {</span><span>
+</span><span id="line-212"></span><span class="hs-comment">--       scanf(&quot;%lf &quot;, &amp;$(double *ptr)[i]);</span><span>
+</span><span id="line-213"></span><span class="hs-comment">--     }</span><span>
+</span><span id="line-214"></span><span class="hs-comment">--   } |]</span><span>
+</span><span id="line-215"></span><span class="hs-comment">--   'return' vec</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-217"></span><span class="hs-comment">--</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- == How it works</span><span>
+</span><span id="line-219"></span><span class="hs-comment">--</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- For each quasi-quotation of C code, a C function is generated in a C file</span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- corresponding to the current Haskell file. Every inline C expression will result</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- in a corresponding C function.</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- For example, if we define @c_cos@</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- as in the example above in @CCos.hs@, we will get a file containing</span><span>
+</span><span id="line-225"></span><span class="hs-comment">--</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- #include &lt;math.h&gt;</span><span>
+</span><span id="line-228"></span><span class="hs-comment">--</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- double inline_c_Main_0_a03fba228a6d8e36ea7d69381f87bade594c949d(double x_inline_c_0) {</span><span>
+</span><span id="line-230"></span><span class="hs-comment">--   return cos(x_inline_c_0);</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- }</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-233"></span><span class="hs-comment">--</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- Every anti-quotation will correspond to an argument in the C function. If the same</span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- Haskell variable is anti-quoted twice, this will result in two arguments.</span><span>
+</span><span id="line-236"></span><span class="hs-comment">--</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- The C function is then automatically compiled and invoked from Haskell with the correct arguments passed in.</span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="annot"><span class="hs-comment">-- | C expressions.</span></span><span>
+</span><span id="line-240"></span><span class="annot"><a href="Language.C.Inline.html#exp"><span class="hs-identifier hs-type">exp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.QuasiQuoter</span></span><span>
+</span><span id="line-241"></span><span id="exp"><span class="annot"><span class="annottext">exp :: QuasiQuoter
+</span><a href="Language.C.Inline.html#exp"><span class="hs-identifier hs-var hs-var">exp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Purity
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; [Char]
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+</span><a href="Language.C.Inline.Internal.html#genericQuote"><span class="hs-identifier hs-var">genericQuote</span></a></span><span> </span><span class="annot"><span class="annottext">Purity
+</span><a href="Language.C.Inline.Context.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((Loc
+  -&gt; TypeQ
+  -&gt; Type CIdentifier
+  -&gt; [(CIdentifier, Type CIdentifier)]
+  -&gt; [Char]
+  -&gt; ExpQ)
+ -&gt; QuasiQuoter)
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; [Char]
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Safety
+-&gt; Loc
+-&gt; TypeQ
+-&gt; Type CIdentifier
+-&gt; [(CIdentifier, Type CIdentifier)]
+-&gt; [Char]
+-&gt; ExpQ
+</span><a href="Language.C.Inline.Internal.html#inlineExp"><span class="hs-identifier hs-var">inlineExp</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><span class="hs-identifier hs-var">TH.Safe</span></span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- | Variant of 'exp', for use with expressions known to have no side effects.</span><span>
+</span><span id="line-244"></span><span class="hs-comment">--</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- __BEWARE__: Use this function with caution, only when you know what you are</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- doing. If an expression does in fact have side-effects, then indiscriminate</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- use of 'pure' may endanger referential transparency, and in principle even</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- type safety. Also note that the function might be called multiple times,</span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- given that 'System.IO.Unsafe.unsafeDupablePerformIO' is used to call the</span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- provided C code.  Please refer to the documentation for</span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- 'System.IO.Unsafe.unsafePerformIO' for more details.</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- [unsafeDupablePerformIO is used to ensure good performance using the</span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- threaded runtime](https://github.com/fpco/inline-c/issues/115).</span><span>
+</span><span id="line-254"></span><span class="annot"><a href="Language.C.Inline.html#pure"><span class="hs-identifier hs-type">pure</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.QuasiQuoter</span></span><span>
+</span><span id="line-255"></span><span id="pure"><span class="annot"><span class="annottext">pure :: QuasiQuoter
+</span><a href="Language.C.Inline.html#pure"><span class="hs-identifier hs-var hs-var">pure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Purity
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; [Char]
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+</span><a href="Language.C.Inline.Internal.html#genericQuote"><span class="hs-identifier hs-var">genericQuote</span></a></span><span> </span><span class="annot"><span class="annottext">Purity
+</span><a href="Language.C.Inline.Context.html#Pure"><span class="hs-identifier hs-var">Pure</span></a></span><span> </span><span class="annot"><span class="annottext">((Loc
+  -&gt; TypeQ
+  -&gt; Type CIdentifier
+  -&gt; [(CIdentifier, Type CIdentifier)]
+  -&gt; [Char]
+  -&gt; ExpQ)
+ -&gt; QuasiQuoter)
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; [Char]
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Safety
+-&gt; Loc
+-&gt; TypeQ
+-&gt; Type CIdentifier
+-&gt; [(CIdentifier, Type CIdentifier)]
+-&gt; [Char]
+-&gt; ExpQ
+</span><a href="Language.C.Inline.Internal.html#inlineExp"><span class="hs-identifier hs-var">inlineExp</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><span class="hs-identifier hs-var">TH.Safe</span></span><span>
+</span><span id="line-256"></span><span>
+</span><span id="line-257"></span><span class="annot"><span class="hs-comment">-- | C code blocks (i.e. statements).</span></span><span>
+</span><span id="line-258"></span><span class="annot"><a href="Language.C.Inline.html#block"><span class="hs-identifier hs-type">block</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.QuasiQuoter</span></span><span>
+</span><span id="line-259"></span><span id="block"><span class="annot"><span class="annottext">block :: QuasiQuoter
+</span><a href="Language.C.Inline.html#block"><span class="hs-identifier hs-var hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Purity
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; [Char]
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+</span><a href="Language.C.Inline.Internal.html#genericQuote"><span class="hs-identifier hs-var">genericQuote</span></a></span><span> </span><span class="annot"><span class="annottext">Purity
+</span><a href="Language.C.Inline.Context.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((Loc
+  -&gt; TypeQ
+  -&gt; Type CIdentifier
+  -&gt; [(CIdentifier, Type CIdentifier)]
+  -&gt; [Char]
+  -&gt; ExpQ)
+ -&gt; QuasiQuoter)
+-&gt; (Loc
+    -&gt; TypeQ
+    -&gt; Type CIdentifier
+    -&gt; [(CIdentifier, Type CIdentifier)]
+    -&gt; [Char]
+    -&gt; ExpQ)
+-&gt; QuasiQuoter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Safety
+-&gt; Bool
+-&gt; Maybe [Char]
+-&gt; Loc
+-&gt; TypeQ
+-&gt; Type CIdentifier
+-&gt; [(CIdentifier, Type CIdentifier)]
+-&gt; [Char]
+-&gt; ExpQ
+</span><a href="Language.C.Inline.Internal.html#inlineItems"><span class="hs-identifier hs-var">inlineItems</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><span class="hs-identifier hs-var">TH.Safe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- | Easily get a 'FunPtr':</span><span>
+</span><span id="line-262"></span><span class="hs-comment">--</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- let fp :: FunPtr (Ptr CInt -&gt; IO ()) = [C.funPtr| void poke42(int *ptr) { *ptr = 42; } |]</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-266"></span><span class="hs-comment">--</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- Especially useful to generate finalizers that require C code.</span><span>
+</span><span id="line-268"></span><span class="hs-comment">--</span><span>
+</span><span id="line-269"></span><span class="hs-comment">-- Most importantly, this allows you to write `Foreign.ForeignPtr.newForeignPtr` invocations conveniently:</span><span>
+</span><span id="line-270"></span><span class="hs-comment">--</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- do</span><span>
+</span><span id="line-273"></span><span class="hs-comment">--   let c_finalizer_funPtr =</span><span>
+</span><span id="line-274"></span><span class="hs-comment">--         [C.funPtr| void myfree(char * ptr) { free(ptr); } |]</span><span>
+</span><span id="line-275"></span><span class="hs-comment">--   fp &lt;- newForeignPtr c_finalizer_funPtr objPtr</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-277"></span><span class="hs-comment">--</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- Using where possible `Foreign.ForeignPtr.newForeignPtr` is superior to</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- resorting to its delayed-by-a-thread alternative `Foreign.Concurrent.newForeignPtr`</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- from &quot;Foreign.Concurrent&quot; which takes an @IO ()@ Haskell finaliser action:</span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- With the non-concurrent `newForeignPtr` you can guarantee that the finaliser</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- will actually be run</span><span>
+</span><span id="line-283"></span><span class="hs-comment">--</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- * when a GC is executed under memory pressure, because it can point directly</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--   to a C function that doesn't have to run any Haskell code (which is</span><span>
+</span><span id="line-286"></span><span class="hs-comment">--   problematic when you're out of memory)</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- * when the program terminates (`Foreign.Concurrent.newForeignPtr`'s finaliser</span><span>
+</span><span id="line-288"></span><span class="hs-comment">--   will likely NOT be called if your main thread exits, making your program</span><span>
+</span><span id="line-289"></span><span class="hs-comment">--   e.g. not Valgrind-clean if your finaliser is @free@ or C++'s @delete@).</span><span>
+</span><span id="line-290"></span><span class="hs-comment">--</span><span>
+</span><span id="line-291"></span><span class="hs-comment">-- `funPtr` makes the normal `newForeignPtr` as convenient as its concurrent</span><span>
+</span><span id="line-292"></span><span class="hs-comment">-- counterpart.</span><span>
+</span><span id="line-293"></span><span class="annot"><a href="Language.C.Inline.html#funPtr"><span class="hs-identifier hs-type">funPtr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.QuasiQuoter</span></span><span>
+</span><span id="line-294"></span><span id="funPtr"><span class="annot"><span class="annottext">funPtr :: QuasiQuoter
+</span><a href="Language.C.Inline.html#funPtr"><span class="hs-identifier hs-var hs-var">funPtr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Safety -&gt; QuasiQuoter
+</span><a href="Language.C.Inline.Internal.html#funPtrQuote"><span class="hs-identifier hs-var">funPtrQuote</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><span class="hs-identifier hs-var">TH.Unsafe</span></span><span> </span><span class="hs-comment">-- doesn't make much sense for this to be &quot;safe&quot;, but it'd be good to verify what this means</span><span>
+</span><span id="line-295"></span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- | Emits a CPP include directive for C code associated with the current</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- module. To avoid having to escape quotes, the function itself adds them when</span><span>
+</span><span id="line-298"></span><span class="hs-comment">-- appropriate, so that</span><span>
+</span><span id="line-299"></span><span class="hs-comment">--</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-301"></span><span class="hs-comment">-- include &quot;foo.h&quot; ==&gt; #include &quot;foo.h&quot;</span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-303"></span><span class="hs-comment">--</span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- but</span><span>
+</span><span id="line-305"></span><span class="hs-comment">--</span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- include &quot;\&lt;foo\&gt;&quot; ==&gt; #include \&lt;foo\&gt;</span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-309"></span><span class="annot"><a href="Language.C.Inline.html#include"><span class="hs-identifier hs-type">include</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.DecsQ</span></span><span>
+</span><span id="line-310"></span><span id="include"><span class="annot"><span class="annottext">include :: [Char] -&gt; DecsQ
+</span><a href="Language.C.Inline.html#include"><span class="hs-identifier hs-var hs-var">include</span></a></span></span><span> </span><span id="local-6989586621679300012"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679300012"><span class="hs-identifier hs-var">s</span></a></span></span><span>
+</span><span id="line-311"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679300012"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; DecsQ
+forall a. [Char] -&gt; Q a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; [Char] -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;inline-c: empty string (include)&quot;</span></span><span>
+</span><span id="line-312"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Char
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679300012"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'&lt;'</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; DecsQ
+</span><a href="Language.C.Inline.html#verbatim"><span class="hs-identifier hs-var">verbatim</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; DecsQ) -&gt; [Char] -&gt; DecsQ
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;#include &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679300012"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-313"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; DecsQ
+</span><a href="Language.C.Inline.html#verbatim"><span class="hs-identifier hs-var">verbatim</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; DecsQ) -&gt; [Char] -&gt; DecsQ
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;#include \&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679300012"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span>
+</span><span id="line-314"></span><span>
+</span><span id="line-315"></span><span class="hs-comment">-- | Emits an arbitrary C string to the C code associated with the</span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- current module.  Use with care.</span><span>
+</span><span id="line-317"></span><span class="annot"><a href="Language.C.Inline.html#verbatim"><span class="hs-identifier hs-type">verbatim</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.DecsQ</span></span><span>
+</span><span id="line-318"></span><span id="verbatim"><span class="annot"><span class="annottext">verbatim :: [Char] -&gt; DecsQ
+</span><a href="Language.C.Inline.html#verbatim"><span class="hs-identifier hs-var hs-var">verbatim</span></a></span></span><span> </span><span id="local-6989586621679300015"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679300015"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-319"></span><span>  </span><span class="annot"><span class="annottext">DecsQ -&gt; Q ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(DecsQ -&gt; Q ()) -&gt; DecsQ -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; DecsQ
+</span><a href="Language.C.Inline.Internal.html#emitVerbatim"><span class="hs-identifier hs-var">emitVerbatim</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679300015"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-320"></span><span>  </span><span class="annot"><span class="annottext">[Dec] -&gt; DecsQ
+forall a. a -&gt; Q a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-321"></span><span>
+</span><span id="line-322"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- 'Ptr' utils</span><span>
+</span><span id="line-324"></span><span>
+</span><span id="line-325"></span><span class="hs-comment">-- | Like 'alloca', but also peeks the contents of the 'Ptr' and returns</span><span>
+</span><span id="line-326"></span><span class="hs-comment">-- them once the provided action has finished.</span><span>
+</span><span id="line-327"></span><span id="local-6989586621679299880"><span id="local-6989586621679299882"><span class="annot"><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-type">withPtr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299880"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299880"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679299882"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299880"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299882"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-328"></span><span id="withPtr"><span class="annot"><span class="annottext">withPtr :: forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var hs-var">withPtr</span></a></span></span><span> </span><span id="local-6989586621679300024"><span class="annot"><span class="annottext">Ptr a -&gt; IO b
+</span><a href="#local-6989586621679300024"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-329"></span><span>  </span><span class="annot"><span class="annottext">(Ptr a -&gt; IO (a, b)) -&gt; IO (a, b)
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr a -&gt; IO (a, b)) -&gt; IO (a, b))
+-&gt; (Ptr a -&gt; IO (a, b)) -&gt; IO (a, b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679300025"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300025"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-330"></span><span>    </span><span id="local-6989586621679300026"><span class="annot"><a href="#local-6989586621679300026"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr a -&gt; IO b
+</span><a href="#local-6989586621679300024"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300025"><span class="hs-identifier hs-var">ptr</span></a></span><span>
+</span><span id="line-331"></span><span>    </span><span id="local-6989586621679300027"><span class="annot"><a href="#local-6989586621679300027"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">peek</span></span><span> </span><span class="annot"><a href="#local-6989586621679300025"><span class="hs-identifier hs-type">ptr</span></a></span><span>
+</span><span id="line-332"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679300027"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300026"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-333"></span><span>
+</span><span id="line-334"></span><span id="local-6989586621679299888"><span class="annot"><a href="Language.C.Inline.html#withPtr_"><span class="hs-identifier hs-type">withPtr_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299888"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299888"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679299888"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-335"></span><span id="withPtr_"><span class="annot"><span class="annottext">withPtr_ :: forall a. Storable a =&gt; (Ptr a -&gt; IO ()) -&gt; IO a
+</span><a href="Language.C.Inline.html#withPtr_"><span class="hs-identifier hs-var hs-var">withPtr_</span></a></span></span><span> </span><span id="local-6989586621679300032"><span class="annot"><span class="annottext">Ptr a -&gt; IO ()
+</span><a href="#local-6989586621679300032"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-336"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679300033"><span class="annot"><a href="#local-6989586621679300033"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Ptr a -&gt; IO ()) -&gt; IO (a, ())
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var">withPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr a -&gt; IO ()
+</span><a href="#local-6989586621679300032"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-337"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679300033"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-338"></span><span>
+</span><span id="line-339"></span><span class="hs-comment">-- | Type class with methods useful to allocate and peek multiple</span><span>
+</span><span id="line-340"></span><span class="hs-comment">-- pointers at once:</span><span>
+</span><span id="line-341"></span><span class="hs-comment">--</span><span>
+</span><span id="line-342"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- withPtrs_ :: (Storable a, Storable b) =&gt; ((Ptr a, Ptr b) -&gt; IO ()) -&gt; IO (a, b)</span><span>
+</span><span id="line-344"></span><span class="hs-comment">-- withPtrs_ :: (Storable a, Storable b, Storable c) =&gt; ((Ptr a, Ptr b, Ptr c) -&gt; IO ()) -&gt; IO (a, b, c)</span><span>
+</span><span id="line-345"></span><span class="hs-comment">-- ...</span><span>
+</span><span id="line-346"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-347"></span><span class="hs-keyword">class</span><span> </span><span id="WithPtrs"><span class="annot"><a href="Language.C.Inline.html#WithPtrs"><span class="hs-identifier hs-var">WithPtrs</span></a></span></span><span> </span><span id="local-6989586621679299890"><span class="annot"><a href="#local-6989586621679299890"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-348"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="WithPtrsPtrs"><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-var">WithPtrsPtrs</span></a></span></span><span> </span><span id="local-6989586621679299890"><span class="annot"><a href="#local-6989586621679299890"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-operator">*</span></span><span>
+</span><span id="line-349"></span><span>  </span><span id="withPtrs"><span class="annot"><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-type">withPtrs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679299893"><span class="hs-special">(</span><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-type">WithPtrsPtrs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679299890"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679299893"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299890"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299893"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-350"></span><span>
+</span><span id="line-351"></span><span>  </span><span id="withPtrs_"><span class="annot"><a href="Language.C.Inline.html#withPtrs_"><span class="hs-identifier hs-type">withPtrs_</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-type">WithPtrsPtrs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679299890"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679299890"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-352"></span><span>  </span><span id="local-6989586621679300037"><span class="annot"><a href="Language.C.Inline.html#withPtrs_"><span class="hs-identifier hs-var hs-var">withPtrs_</span></a></span><span> </span><span id="local-6989586621679300041"><span class="annot"><span class="annottext">WithPtrsPtrs a -&gt; IO ()
+</span><a href="#local-6989586621679300041"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-353"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679300042"><span class="annot"><a href="#local-6989586621679300042"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(WithPtrsPtrs a -&gt; IO ()) -&gt; IO (a, ())
+forall a b. WithPtrs a =&gt; (WithPtrsPtrs a -&gt; IO b) -&gt; IO (a, b)
+forall b. (WithPtrsPtrs a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var">withPtrs</span></a></span><span> </span><span class="annot"><span class="annottext">WithPtrsPtrs a -&gt; IO ()
+</span><a href="#local-6989586621679300041"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-354"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679300042"><span class="hs-identifier hs-type">x</span></a></span></span><span>
+</span><span id="line-355"></span><span>
+</span><span id="line-356"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679299896"><span id="local-6989586621679299897"><span id="local-6989586621679300047"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299896"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299897"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.C.Inline.html#WithPtrs"><span class="hs-identifier hs-type">WithPtrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299896"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299897"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-357"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="WithPtrsPtrs"><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-var">WithPtrsPtrs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299896"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299897"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299896"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299897"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-358"></span><span>  </span><span id="local-6989586621679300055"><span class="annot"><span class="annottext">withPtrs :: forall b. (WithPtrsPtrs (a, b) -&gt; IO b) -&gt; IO ((a, b), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var hs-var hs-var">withPtrs</span></a></span></span><span> </span><span id="local-6989586621679300056"><span class="annot"><span class="annottext">WithPtrsPtrs (a, b) -&gt; IO b
+</span><a href="#local-6989586621679300056"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-359"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679300057"><span class="annot"><a href="#local-6989586621679300057"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679300058"><span class="annot"><a href="#local-6989586621679300058"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300059"><span class="annot"><a href="#local-6989586621679300059"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Ptr a -&gt; IO (b, b)) -&gt; IO (a, (b, b))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var">withPtr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr a -&gt; IO (b, b)) -&gt; IO (a, (b, b)))
+-&gt; (Ptr a -&gt; IO (b, b)) -&gt; IO (a, (b, b))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679300060"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300060"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Ptr b -&gt; IO b) -&gt; IO (b, b)
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var">withPtr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr b -&gt; IO b) -&gt; IO (b, b)) -&gt; (Ptr b -&gt; IO b) -&gt; IO (b, b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679300061"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300061"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">WithPtrsPtrs (a, b) -&gt; IO b
+</span><a href="#local-6989586621679300056"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300060"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300061"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-360"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679300057"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300058"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300059"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-361"></span><span>
+</span><span id="line-362"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679299902"><span id="local-6989586621679299903"><span id="local-6989586621679299904"><span id="local-6989586621679300067"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299902"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299903"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299904"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.C.Inline.html#WithPtrs"><span class="hs-identifier hs-type">WithPtrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299902"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299903"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299904"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-363"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="WithPtrsPtrs"><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-var">WithPtrsPtrs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299902"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299903"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299904"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299902"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299903"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299904"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-364"></span><span>  </span><span id="local-6989586621679300074"><span class="annot"><span class="annottext">withPtrs :: forall b. (WithPtrsPtrs (a, b, c) -&gt; IO b) -&gt; IO ((a, b, c), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var hs-var hs-var">withPtrs</span></a></span></span><span> </span><span id="local-6989586621679300075"><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c) -&gt; IO b
+</span><a href="#local-6989586621679300075"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-365"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679300076"><span class="annot"><a href="#local-6989586621679300076"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679300077"><span class="annot"><a href="#local-6989586621679300077"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300078"><span class="annot"><a href="#local-6989586621679300078"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300079"><span class="annot"><a href="#local-6989586621679300079"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Ptr a -&gt; IO ((b, c), b)) -&gt; IO (a, ((b, c), b))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var">withPtr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr a -&gt; IO ((b, c), b)) -&gt; IO (a, ((b, c), b)))
+-&gt; (Ptr a -&gt; IO ((b, c), b)) -&gt; IO (a, ((b, c), b))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679300080"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300080"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(WithPtrsPtrs (b, c) -&gt; IO b) -&gt; IO ((b, c), b)
+forall a b. WithPtrs a =&gt; (WithPtrsPtrs a -&gt; IO b) -&gt; IO (a, b)
+forall b. (WithPtrsPtrs (b, c) -&gt; IO b) -&gt; IO ((b, c), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var">withPtrs</span></a></span><span> </span><span class="annot"><span class="annottext">((WithPtrsPtrs (b, c) -&gt; IO b) -&gt; IO ((b, c), b))
+-&gt; (WithPtrsPtrs (b, c) -&gt; IO b) -&gt; IO ((b, c), b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679300081"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300081"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300082"><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300082"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c) -&gt; IO b
+</span><a href="#local-6989586621679300075"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300080"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300081"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300082"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-366"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679300076"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300077"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300078"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300079"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-367"></span><span>
+</span><span id="line-368"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679299910"><span id="local-6989586621679299911"><span id="local-6989586621679299912"><span id="local-6989586621679299913"><span id="local-6989586621679300089"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299910"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299911"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299912"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299913"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.C.Inline.html#WithPtrs"><span class="hs-identifier hs-type">WithPtrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299910"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299911"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299912"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299913"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-369"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="WithPtrsPtrs"><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-var">WithPtrsPtrs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299910"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299911"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299912"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299913"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299910"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299911"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299912"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299913"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-370"></span><span>  </span><span id="local-6989586621679300096"><span class="annot"><span class="annottext">withPtrs :: forall b.
+(WithPtrsPtrs (a, b, c, d) -&gt; IO b) -&gt; IO ((a, b, c, d), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var hs-var hs-var">withPtrs</span></a></span></span><span> </span><span id="local-6989586621679300097"><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c, d) -&gt; IO b
+</span><a href="#local-6989586621679300097"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-371"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679300098"><span class="annot"><a href="#local-6989586621679300098"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679300099"><span class="annot"><a href="#local-6989586621679300099"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300100"><span class="annot"><a href="#local-6989586621679300100"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300101"><span class="annot"><a href="#local-6989586621679300101"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300102"><span class="annot"><a href="#local-6989586621679300102"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Ptr a -&gt; IO ((b, c, d), b)) -&gt; IO (a, ((b, c, d), b))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var">withPtr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr a -&gt; IO ((b, c, d), b)) -&gt; IO (a, ((b, c, d), b)))
+-&gt; (Ptr a -&gt; IO ((b, c, d), b)) -&gt; IO (a, ((b, c, d), b))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679300103"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300103"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(WithPtrsPtrs (b, c, d) -&gt; IO b) -&gt; IO ((b, c, d), b)
+forall a b. WithPtrs a =&gt; (WithPtrsPtrs a -&gt; IO b) -&gt; IO (a, b)
+forall b. (WithPtrsPtrs (b, c, d) -&gt; IO b) -&gt; IO ((b, c, d), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var">withPtrs</span></a></span><span> </span><span class="annot"><span class="annottext">((WithPtrsPtrs (b, c, d) -&gt; IO b) -&gt; IO ((b, c, d), b))
+-&gt; (WithPtrsPtrs (b, c, d) -&gt; IO b) -&gt; IO ((b, c, d), b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679300104"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300104"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300105"><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300105"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300106"><span class="annot"><span class="annottext">Ptr d
+</span><a href="#local-6989586621679300106"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c, d) -&gt; IO b
+</span><a href="#local-6989586621679300097"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300103"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300104"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300105"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr d
+</span><a href="#local-6989586621679300106"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-372"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679300098"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300099"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300100"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300101"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300102"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-373"></span><span>
+</span><span id="line-374"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679299920"><span id="local-6989586621679299921"><span id="local-6989586621679299922"><span id="local-6989586621679299923"><span id="local-6989586621679299924"><span id="local-6989586621679300114"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299920"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299921"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299922"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299923"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299924"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.C.Inline.html#WithPtrs"><span class="hs-identifier hs-type">WithPtrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299920"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299921"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299922"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299923"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299924"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-375"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="WithPtrsPtrs"><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-var">WithPtrsPtrs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299920"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299921"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299922"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299923"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299924"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299920"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299921"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299922"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299923"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299924"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-376"></span><span>  </span><span id="local-6989586621679300121"><span class="annot"><span class="annottext">withPtrs :: forall b.
+(WithPtrsPtrs (a, b, c, d, e) -&gt; IO b) -&gt; IO ((a, b, c, d, e), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var hs-var hs-var">withPtrs</span></a></span></span><span> </span><span id="local-6989586621679300122"><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c, d, e) -&gt; IO b
+</span><a href="#local-6989586621679300122"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-377"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679300123"><span class="annot"><a href="#local-6989586621679300123"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679300124"><span class="annot"><a href="#local-6989586621679300124"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300125"><span class="annot"><a href="#local-6989586621679300125"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300126"><span class="annot"><a href="#local-6989586621679300126"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300127"><span class="annot"><a href="#local-6989586621679300127"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300128"><span class="annot"><a href="#local-6989586621679300128"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Ptr a -&gt; IO ((b, c, d, e), b)) -&gt; IO (a, ((b, c, d, e), b))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var">withPtr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr a -&gt; IO ((b, c, d, e), b)) -&gt; IO (a, ((b, c, d, e), b)))
+-&gt; (Ptr a -&gt; IO ((b, c, d, e), b)) -&gt; IO (a, ((b, c, d, e), b))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679300129"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300129"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(WithPtrsPtrs (b, c, d, e) -&gt; IO b) -&gt; IO ((b, c, d, e), b)
+forall a b. WithPtrs a =&gt; (WithPtrsPtrs a -&gt; IO b) -&gt; IO (a, b)
+forall b.
+(WithPtrsPtrs (b, c, d, e) -&gt; IO b) -&gt; IO ((b, c, d, e), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var">withPtrs</span></a></span><span> </span><span class="annot"><span class="annottext">((WithPtrsPtrs (b, c, d, e) -&gt; IO b) -&gt; IO ((b, c, d, e), b))
+-&gt; (WithPtrsPtrs (b, c, d, e) -&gt; IO b) -&gt; IO ((b, c, d, e), b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679300130"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300130"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300131"><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300131"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300132"><span class="annot"><span class="annottext">Ptr d
+</span><a href="#local-6989586621679300132"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300133"><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679300133"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c, d, e) -&gt; IO b
+</span><a href="#local-6989586621679300122"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300129"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300130"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300131"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr d
+</span><a href="#local-6989586621679300132"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679300133"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-378"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679300123"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300124"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300125"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300126"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300127"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300128"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-379"></span><span>
+</span><span id="line-380"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679299932"><span id="local-6989586621679299933"><span id="local-6989586621679299934"><span id="local-6989586621679299935"><span id="local-6989586621679299936"><span id="local-6989586621679299937"><span id="local-6989586621679300142"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299932"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299933"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299934"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299935"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299936"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299937"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.C.Inline.html#WithPtrs"><span class="hs-identifier hs-type">WithPtrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299932"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299933"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299934"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299935"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299936"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299937"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-381"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="WithPtrsPtrs"><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-var">WithPtrsPtrs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299932"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299933"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299934"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299935"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299936"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299937"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299932"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299933"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299934"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299935"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299936"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299937"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-382"></span><span>  </span><span id="local-6989586621679300149"><span class="annot"><span class="annottext">withPtrs :: forall b.
+(WithPtrsPtrs (a, b, c, d, e, f) -&gt; IO b)
+-&gt; IO ((a, b, c, d, e, f), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var hs-var hs-var">withPtrs</span></a></span></span><span> </span><span id="local-6989586621679300150"><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c, d, e, f) -&gt; IO b
+</span><a href="#local-6989586621679300150"><span class="hs-identifier hs-var">fun</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-383"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679300151"><span class="annot"><a href="#local-6989586621679300151"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679300152"><span class="annot"><a href="#local-6989586621679300152"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300153"><span class="annot"><a href="#local-6989586621679300153"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300154"><span class="annot"><a href="#local-6989586621679300154"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300155"><span class="annot"><a href="#local-6989586621679300155"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300156"><span class="annot"><a href="#local-6989586621679300156"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300157"><span class="annot"><a href="#local-6989586621679300157"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Ptr a -&gt; IO ((b, c, d, e, f), b)) -&gt; IO (a, ((b, c, d, e, f), b))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var">withPtr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr a -&gt; IO ((b, c, d, e, f), b))
+ -&gt; IO (a, ((b, c, d, e, f), b)))
+-&gt; (Ptr a -&gt; IO ((b, c, d, e, f), b))
+-&gt; IO (a, ((b, c, d, e, f), b))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679300158"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300158"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(WithPtrsPtrs (b, c, d, e, f) -&gt; IO b) -&gt; IO ((b, c, d, e, f), b)
+forall a b. WithPtrs a =&gt; (WithPtrsPtrs a -&gt; IO b) -&gt; IO (a, b)
+forall b.
+(WithPtrsPtrs (b, c, d, e, f) -&gt; IO b) -&gt; IO ((b, c, d, e, f), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var">withPtrs</span></a></span><span> </span><span class="annot"><span class="annottext">((WithPtrsPtrs (b, c, d, e, f) -&gt; IO b) -&gt; IO ((b, c, d, e, f), b))
+-&gt; (WithPtrsPtrs (b, c, d, e, f) -&gt; IO b)
+-&gt; IO ((b, c, d, e, f), b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679300159"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300159"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300160"><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300160"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300161"><span class="annot"><span class="annottext">Ptr d
+</span><a href="#local-6989586621679300161"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300162"><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679300162"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300163"><span class="annot"><span class="annottext">Ptr f
+</span><a href="#local-6989586621679300163"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c, d, e, f) -&gt; IO b
+</span><a href="#local-6989586621679300150"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300158"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300159"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300160"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr d
+</span><a href="#local-6989586621679300161"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679300162"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr f
+</span><a href="#local-6989586621679300163"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-384"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679300151"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300152"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300153"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300154"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300155"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300156"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300157"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-385"></span><span>
+</span><span id="line-386"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679299946"><span id="local-6989586621679299947"><span id="local-6989586621679299948"><span id="local-6989586621679299949"><span id="local-6989586621679299950"><span id="local-6989586621679299951"><span id="local-6989586621679299952"><span id="local-6989586621679300173"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299946"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299947"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299948"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299949"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299950"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299951"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679299952"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.C.Inline.html#WithPtrs"><span class="hs-identifier hs-type">WithPtrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299946"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299947"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299948"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299949"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299950"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299951"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299952"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-387"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="WithPtrsPtrs"><span class="annot"><a href="Language.C.Inline.html#WithPtrsPtrs"><span class="hs-identifier hs-var">WithPtrsPtrs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679299946"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299947"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299948"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299949"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299950"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299951"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679299952"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299946"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299947"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299948"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299949"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299950"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299951"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679299952"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-388"></span><span>  </span><span id="local-6989586621679300180"><span class="annot"><span class="annottext">withPtrs :: forall b.
+(WithPtrsPtrs (a, b, c, d, e, f, g) -&gt; IO b)
+-&gt; IO ((a, b, c, d, e, f, g), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var hs-var hs-var">withPtrs</span></a></span></span><span> </span><span id="local-6989586621679300181"><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c, d, e, f, g) -&gt; IO b
+</span><a href="#local-6989586621679300181"><span class="hs-identifier hs-var">fun</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-389"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679300182"><span class="annot"><a href="#local-6989586621679300182"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679300183"><span class="annot"><a href="#local-6989586621679300183"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300184"><span class="annot"><a href="#local-6989586621679300184"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300185"><span class="annot"><a href="#local-6989586621679300185"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300186"><span class="annot"><a href="#local-6989586621679300186"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300187"><span class="annot"><a href="#local-6989586621679300187"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300188"><span class="annot"><a href="#local-6989586621679300188"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300189"><span class="annot"><a href="#local-6989586621679300189"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Ptr a -&gt; IO ((b, c, d, e, f, g), b))
+-&gt; IO (a, ((b, c, d, e, f, g), b))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO (a, b)
+</span><a href="Language.C.Inline.html#withPtr"><span class="hs-identifier hs-var">withPtr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr a -&gt; IO ((b, c, d, e, f, g), b))
+ -&gt; IO (a, ((b, c, d, e, f, g), b)))
+-&gt; (Ptr a -&gt; IO ((b, c, d, e, f, g), b))
+-&gt; IO (a, ((b, c, d, e, f, g), b))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679300190"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300190"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(WithPtrsPtrs (b, c, d, e, f, g) -&gt; IO b)
+-&gt; IO ((b, c, d, e, f, g), b)
+forall a b. WithPtrs a =&gt; (WithPtrsPtrs a -&gt; IO b) -&gt; IO (a, b)
+forall b.
+(WithPtrsPtrs (b, c, d, e, f, g) -&gt; IO b)
+-&gt; IO ((b, c, d, e, f, g), b)
+</span><a href="Language.C.Inline.html#withPtrs"><span class="hs-identifier hs-var">withPtrs</span></a></span><span> </span><span class="annot"><span class="annottext">((WithPtrsPtrs (b, c, d, e, f, g) -&gt; IO b)
+ -&gt; IO ((b, c, d, e, f, g), b))
+-&gt; (WithPtrsPtrs (b, c, d, e, f, g) -&gt; IO b)
+-&gt; IO ((b, c, d, e, f, g), b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679300191"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300191"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300192"><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300192"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300193"><span class="annot"><span class="annottext">Ptr d
+</span><a href="#local-6989586621679300193"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300194"><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679300194"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300195"><span class="annot"><span class="annottext">Ptr f
+</span><a href="#local-6989586621679300195"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679300196"><span class="annot"><span class="annottext">Ptr g
+</span><a href="#local-6989586621679300196"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">WithPtrsPtrs (a, b, c, d, e, f, g) -&gt; IO b
+</span><a href="#local-6989586621679300181"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679300190"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679300191"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr c
+</span><a href="#local-6989586621679300192"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr d
+</span><a href="#local-6989586621679300193"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr e
+</span><a href="#local-6989586621679300194"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr f
+</span><a href="#local-6989586621679300195"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Ptr g
+</span><a href="#local-6989586621679300196"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-390"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679300182"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300183"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300184"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300185"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300186"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300187"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300188"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679300189"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-391"></span><span>
+</span><span id="line-392"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-393"></span><span class="hs-comment">-- setContext alias</span><span>
+</span><span id="line-394"></span><span>
+</span><span id="line-395"></span><span class="hs-comment">-- | Sets the 'Context' for the current module.  This function, if</span><span>
+</span><span id="line-396"></span><span class="hs-comment">-- called, must be called before any of the other TH functions in this</span><span>
+</span><span id="line-397"></span><span class="hs-comment">-- module.  Fails if that's not the case.</span><span>
+</span><span id="line-398"></span><span class="annot"><a href="Language.C.Inline.html#context"><span class="hs-identifier hs-type">context</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.C.Inline.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.DecsQ</span></span><span>
+</span><span id="line-399"></span><span id="context"><span class="annot"><span class="annottext">context :: Context -&gt; DecsQ
+</span><a href="Language.C.Inline.html#context"><span class="hs-identifier hs-var hs-var">context</span></a></span></span><span> </span><span id="local-6989586621679300197"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679300197"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-400"></span><span>  </span><span class="annot"><span class="annottext">Context -&gt; Q ()
+</span><a href="Language.C.Inline.Internal.html#setContext"><span class="hs-identifier hs-var">setContext</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679300197"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-401"></span><span>  </span><span class="annot"><span class="annottext">[Dec] -&gt; DecsQ
+forall a. a -&gt; Q a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-402"></span></pre></body></html>

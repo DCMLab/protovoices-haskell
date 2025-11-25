@@ -1,0 +1,953 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679153166"><span id="local-6989586621679153167"></span></span><span class="hs-pragma">{-# LANGUAGE DataKinds                  #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable         #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveTraversable          #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances          #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures             #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home            #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html"><span class="hs-identifier">Data.Vector.Generic.Sized.Internal</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier">Vector</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>                </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">NFData</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Data</span></span><span>                      </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Data</span></span><span>
+</span><span id="line-16"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Typeable</span></span><span>
+</span><span id="line-17"></span><span>                                                </span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Functor.Classes</span></span><span>           </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Eq1</span></span><span>
+</span><span id="line-19"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Ord1</span></span><span>
+</span><span id="line-20"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Show1</span></span><span>
+</span><span id="line-21"></span><span>                                                </span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span>                   </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-23"></span><span>                                                </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">and</span></span><span>
+</span><span id="line-24"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldl'</span></span><span>
+</span><span id="line-25"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">null</span></span><span>
+</span><span id="line-26"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">zipWith</span></span><span>
+</span><span id="line-27"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">zipWith3</span></span><span>
+</span><span id="line-28"></span><span>                                                </span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic</span></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">VG</span></span><span>
+</span><span id="line-30"></span><span>                                                </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Vector</span></span><span>
+</span><span id="line-31"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">convert</span></span><span>
+</span><span id="line-32"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">empty</span></span><span>
+</span><span id="line-33"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fromList</span></span><span>
+</span><span id="line-34"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toList</span></span><span>
+</span><span id="line-35"></span><span>                                                </span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Arr</span></span><span>                        </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Ix</span></span><span>
+</span><span id="line-37"></span><span>                                                  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">inRange</span></span><span>
+</span><span id="line-38"></span><span>                                                  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">range</span></span><span>
+</span><span id="line-39"></span><span>                                                  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unsafeIndex</span></span><span>
+</span><span id="line-40"></span><span>                                                  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unsafeRangeSize</span></span><span>
+</span><span id="line-41"></span><span>                                                  </span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>                                                </span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>                   </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Nat</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | A wrapper to tag vectors with a type level length.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- Be careful when using the constructor here to not construct sized vectors</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- which have a different length than that specified in the type parameter!</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">newtype</span><span> </span><span id="Vector"><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-var">Vector</span></a></span></span><span> </span><span id="local-6989586621679153082"><span class="annot"><a href="#local-6989586621679153082"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679153084"><span class="annot"><a href="#local-6989586621679153084"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679153083"><span class="annot"><a href="#local-6989586621679153083"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Vector"><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-var">Vector</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679153082"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153083"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679153184"><span id="local-6989586621679153189"><span id="local-6989586621679153193"><span class="annot"><span class="annottext">Int -&gt; Vector v n a -&gt; ShowS
+[Vector v n a] -&gt; ShowS
+Vector v n a -&gt; String
+(Int -&gt; Vector v n a -&gt; ShowS)
+-&gt; (Vector v n a -&gt; String)
+-&gt; ([Vector v n a] -&gt; ShowS)
+-&gt; Show (Vector v n a)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall (v :: * -&gt; *) (n :: Nat) a.
+Show (v a) =&gt;
+Int -&gt; Vector v n a -&gt; ShowS
+forall (v :: * -&gt; *) (n :: Nat) a.
+Show (v a) =&gt;
+[Vector v n a] -&gt; ShowS
+forall (v :: * -&gt; *) (n :: Nat) a.
+Show (v a) =&gt;
+Vector v n a -&gt; String
+$cshowsPrec :: forall (v :: * -&gt; *) (n :: Nat) a.
+Show (v a) =&gt;
+Int -&gt; Vector v n a -&gt; ShowS
+showsPrec :: Int -&gt; Vector v n a -&gt; ShowS
+$cshow :: forall (v :: * -&gt; *) (n :: Nat) a.
+Show (v a) =&gt;
+Vector v n a -&gt; String
+show :: Vector v n a -&gt; String
+$cshowList :: forall (v :: * -&gt; *) (n :: Nat) a.
+Show (v a) =&gt;
+[Vector v n a] -&gt; ShowS
+showList :: [Vector v n a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153199"><span id="local-6989586621679153203"><span class="annot"><span class="annottext">Vector v n a -&gt; Vector v n a -&gt; Bool
+(Vector v n a -&gt; Vector v n a -&gt; Bool)
+-&gt; (Vector v n a -&gt; Vector v n a -&gt; Bool) -&gt; Eq (Vector v n a)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall (v :: * -&gt; *) (n :: Nat) a.
+Eq (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Bool
+$c== :: forall (v :: * -&gt; *) (n :: Nat) a.
+Eq (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Bool
+== :: Vector v n a -&gt; Vector v n a -&gt; Bool
+$c/= :: forall (v :: * -&gt; *) (n :: Nat) a.
+Eq (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Bool
+/= :: Vector v n a -&gt; Vector v n a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153214"><span id="local-6989586621679153218"><span id="local-6989586621679153222"><span id="local-6989586621679153226"><span id="local-6989586621679153230"><span id="local-6989586621679153234"><span id="local-6989586621679153238"><span class="annot"><span class="annottext">Eq (Vector v n a)
+Eq (Vector v n a) =&gt;
+(Vector v n a -&gt; Vector v n a -&gt; Ordering)
+-&gt; (Vector v n a -&gt; Vector v n a -&gt; Bool)
+-&gt; (Vector v n a -&gt; Vector v n a -&gt; Bool)
+-&gt; (Vector v n a -&gt; Vector v n a -&gt; Bool)
+-&gt; (Vector v n a -&gt; Vector v n a -&gt; Bool)
+-&gt; (Vector v n a -&gt; Vector v n a -&gt; Vector v n a)
+-&gt; (Vector v n a -&gt; Vector v n a -&gt; Vector v n a)
+-&gt; Ord (Vector v n a)
+Vector v n a -&gt; Vector v n a -&gt; Bool
+Vector v n a -&gt; Vector v n a -&gt; Ordering
+Vector v n a -&gt; Vector v n a -&gt; Vector v n a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall (v :: * -&gt; *) (n :: Nat) a. Ord (v a) =&gt; Eq (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Bool
+forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Ordering
+forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Vector v n a
+$ccompare :: forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Ordering
+compare :: Vector v n a -&gt; Vector v n a -&gt; Ordering
+$c&lt; :: forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Bool
+&lt; :: Vector v n a -&gt; Vector v n a -&gt; Bool
+$c&lt;= :: forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Bool
+&lt;= :: Vector v n a -&gt; Vector v n a -&gt; Bool
+$c&gt; :: forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Bool
+&gt; :: Vector v n a -&gt; Vector v n a -&gt; Bool
+$c&gt;= :: forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Bool
+&gt;= :: Vector v n a -&gt; Vector v n a -&gt; Bool
+$cmax :: forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Vector v n a
+max :: Vector v n a -&gt; Vector v n a -&gt; Vector v n a
+$cmin :: forall (v :: * -&gt; *) (n :: Nat) a.
+Ord (v a) =&gt;
+Vector v n a -&gt; Vector v n a -&gt; Vector v n a
+min :: Vector v n a -&gt; Vector v n a -&gt; Vector v n a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153252"><span id="local-6989586621679153256"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Vector v n a -&gt; Vector v n b)
+-&gt; (forall a b. a -&gt; Vector v n b -&gt; Vector v n a)
+-&gt; Functor (Vector v n)
+forall a b. a -&gt; Vector v n b -&gt; Vector v n a
+forall a b. (a -&gt; b) -&gt; Vector v n a -&gt; Vector v n b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+forall (v :: * -&gt; *) (n :: Nat) a b.
+Functor v =&gt;
+a -&gt; Vector v n b -&gt; Vector v n a
+forall (v :: * -&gt; *) (n :: Nat) a b.
+Functor v =&gt;
+(a -&gt; b) -&gt; Vector v n a -&gt; Vector v n b
+$cfmap :: forall (v :: * -&gt; *) (n :: Nat) a b.
+Functor v =&gt;
+(a -&gt; b) -&gt; Vector v n a -&gt; Vector v n b
+fmap :: forall a b. (a -&gt; b) -&gt; Vector v n a -&gt; Vector v n b
+$c&lt;$ :: forall (v :: * -&gt; *) (n :: Nat) a b.
+Functor v =&gt;
+a -&gt; Vector v n b -&gt; Vector v n a
+&lt;$ :: forall a b. a -&gt; Vector v n b -&gt; Vector v n a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153266"><span id="local-6989586621679153274"><span id="local-6989586621679153282"><span id="local-6989586621679153288"><span id="local-6989586621679153292"><span id="local-6989586621679153296"><span id="local-6989586621679153300"><span id="local-6989586621679153304"><span id="local-6989586621679153308"><span id="local-6989586621679153312"><span id="local-6989586621679153316"><span id="local-6989586621679153320"><span id="local-6989586621679153326"><span id="local-6989586621679153334"><span id="local-6989586621679153342"><span id="local-6989586621679153350"><span id="local-6989586621679153358"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; Vector v n m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Vector v n a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Vector v n a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Vector v n a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Vector v n a -&gt; a)
+-&gt; (forall a. Vector v n a -&gt; [a])
+-&gt; (forall a. Vector v n a -&gt; Bool)
+-&gt; (forall a. Vector v n a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; Vector v n a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; Vector v n a -&gt; a)
+-&gt; (forall a. Ord a =&gt; Vector v n a -&gt; a)
+-&gt; (forall a. Num a =&gt; Vector v n a -&gt; a)
+-&gt; (forall a. Num a =&gt; Vector v n a -&gt; a)
+-&gt; Foldable (Vector v n)
+forall a. Eq a =&gt; a -&gt; Vector v n a -&gt; Bool
+forall a. Num a =&gt; Vector v n a -&gt; a
+forall a. Ord a =&gt; Vector v n a -&gt; a
+forall m. Monoid m =&gt; Vector v n m -&gt; m
+forall a. Vector v n a -&gt; Bool
+forall a. Vector v n a -&gt; Int
+forall a. Vector v n a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; Vector v n a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Vector v n a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+forall (v :: * -&gt; *) (n :: Nat) a.
+(Foldable v, Eq a) =&gt;
+a -&gt; Vector v n a -&gt; Bool
+forall (v :: * -&gt; *) (n :: Nat) a.
+(Foldable v, Num a) =&gt;
+Vector v n a -&gt; a
+forall (v :: * -&gt; *) (n :: Nat) a.
+(Foldable v, Ord a) =&gt;
+Vector v n a -&gt; a
+forall (v :: * -&gt; *) (n :: Nat) m.
+(Foldable v, Monoid m) =&gt;
+Vector v n m -&gt; m
+forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+Vector v n a -&gt; Bool
+forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+Vector v n a -&gt; Int
+forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+Vector v n a -&gt; [a]
+forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+(a -&gt; a -&gt; a) -&gt; Vector v n a -&gt; a
+forall (v :: * -&gt; *) (n :: Nat) m a.
+(Foldable v, Monoid m) =&gt;
+(a -&gt; m) -&gt; Vector v n a -&gt; m
+forall (v :: * -&gt; *) (n :: Nat) b a.
+Foldable v =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+forall (v :: * -&gt; *) (n :: Nat) a b.
+Foldable v =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+$cfold :: forall (v :: * -&gt; *) (n :: Nat) m.
+(Foldable v, Monoid m) =&gt;
+Vector v n m -&gt; m
+fold :: forall m. Monoid m =&gt; Vector v n m -&gt; m
+$cfoldMap :: forall (v :: * -&gt; *) (n :: Nat) m a.
+(Foldable v, Monoid m) =&gt;
+(a -&gt; m) -&gt; Vector v n a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Vector v n a -&gt; m
+$cfoldMap' :: forall (v :: * -&gt; *) (n :: Nat) m a.
+(Foldable v, Monoid m) =&gt;
+(a -&gt; m) -&gt; Vector v n a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Vector v n a -&gt; m
+$cfoldr :: forall (v :: * -&gt; *) (n :: Nat) a b.
+Foldable v =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+$cfoldr' :: forall (v :: * -&gt; *) (n :: Nat) a b.
+Foldable v =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+$cfoldl :: forall (v :: * -&gt; *) (n :: Nat) b a.
+Foldable v =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+$cfoldl' :: forall (v :: * -&gt; *) (n :: Nat) b a.
+Foldable v =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Vector v n a -&gt; b
+$cfoldr1 :: forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+(a -&gt; a -&gt; a) -&gt; Vector v n a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Vector v n a -&gt; a
+$cfoldl1 :: forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+(a -&gt; a -&gt; a) -&gt; Vector v n a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Vector v n a -&gt; a
+$ctoList :: forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+Vector v n a -&gt; [a]
+toList :: forall a. Vector v n a -&gt; [a]
+$cnull :: forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+Vector v n a -&gt; Bool
+null :: forall a. Vector v n a -&gt; Bool
+$clength :: forall (v :: * -&gt; *) (n :: Nat) a.
+Foldable v =&gt;
+Vector v n a -&gt; Int
+length :: forall a. Vector v n a -&gt; Int
+$celem :: forall (v :: * -&gt; *) (n :: Nat) a.
+(Foldable v, Eq a) =&gt;
+a -&gt; Vector v n a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; Vector v n a -&gt; Bool
+$cmaximum :: forall (v :: * -&gt; *) (n :: Nat) a.
+(Foldable v, Ord a) =&gt;
+Vector v n a -&gt; a
+maximum :: forall a. Ord a =&gt; Vector v n a -&gt; a
+$cminimum :: forall (v :: * -&gt; *) (n :: Nat) a.
+(Foldable v, Ord a) =&gt;
+Vector v n a -&gt; a
+minimum :: forall a. Ord a =&gt; Vector v n a -&gt; a
+$csum :: forall (v :: * -&gt; *) (n :: Nat) a.
+(Foldable v, Num a) =&gt;
+Vector v n a -&gt; a
+sum :: forall a. Num a =&gt; Vector v n a -&gt; a
+$cproduct :: forall (v :: * -&gt; *) (n :: Nat) a.
+(Foldable v, Num a) =&gt;
+Vector v n a -&gt; a
+product :: forall a. Num a =&gt; Vector v n a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153390"><span id="local-6989586621679153397"><span id="local-6989586621679153403"><span id="local-6989586621679153408"><span class="annot"><span class="annottext">Functor (Vector v n)
+Foldable (Vector v n)
+(Functor (Vector v n), Foldable (Vector v n)) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; Vector v n a -&gt; f (Vector v n b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    Vector v n (f a) -&gt; f (Vector v n a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; Vector v n a -&gt; m (Vector v n b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    Vector v n (m a) -&gt; m (Vector v n a))
+-&gt; Traversable (Vector v n)
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (v :: * -&gt; *) (n :: Nat).
+Traversable v =&gt;
+Functor (Vector v n)
+forall (v :: * -&gt; *) (n :: Nat).
+Traversable v =&gt;
+Foldable (Vector v n)
+forall (v :: * -&gt; *) (n :: Nat) (m :: * -&gt; *) a.
+(Traversable v, Monad m) =&gt;
+Vector v n (m a) -&gt; m (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) (f :: * -&gt; *) a.
+(Traversable v, Applicative f) =&gt;
+Vector v n (f a) -&gt; f (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) (m :: * -&gt; *) a b.
+(Traversable v, Monad m) =&gt;
+(a -&gt; m b) -&gt; Vector v n a -&gt; m (Vector v n b)
+forall (v :: * -&gt; *) (n :: Nat) (f :: * -&gt; *) a b.
+(Traversable v, Applicative f) =&gt;
+(a -&gt; f b) -&gt; Vector v n a -&gt; f (Vector v n b)
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Vector v n (m a) -&gt; m (Vector v n a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Vector v n (f a) -&gt; f (Vector v n a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Vector v n a -&gt; m (Vector v n b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Vector v n a -&gt; f (Vector v n b)
+$ctraverse :: forall (v :: * -&gt; *) (n :: Nat) (f :: * -&gt; *) a b.
+(Traversable v, Applicative f) =&gt;
+(a -&gt; f b) -&gt; Vector v n a -&gt; f (Vector v n b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Vector v n a -&gt; f (Vector v n b)
+$csequenceA :: forall (v :: * -&gt; *) (n :: Nat) (f :: * -&gt; *) a.
+(Traversable v, Applicative f) =&gt;
+Vector v n (f a) -&gt; f (Vector v n a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Vector v n (f a) -&gt; f (Vector v n a)
+$cmapM :: forall (v :: * -&gt; *) (n :: Nat) (m :: * -&gt; *) a b.
+(Traversable v, Monad m) =&gt;
+(a -&gt; m b) -&gt; Vector v n a -&gt; m (Vector v n b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Vector v n a -&gt; m (Vector v n b)
+$csequence :: forall (v :: * -&gt; *) (n :: Nat) (m :: * -&gt; *) a.
+(Traversable v, Monad m) =&gt;
+Vector v n (m a) -&gt; m (Vector v n a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Vector v n (m a) -&gt; m (Vector v n a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153419"><span class="annot"><span class="annottext">Vector v n a -&gt; ()
+(Vector v n a -&gt; ()) -&gt; NFData (Vector v n a)
+forall a. (a -&gt; ()) -&gt; NFData a
+forall (v :: * -&gt; *) (n :: Nat) a.
+NFData (v a) =&gt;
+Vector v n a -&gt; ()
+$crnf :: forall (v :: * -&gt; *) (n :: Nat) a.
+NFData (v a) =&gt;
+Vector v n a -&gt; ()
+rnf :: Vector v n a -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span>
+</span><span id="line-51"></span><span>           </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153429"><span id="local-6989586621679153433"><span class="annot"><span class="annottext">(forall a. Show a =&gt; Show (Vector v n a)) =&gt;
+(forall a.
+ (Int -&gt; a -&gt; ShowS)
+ -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Vector v n a -&gt; ShowS)
+-&gt; (forall a.
+    (Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [Vector v n a] -&gt; ShowS)
+-&gt; Show1 (Vector v n)
+forall a. Show a =&gt; Show (Vector v n a)
+forall a.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Vector v n a -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [Vector v n a] -&gt; ShowS
+forall (f :: * -&gt; *).
+(forall a. Show a =&gt; Show (f a)) =&gt;
+(forall a.
+ (Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS)
+-&gt; (forall a.
+    (Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [f a] -&gt; ShowS)
+-&gt; Show1 f
+forall (v :: * -&gt; *) (n :: Nat) a.
+(Show1 v, Show a) =&gt;
+Show (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a.
+Show1 v =&gt;
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Vector v n a -&gt; ShowS
+forall (v :: * -&gt; *) (n :: Nat) a.
+Show1 v =&gt;
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [Vector v n a] -&gt; ShowS
+$cliftShowsPrec :: forall (v :: * -&gt; *) (n :: Nat) a.
+Show1 v =&gt;
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Vector v n a -&gt; ShowS
+liftShowsPrec :: forall a.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Vector v n a -&gt; ShowS
+$cliftShowList :: forall (v :: * -&gt; *) (n :: Nat) a.
+Show1 v =&gt;
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [Vector v n a] -&gt; ShowS
+liftShowList :: forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [Vector v n a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show1</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153446"><span class="annot"><span class="annottext">(forall a. Eq a =&gt; Eq (Vector v n a)) =&gt;
+(forall a b.
+ (a -&gt; b -&gt; Bool) -&gt; Vector v n a -&gt; Vector v n b -&gt; Bool)
+-&gt; Eq1 (Vector v n)
+forall a. Eq a =&gt; Eq (Vector v n a)
+forall a b.
+(a -&gt; b -&gt; Bool) -&gt; Vector v n a -&gt; Vector v n b -&gt; Bool
+forall (f :: * -&gt; *).
+(forall a. Eq a =&gt; Eq (f a)) =&gt;
+(forall a b. (a -&gt; b -&gt; Bool) -&gt; f a -&gt; f b -&gt; Bool) -&gt; Eq1 f
+forall (v :: * -&gt; *) (n :: Nat) a.
+(Eq1 v, Eq a) =&gt;
+Eq (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a b.
+Eq1 v =&gt;
+(a -&gt; b -&gt; Bool) -&gt; Vector v n a -&gt; Vector v n b -&gt; Bool
+$cliftEq :: forall (v :: * -&gt; *) (n :: Nat) a b.
+Eq1 v =&gt;
+(a -&gt; b -&gt; Bool) -&gt; Vector v n a -&gt; Vector v n b -&gt; Bool
+liftEq :: forall a b.
+(a -&gt; b -&gt; Bool) -&gt; Vector v n a -&gt; Vector v n b -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">Eq1</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153461"><span class="annot"><span class="annottext">Eq1 (Vector v n)
+(Eq1 (Vector v n), forall a. Ord a =&gt; Ord (Vector v n a)) =&gt;
+(forall a b.
+ (a -&gt; b -&gt; Ordering) -&gt; Vector v n a -&gt; Vector v n b -&gt; Ordering)
+-&gt; Ord1 (Vector v n)
+forall a. Ord a =&gt; Ord (Vector v n a)
+forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; Vector v n a -&gt; Vector v n b -&gt; Ordering
+forall (f :: * -&gt; *).
+(Eq1 f, forall a. Ord a =&gt; Ord (f a)) =&gt;
+(forall a b. (a -&gt; b -&gt; Ordering) -&gt; f a -&gt; f b -&gt; Ordering)
+-&gt; Ord1 f
+forall (v :: * -&gt; *) (n :: Nat). Ord1 v =&gt; Eq1 (Vector v n)
+forall (v :: * -&gt; *) (n :: Nat) a.
+(Ord1 v, Ord a) =&gt;
+Ord (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a b.
+Ord1 v =&gt;
+(a -&gt; b -&gt; Ordering) -&gt; Vector v n a -&gt; Vector v n b -&gt; Ordering
+$cliftCompare :: forall (v :: * -&gt; *) (n :: Nat) a b.
+Ord1 v =&gt;
+(a -&gt; b -&gt; Ordering) -&gt; Vector v n a -&gt; Vector v n b -&gt; Ordering
+liftCompare :: forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; Vector v n a -&gt; Vector v n b -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Ord1</span></span></span><span>
+</span><span id="line-52"></span><span>           </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153478"><span id="local-6989586621679153481"><span id="local-6989586621679153484"><span id="local-6989586621679153486"><span id="local-6989586621679153488"><span id="local-6989586621679153494"><span id="local-6989586621679153499"><span id="local-6989586621679153502"><span id="local-6989586621679153505"><span id="local-6989586621679153508"><span id="local-6989586621679153511"><span id="local-6989586621679153514"><span id="local-6989586621679153519"><span id="local-6989586621679153524"><span class="annot"><span class="annottext">Typeable (Vector v n a)
+Typeable (Vector v n a) =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Vector v n a -&gt; c (Vector v n a))
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Vector v n a))
+-&gt; (Vector v n a -&gt; Constr)
+-&gt; (Vector v n a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Vector v n a)))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c (Vector v n a)))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Vector v n a -&gt; Vector v n a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a))
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a))
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a))
+-&gt; Data (Vector v n a)
+Vector v n a -&gt; Constr
+Vector v n a -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Vector v n a -&gt; Vector v n a
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Vector v n a)
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Vector v n a -&gt; c (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+Typeable (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+Vector v n a -&gt; Constr
+forall (v :: * -&gt; *) (n :: Nat) a.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+Vector v n a -&gt; DataType
+forall (v :: * -&gt; *) (n :: Nat) a.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(forall b. Data b =&gt; b -&gt; b) -&gt; Vector v n a -&gt; Vector v n a
+forall (v :: * -&gt; *) (n :: Nat) a u.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; u
+forall (v :: * -&gt; *) (n :: Nat) a u.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; [u]
+forall (v :: * -&gt; *) (n :: Nat) a r r'.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r
+forall (v :: * -&gt; *) (n :: Nat) a r r'.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r
+forall (v :: * -&gt; *) (n :: Nat) a (m :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a (m :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a (c :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a (c :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Vector v n a -&gt; c (Vector v n a)
+forall (v :: * -&gt; *) (n :: Nat) a (t :: * -&gt; *) (c :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Vector v n a))
+forall (v :: * -&gt; *) (n :: Nat) a (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (Vector v n a))
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Vector v n a))
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (Vector v n a))
+$cgfoldl :: forall (v :: * -&gt; *) (n :: Nat) a (c :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Vector v n a -&gt; c (Vector v n a)
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Vector v n a -&gt; c (Vector v n a)
+$cgunfold :: forall (v :: * -&gt; *) (n :: Nat) a (c :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Vector v n a)
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (Vector v n a)
+$ctoConstr :: forall (v :: * -&gt; *) (n :: Nat) a.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+Vector v n a -&gt; Constr
+toConstr :: Vector v n a -&gt; Constr
+$cdataTypeOf :: forall (v :: * -&gt; *) (n :: Nat) a.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+Vector v n a -&gt; DataType
+dataTypeOf :: Vector v n a -&gt; DataType
+$cdataCast1 :: forall (v :: * -&gt; *) (n :: Nat) a (t :: * -&gt; *) (c :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Vector v n a))
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (Vector v n a))
+$cdataCast2 :: forall (v :: * -&gt; *) (n :: Nat) a (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (Vector v n a))
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (Vector v n a))
+$cgmapT :: forall (v :: * -&gt; *) (n :: Nat) a.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(forall b. Data b =&gt; b -&gt; b) -&gt; Vector v n a -&gt; Vector v n a
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Vector v n a -&gt; Vector v n a
+$cgmapQl :: forall (v :: * -&gt; *) (n :: Nat) a r r'.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r
+$cgmapQr :: forall (v :: * -&gt; *) (n :: Nat) a r r'.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Vector v n a -&gt; r
+$cgmapQ :: forall (v :: * -&gt; *) (n :: Nat) a u.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; [u]
+$cgmapQi :: forall (v :: * -&gt; *) (n :: Nat) a u.
+(KnownNat n, Typeable v, Typeable a, Data (v a)) =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Vector v n a -&gt; u
+$cgmapM :: forall (v :: * -&gt; *) (n :: Nat) a (m :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+$cgmapMp :: forall (v :: * -&gt; *) (n :: Nat) a (m :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+$cgmapMo :: forall (v :: * -&gt; *) (n :: Nat) a (m :: * -&gt; *).
+(KnownNat n, Typeable v, Typeable a, Data (v a), MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Vector v n a -&gt; m (Vector v n a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span>
+</span><span id="line-53"></span><span>           </span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679153079"><span id="local-6989586621679153080"><span id="local-6989586621679153081"><span id="local-6989586621679153543"><span id="local-6989586621679153549"><span id="local-6989586621679153552"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ix</span></span><span> </span><span class="annot"><a href="#local-6989586621679153079"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679153080"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153079"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VG.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679153080"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153079"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153080"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153081"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153079"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-comment">-- range is consistent with range :: ((a,..,a), (a,..,a)) -&gt; [(a,..,a)]</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679153563"><span class="annot"><span class="annottext">range :: (Vector v n a, Vector v n a) -&gt; [Vector v n a]
+</span><span class="hs-identifier hs-var hs-var hs-var">range</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span id="local-6989586621679153564"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153564"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span id="local-6989586621679153565"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153565"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a -&gt; Vector v n a
+forall (v :: * -&gt; *) (n :: Nat) a. v a -&gt; Vector v n a
+</span><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-var">Vector</span></a></span><span> </span><span class="annot"><span class="annottext">(v a -&gt; Vector v n a) -&gt; [v a] -&gt; [Vector v n a]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Vector [a] -&gt; [v a]
+forall {v :: * -&gt; *} {a}. Vector v a =&gt; Vector [a] -&gt; [v a]
+</span><a href="#local-6989586621679153567"><span class="hs-identifier hs-var">enumerate</span></a></span><span> </span><span class="annot"><span class="annottext">Vector [a]
+</span><a href="#local-6989586621679153568"><span class="hs-identifier hs-var">ranges</span></a></span><span>
+</span><span id="line-59"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679153568"><span class="annot"><span class="annottext">ranges :: Vector [a]
+</span><a href="#local-6989586621679153568"><span class="hs-identifier hs-var hs-var">ranges</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; [a]) -&gt; Vector a -&gt; Vector a -&gt; Vector [a]
+forall a b c. (a -&gt; b -&gt; c) -&gt; Vector a -&gt; Vector b -&gt; Vector c
+</span><span class="hs-identifier hs-var">V.zipWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((a, a) -&gt; [a]) -&gt; a -&gt; a -&gt; [a]
+forall a b c. ((a, b) -&gt; c) -&gt; a -&gt; b -&gt; c
+</span><span class="hs-identifier hs-var">curry</span></span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; [a]
+forall a. Ix a =&gt; (a, a) -&gt; [a]
+</span><span class="hs-identifier hs-var">range</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153573"><span class="hs-identifier hs-var">lc</span></a></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153574"><span class="hs-identifier hs-var">uc</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679153573"><span class="annot"><span class="annottext">lc :: Vector a
+</span><a href="#local-6989586621679153573"><span class="hs-identifier hs-var hs-var">lc</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a -&gt; Vector a
+forall (v :: * -&gt; *) a (w :: * -&gt; *).
+(Vector v a, Vector w a) =&gt;
+v a -&gt; w a
+</span><span class="hs-identifier hs-var">VG.convert</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153564"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679153574"><span class="annot"><span class="annottext">uc :: Vector a
+</span><a href="#local-6989586621679153574"><span class="hs-identifier hs-var hs-var">uc</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a -&gt; Vector a
+forall (v :: * -&gt; *) a (w :: * -&gt; *).
+(Vector v a, Vector w a) =&gt;
+v a -&gt; w a
+</span><span class="hs-identifier hs-var">VG.convert</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153565"><span class="hs-identifier hs-var">u</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679153567"><span class="annot"><span class="annottext">enumerate :: Vector [a] -&gt; [v a]
+</span><a href="#local-6989586621679153567"><span class="hs-identifier hs-var hs-var">enumerate</span></a></span></span><span> </span><span id="local-6989586621679153593"><span class="annot"><span class="annottext">Vector [a]
+</span><a href="#local-6989586621679153593"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Vector [a] -&gt; Bool
+forall a. Vector a -&gt; Bool
+</span><span class="hs-identifier hs-var">V.null</span></span><span> </span><span class="annot"><span class="annottext">Vector [a]
+</span><a href="#local-6989586621679153593"><span class="hs-identifier hs-var">v</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">v a
+forall (v :: * -&gt; *) a. Vector v a =&gt; v a
+</span><span class="hs-identifier hs-var">VG.empty</span></span><span class="hs-special">]</span><span>
+</span><span id="line-64"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([a] -&gt; v a) -&gt; [[a]] -&gt; [v a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; v a
+forall (v :: * -&gt; *) a. Vector v a =&gt; [a] -&gt; v a
+</span><span class="hs-identifier hs-var">VG.fromList</span></span><span> </span><span class="annot"><span class="annottext">([[a]] -&gt; [v a]) -&gt; [[a]] -&gt; [v a]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; [[a]]
+forall {a}. [[a]] -&gt; [[a]]
+</span><a href="#local-6989586621679153594"><span class="hs-identifier hs-var">enumerate'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector [a] -&gt; [[a]]
+forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; [a]
+</span><span class="hs-identifier hs-var">VG.toList</span></span><span> </span><span class="annot"><span class="annottext">Vector [a]
+</span><a href="#local-6989586621679153593"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621679153594"><span class="annot"><span class="annottext">enumerate' :: [[a]] -&gt; [[a]]
+</span><a href="#local-6989586621679153594"><span class="hs-identifier hs-var hs-var">enumerate'</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="#local-6989586621679153594"><span class="hs-identifier hs-var">enumerate'</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679153595"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679153595"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679153596"><span class="annot"><span class="annottext">[[a]]
+</span><a href="#local-6989586621679153596"><span class="hs-identifier hs-var">xss</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153597"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679153598"><span class="hs-identifier hs-var">xs'</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679153597"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153597"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679153595"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153598"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679153598"><span class="hs-identifier hs-var">xs'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; [[a]]
+</span><a href="#local-6989586621679153594"><span class="hs-identifier hs-var">enumerate'</span></a></span><span> </span><span class="annot"><span class="annottext">[[a]]
+</span><a href="#local-6989586621679153596"><span class="hs-identifier hs-var">xss</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- index/unsafeIndex is consistent with</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- index :: ((a,..,a), (a,..,a)) -&gt; (a,..,a) -&gt; Int</span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621679153602"><span class="annot"><span class="annottext">unsafeIndex :: (Vector v n a, Vector v n a) -&gt; Vector v n a -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">unsafeIndex</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span id="local-6989586621679153603"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153603"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span id="local-6989586621679153604"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153604"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span id="local-6989586621679153605"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153605"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; (Int, Int) -&gt; Int) -&gt; Int -&gt; Vector (Int, Int) -&gt; Int
+forall a b. (a -&gt; b -&gt; a) -&gt; a -&gt; Vector b -&gt; a
+</span><span class="hs-identifier hs-var">V.foldl'</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int, Int) -&gt; Int
+forall {a}. Num a =&gt; a -&gt; (a, a) -&gt; a
+</span><a href="#local-6989586621679153606"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Vector (Int, Int)
+</span><a href="#local-6989586621679153607"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-71"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679153606"><span class="annot"><span class="annottext">f :: a -&gt; (a, a) -&gt; a
+</span><a href="#local-6989586621679153606"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679153611"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153611"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679153612"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153612"><span class="hs-identifier hs-var">index'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153613"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153613"><span class="hs-identifier hs-var">rangeSize'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153611"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153613"><span class="hs-identifier hs-var">rangeSize'</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153612"><span class="hs-identifier hs-var">index'</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679153607"><span class="annot"><span class="annottext">v :: Vector (Int, Int)
+</span><a href="#local-6989586621679153607"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a -&gt; (Int, Int))
+-&gt; Vector a -&gt; Vector a -&gt; Vector a -&gt; Vector (Int, Int)
+forall a b c d.
+(a -&gt; b -&gt; c -&gt; d) -&gt; Vector a -&gt; Vector b -&gt; Vector c -&gt; Vector d
+</span><span class="hs-identifier hs-var">V.zipWith3</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a -&gt; (Int, Int)
+forall {a}. Ix a =&gt; a -&gt; a -&gt; a -&gt; (Int, Int)
+</span><a href="#local-6989586621679153619"><span class="hs-identifier hs-var">indexAndRangeSize</span></a></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153620"><span class="hs-identifier hs-var">lc</span></a></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153621"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153622"><span class="hs-identifier hs-var">ic</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679153620"><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153620"><span class="hs-identifier hs-var">lc</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153621"><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153621"><span class="hs-identifier hs-var">uc</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153622"><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153622"><span class="hs-identifier hs-var">ic</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a -&gt; v a -&gt; v a -&gt; (Vector a, Vector a, Vector a)
+forall (v1 :: * -&gt; *) a (w1 :: * -&gt; *) (v2 :: * -&gt; *) b
+       (w2 :: * -&gt; *) (v3 :: * -&gt; *) c (w3 :: * -&gt; *).
+(Vector v1 a, Vector w1 a, Vector v2 b, Vector w2 b, Vector v3 c,
+ Vector w3 c) =&gt;
+v1 a -&gt; v2 b -&gt; v3 c -&gt; (w1 a, w2 b, w3 c)
+</span><a href="Data.Vector.Generic.Sized.Internal.html#convert3"><span class="hs-identifier hs-var">convert3</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153603"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153604"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153605"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679153619"><span class="annot"><span class="annottext">indexAndRangeSize :: a -&gt; a -&gt; a -&gt; (Int, Int)
+</span><a href="#local-6989586621679153619"><span class="hs-identifier hs-var hs-var">indexAndRangeSize</span></a></span></span><span> </span><span id="local-6989586621679153642"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153642"><span class="hs-identifier hs-var">l'</span></a></span></span><span> </span><span id="local-6989586621679153643"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153643"><span class="hs-identifier hs-var">u'</span></a></span></span><span> </span><span id="local-6989586621679153644"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153644"><span class="hs-identifier hs-var">i'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679153645"><span class="annot"><span class="annottext">b' :: (a, a)
+</span><a href="#local-6989586621679153645"><span class="hs-identifier hs-var hs-var">b'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153642"><span class="hs-identifier hs-var">l'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153643"><span class="hs-identifier hs-var">u'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a, a) -&gt; a -&gt; Int
+forall a. Ix a =&gt; (a, a) -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">unsafeIndex</span></span><span> </span><span class="annot"><span class="annottext">(a, a)
+</span><a href="#local-6989586621679153645"><span class="hs-identifier hs-var">b'</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679153644"><span class="hs-identifier hs-var">i'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; Int
+forall a. Ix a =&gt; (a, a) -&gt; Int
+</span><span class="hs-identifier hs-var">unsafeRangeSize</span></span><span> </span><span class="annot"><span class="annottext">(a, a)
+</span><a href="#local-6989586621679153645"><span class="hs-identifier hs-var">b'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- i is in range (l, u) if, and only if, that is true for all elements,</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- element-by-element</span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621679153647"><span class="annot"><span class="annottext">inRange :: (Vector v n a, Vector v n a) -&gt; Vector v n a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var">inRange</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span id="local-6989586621679153648"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153648"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span id="local-6989586621679153649"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153649"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#Vector"><span class="hs-identifier hs-type">Vector</span></a></span><span> </span><span id="local-6989586621679153650"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153650"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">V.and</span></span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">(Vector Bool -&gt; Bool) -&gt; Vector Bool -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a -&gt; Bool)
+-&gt; Vector a -&gt; Vector a -&gt; Vector a -&gt; Vector Bool
+forall a b c d.
+(a -&gt; b -&gt; c -&gt; d) -&gt; Vector a -&gt; Vector b -&gt; Vector c -&gt; Vector d
+</span><span class="hs-identifier hs-var">V.zipWith3</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((a, a) -&gt; a -&gt; Bool) -&gt; a -&gt; a -&gt; a -&gt; Bool
+forall a b c. ((a, b) -&gt; c) -&gt; a -&gt; b -&gt; c
+</span><span class="hs-identifier hs-var">curry</span></span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; a -&gt; Bool
+forall a. Ix a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">inRange</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153651"><span class="hs-identifier hs-var">lc</span></a></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153652"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153653"><span class="hs-identifier hs-var">ic</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679153651"><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153651"><span class="hs-identifier hs-var">lc</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153652"><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153652"><span class="hs-identifier hs-var">uc</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679153653"><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679153653"><span class="hs-identifier hs-var">ic</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a -&gt; v a -&gt; v a -&gt; (Vector a, Vector a, Vector a)
+forall (v1 :: * -&gt; *) a (w1 :: * -&gt; *) (v2 :: * -&gt; *) b
+       (w2 :: * -&gt; *) (v3 :: * -&gt; *) c (w3 :: * -&gt; *).
+(Vector v1 a, Vector w1 a, Vector v2 b, Vector w2 b, Vector v3 c,
+ Vector w3 c) =&gt;
+v1 a -&gt; v2 b -&gt; v3 c -&gt; (w1 a, w2 b, w3 c)
+</span><a href="Data.Vector.Generic.Sized.Internal.html#convert3"><span class="hs-identifier hs-var">convert3</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153648"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153649"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679153650"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- Conversion helper</span><span>
+</span><span id="line-85"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#convert3"><span class="hs-pragma hs-type">convert3</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-86"></span><span id="local-6989586621679153126"><span id="local-6989586621679153127"><span id="local-6989586621679153128"><span id="local-6989586621679153129"><span id="local-6989586621679153130"><span id="local-6989586621679153131"><span id="local-6989586621679153132"><span id="local-6989586621679153133"><span id="local-6989586621679153134"><span class="annot"><a href="Data.Vector.Generic.Sized.Internal.html#convert3"><span class="hs-identifier hs-type">convert3</span></a></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VG.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679153126"><span class="hs-identifier hs-type">v1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153127"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-88"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VG.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679153128"><span class="hs-identifier hs-type">w1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153127"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-89"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VG.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679153129"><span class="hs-identifier hs-type">v2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153130"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-90"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VG.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679153131"><span class="hs-identifier hs-type">w2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153130"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-91"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VG.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679153132"><span class="hs-identifier hs-type">v3</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153133"><span class="hs-identifier hs-type">c</span></a></span><span>
+</span><span id="line-92"></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VG.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679153134"><span class="hs-identifier hs-type">w3</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153133"><span class="hs-identifier hs-type">c</span></a></span><span>
+</span><span id="line-93"></span><span>     </span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679153126"><span class="hs-identifier hs-type">v1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153127"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679153129"><span class="hs-identifier hs-type">v2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153130"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679153132"><span class="hs-identifier hs-type">v3</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153133"><span class="hs-identifier hs-type">c</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679153128"><span class="hs-identifier hs-type">w1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153127"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679153131"><span class="hs-identifier hs-type">w2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153130"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679153134"><span class="hs-identifier hs-type">w3</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679153133"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-98"></span><span id="convert3"><span class="annot"><span class="annottext">convert3 :: forall (v1 :: * -&gt; *) a (w1 :: * -&gt; *) (v2 :: * -&gt; *) b
+       (w2 :: * -&gt; *) (v3 :: * -&gt; *) c (w3 :: * -&gt; *).
+(Vector v1 a, Vector w1 a, Vector v2 b, Vector w2 b, Vector v3 c,
+ Vector w3 c) =&gt;
+v1 a -&gt; v2 b -&gt; v3 c -&gt; (w1 a, w2 b, w3 c)
+</span><a href="Data.Vector.Generic.Sized.Internal.html#convert3"><span class="hs-identifier hs-var hs-var">convert3</span></a></span></span><span> </span><span id="local-6989586621679153677"><span class="annot"><span class="annottext">v1 a
+</span><a href="#local-6989586621679153677"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span id="local-6989586621679153678"><span class="annot"><span class="annottext">v2 b
+</span><a href="#local-6989586621679153678"><span class="hs-identifier hs-var">v2</span></a></span></span><span> </span><span id="local-6989586621679153679"><span class="annot"><span class="annottext">v3 c
+</span><a href="#local-6989586621679153679"><span class="hs-identifier hs-var">v3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v1 a -&gt; w1 a
+forall (v :: * -&gt; *) a (w :: * -&gt; *).
+(Vector v a, Vector w a) =&gt;
+v a -&gt; w a
+</span><span class="hs-identifier hs-var">VG.convert</span></span><span> </span><span class="annot"><span class="annottext">v1 a
+</span><a href="#local-6989586621679153677"><span class="hs-identifier hs-var">v1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">v2 b -&gt; w2 b
+forall (v :: * -&gt; *) a (w :: * -&gt; *).
+(Vector v a, Vector w a) =&gt;
+v a -&gt; w a
+</span><span class="hs-identifier hs-var">VG.convert</span></span><span> </span><span class="annot"><span class="annottext">v2 b
+</span><a href="#local-6989586621679153678"><span class="hs-identifier hs-var">v2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">v3 c -&gt; w3 c
+forall (v :: * -&gt; *) a (w :: * -&gt; *).
+(Vector v a, Vector w a) =&gt;
+v a -&gt; w a
+</span><span class="hs-identifier hs-var">VG.convert</span></span><span> </span><span class="annot"><span class="annottext">v3 c
+</span><a href="#local-6989586621679153679"><span class="hs-identifier hs-var">v3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span></pre></body></html>

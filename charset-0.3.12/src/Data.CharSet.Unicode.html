@@ -1,0 +1,728 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679068350"><span id="local-6989586621679068351"></span></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module      :  Data.CharSet.Unicode</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright   :  (c) Edward Kmett 2010</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License     :  BSD3</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer  :  ekmett@gmail.com</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Provides unicode general categories, which are typically connoted by</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- @\\p{Ll}@ or @\\p{Modifier_Letter}@. Lookups can be constructed using 'categories'</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- or individual character sets can be used directly.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html"><span class="hs-identifier">Data.CharSet.Unicode</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Unicode General Category</span></span><span>
+</span><span id="line-19"></span><span>      </span><span class="annot"><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier">UnicodeCategory</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Lookup</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#unicodeCategories"><span class="hs-identifier">unicodeCategories</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><span class="hs-comment">-- * CharSets by UnicodeCategory</span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Letter</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#modifierLetter"><span class="hs-identifier">modifierLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#otherLetter"><span class="hs-identifier">otherLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#letter"><span class="hs-identifier">letter</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Letter\&amp;</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#lowercaseLetter"><span class="hs-identifier">lowercaseLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#uppercaseLetter"><span class="hs-identifier">uppercaseLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#titlecaseLetter"><span class="hs-identifier">titlecaseLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#letterAnd"><span class="hs-identifier">letterAnd</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Mark</span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#nonSpacingMark"><span class="hs-identifier">nonSpacingMark</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#spacingCombiningMark"><span class="hs-identifier">spacingCombiningMark</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#enclosingMark"><span class="hs-identifier">enclosingMark</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#mark"><span class="hs-identifier">mark</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Separator</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#space"><span class="hs-identifier">space</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#lineSeparator"><span class="hs-identifier">lineSeparator</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#paragraphSeparator"><span class="hs-identifier">paragraphSeparator</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#separator"><span class="hs-identifier">separator</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Symbol</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#mathSymbol"><span class="hs-identifier">mathSymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#currencySymbol"><span class="hs-identifier">currencySymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#modifierSymbol"><span class="hs-identifier">modifierSymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#otherSymbol"><span class="hs-identifier">otherSymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#symbol"><span class="hs-identifier">symbol</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Number</span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#decimalNumber"><span class="hs-identifier">decimalNumber</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#letterNumber"><span class="hs-identifier">letterNumber</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#otherNumber"><span class="hs-identifier">otherNumber</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#number"><span class="hs-identifier">number</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Punctuation</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#dashPunctuation"><span class="hs-identifier">dashPunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#openPunctuation"><span class="hs-identifier">openPunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#closePunctuation"><span class="hs-identifier">closePunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#initialQuote"><span class="hs-identifier">initialQuote</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#finalQuote"><span class="hs-identifier">finalQuote</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#connectorPunctuation"><span class="hs-identifier">connectorPunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#otherPunctuation"><span class="hs-identifier">otherPunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#punctuation"><span class="hs-identifier">punctuation</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Other</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#control"><span class="hs-identifier">control</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#format"><span class="hs-identifier">format</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#privateUse"><span class="hs-identifier">privateUse</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#surrogate"><span class="hs-identifier">surrogate</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#notAssigned"><span class="hs-identifier">notAssigned</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#other"><span class="hs-identifier">other</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Data</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.CharSet.html"><span class="hs-identifier">Data.CharSet</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">data</span><span> </span><span id="UnicodeCategory"><span class="annot"><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UnicodeCategory"><span class="annot"><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679068395"><span id="local-6989586621679068406"><span id="local-6989586621679068410"><span class="annot"><span class="annottext">Int -&gt; UnicodeCategory -&gt; ShowS
+[UnicodeCategory] -&gt; ShowS
+UnicodeCategory -&gt; String
+(Int -&gt; UnicodeCategory -&gt; ShowS)
+-&gt; (UnicodeCategory -&gt; String)
+-&gt; ([UnicodeCategory] -&gt; ShowS)
+-&gt; Show UnicodeCategory
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; UnicodeCategory -&gt; ShowS
+showsPrec :: Int -&gt; UnicodeCategory -&gt; ShowS
+$cshow :: UnicodeCategory -&gt; String
+show :: UnicodeCategory -&gt; String
+$cshowList :: [UnicodeCategory] -&gt; ShowS
+showList :: [UnicodeCategory] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679068418"><span id="local-6989586621679068427"><span id="local-6989586621679068434"><span id="local-6989586621679068436"><span id="local-6989586621679068438"><span id="local-6989586621679068444"><span id="local-6989586621679068449"><span id="local-6989586621679068452"><span id="local-6989586621679068455"><span id="local-6989586621679068458"><span id="local-6989586621679068461"><span id="local-6989586621679068464"><span id="local-6989586621679068469"><span id="local-6989586621679068474"><span class="annot"><span class="annottext">Typeable UnicodeCategory
+Typeable UnicodeCategory =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; UnicodeCategory -&gt; c UnicodeCategory)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UnicodeCategory)
+-&gt; (UnicodeCategory -&gt; Constr)
+-&gt; (UnicodeCategory -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UnicodeCategory))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c UnicodeCategory))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; UnicodeCategory -&gt; UnicodeCategory)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UnicodeCategory -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UnicodeCategory -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; UnicodeCategory -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UnicodeCategory -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; UnicodeCategory -&gt; m UnicodeCategory)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; UnicodeCategory -&gt; m UnicodeCategory)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; UnicodeCategory -&gt; m UnicodeCategory)
+-&gt; Data UnicodeCategory
+UnicodeCategory -&gt; Constr
+UnicodeCategory -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; UnicodeCategory -&gt; UnicodeCategory
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UnicodeCategory -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UnicodeCategory -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UnicodeCategory -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UnicodeCategory -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UnicodeCategory -&gt; m UnicodeCategory
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UnicodeCategory -&gt; m UnicodeCategory
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UnicodeCategory
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UnicodeCategory -&gt; c UnicodeCategory
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UnicodeCategory)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c UnicodeCategory)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UnicodeCategory -&gt; c UnicodeCategory
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UnicodeCategory -&gt; c UnicodeCategory
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UnicodeCategory
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UnicodeCategory
+$ctoConstr :: UnicodeCategory -&gt; Constr
+toConstr :: UnicodeCategory -&gt; Constr
+$cdataTypeOf :: UnicodeCategory -&gt; DataType
+dataTypeOf :: UnicodeCategory -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UnicodeCategory)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UnicodeCategory)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c UnicodeCategory)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c UnicodeCategory)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; UnicodeCategory -&gt; UnicodeCategory
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; UnicodeCategory -&gt; UnicodeCategory
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UnicodeCategory -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UnicodeCategory -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UnicodeCategory -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UnicodeCategory -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UnicodeCategory -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UnicodeCategory -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UnicodeCategory -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UnicodeCategory -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UnicodeCategory -&gt; m UnicodeCategory
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UnicodeCategory -&gt; m UnicodeCategory
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UnicodeCategory -&gt; m UnicodeCategory
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UnicodeCategory -&gt; m UnicodeCategory
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UnicodeCategory -&gt; m UnicodeCategory
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UnicodeCategory -&gt; m UnicodeCategory
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- \p{Letter} or \p{Mc}</span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Data.CharSet.Unicode.html#unicodeCategories"><span class="hs-identifier hs-type">unicodeCategories</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-type">UnicodeCategory</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-51"></span><span id="unicodeCategories"><span class="annot"><span class="annottext">unicodeCategories :: [UnicodeCategory]
+</span><a href="Data.CharSet.Unicode.html#unicodeCategories"><span class="hs-identifier hs-var hs-var">unicodeCategories</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Letter&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;L&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#letter"><span class="hs-identifier hs-var">letter</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of letter from any language.&quot;</span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Lowercase_Letter&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Ll&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#lowercaseLetter"><span class="hs-identifier hs-var">lowercaseLetter</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a lowercase letter that has an uppercase variant&quot;</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Uppercase_Letter&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Lu&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#uppercaseLetter"><span class="hs-identifier hs-var">uppercaseLetter</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;an uppercase letter that has a lowercase variant&quot;</span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Titlecase_Letter&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Lt&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#titlecaseLetter"><span class="hs-identifier hs-var">titlecaseLetter</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a letter that appears at the start of a word when only the first letter of the word is capitalized&quot;</span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Letter&amp;&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;L&amp;&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#letterAnd"><span class="hs-identifier hs-var">letterAnd</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a letter that exists in lowercase and uppercase variants (combination of Ll, Lu and Lt)&quot;</span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Modifier_Letter&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Lm&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#modifierLetter"><span class="hs-identifier hs-var">modifierLetter</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a special character that is used like a letter&quot;</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Other_Letter&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Lo&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#otherLetter"><span class="hs-identifier hs-var">otherLetter</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a letter or ideograph that does not have lowercase and uppercase variants&quot;</span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Mark&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;M&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#mark"><span class="hs-identifier hs-var">mark</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a character intended to be combined with another character (e.g. accents, umlauts, enclosing boxes, etc.)&quot;</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Non_Spacing_Mark&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Mn&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#nonSpacingMark"><span class="hs-identifier hs-var">nonSpacingMark</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a character intended to be combined with another character without taking up extra space (e.g. accents, umlauts, etc.)&quot;</span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Spacing_Combining_Mark&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Mc&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#spacingCombiningMark"><span class="hs-identifier hs-var">spacingCombiningMark</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a character intended to be combined with another character that takes up extra space (vowel signs in many Eastern languages)&quot;</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Enclosing_Mark&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Me&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#enclosingMark"><span class="hs-identifier hs-var">enclosingMark</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a character that encloses the character is is combined with (circle, square, keycap, etc.)&quot;</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Separator&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Z&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#separator"><span class="hs-identifier hs-var">separator</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of whitespace or invisible separator&quot;</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Space_Separator&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Zs&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#space"><span class="hs-identifier hs-var">space</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a whitespace character that is invisible, but does take up space&quot;</span></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Line_Separator&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Zl&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#lineSeparator"><span class="hs-identifier hs-var">lineSeparator</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;line separator character U+2028&quot;</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Paragraph_Separator&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Zp&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#paragraphSeparator"><span class="hs-identifier hs-var">paragraphSeparator</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;paragraph separator character U+2029&quot;</span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Symbol&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;S&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#symbol"><span class="hs-identifier hs-var">symbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;math symbols, currency signs, dingbats, box-drawing characters, etc.&quot;</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Math_Symbol&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Sm&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#mathSymbol"><span class="hs-identifier hs-var">mathSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any mathematical symbol&quot;</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Currency_Symbol&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Sc&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#currencySymbol"><span class="hs-identifier hs-var">currencySymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any currency sign&quot;</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Modifier_Symbol&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Sk&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#modifierSymbol"><span class="hs-identifier hs-var">modifierSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a combining character (mark) as a full character on its own&quot;</span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Other_Symbol&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;So&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#otherSymbol"><span class="hs-identifier hs-var">otherSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;various symbols that are not math symbols, currency signs, or combining characters&quot;</span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Number&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;N&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#number"><span class="hs-identifier hs-var">number</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of numeric character in any script&quot;</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Decimal_Digit_Number&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Nd&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#decimalNumber"><span class="hs-identifier hs-var">decimalNumber</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a digit zero through nine in any script except ideographic scripts&quot;</span></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Letter_Number&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Nl&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#letterNumber"><span class="hs-identifier hs-var">letterNumber</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a number that looks like a letter, such as a Roman numeral&quot;</span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Other_Number&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;No&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#otherNumber"><span class="hs-identifier hs-var">otherNumber</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a superscript or subscript digit, or a number that is not a digit 0..9 (excluding numbers from ideographic scripts)&quot;</span></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Punctuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;P&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#punctuation"><span class="hs-identifier hs-var">punctuation</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of punctuation character&quot;</span></span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Dash_Punctuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pd&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#dashPunctuation"><span class="hs-identifier hs-var">dashPunctuation</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of hyphen or dash&quot;</span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Open_Punctuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Ps&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#openPunctuation"><span class="hs-identifier hs-var">openPunctuation</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of opening bracket&quot;</span></span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Close_Punctuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pe&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#closePunctuation"><span class="hs-identifier hs-var">closePunctuation</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of closing bracket&quot;</span></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Initial_Punctuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pi&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#initialQuote"><span class="hs-identifier hs-var">initialQuote</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of opening quote&quot;</span></span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Final_Punctuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pf&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#finalQuote"><span class="hs-identifier hs-var">finalQuote</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of closing quote&quot;</span></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Connector_Punctuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pc&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#connectorPunctuation"><span class="hs-identifier hs-var">connectorPunctuation</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;a punctuation character such as an underscore that connects words&quot;</span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Other_Punctuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Po&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#otherPunctuation"><span class="hs-identifier hs-var">otherPunctuation</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any kind of punctuation character that is not a dash, bracket, quote or connector&quot;</span></span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Other&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;C&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#other"><span class="hs-identifier hs-var">other</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;invisible control characters and unused code points&quot;</span></span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Control&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Cc&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#control"><span class="hs-identifier hs-var">control</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;an ASCII 0x00..0x1F or Latin-1 0x80..0x9F control character&quot;</span></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Format&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Cf&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#format"><span class="hs-identifier hs-var">format</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;invisible formatting indicator&quot;</span></span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Private_Use&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Co&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#privateUse"><span class="hs-identifier hs-var">privateUse</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any code point reserved for private use&quot;</span></span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Surrogate&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Cs&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#surrogate"><span class="hs-identifier hs-var">surrogate</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;one half of a surrogate pair in UTF-16 encoding&quot;</span></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-special">,</span><span>     </span><span class="annot"><span class="annottext">String -&gt; String -&gt; CharSet -&gt; String -&gt; UnicodeCategory
+</span><a href="Data.CharSet.Unicode.html#UnicodeCategory"><span class="hs-identifier hs-var">UnicodeCategory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unassigned&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Cn&quot;</span></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#notAssigned"><span class="hs-identifier hs-var">notAssigned</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;any code point to which no character has been assigned.properties&quot;</span></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-type">cat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GeneralCategory</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span>
+</span><span id="line-92"></span><span id="cat"><span class="annot"><span class="annottext">cat :: GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var hs-var">cat</span></a></span></span><span> </span><span id="local-6989586621679068485"><span class="annot"><span class="annottext">GeneralCategory
+</span><a href="#local-6989586621679068485"><span class="hs-identifier hs-var">category</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; CharSet
+</span><a href="Data.CharSet.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">GeneralCategory
+</span><a href="#local-6989586621679068485"><span class="hs-identifier hs-var">category</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; GeneralCategory -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(GeneralCategory -&gt; Bool)
+-&gt; (Char -&gt; GeneralCategory) -&gt; Char -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; GeneralCategory
+</span><span class="hs-identifier hs-var">generalCategory</span></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- Letter</span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Data.CharSet.Unicode.html#lowercaseLetter"><span class="hs-identifier hs-type">lowercaseLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#uppercaseLetter"><span class="hs-identifier hs-type">uppercaseLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#titlecaseLetter"><span class="hs-identifier hs-type">titlecaseLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#letterAnd"><span class="hs-identifier hs-type">letterAnd</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#modifierLetter"><span class="hs-identifier hs-type">modifierLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#otherLetter"><span class="hs-identifier hs-type">otherLetter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#letter"><span class="hs-identifier hs-type">letter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span>
+</span><span id="line-96"></span><span id="lowercaseLetter"><span class="annot"><span class="annottext">lowercaseLetter :: CharSet
+</span><a href="Data.CharSet.Unicode.html#lowercaseLetter"><span class="hs-identifier hs-var hs-var">lowercaseLetter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">LowercaseLetter</span></span><span>
+</span><span id="line-97"></span><span id="uppercaseLetter"><span class="annot"><span class="annottext">uppercaseLetter :: CharSet
+</span><a href="Data.CharSet.Unicode.html#uppercaseLetter"><span class="hs-identifier hs-var hs-var">uppercaseLetter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">UppercaseLetter</span></span><span>
+</span><span id="line-98"></span><span id="titlecaseLetter"><span class="annot"><span class="annottext">titlecaseLetter :: CharSet
+</span><a href="Data.CharSet.Unicode.html#titlecaseLetter"><span class="hs-identifier hs-var hs-var">titlecaseLetter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">TitlecaseLetter</span></span><span>
+</span><span id="line-99"></span><span id="letterAnd"><span class="annot"><span class="annottext">letterAnd :: CharSet
+</span><a href="Data.CharSet.Unicode.html#letterAnd"><span class="hs-identifier hs-var hs-var">letterAnd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#lowercaseLetter"><span class="hs-identifier hs-var">lowercaseLetter</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#uppercaseLetter"><span class="hs-identifier hs-var">uppercaseLetter</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#titlecaseLetter"><span class="hs-identifier hs-var">titlecaseLetter</span></a></span><span>
+</span><span id="line-102"></span><span id="modifierLetter"><span class="annot"><span class="annottext">modifierLetter :: CharSet
+</span><a href="Data.CharSet.Unicode.html#modifierLetter"><span class="hs-identifier hs-var hs-var">modifierLetter</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">ModifierLetter</span></span><span>
+</span><span id="line-103"></span><span id="otherLetter"><span class="annot"><span class="annottext">otherLetter :: CharSet
+</span><a href="Data.CharSet.Unicode.html#otherLetter"><span class="hs-identifier hs-var hs-var">otherLetter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">OtherLetter</span></span><span>
+</span><span id="line-104"></span><span id="letter"><span class="annot"><span class="annottext">letter :: CharSet
+</span><a href="Data.CharSet.Unicode.html#letter"><span class="hs-identifier hs-var hs-var">letter</span></a></span></span><span>
+</span><span id="line-105"></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#letterAnd"><span class="hs-identifier hs-var">letterAnd</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#modifierLetter"><span class="hs-identifier hs-var">modifierLetter</span></a></span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#otherLetter"><span class="hs-identifier hs-var">otherLetter</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- Marks</span><span>
+</span><span id="line-110"></span><span class="annot"><a href="Data.CharSet.Unicode.html#nonSpacingMark"><span class="hs-identifier hs-type">nonSpacingMark</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#spacingCombiningMark"><span class="hs-identifier hs-type">spacingCombiningMark</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#enclosingMark"><span class="hs-identifier hs-type">enclosingMark</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#mark"><span class="hs-identifier hs-type">mark</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span>
+</span><span id="line-111"></span><span id="nonSpacingMark"><span class="annot"><span class="annottext">nonSpacingMark :: CharSet
+</span><a href="Data.CharSet.Unicode.html#nonSpacingMark"><span class="hs-identifier hs-var hs-var">nonSpacingMark</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">NonSpacingMark</span></span><span>
+</span><span id="line-112"></span><span id="spacingCombiningMark"><span class="annot"><span class="annottext">spacingCombiningMark :: CharSet
+</span><a href="Data.CharSet.Unicode.html#spacingCombiningMark"><span class="hs-identifier hs-var hs-var">spacingCombiningMark</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">SpacingCombiningMark</span></span><span>
+</span><span id="line-113"></span><span id="enclosingMark"><span class="annot"><span class="annottext">enclosingMark :: CharSet
+</span><a href="Data.CharSet.Unicode.html#enclosingMark"><span class="hs-identifier hs-var hs-var">enclosingMark</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">EnclosingMark</span></span><span>
+</span><span id="line-114"></span><span id="mark"><span class="annot"><span class="annottext">mark :: CharSet
+</span><a href="Data.CharSet.Unicode.html#mark"><span class="hs-identifier hs-var hs-var">mark</span></a></span></span><span>
+</span><span id="line-115"></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#nonSpacingMark"><span class="hs-identifier hs-var">nonSpacingMark</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#spacingCombiningMark"><span class="hs-identifier hs-var">spacingCombiningMark</span></a></span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#enclosingMark"><span class="hs-identifier hs-var">enclosingMark</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Data.CharSet.Unicode.html#space"><span class="hs-identifier hs-type">space</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#lineSeparator"><span class="hs-identifier hs-type">lineSeparator</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#paragraphSeparator"><span class="hs-identifier hs-type">paragraphSeparator</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#separator"><span class="hs-identifier hs-type">separator</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span>
+</span><span id="line-120"></span><span id="space"><span class="annot"><span class="annottext">space :: CharSet
+</span><a href="Data.CharSet.Unicode.html#space"><span class="hs-identifier hs-var hs-var">space</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">Space</span></span><span>
+</span><span id="line-121"></span><span id="lineSeparator"><span class="annot"><span class="annottext">lineSeparator :: CharSet
+</span><a href="Data.CharSet.Unicode.html#lineSeparator"><span class="hs-identifier hs-var hs-var">lineSeparator</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">LineSeparator</span></span><span>
+</span><span id="line-122"></span><span id="paragraphSeparator"><span class="annot"><span class="annottext">paragraphSeparator :: CharSet
+</span><a href="Data.CharSet.Unicode.html#paragraphSeparator"><span class="hs-identifier hs-var hs-var">paragraphSeparator</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">ParagraphSeparator</span></span><span>
+</span><span id="line-123"></span><span id="separator"><span class="annot"><span class="annottext">separator :: CharSet
+</span><a href="Data.CharSet.Unicode.html#separator"><span class="hs-identifier hs-var hs-var">separator</span></a></span></span><span>
+</span><span id="line-124"></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#space"><span class="hs-identifier hs-var">space</span></a></span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#lineSeparator"><span class="hs-identifier hs-var">lineSeparator</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#paragraphSeparator"><span class="hs-identifier hs-var">paragraphSeparator</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="annot"><a href="Data.CharSet.Unicode.html#mathSymbol"><span class="hs-identifier hs-type">mathSymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#currencySymbol"><span class="hs-identifier hs-type">currencySymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#modifierSymbol"><span class="hs-identifier hs-type">modifierSymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#otherSymbol"><span class="hs-identifier hs-type">otherSymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#symbol"><span class="hs-identifier hs-type">symbol</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span>
+</span><span id="line-129"></span><span id="mathSymbol"><span class="annot"><span class="annottext">mathSymbol :: CharSet
+</span><a href="Data.CharSet.Unicode.html#mathSymbol"><span class="hs-identifier hs-var hs-var">mathSymbol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">MathSymbol</span></span><span>
+</span><span id="line-130"></span><span id="currencySymbol"><span class="annot"><span class="annottext">currencySymbol :: CharSet
+</span><a href="Data.CharSet.Unicode.html#currencySymbol"><span class="hs-identifier hs-var hs-var">currencySymbol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">CurrencySymbol</span></span><span>
+</span><span id="line-131"></span><span id="modifierSymbol"><span class="annot"><span class="annottext">modifierSymbol :: CharSet
+</span><a href="Data.CharSet.Unicode.html#modifierSymbol"><span class="hs-identifier hs-var hs-var">modifierSymbol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">ModifierSymbol</span></span><span>
+</span><span id="line-132"></span><span id="otherSymbol"><span class="annot"><span class="annottext">otherSymbol :: CharSet
+</span><a href="Data.CharSet.Unicode.html#otherSymbol"><span class="hs-identifier hs-var hs-var">otherSymbol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">OtherSymbol</span></span><span>
+</span><span id="line-133"></span><span id="symbol"><span class="annot"><span class="annottext">symbol :: CharSet
+</span><a href="Data.CharSet.Unicode.html#symbol"><span class="hs-identifier hs-var hs-var">symbol</span></a></span></span><span>
+</span><span id="line-134"></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#mathSymbol"><span class="hs-identifier hs-var">mathSymbol</span></a></span><span>
+</span><span id="line-135"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#currencySymbol"><span class="hs-identifier hs-var">currencySymbol</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#modifierSymbol"><span class="hs-identifier hs-var">modifierSymbol</span></a></span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#otherSymbol"><span class="hs-identifier hs-var">otherSymbol</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="Data.CharSet.Unicode.html#decimalNumber"><span class="hs-identifier hs-type">decimalNumber</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#letterNumber"><span class="hs-identifier hs-type">letterNumber</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#otherNumber"><span class="hs-identifier hs-type">otherNumber</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#number"><span class="hs-identifier hs-type">number</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span>
+</span><span id="line-140"></span><span id="decimalNumber"><span class="annot"><span class="annottext">decimalNumber :: CharSet
+</span><a href="Data.CharSet.Unicode.html#decimalNumber"><span class="hs-identifier hs-var hs-var">decimalNumber</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">DecimalNumber</span></span><span>
+</span><span id="line-141"></span><span id="letterNumber"><span class="annot"><span class="annottext">letterNumber :: CharSet
+</span><a href="Data.CharSet.Unicode.html#letterNumber"><span class="hs-identifier hs-var hs-var">letterNumber</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">LetterNumber</span></span><span>
+</span><span id="line-142"></span><span id="otherNumber"><span class="annot"><span class="annottext">otherNumber :: CharSet
+</span><a href="Data.CharSet.Unicode.html#otherNumber"><span class="hs-identifier hs-var hs-var">otherNumber</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">OtherNumber</span></span><span>
+</span><span id="line-143"></span><span id="number"><span class="annot"><span class="annottext">number :: CharSet
+</span><a href="Data.CharSet.Unicode.html#number"><span class="hs-identifier hs-var hs-var">number</span></a></span></span><span>
+</span><span id="line-144"></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#decimalNumber"><span class="hs-identifier hs-var">decimalNumber</span></a></span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#letterNumber"><span class="hs-identifier hs-var">letterNumber</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#otherNumber"><span class="hs-identifier hs-var">otherNumber</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="annot"><a href="Data.CharSet.Unicode.html#dashPunctuation"><span class="hs-identifier hs-type">dashPunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#openPunctuation"><span class="hs-identifier hs-type">openPunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#closePunctuation"><span class="hs-identifier hs-type">closePunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#initialQuote"><span class="hs-identifier hs-type">initialQuote</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><a href="Data.CharSet.Unicode.html#finalQuote"><span class="hs-identifier hs-type">finalQuote</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#connectorPunctuation"><span class="hs-identifier hs-type">connectorPunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#otherPunctuation"><span class="hs-identifier hs-type">otherPunctuation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#punctuation"><span class="hs-identifier hs-type">punctuation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span id="dashPunctuation"><span class="annot"><span class="annottext">dashPunctuation :: CharSet
+</span><a href="Data.CharSet.Unicode.html#dashPunctuation"><span class="hs-identifier hs-var hs-var">dashPunctuation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">DashPunctuation</span></span><span>
+</span><span id="line-152"></span><span id="openPunctuation"><span class="annot"><span class="annottext">openPunctuation :: CharSet
+</span><a href="Data.CharSet.Unicode.html#openPunctuation"><span class="hs-identifier hs-var hs-var">openPunctuation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">OpenPunctuation</span></span><span>
+</span><span id="line-153"></span><span id="closePunctuation"><span class="annot"><span class="annottext">closePunctuation :: CharSet
+</span><a href="Data.CharSet.Unicode.html#closePunctuation"><span class="hs-identifier hs-var hs-var">closePunctuation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">ClosePunctuation</span></span><span>
+</span><span id="line-154"></span><span id="initialQuote"><span class="annot"><span class="annottext">initialQuote :: CharSet
+</span><a href="Data.CharSet.Unicode.html#initialQuote"><span class="hs-identifier hs-var hs-var">initialQuote</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">InitialQuote</span></span><span>
+</span><span id="line-155"></span><span id="finalQuote"><span class="annot"><span class="annottext">finalQuote :: CharSet
+</span><a href="Data.CharSet.Unicode.html#finalQuote"><span class="hs-identifier hs-var hs-var">finalQuote</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">FinalQuote</span></span><span>
+</span><span id="line-156"></span><span id="connectorPunctuation"><span class="annot"><span class="annottext">connectorPunctuation :: CharSet
+</span><a href="Data.CharSet.Unicode.html#connectorPunctuation"><span class="hs-identifier hs-var hs-var">connectorPunctuation</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">ConnectorPunctuation</span></span><span>
+</span><span id="line-157"></span><span id="otherPunctuation"><span class="annot"><span class="annottext">otherPunctuation :: CharSet
+</span><a href="Data.CharSet.Unicode.html#otherPunctuation"><span class="hs-identifier hs-var hs-var">otherPunctuation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">OtherPunctuation</span></span><span>
+</span><span id="line-158"></span><span id="punctuation"><span class="annot"><span class="annottext">punctuation :: CharSet
+</span><a href="Data.CharSet.Unicode.html#punctuation"><span class="hs-identifier hs-var hs-var">punctuation</span></a></span></span><span>
+</span><span id="line-159"></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#dashPunctuation"><span class="hs-identifier hs-var">dashPunctuation</span></a></span><span>
+</span><span id="line-160"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#openPunctuation"><span class="hs-identifier hs-var">openPunctuation</span></a></span><span>
+</span><span id="line-161"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#closePunctuation"><span class="hs-identifier hs-var">closePunctuation</span></a></span><span>
+</span><span id="line-162"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#initialQuote"><span class="hs-identifier hs-var">initialQuote</span></a></span><span>
+</span><span id="line-163"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#finalQuote"><span class="hs-identifier hs-var">finalQuote</span></a></span><span>
+</span><span id="line-164"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#connectorPunctuation"><span class="hs-identifier hs-var">connectorPunctuation</span></a></span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#otherPunctuation"><span class="hs-identifier hs-var">otherPunctuation</span></a></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="annot"><a href="Data.CharSet.Unicode.html#control"><span class="hs-identifier hs-type">control</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#format"><span class="hs-identifier hs-type">format</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#privateUse"><span class="hs-identifier hs-type">privateUse</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#surrogate"><span class="hs-identifier hs-type">surrogate</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#notAssigned"><span class="hs-identifier hs-type">notAssigned</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.CharSet.Unicode.html#other"><span class="hs-identifier hs-type">other</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.CharSet.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span>
+</span><span id="line-168"></span><span id="control"><span class="annot"><span class="annottext">control :: CharSet
+</span><a href="Data.CharSet.Unicode.html#control"><span class="hs-identifier hs-var hs-var">control</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">Control</span></span><span>
+</span><span id="line-169"></span><span id="format"><span class="annot"><span class="annottext">format :: CharSet
+</span><a href="Data.CharSet.Unicode.html#format"><span class="hs-identifier hs-var hs-var">format</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">Format</span></span><span>
+</span><span id="line-170"></span><span id="privateUse"><span class="annot"><span class="annottext">privateUse :: CharSet
+</span><a href="Data.CharSet.Unicode.html#privateUse"><span class="hs-identifier hs-var hs-var">privateUse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">PrivateUse</span></span><span>
+</span><span id="line-171"></span><span id="surrogate"><span class="annot"><span class="annottext">surrogate :: CharSet
+</span><a href="Data.CharSet.Unicode.html#surrogate"><span class="hs-identifier hs-var hs-var">surrogate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">Surrogate</span></span><span>
+</span><span id="line-172"></span><span id="notAssigned"><span class="annot"><span class="annottext">notAssigned :: CharSet
+</span><a href="Data.CharSet.Unicode.html#notAssigned"><span class="hs-identifier hs-var hs-var">notAssigned</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GeneralCategory -&gt; CharSet
+</span><a href="Data.CharSet.Unicode.html#cat"><span class="hs-identifier hs-var">cat</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralCategory
+</span><span class="hs-identifier hs-var">NotAssigned</span></span><span>
+</span><span id="line-173"></span><span id="other"><span class="annot"><span class="annottext">other :: CharSet
+</span><a href="Data.CharSet.Unicode.html#other"><span class="hs-identifier hs-var hs-var">other</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#control"><span class="hs-identifier hs-var">control</span></a></span><span>
+</span><span id="line-174"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#format"><span class="hs-identifier hs-var">format</span></a></span><span>
+</span><span id="line-175"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#privateUse"><span class="hs-identifier hs-var">privateUse</span></a></span><span>
+</span><span id="line-176"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#surrogate"><span class="hs-identifier hs-var">surrogate</span></a></span><span>
+</span><span id="line-177"></span><span>    </span><span class="annot"><span class="annottext">CharSet -&gt; CharSet -&gt; CharSet
+</span><a href="Data.CharSet.html#union"><span class="hs-operator hs-var">`union`</span></a></span><span> </span><span class="annot"><span class="annottext">CharSet
+</span><a href="Data.CharSet.Unicode.html#notAssigned"><span class="hs-identifier hs-var">notAssigned</span></a></span><span>
+</span><span id="line-178"></span></pre></body></html>

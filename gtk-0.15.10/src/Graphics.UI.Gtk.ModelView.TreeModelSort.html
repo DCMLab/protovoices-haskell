@@ -1,0 +1,551 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LINE 2 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -*-haskell-*-</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- GIMP Toolkit (GTK) TreeModelSort</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Author : Duncan Coutts</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Created: 4 August 2004</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright (C) 2004-2005 Duncan Coutts, Axel Simon</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This library is free software; you can redistribute it and/or</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- modify it under the terms of the GNU Lesser General Public</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License as published by the Free Software Foundation; either</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- version 2.1 of the License, or (at your option) any later version.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This library is distributed in the hope that it will be useful,</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- but WITHOUT ANY WARRANTY; without even the implied warranty of</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Lesser General Public License for more details.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Maintainer : gtk2hs-users@lists.sourceforge.net</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Stability : provisional</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Portability : portable (depends on GHC)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- A 'TreeModel' which makes an underlying tree model sortable</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html"><span class="hs-identifier">Graphics.UI.Gtk.ModelView.TreeModelSort</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- * Detail</span></span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | The 'TreeModelSort' is a model which implements the 'TreeSortable'</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- interface. It does not hold any data itself, but rather is created with a</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- child model and proxies its data. It has identical rows to its</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- child model, and the changes in the child are propagated. The primary</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- purpose of this model is to provide a way to sort a model without</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- modifying it.</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><span class="hs-comment">-- * Class Hierarchy</span></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | 'GObject'</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | +----TreeModelSort</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier">TreeModelSort</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier">TreeModelSortClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#castToTreeModelSort"><span class="hs-identifier">castToTreeModelSort</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#gTypeTreeModelSort"><span class="hs-identifier">gTypeTreeModelSort</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#toTreeModelSort"><span class="hs-identifier">toTreeModelSort</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelSort"><span class="hs-identifier">TypedTreeModelSort</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortNewWithModel"><span class="hs-identifier">treeModelSortNewWithModel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- * Methods</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortGetModel"><span class="hs-identifier">treeModelSortGetModel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertChildPathToPath"><span class="hs-identifier">treeModelSortConvertChildPathToPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertPathToChildPath"><span class="hs-identifier">treeModelSortConvertPathToChildPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertChildIterToIter"><span class="hs-identifier">treeModelSortConvertChildIterToIter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertIterToChildIter"><span class="hs-identifier">treeModelSortConvertIterToChildIter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortResetDefaultSortFunc"><span class="hs-identifier">treeModelSortResetDefaultSortFunc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortClearCache"><span class="hs-identifier">treeModelSortClearCache</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortIterIsValid"><span class="hs-identifier">treeModelSortIterIsValid</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Glib.FFI</span></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html"><span class="hs-identifier">Graphics.UI.Gtk.Types</span></a></span><span>
+</span><span id="line-73"></span><span class="hs-pragma">{-# LINE 73 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.ModelView.TreeModel</span><span>
+</span><span id="line-74"></span><span class="hs-pragma">{-# LINE 74 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Graphics.UI.Gtk.ModelView.Types</span><span>
+</span><span id="line-75"></span><span class="hs-pragma">{-# LINE 75 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-pragma">{-# LINE 77 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679642889"><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelClass"><span class="hs-identifier hs-type">TreeModelClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelSort"><span class="hs-identifier hs-type">TypedTreeModelSort</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642889"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679642893"><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelSort"><span class="hs-identifier hs-type">TypedTreeModelSort</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642893"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679642990"><span class="annot"><span class="hs-identifier hs-type">GObjectClass</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelSort"><span class="hs-identifier hs-type">TypedTreeModelSort</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642990"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679642994"><span class="annot"><span class="annottext">toGObject :: TypedTreeModelSort a -&gt; GObject
+</span><a href="#local-6989586621679642994"><span class="hs-identifier hs-var hs-var hs-var">toGObject</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelSort"><span class="hs-identifier hs-type">TypedTreeModelSort</span></a></span><span> </span><span id="local-6989586621679642997"><span class="annot"><span class="annottext">ForeignPtr (TypedTreeModelSort a)
+</span><a href="#local-6989586621679642997"><span class="hs-identifier hs-var">tm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ForeignPtr GObject -&gt; GObject
+</span><span class="hs-identifier hs-var">GObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ForeignPtr (TypedTreeModelSort a) -&gt; ForeignPtr GObject
+forall a b. ForeignPtr a -&gt; ForeignPtr b
+</span><span class="hs-identifier hs-var">castForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr (TypedTreeModelSort a)
+</span><a href="#local-6989586621679642997"><span class="hs-identifier hs-var">tm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span id="local-6989586621679642999"><span class="annot"><span class="annottext">unsafeCastGObject :: GObject -&gt; TypedTreeModelSort a
+</span><a href="#local-6989586621679642999"><span class="hs-identifier hs-var hs-var hs-var">unsafeCastGObject</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ForeignPtr (TypedTreeModelSort a) -&gt; TypedTreeModelSort a
+forall row.
+ForeignPtr (TypedTreeModelSort row) -&gt; TypedTreeModelSort row
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelSort"><span class="hs-identifier hs-var">TypedTreeModelSort</span></a></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr (TypedTreeModelSort a) -&gt; TypedTreeModelSort a)
+-&gt; (GObject -&gt; ForeignPtr (TypedTreeModelSort a))
+-&gt; GObject
+-&gt; TypedTreeModelSort a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr GObject -&gt; ForeignPtr (TypedTreeModelSort a)
+forall a b. ForeignPtr a -&gt; ForeignPtr b
+</span><span class="hs-identifier hs-var">castForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr GObject -&gt; ForeignPtr (TypedTreeModelSort a))
+-&gt; (GObject -&gt; ForeignPtr GObject)
+-&gt; GObject
+-&gt; ForeignPtr (TypedTreeModelSort a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">GObject -&gt; ForeignPtr GObject
+</span><span class="hs-identifier hs-var">unGObject</span></span><span>
+</span><span id="line-83"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeSortableClass"><span class="hs-identifier hs-type">TreeSortableClass</span></a></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679642908"><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeSortableClass"><span class="hs-identifier hs-type">TreeSortableClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelSort"><span class="hs-identifier hs-type">TypedTreeModelSort</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642908"><span class="hs-identifier hs-type">row</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Creates a new 'TreeModelSort', that will be a sorted view of the given</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- model.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span id="local-6989586621679642909"><span id="local-6989586621679642910"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortNewWithModel"><span class="hs-identifier hs-type">treeModelSortNewWithModel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelClass"><span class="hs-identifier hs-type">TreeModelClass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679642909"><span class="hs-identifier hs-type">childModel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642910"><span class="hs-identifier hs-type">row</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>                              </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelClass"><span class="hs-identifier hs-type">TypedTreeModelClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642909"><span class="hs-identifier hs-type">childModel</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-94"></span><span>                              </span><span class="annot"><a href="#local-6989586621679642909"><span class="hs-identifier hs-type">childModel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642910"><span class="hs-identifier hs-type">row</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TypedTreeModelSort"><span class="hs-identifier hs-type">TypedTreeModelSort</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642910"><span class="hs-identifier hs-type">row</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-95"></span><span id="treeModelSortNewWithModel"><span class="annot"><span class="annottext">treeModelSortNewWithModel :: forall (childModel :: * -&gt; *) row.
+(TreeModelClass (childModel row),
+ TypedTreeModelClass childModel) =&gt;
+childModel row -&gt; IO (TypedTreeModelSort row)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortNewWithModel"><span class="hs-identifier hs-var hs-var">treeModelSortNewWithModel</span></a></span></span><span> </span><span id="local-6989586621679643018"><span class="annot"><span class="annottext">childModel row
+</span><a href="#local-6989586621679643018"><span class="hs-identifier hs-var">childModel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(TreeModelSort -&gt; TypedTreeModelSort row)
+-&gt; IO TreeModelSort -&gt; IO (TypedTreeModelSort row)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">TreeModelSort -&gt; TypedTreeModelSort row
+forall row. TreeModelSort -&gt; TypedTreeModelSort row
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#unsafeTreeModelSortToGeneric"><span class="hs-identifier hs-var">unsafeTreeModelSortToGeneric</span></a></span><span> </span><span class="annot"><span class="annottext">(IO TreeModelSort -&gt; IO (TypedTreeModelSort row))
+-&gt; IO TreeModelSort -&gt; IO (TypedTreeModelSort row)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr TreeModelSort -&gt; TreeModelSort,
+ FinalizerPtr TreeModelSort)
+-&gt; IO (Ptr TreeModelSort) -&gt; IO TreeModelSort
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">wrapNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr TreeModelSort -&gt; TreeModelSort,
+ FinalizerPtr TreeModelSort)
+forall {a}.
+(ForeignPtr TreeModelSort -&gt; TreeModelSort, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkTreeModelSort"><span class="hs-identifier hs-var">mkTreeModelSort</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr TreeModelSort) -&gt; IO TreeModelSort)
+-&gt; IO (Ptr TreeModelSort) -&gt; IO TreeModelSort
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><span class="annottext">(Ptr TreeModel -&gt; Ptr TreeModelSort)
+-&gt; IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelSort)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr TreeModel -&gt; Ptr TreeModelSort
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelSort))
+-&gt; IO (Ptr TreeModel) -&gt; IO (Ptr TreeModelSort)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span> </span><span id="local-6989586621679643023"><span class="annot"><span class="annottext">ForeignPtr TreeModel
+</span><a href="#local-6989586621679643023"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModel
+-&gt; (Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModel
+</span><a href="#local-6989586621679643023"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel))
+-&gt; (Ptr TreeModel -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643025"><span class="annot"><span class="annottext">Ptr TreeModel
+</span><a href="#local-6989586621679643025"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModel -&gt; IO (Ptr TreeModel)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_new_with_model"><span class="hs-identifier hs-var">gtk_tree_model_sort_new_with_model</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModel
+</span><a href="#local-6989586621679643025"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span class="hs-pragma">{-# LINE 99 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModel</span><span> </span><span class="hs-identifier">childModel</span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">--------------------</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- Methods</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- | Returns the underlying model the 'TreeModelSort' is sorting.</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span id="local-6989586621679642931"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortGetModel"><span class="hs-identifier hs-type">treeModelSortGetModel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642931"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679642931"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span></span><span>
+</span><span id="line-107"></span><span id="treeModelSortGetModel"><span class="annot"><span class="annottext">treeModelSortGetModel :: forall self. TreeModelSortClass self =&gt; self -&gt; IO TreeModel
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortGetModel"><span class="hs-identifier hs-var hs-var">treeModelSortGetModel</span></a></span></span><span> </span><span id="local-6989586621679643032"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643032"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="annottext">(ForeignPtr TreeModel -&gt; TreeModel, FinalizerPtr TreeModel)
+-&gt; IO (Ptr TreeModel) -&gt; IO TreeModel
+forall obj.
+GObjectClass obj =&gt;
+(ForeignPtr obj -&gt; obj, FinalizerPtr obj) -&gt; IO (Ptr obj) -&gt; IO obj
+</span><span class="hs-identifier hs-var">makeNewGObject</span></span><span> </span><span class="annot"><span class="annottext">(ForeignPtr TreeModel -&gt; TreeModel, FinalizerPtr TreeModel)
+forall {a}. (ForeignPtr TreeModel -&gt; TreeModel, FinalizerPtr a)
+</span><a href="Graphics.UI.Gtk.Types.html#mkTreeModel"><span class="hs-identifier hs-var">mkTreeModel</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Ptr TreeModel) -&gt; IO TreeModel)
+-&gt; IO (Ptr TreeModel) -&gt; IO TreeModel
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span> </span><span id="local-6989586621679643035"><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643035"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+-&gt; (Ptr TreeModelSort -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643035"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelSort -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel))
+-&gt; (Ptr TreeModelSort -&gt; IO (Ptr TreeModel)) -&gt; IO (Ptr TreeModel)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643036"><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643036"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelSort -&gt; IO (Ptr TreeModel)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_get_model"><span class="hs-identifier hs-var">gtk_tree_model_sort_get_model</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643036"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span class="hs-pragma">{-# LINE 110 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelSort</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Converts the given path to a path relative to the given sorted model.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">--</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- * The given path points to a row in the child model. The returned path will</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- point to the same row in the sorted model.</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span id="local-6989586621679642935"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertChildPathToPath"><span class="hs-identifier hs-type">treeModelSortConvertChildPathToPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642935"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679642935"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-118"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span><span>
+</span><span id="line-119"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span></span><span>
+</span><span id="line-120"></span><span id="treeModelSortConvertChildPathToPath"><span class="annot"><span class="annottext">treeModelSortConvertChildPathToPath :: forall self.
+TreeModelSortClass self =&gt;
+self -&gt; TreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertChildPathToPath"><span class="hs-identifier hs-var hs-var">treeModelSortConvertChildPathToPath</span></a></span></span><span> </span><span id="local-6989586621679643042"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643042"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TreePath -&gt; IO TreePath
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-121"></span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertChildPathToPath"><span class="hs-identifier hs-var">treeModelSortConvertChildPathToPath</span></a></span><span> </span><span id="local-6989586621679643043"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643043"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643044"><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643044"><span class="hs-identifier hs-var">childPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><span class="annottext">TreePath -&gt; (NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a. TreePath -&gt; (NativeTreePath -&gt; IO a) -&gt; IO a
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#withTreePath"><span class="hs-identifier hs-var">withTreePath</span></a></span><span> </span><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643044"><span class="hs-identifier hs-var">childPath</span></a></span><span> </span><span class="annot"><span class="annottext">((NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath)
+-&gt; (NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643046"><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643046"><span class="hs-identifier hs-var">childPath</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span> </span><span id="local-6989586621679643047"><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643047"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span> </span><span id="local-6989586621679643049"><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643049"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+-&gt; (Ptr TreeModelSort -&gt; IO (Ptr NativeTreePath))
+-&gt; IO (Ptr NativeTreePath)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643047"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelSort -&gt; IO (Ptr NativeTreePath))
+ -&gt; IO (Ptr NativeTreePath))
+-&gt; (Ptr TreeModelSort -&gt; IO (Ptr NativeTreePath))
+-&gt; IO (Ptr NativeTreePath)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643050"><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643050"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelSort -&gt; Ptr NativeTreePath -&gt; IO (Ptr NativeTreePath)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_convert_child_path_to_path"><span class="hs-identifier hs-var">gtk_tree_model_sort_convert_child_path_to_path</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643050"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643049"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span class="hs-pragma">{-# LINE 124 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-124"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelSort</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643046"><span class="hs-identifier hs-var">childPath</span></a></span><span>
+</span><span id="line-126"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr NativeTreePath)
+-&gt; (Ptr NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#fromTreePath"><span class="hs-identifier hs-var">fromTreePath</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- | Converts path in the sorted model to a path on the unsorted model on which</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- the given 'TreeModelSort' is based. That is, the given path points to a</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- location in the given 'TreeModelSort'. The returned path will point to the</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- same location in the underlying unsorted model.</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span id="local-6989586621679643053"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertPathToChildPath"><span class="hs-identifier hs-type">treeModelSortConvertPathToChildPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643053"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643053"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-134"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span><span>
+</span><span id="line-135"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreePath"><span class="hs-identifier hs-type">TreePath</span></a></span></span><span>
+</span><span id="line-136"></span><span id="treeModelSortConvertPathToChildPath"><span class="annot"><span class="annottext">treeModelSortConvertPathToChildPath :: forall self.
+TreeModelSortClass self =&gt;
+self -&gt; TreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertPathToChildPath"><span class="hs-identifier hs-var hs-var">treeModelSortConvertPathToChildPath</span></a></span></span><span> </span><span id="local-6989586621679643058"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643058"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TreePath -&gt; IO TreePath
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertPathToChildPath"><span class="hs-identifier hs-var">treeModelSortConvertPathToChildPath</span></a></span><span> </span><span id="local-6989586621679643059"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643059"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643060"><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643060"><span class="hs-identifier hs-var">sortedPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><span class="annottext">TreePath -&gt; (NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a. TreePath -&gt; (NativeTreePath -&gt; IO a) -&gt; IO a
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#withTreePath"><span class="hs-identifier hs-var">withTreePath</span></a></span><span> </span><span class="annot"><span class="annottext">TreePath
+</span><a href="#local-6989586621679643060"><span class="hs-identifier hs-var">sortedPath</span></a></span><span> </span><span class="annot"><span class="annottext">((NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath)
+-&gt; (NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643061"><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643061"><span class="hs-identifier hs-var">sortedPath</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span> </span><span id="local-6989586621679643062"><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643062"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span> </span><span id="local-6989586621679643063"><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643063"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+-&gt; (Ptr TreeModelSort -&gt; IO (Ptr NativeTreePath))
+-&gt; IO (Ptr NativeTreePath)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643062"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelSort -&gt; IO (Ptr NativeTreePath))
+ -&gt; IO (Ptr NativeTreePath))
+-&gt; (Ptr TreeModelSort -&gt; IO (Ptr NativeTreePath))
+-&gt; IO (Ptr NativeTreePath)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643064"><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643064"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelSort -&gt; Ptr NativeTreePath -&gt; IO (Ptr NativeTreePath)
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_convert_path_to_child_path"><span class="hs-identifier hs-var">gtk_tree_model_sort_convert_path_to_child_path</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643064"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath
+</span><a href="#local-6989586621679643063"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span class="hs-pragma">{-# LINE 140 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelSort</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>    </span><span class="annot"><span class="annottext">NativeTreePath
+</span><a href="#local-6989586621679643061"><span class="hs-identifier hs-var">sortedPath</span></a></span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><span class="annottext">IO (Ptr NativeTreePath)
+-&gt; (Ptr NativeTreePath -&gt; IO TreePath) -&gt; IO TreePath
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeTreePath -&gt; IO TreePath
+</span><a href="Graphics.UI.Gtk.ModelView.Types.html#fromTreePath"><span class="hs-identifier hs-var">fromTreePath</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- | Return an iterator in the sorted model that points to the row pointed to</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- by the given iter from the unsorted model.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span id="local-6989586621679642946"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertChildIterToIter"><span class="hs-identifier hs-type">treeModelSortConvertChildIterToIter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642946"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679642946"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-148"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span>
+</span><span id="line-149"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span></span><span>
+</span><span id="line-150"></span><span id="treeModelSortConvertChildIterToIter"><span class="annot"><span class="annottext">treeModelSortConvertChildIterToIter :: forall self.
+TreeModelSortClass self =&gt;
+self -&gt; TreeIter -&gt; IO TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertChildIterToIter"><span class="hs-identifier hs-var hs-var">treeModelSortConvertChildIterToIter</span></a></span></span><span> </span><span id="local-6989586621679643073"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643073"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643074"><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643074"><span class="hs-identifier hs-var">childIter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-151"></span><span>  </span><span class="annot"><span class="annottext">TreeIter -&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. Storable a =&gt; a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">with</span></span><span> </span><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643074"><span class="hs-identifier hs-var">childIter</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter)
+-&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643076"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643076"><span class="hs-identifier hs-var">childIterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><span class="annottext">(Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter)
+-&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643078"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643078"><span class="hs-identifier hs-var">sortIterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span> </span><span id="local-6989586621679643079"><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643079"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643080"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643080"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679643081"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643081"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+-&gt; (Ptr TreeModelSort -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643079"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelSort -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr TreeModelSort -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643082"><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643082"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelSort -&gt; Ptr TreeIter -&gt; Ptr TreeIter -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_convert_child_iter_to_iter"><span class="hs-identifier hs-var">gtk_tree_model_sort_convert_child_iter_to_iter</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643082"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643080"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643081"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span class="hs-pragma">{-# LINE 154 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelSort</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643078"><span class="hs-identifier hs-var">sortIterPtr</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643076"><span class="hs-identifier hs-var">childIterPtr</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><span class="annottext">Ptr TreeIter -&gt; IO TreeIter
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643078"><span class="hs-identifier hs-var">sortIterPtr</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- | Return an iterator in the unsorted model that points to the row pointed to</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- by the given iter from the sorted model.</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--</span><span>
+</span><span id="line-162"></span><span id="local-6989586621679643085"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertIterToChildIter"><span class="hs-identifier hs-type">treeModelSortConvertIterToChildIter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643085"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643085"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-163"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span>
+</span><span id="line-164"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span></span><span>
+</span><span id="line-165"></span><span id="treeModelSortConvertIterToChildIter"><span class="annot"><span class="annottext">treeModelSortConvertIterToChildIter :: forall self.
+TreeModelSortClass self =&gt;
+self -&gt; TreeIter -&gt; IO TreeIter
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortConvertIterToChildIter"><span class="hs-identifier hs-var hs-var">treeModelSortConvertIterToChildIter</span></a></span></span><span> </span><span id="local-6989586621679643092"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643092"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643093"><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643093"><span class="hs-identifier hs-var">sortedIter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><span class="annottext">TreeIter -&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. Storable a =&gt; a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">with</span></span><span> </span><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643093"><span class="hs-identifier hs-var">sortedIter</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter)
+-&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643094"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643094"><span class="hs-identifier hs-var">sortedIterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><span class="annottext">(Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter)
+-&gt; (Ptr TreeIter -&gt; IO TreeIter) -&gt; IO TreeIter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643095"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643095"><span class="hs-identifier hs-var">childIterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span> </span><span id="local-6989586621679643096"><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643096"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643097"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643097"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621679643098"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643098"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort -&gt; (Ptr TreeModelSort -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643096"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelSort -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr TreeModelSort -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643099"><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643099"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelSort -&gt; Ptr TreeIter -&gt; Ptr TreeIter -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_convert_iter_to_child_iter"><span class="hs-identifier hs-var">gtk_tree_model_sort_convert_iter_to_child_iter</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643099"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643097"><span class="hs-identifier hs-var">arg2</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643098"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span class="hs-pragma">{-# LINE 169 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelSort</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643095"><span class="hs-identifier hs-var">childIterPtr</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643094"><span class="hs-identifier hs-var">sortedIterPtr</span></a></span><span>
+</span><span id="line-172"></span><span>  </span><span class="annot"><span class="annottext">Ptr TreeIter -&gt; IO TreeIter
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643095"><span class="hs-identifier hs-var">childIterPtr</span></a></span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- | This resets the default sort function. As a consequence, the order of</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- this model will be the same order as that of the child model.</span><span>
+</span><span id="line-176"></span><span class="hs-comment">--</span><span>
+</span><span id="line-177"></span><span id="local-6989586621679642957"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortResetDefaultSortFunc"><span class="hs-identifier hs-type">treeModelSortResetDefaultSortFunc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642957"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679642957"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-178"></span><span id="treeModelSortResetDefaultSortFunc"><span class="annot"><span class="annottext">treeModelSortResetDefaultSortFunc :: forall self. TreeModelSortClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortResetDefaultSortFunc"><span class="hs-identifier hs-var hs-var">treeModelSortResetDefaultSortFunc</span></a></span></span><span> </span><span id="local-6989586621679643103"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643103"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span> </span><span id="local-6989586621679643104"><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643104"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort -&gt; (Ptr TreeModelSort -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643104"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelSort -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr TreeModelSort -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643105"><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643105"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelSort -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_reset_default_sort_func"><span class="hs-identifier hs-var">gtk_tree_model_sort_reset_default_sort_func</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643105"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span class="hs-pragma">{-# LINE 180 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelSort</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- | Clear the cache of unref'd iterators.</span><span>
+</span><span id="line-183"></span><span class="hs-comment">--</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- * This function should almost never be called. It clears the</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- 'TreeModelSort' of any cached iterators that haven't been reffed with</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- 'treeModelRefNode'. This might be useful if the child model being sorted is</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- static (and doesn't change often) and there has been a lot of unreffed</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- access to nodes. As a side effect of this function, all unreffed iters will</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- be invalid.</span><span>
+</span><span id="line-190"></span><span class="hs-comment">--</span><span>
+</span><span id="line-191"></span><span id="local-6989586621679643108"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortClearCache"><span class="hs-identifier hs-type">treeModelSortClearCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643108"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643108"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-192"></span><span id="treeModelSortClearCache"><span class="annot"><span class="annottext">treeModelSortClearCache :: forall self. TreeModelSortClass self =&gt; self -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortClearCache"><span class="hs-identifier hs-var hs-var">treeModelSortClearCache</span></a></span></span><span> </span><span id="local-6989586621679643111"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643111"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span> </span><span id="local-6989586621679643112"><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643112"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort -&gt; (Ptr TreeModelSort -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643112"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelSort -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr TreeModelSort -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643113"><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643113"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelSort -&gt; IO ()
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_clear_cache"><span class="hs-identifier hs-var">gtk_tree_model_sort_clear_cache</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643113"><span class="hs-identifier hs-var">argPtr1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span class="hs-pragma">{-# LINE 194 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-194"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelSort</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- | Checks if the given iter is a valid iter for this 'TreeModelSort'.</span><span>
+</span><span id="line-198"></span><span class="hs-comment">--</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- * WARNING: This function is slow. Only use it for debugging and\/or testing</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- purposes.</span><span>
+</span><span id="line-201"></span><span class="hs-comment">--</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- * Available since Gtk+ version 2.2</span><span>
+</span><span id="line-203"></span><span class="hs-comment">--</span><span>
+</span><span id="line-204"></span><span id="local-6989586621679642960"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortIterIsValid"><span class="hs-identifier hs-type">treeModelSortIterIsValid</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSortClass"><span class="hs-identifier hs-type">TreeModelSortClass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679642960"><span class="hs-identifier hs-type">self</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679642960"><span class="hs-identifier hs-type">self</span></a></span><span>
+</span><span id="line-205"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @iter@ - A 'TreeIter'.</span></span><span>
+</span><span id="line-206"></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span> </span><span class="hs-comment">-- ^ returns @True@ if the iter is valid, @False@ if the iter is</span><span>
+</span><span id="line-207"></span><span>             </span><span class="hs-comment">-- invalid.</span><span>
+</span><span id="line-208"></span><span id="treeModelSortIterIsValid"><span class="annot"><span class="annottext">treeModelSortIterIsValid :: forall self. TreeModelSortClass self =&gt; self -&gt; TreeIter -&gt; IO Bool
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#treeModelSortIterIsValid"><span class="hs-identifier hs-var hs-var">treeModelSortIterIsValid</span></a></span></span><span> </span><span id="local-6989586621679643124"><span class="annot"><span class="annottext">self
+</span><a href="#local-6989586621679643124"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679643125"><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643125"><span class="hs-identifier hs-var">iter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-209"></span><span>  </span><span class="annot"><span class="annottext">(CInt -&gt; Bool) -&gt; IO CInt -&gt; IO Bool
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Bool
+forall a. (Eq a, Num a) =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">toBool</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO Bool) -&gt; IO CInt -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-210"></span><span>  </span><span class="annot"><span class="annottext">TreeIter -&gt; (Ptr TreeIter -&gt; IO CInt) -&gt; IO CInt
+forall a b. Storable a =&gt; a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">with</span></span><span> </span><span class="annot"><span class="annottext">TreeIter
+</span><a href="#local-6989586621679643125"><span class="hs-identifier hs-var">iter</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeIter -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr TreeIter -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643127"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643127"><span class="hs-identifier hs-var">iterPtr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span> </span><span id="local-6989586621679643128"><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643128"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679643129"><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643129"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+-&gt; (Ptr TreeModelSort -&gt; IO CInt) -&gt; IO CInt
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr TreeModelSort
+</span><a href="#local-6989586621679643128"><span class="hs-identifier hs-var">arg1</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr TreeModelSort -&gt; IO CInt) -&gt; IO CInt)
+-&gt; (Ptr TreeModelSort -&gt; IO CInt) -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679643130"><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643130"><span class="hs-identifier hs-var">argPtr1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span class="annot"><span class="annottext">Ptr TreeModelSort -&gt; Ptr TreeIter -&gt; IO CInt
+</span><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_iter_is_valid"><span class="hs-identifier hs-var">gtk_tree_model_sort_iter_is_valid</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeModelSort
+</span><a href="#local-6989586621679643130"><span class="hs-identifier hs-var">argPtr1</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643129"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span class="hs-pragma">{-# LINE 212 &quot;./Graphics/UI/Gtk/ModelView/TreeModelSort.chs&quot; #-}</span><span>
+</span><span id="line-212"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">toTreeModelSort</span><span> </span><span class="hs-identifier">self</span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span>    </span><span class="annot"><span class="annottext">Ptr TreeIter
+</span><a href="#local-6989586621679643127"><span class="hs-identifier hs-var">iterPtr</span></a></span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_new_with_model&quot;</span></span><span>
+</span><span id="line-216"></span><span>  </span><span id="gtk_tree_model_sort_new_with_model"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_new_with_model"><span class="hs-identifier hs-var">gtk_tree_model_sort_new_with_model</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_get_model&quot;</span></span><span>
+</span><span id="line-219"></span><span>  </span><span id="gtk_tree_model_sort_get_model"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_get_model"><span class="hs-identifier hs-var">gtk_tree_model_sort_get_model</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModel"><span class="hs-identifier hs-type">TreeModel</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_convert_child_path_to_path&quot;</span></span><span>
+</span><span id="line-222"></span><span>  </span><span id="gtk_tree_model_sort_convert_child_path_to_path"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_convert_child_path_to_path"><span class="hs-identifier hs-var">gtk_tree_model_sort_convert_child_path_to_path</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_convert_path_to_child_path&quot;</span></span><span>
+</span><span id="line-225"></span><span>  </span><span id="gtk_tree_model_sort_convert_path_to_child_path"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_convert_path_to_child_path"><span class="hs-identifier hs-var">gtk_tree_model_sort_convert_path_to_child_path</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#NativeTreePath"><span class="hs-identifier hs-type">NativeTreePath</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_convert_child_iter_to_iter&quot;</span></span><span>
+</span><span id="line-228"></span><span>  </span><span id="gtk_tree_model_sort_convert_child_iter_to_iter"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_convert_child_iter_to_iter"><span class="hs-identifier hs-var">gtk_tree_model_sort_convert_child_iter_to_iter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_convert_iter_to_child_iter&quot;</span></span><span>
+</span><span id="line-231"></span><span>  </span><span id="gtk_tree_model_sort_convert_iter_to_child_iter"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_convert_iter_to_child_iter"><span class="hs-identifier hs-var">gtk_tree_model_sort_convert_iter_to_child_iter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span>
+</span><span id="line-233"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_reset_default_sort_func&quot;</span></span><span>
+</span><span id="line-234"></span><span>  </span><span id="gtk_tree_model_sort_reset_default_sort_func"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_reset_default_sort_func"><span class="hs-identifier hs-var">gtk_tree_model_sort_reset_default_sort_func</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_clear_cache&quot;</span></span><span>
+</span><span id="line-237"></span><span>  </span><span id="gtk_tree_model_sort_clear_cache"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_clear_cache"><span class="hs-identifier hs-var">gtk_tree_model_sort_clear_cache</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;gtk_tree_model_sort_iter_is_valid&quot;</span></span><span>
+</span><span id="line-240"></span><span>  </span><span id="gtk_tree_model_sort_iter_is_valid"><span class="annot"><a href="Graphics.UI.Gtk.ModelView.TreeModelSort.html#gtk_tree_model_sort_iter_is_valid"><span class="hs-identifier hs-var">gtk_tree_model_sort_iter_is_valid</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.Types.html#TreeModelSort"><span class="hs-identifier hs-type">TreeModelSort</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Graphics.UI.Gtk.ModelView.Types.html#TreeIter"><span class="hs-identifier hs-type">TreeIter</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-241"></span></pre></body></html>
