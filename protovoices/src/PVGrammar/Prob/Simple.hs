@@ -152,6 +152,7 @@ import Data.Maybe
   ( catMaybes
   , fromMaybe
   , mapMaybe
+  , maybeToList
   )
 import Debug.Trace qualified as DT
 import GHC.Generics (Generic)
@@ -171,7 +172,7 @@ import Musicology.Pitch as MP hiding
   , f
   , g
   )
-import System.Random.MWC.Probability (categorical, uniform)
+import System.Random.MWC.Probability (categorical, createSystemRandom, uniform)
 
 -- orphan instances
 -- ================
@@ -352,6 +353,15 @@ trainSinglePiece fn = do
           let prior = uniformPrior @PVParams
           pure $ getPosterior prior trace (sampleDerivation $ anaTop ana)
 
+{- | Example: sample a random derivation from a posterior using the expected probabilities.
+To sample the probabilities too, use 'sampleProbs' instead of 'expectedProbs'.
+-}
+sampleExample :: Hyper PVParams -> IO (Either String [PVLeftmost SPitch])
+sampleExample hyper = do
+  let probs = expectedProbs @PVParams hyper
+  gen <- createSystemRandom
+  sampleResult probs sampleDerivation' gen
+
 -- the generative process
 -- ======================
 
@@ -374,21 +384,23 @@ sampleDerivation
   -- ^ a probabilistic program
 sampleDerivation top = runExceptT $ go Start top False
  where
-  go sl surface ars = case surface of
-    -- 1 trans left:
-    PathEnd t -> do
-      step <- lift $ sampleSingleStep (sl, t, Stop)
-      case step of
-        LMSingleSplit splitOp -> do
-          (ctl, cs, ctr) <- except $ applySplit splitOp t
-          nextSteps <- go sl (Path ctl cs (PathEnd ctr)) False
-          pure $ LMSplitOnly splitOp : nextSteps
-        LMSingleFreeze freezeOp -> pure [LMFreezeOnly freezeOp]
-    -- 2 trans left
-    Path tl sm (PathEnd tr) -> goDouble sl tl sm tr Stop ars PathEnd
-    -- 3 or more trans left
-    Path tl sm (Path tr sr rest) ->
-      goDouble sl tl sm tr (Inner sr) ars (\tr' -> Path tr' sr rest)
+  go sl surface ars = do
+    -- DT.traceShowM (sl, surface)
+    case surface of
+      -- 1 trans left:
+      PathEnd t -> do
+        step <- lift $ sampleSingleStep (sl, t, Stop)
+        case step of
+          LMSingleSplit splitOp -> do
+            (ctl, cs, ctr) <- except $ applySplit splitOp t
+            nextSteps <- go sl (Path ctl cs (PathEnd ctr)) False
+            pure $ LMSplitOnly splitOp : nextSteps
+          LMSingleFreeze freezeOp -> pure [LMFreezeOnly freezeOp]
+      -- 2 trans left
+      Path tl sm (PathEnd tr) -> goDouble sl tl sm tr Stop ars PathEnd
+      -- 3 or more trans left
+      Path tl sm (Path tr sr rest) ->
+        goDouble sl tl sm tr (Inner sr) ars (\tr' -> Path tr' sr rest)
 
   -- helper for the two cases of 2+ edges (2 and 3+):
   goDouble sl tl sm tr sr ars mkrest = do
@@ -601,8 +613,14 @@ collectElabos childrenT childrenNT childrenL childrenR =
       splitNTs = M.fromList childrenNT
       fromLeft = M.fromList childrenL
       fromRight = M.fromList childrenR
-      keepLeftT = getEdges childrenT (\p m -> (fst p, Inner m))
-      keepLeftL = getEdges childrenL (\l m -> (Inner l, Inner m))
+      keepLeftT =
+        getEdges
+          childrenT
+          ( \p m -> case fst p of
+              Inner l -> Just (Inner l, Inner m)
+              _ -> Nothing
+          )
+      keepLeftL = getEdges childrenL (\l m -> Just (Inner l, Inner m))
       keepLeftNT = do
         -- List
         ((l, _), cs) <- childrenNT
@@ -610,8 +628,14 @@ collectElabos childrenT childrenNT childrenL childrenR =
         guard $ orn /= PassingRight
         pure (Inner l, Inner m)
       leftEdges = S.fromList $ keepLeftT <> keepLeftNT <> keepLeftL
-      keepRightT = getEdges childrenT (\p m -> (Inner m, snd p))
-      keepRightR = getEdges childrenR (\r m -> (Inner m, Inner r))
+      keepRightT =
+        getEdges
+          childrenT
+          ( \p m -> case snd p of
+              Inner r -> Just (Inner m, Inner r)
+              _ -> Nothing
+          )
+      keepRightR = getEdges childrenR (\r m -> Just (Inner m, Inner r))
       keepRightNT = do
         -- List
         ((_, r), cs) <- childrenNT
@@ -621,12 +645,12 @@ collectElabos childrenT childrenNT childrenL childrenR =
       rightEdges = S.fromList $ keepRightT <> keepRightNT <> keepRightR
    in (splitTs, splitNTs, fromLeft, fromRight, leftEdges, rightEdges)
  where
-  getEdges :: [(p, [(c, o)])] -> (p -> c -> Edge SPitch) -> [Edge SPitch]
+  getEdges :: [(p, [(c, o)])] -> (p -> c -> Maybe (Edge SPitch)) -> [Edge SPitch]
   getEdges elabos mkEdge = do
     -- List
     (p, cs) <- elabos
     (c, _) <- cs
-    pure $ mkEdge p c
+    maybeToList $ mkEdge p c
 
 -- helper for sampleSplit and observeSplit
 collectNotes
