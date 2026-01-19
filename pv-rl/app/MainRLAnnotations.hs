@@ -247,6 +247,24 @@ mainPosterior = do
   posterior <- learnParams
   savePVHyper "posterior.json" posterior
 
+mainQ :: forall dev. (RL.IsValidDevice dev) => Int -> IO ()
+mainQ n = do
+  items <- catMaybes <$> mapM (loadItem "data/theory-article") ["10c_rare_int", "20a_sus", "04a_bwv784_top", "19b_quiescenza", "20b_cadence"]
+  gen <- initStdGen
+  mgen <- newIOGenM gen
+  (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
+  bestRewards <- forM items $ \(_, ana, _, _) -> RL.pvRewardExp' posterior ana
+  let pieces = (\(_, _, _, piece) -> (piece, pathLen piece)) <$> items
+  let fReward = RL.pvRewardActionByLen posterior
+      fRl = (* 0.1) <$> (RL.cosSchedule $ fromIntegral n)
+      fTemp = const 1
+  model0 <- RL.mkQModel :: IO (RL.QModel dev)
+  -- model0 <- RL.loadModel "qmodel.ht"
+  (rewards, losses, model) <-
+    RL.trainDQN protoVoiceEvaluator mgen fReward fRl fTemp model0 pieces n
+  TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "qmodel.ht"
+  pure ()
+
 mainRL :: forall dev. (RL.IsValidDevice dev) => Int -> IO ()
 mainRL n = do
   -- Just (_, pieceAna, _, piece) <- loadItem "data/theory-article" "10c_rare_int" -- "05b_cello_prelude_1-4" -- "05extra_cello_prelude_1-4_full"
@@ -290,4 +308,4 @@ catchAll prog = catch prog (\(e :: SomeException) -> currentCallStack >>= print 
 
 type Device = '(TT.CPU, 0)
 
-main = catchAll $ mainRL @Device 5000
+main = catchAll $ mainQ @Device 5000

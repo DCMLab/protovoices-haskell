@@ -14,6 +14,7 @@ import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSi
 import Musicology.Pitch (SPitch)
 import PVGrammar
 
+import Common (Eval)
 import Control.DeepSeq
 import Data.Kind (Type)
 import Data.List.NonEmpty qualified as NE
@@ -88,6 +89,8 @@ type PVState = GreedyState (Edges SPitch) [Edge SPitch] (Notes SPitch) (PVLeftmo
 type PVActionResult = Either PVState (Edges SPitch, [PVLeftmost SPitch])
 
 type PVRewardFn label = PVActionResult -> Maybe (NE.NonEmpty PVAction) -> PVAction -> label -> IO QType
+
+type PVEval p = Eval (Edges p) [Edge p] (Notes p) [Note p] (Spread p) (PVLeftmost p)
 
 -- General Spec
 -- ------------

@@ -693,3 +693,17 @@ runBatchedPolicy actor encoding = TT.toDynamic $ TT.softmax @0 $ policy
     EQI -> forwardPolicyBatched @dev @batchSize actor encoding
     LTI -> forwardPolicyBatched @dev @batchSize actor encoding
     GTI -> error "batched policy: no actions"
+
+runBatchedQ
+  :: forall dev batchSize
+   . (IsValidDevice dev, KnownNat batchSize)
+  => QModel dev
+  -> QEncoding dev '[batchSize]
+  -> T.Tensor
+runBatchedQ actor encoding = TT.toDynamic $ policy
+ where
+  policy :: QTensor dev '[batchSize, 1]
+  policy = case cmpNat (Proxy @1) (Proxy @batchSize) of
+    EQI -> forwardPolicyBatched @dev @batchSize actor encoding
+    LTI -> forwardPolicyBatched @dev @batchSize actor encoding
+    GTI -> error "batched policy: no actions"
