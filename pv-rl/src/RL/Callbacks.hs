@@ -73,7 +73,7 @@ pvRewardActionByLen
 -- -> Maybe Bool
 -- -> Int
 -- -> IO QType
-pvRewardActionByLen _ (Left _) Nothing _ _ = pure (-10)
+pvRewardActionByLen _ (Left _) Nothing _ _ = pure (-100)
 pvRewardActionByLen hyper state _ action len = do
   case result of
     Left err -> do
@@ -96,7 +96,7 @@ pvRewardActionByLen hyper state _ action len = do
     Right (ActionDouble top op) -> evalDoubleStep probs (doubleTop top) op decision
 
 pvRewardChord :: PVRewardFn [Int]
-pvRewardChord (Left _) Nothing _ _ = pure (-10)
+pvRewardChord (Left _) Nothing _ _ = pure (-100)
 pvRewardChord (Left _) (Just _) _ _ = pure 0
 pvRewardChord _ _ _ [] = pure 0
 pvRewardChord (Right (_, deriv)) _ _ expected = pure $

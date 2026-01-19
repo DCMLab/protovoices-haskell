@@ -126,17 +126,19 @@ parseA2C !actor !input = case take 200 $ getActions eval s0 of
       -- showTensor t = "- " <> show (T.device $ DS.force t) <> "\n"
       -- checkEncoding enc = DT.trace (concatMap showTensor $ RL.flattenTensors enc) 0
       !probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
-      !best' = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
+      !best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
       -- !dummy = RL.withBatchedEncoding state actions DS.rnf
-      best = 0
+      -- best = 0
       action = actions NE.!! best
     state' <- ET.except $ applyAction state action
     let actions' = case state' of
           Left nextState -> NE.nonEmpty $ take 200 $ getActions eval nextState
           Right _ -> Nothing
     case (state', actions') of
-      (Left _, Nothing) ->
-        ET.throwE "cannot parse: no possible actions in non-terminal state!"
+      (Left s, Nothing) -> do
+        lift $ appendFile "incomplete.log" $ show state
+        lift $ putStr "!"
+        ET.throwE "cannot parse: no possible actions in non-terminal state:"
       (Left s', Just a') -> go s' a'
       (Right (top, deriv), _) -> do
         let ana = Analysis deriv (PathEnd top)
@@ -199,10 +201,10 @@ mainRL n = do
   let fReward = RL.pvRewardChordAndActionByLen 10 posterior
       fRl = (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
       fTemp = const 1 -- \t -> (RL.cosSchedule 10 (mod' t 10)) * 10 + 1
-  actor0 <- RL.mkQModel @dev
-  critic0 <- RL.mkQModel @dev
-  -- actor0 <- RL.loadModel @dev "actor.ht"
-  -- critic0 <- RL.loadModel @dev "critic.ht"
+      -- actor0 <- RL.mkQModel @dev
+      -- critic0 <- RL.mkQModel @dev
+  actor0 <- RL.loadModel @dev "actor_10p_nodeadend.ht" -- "actor_checkpoint.ht"
+  critic0 <- RL.loadModel @dev "critic_10p_nodeadend.ht"
   (rewards, losses, actor, critic) <-
     RL.trainA2C protoVoiceEvaluator mgen fReward fRl fTemp Nothing actor0 critic0 pieces n
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
@@ -211,10 +213,11 @@ mainRL n = do
 
 mainPlot :: forall dev. (RL.IsValidDevice dev) => IO ()
 mainPlot = do
+  writeFile "incomplete.log" ""
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
       !pieces = dataToSlices . notes <$> chords
-  !actor <- RL.mkQModel @dev -- RL.loadModel @dev "testmodel.ht"
+  !actor <- RL.loadModel @dev "actor_checkpoint.ht"
   putStrLn "Model loaded"
   pb <-
     PB.newProgressBar
@@ -274,4 +277,4 @@ mainBenchInference nPieces = do
 
 type QDevice = '(TT.CPU, 0)
 
-main = mainRL @QDevice 40
+main = mainRL @QDevice 1000

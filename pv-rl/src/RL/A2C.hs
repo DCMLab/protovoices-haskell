@@ -115,7 +115,7 @@ initPieceState eval input z0 =
     actions = take 200 $ getActions eval state
    in
     case actions of
-      [] -> Right (-inf)
+      [] -> Right 0
       (a : as) -> Left $ A2CStepState z0 z0 1 0 state (a NE.:| as)
 
 pieceStep
@@ -141,8 +141,8 @@ pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CS
   let
     -- encodings = encodeStep state <$> actions
     -- policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-    policy = T.pow (1 / temp) $ withBatchedEncoding state actions (runBatchedPolicy actor)
-  -- choose action according to policy
+    policy = T.pow (1 / temp) $ withBatchedEncoding state actions (runBatchedPolicy actor) -- TODO: put temp into runBatchedPolicy
+    -- choose action according to policy
   actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
   let action = actions NE.!! actionIndex
   -- apply action
@@ -169,6 +169,7 @@ pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CS
   (!critic', !optc') <- lift $ TT.runStep' critic optc learningRate $ mulModelTensors delta zV'
   let loss' = T.asValue $ TT.toDynamic delta
       reward' = reward + r
+  -- compute next state
   let pieceState' = case (state', actions') of
         (Left s', Just a') -> Left $ A2CStepState zV' zP' intensity' reward' s' a'
         (Left s', Nothing) ->
