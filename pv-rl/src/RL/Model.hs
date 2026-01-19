@@ -683,10 +683,11 @@ runQ' !encode !model s a = T.forward model $ encode s a
 runBatchedPolicy
   :: forall dev batchSize
    . (IsValidDevice dev, KnownNat batchSize)
-  => QModel dev
+  => QType
+  -> QModel dev
   -> QEncoding dev '[batchSize]
   -> T.Tensor
-runBatchedPolicy actor encoding = TT.toDynamic $ TT.softmax @0 $ policy
+runBatchedPolicy temp actor encoding = TT.toDynamic $ TT.softmax @0 $ TT.mulScalar (1 / temp) policy
  where
   policy :: QTensor dev '[batchSize, 1]
   policy = case cmpNat (Proxy @1) (Proxy @batchSize) of

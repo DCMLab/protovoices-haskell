@@ -141,8 +141,8 @@ pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CS
   let
     -- encodings = encodeStep state <$> actions
     -- policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-    policy = T.pow (1 / temp) $ withBatchedEncoding state actions (runBatchedPolicy actor) -- TODO: put temp into runBatchedPolicy
-    -- choose action according to policy
+    policy = withBatchedEncoding state actions (runBatchedPolicy temp actor)
+  -- choose action according to policy
   actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
   let action = actions NE.!! actionIndex
   -- apply action
@@ -225,7 +225,7 @@ runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions 
     let
       -- encodings = encodeStep state <$> actions
       -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-      probs = withBatchedEncoding state actions (runBatchedPolicy actor)
+      probs = withBatchedEncoding state actions (runBatchedPolicy 1 actor)
       best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
       action = actions NE.!! best
       bestprob = probs T.! best

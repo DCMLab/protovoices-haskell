@@ -125,7 +125,7 @@ parseA2C !actor !input = case take 200 $ getActions eval s0 of
       -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . RL.forwardPolicy actor <$> encodings
       -- showTensor t = "- " <> show (T.device $ DS.force t) <> "\n"
       -- checkEncoding enc = DT.trace (concatMap showTensor $ RL.flattenTensors enc) 0
-      !probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
+      !probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy 1 actor)
       !best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
       -- !dummy = RL.withBatchedEncoding state actions DS.rnf
       -- best = 0
@@ -158,7 +158,7 @@ benchA2C !actor !input = case take 200 $ getActions eval s0 of
   eval = protoVoiceEvaluator
   go !state !actions = do
     let
-      !probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy actor)
+      !probs = RL.withBatchedEncoding state actions (RL.runBatchedPolicy 1 actor)
       !best' = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
       best = 0
       action = actions NE.!! best
