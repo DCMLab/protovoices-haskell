@@ -165,10 +165,12 @@ import PVGrammar.Generate
   )
 
 import Control.Monad
-  ( guard
+  ( forM
+  , guard
   , unless
   , when
   )
+import Control.Monad.State qualified as ST
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except
   ( except
@@ -355,7 +357,7 @@ instance Distribution MagicalID where
   type Support MagicalID = String
   distSample _ _ = do
     i <- uniform @_ @Int
-    pure $ "id" <> show (abs i)
+    pure $ "id" <> show (mod i 1000)
   distLogP _ _ _ = 0
 
 {- | A helper function that tests whether 'observeDerivation''
@@ -1232,35 +1234,73 @@ observeKeepEdges pKeep candidates kept =
   oKeep edge =
     observeValue "keep" Bernoulli (pInner . pKeep) (S.member edge kept)
 
+{-
+Note [Constraints on spreads]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When spreading notes, we need to ensure two properties:
+
+1. Both child slices must contain notes.
+2. If a note goes to the left only, all other notes of that pitch
+   must also go to the left (or both), and vice versa.
+
+Both conditions are compatible
+because they demand the presence of a note on a side
+but never the absence of a note.
+Therefore, distNote and observeNoteDist takes two flags
+that force the note to either side
+and allow it to skip the corresponding coin flips.
+
+Condition 1 is ensured by generating the last note separately
+and forcing it to a side if it is still empty.
+
+Condition 2 is ensured by keeping track of pitches
+that have been moved to one side only
+and forcing all other notes with that pitch on that side.
+This is done via a HashMap that is passed through a state monad
+and read and updated by distNote/observeNoteDist.
+This HashMap contains Left () for pitches forced to the left,
+Right () for pitches forced to the right,
+and nothing for pitches that haven't been forced.
+-}
+
 sampleSpread :: (_) => ContextDouble SPitch -> m (Spread SPitch)
 sampleSpread (_sliceL, transL, Notes sliceM, transR, _sliceR) = do
-  -- distribute notes. make sure that both child slices contain notes
+  -- 1. Distribute notes. See Note [Constraints on spreads]
   let notes@(note1 : notesOther) = L.sort $ S.toList sliceM
-  distsOther <- mapM (distNote False False) notesOther
-  let forceLeft = null $ mapMaybe leftSpreadChild distsOther
-      forceRight = null $ mapMaybe rightSpreadChild distsOther
-  dist1 <- distNote forceLeft forceRight note1
+  dists <- flip ST.evalStateT HM.empty $ do
+    -- first distribute all notes but one
+    distsOther <- mapM (distNote False False) notesOther
+    -- distribute the remaining note
+    let forceLeft = null $ mapMaybe leftSpreadChild distsOther
+        forceRight = null $ mapMaybe rightSpreadChild distsOther
+    dist1 <- distNote forceLeft forceRight note1
+    -- recombine all the notes' distributions
+    pure $ dist1 : distsOther
   -- DT.traceM $ "dists (sm):" <> show dists
-  let dists = dist1 : distsOther
-      notesLeft = mapMaybe leftSpreadChild dists
+  let notesLeft = mapMaybe leftSpreadChild dists
       notesRight = mapMaybe rightSpreadChild dists
-  -- generate repetition edges
-  repeats <- sequence $ do
+  -- 2. Generate repetition edges.
+  -- 2.1. repetitions on identical pitches (only for SpreadBothChildren -> same parent)
+  repeatsSameOctave <- forM dists $ \case
+    SpreadBothChildren l r -> do
+      rep <- sampleValue "spreadRepeatEdge" Bernoulli $ pInner . pSpreadRepetitionEdge
+      pure $ if rep then Just (Inner l, Inner r) else Nothing
+    _ -> pure Nothing
+  -- 2.2. repetitions on non-identical and octave-equivalent pitches
+  repeatsOtherOctave <- sequence $ do
     -- List
     l <- notesLeft
     r <- notesRight
-    guard $ pc (notePitch l) == pc (notePitch r)
+    guard $ (pc (notePitch l) == pc (notePitch r)) && (notePitch l /= notePitch r)
     pure $ do
       -- m
-      rep <-
-        sampleValue "spreadRepeatEdge" Bernoulli $
-          pInner
-            . pSpreadRepetitionEdge
+      rep <- sampleValue "spreadRepeatEdge" Bernoulli $ pInner . pSpreadRepetitionEdge
       pure $ if rep then Just (Inner l, Inner r) else Nothing
-  let repEdges = S.fromList $ catMaybes repeats
-  -- generate passing edges
+  let repEdges = S.fromList $ catMaybes (repeatsSameOctave <> repeatsOtherOctave)
+  -- 3. Generate passing edges.
   passEdges <- samplePassing notesLeft notesRight pNewPassingMid
-  -- construct result
+  -- 4. Construct result.
   let distMap = HM.fromList (zip notes dists)
       edges = Edges repEdges passEdges
   pure $ SpreadOp distMap edges
@@ -1268,64 +1308,100 @@ sampleSpread (_sliceL, transL, Notes sliceM, transR, _sliceR) = do
   leftifyID (Note p i) = Note p (i <> "l")
   rightifyID (Note p i) = Note p (i <> "r")
   -- distribute a note to the two child slices
+  distNote
+    :: (_)
+    => Bool
+    -> Bool
+    -> Note SPitch
+    -> ST.StateT (HM.HashMap SPitch (Either () ())) m (SpreadChildren SPitch)
   distNote forceLeft forceRight note = do
+    singleSides <- ST.get
+    let pitch = notePitch note
+        forcedSide = singleSides HM.!? pitch
+    -- should the note go left?
     putLeft <-
-      if forceLeft || hasLeftPassingEdge transL note
+      if forceLeft
+        || hasLeftPassingEdge transL note
+        || (forcedSide == Just (Left ()))
         then pure True
-        else sampleValue "noteSpreadLeft" Bernoulli $ pInner . pNoteSpreadLeft
+        else lift $ sampleValue "noteSpreadLeft" Bernoulli $ pInner . pNoteSpreadLeft
+    -- should the note go right?
     putRight <-
-      if forceRight || not putLeft || hasRightPassingEdge note transR
+      if forceRight
+        || hasRightPassingEdge note transR
+        || (forcedSide == Just (Right ()))
+        || not putLeft
         then pure True
-        else sampleValue "noteSpreadRight" Bernoulli $ pInner . pNoteSpreadRight
+        else lift $ sampleValue "noteSpreadRight" Bernoulli $ pInner . pNoteSpreadRight
     case (putLeft, putRight) of
       (True, True) -> pure $ SpreadBothChildren (leftifyID note) (rightifyID note)
-      (True, False) -> pure $ SpreadLeftChild $ leftifyID note
-      (False, True) -> pure $ SpreadRightChild $ rightifyID note
+      (True, False) -> do
+        ST.put $ HM.insert pitch (Left ()) singleSides
+        pure $ SpreadLeftChild $ leftifyID note
+      (False, True) -> do
+        ST.put $ HM.insert pitch (Right ()) singleSides
+        pure $ SpreadRightChild $ rightifyID note
       (False, False) -> error "Note not spread to either side. This can't happen."
 
 observeSpread :: ContextDouble SPitch -> Spread SPitch -> PVObs ()
 observeSpread (_sliceL, transL, Notes sliceM, transR, _sliceR) (SpreadOp obsDists (Edges repEdges passEdges)) =
   do
-    -- observe note distribution
+    -- 1. Observe note distribution. See Note [Constraints on spreads]
     let notes@(note1 : notesOther) = L.sort $ S.toList sliceM
-    distsOther <- mapM (observeNoteDist False False) notesOther
-    let forceLeft = null $ mapMaybe leftSpreadChild distsOther
-        forceRight = null $ mapMaybe rightSpreadChild distsOther
-    dist1 <- observeNoteDist forceLeft forceRight note1
-    let dists = dist1 : distsOther
-        notesLeft = mapMaybe leftSpreadChild dists
+    dists <- flip ST.evalStateT HM.empty $ do
+      distsOther <- mapM (observeNoteDist False False) notesOther
+      let forceLeft = null $ mapMaybe leftSpreadChild distsOther
+          forceRight = null $ mapMaybe rightSpreadChild distsOther
+      dist1 <- observeNoteDist forceLeft forceRight note1
+      pure $ dist1 : distsOther
+    let notesLeft = mapMaybe leftSpreadChild dists
         notesRight = mapMaybe rightSpreadChild dists
-    -- observe repetition edges
+    -- 2. Observe repetition edges.
+    -- 2.1. Observe repetitions edges for equal notes with the same parent
+    forM_ dists $ \case
+      SpreadBothChildren l r ->
+        observeValue "spreadRepeatEdge" Bernoulli (pInner . pSpreadRepetitionEdge) (haveRep l r)
+      _ -> pure ()
+    -- 2.2. Observe repetition edges for equivalent but non-equal notes
     sequence_ $ do
       -- List
       l <- notesLeft
       r <- notesRight
-      guard $ pc (notePitch l) == pc (notePitch r)
+      guard $ (pc (notePitch l) == pc (notePitch r)) && (notePitch l /= notePitch r)
       pure $
-        observeValue
-          "spreadRepeatEdge"
-          Bernoulli
-          (pInner . pSpreadRepetitionEdge)
-          (S.member (Inner l, Inner r) repEdges)
-    -- observe passing edges
+        observeValue "spreadRepeatEdge" Bernoulli (pInner . pSpreadRepetitionEdge) (haveRep l r)
+    -- 3. Observe passing edges.
     observePassing notesLeft notesRight pNewPassingMid passEdges
  where
+  haveRep l r = S.member (Inner l, Inner r) repEdges
   observeNoteDist forceLeft forceRight parent = case HM.lookup parent obsDists of
     Nothing ->
-      lift $ Left $ "Note " <> show parent <> " is not distributed."
+      lift $ lift $ Left $ "Note " <> show parent <> " is not distributed."
     Just dir -> do
+      singleSides <- ST.get
+      let pitch = notePitch parent
+          forcedSide = singleSides HM.!? pitch
+          forcedLeft' =
+            forceLeft || hasLeftPassingEdge transL parent || forcedSide == Just (Left ())
+          forcedRight' =
+            forceRight || hasRightPassingEdge parent transR || forcedSide == Just (Right ())
       case dir of
         SpreadBothChildren _ _ -> do
-          unless (forceLeft || hasLeftPassingEdge transL parent) $
-            observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) True
-          unless (forceRight || hasRightPassingEdge parent transR) $
-            observeValue "noteSpreadRight" Bernoulli (pInner . pNoteSpreadRight) True
+          unless forcedLeft' $
+            lift $
+              observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) True
+          unless forcedRight' $
+            lift $
+              observeValue "noteSpreadRight" Bernoulli (pInner . pNoteSpreadRight) True
         SpreadLeftChild _ -> do
-          unless (forceLeft || hasLeftPassingEdge transL parent) $
-            observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) True
-          observeValue "noteSpreadRight" Bernoulli (pInner . pNoteSpreadRight) False
+          unless forcedLeft' $
+            lift $
+              observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) True
+          lift $ observeValue "noteSpreadRight" Bernoulli (pInner . pNoteSpreadRight) False
+          ST.put $ HM.insert pitch (Left ()) singleSides
         SpreadRightChild _ -> do
-          observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) False
+          lift $ observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) False
+          ST.put $ HM.insert pitch (Right ()) singleSides
       pure dir
 
 samplePassing
