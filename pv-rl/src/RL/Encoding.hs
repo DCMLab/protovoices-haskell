@@ -32,12 +32,11 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (catMaybes, mapMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Type.Equality ((:~:) (..))
-import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), intVal, intVal', type (*), type (+), type (-), type (>=))
+import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), type (*), type (+), type (-), type (>=))
 import Data.Vector qualified as V
 import Data.Vector.Generic.Sized.Internal qualified as VSU
 import Data.Vector.Sized qualified as VS
 import Debug.Trace qualified as DT
-import GHC.Exts (Proxy#, proxy#)
 import GHC.Generics
 import Musicology.Pitch
 import Torch qualified as T
@@ -326,8 +325,8 @@ pitch2index p =
   ]
  where
   clamp m i = max 0 $ min m i
-  fifthLow = fromIntegral $ intVal' @FifthLow proxy#
-  octaveLow = fromIntegral $ intVal' @OctaveLow proxy#
+  fifthLow = intValI @FifthLow
+  octaveLow = intValI @OctaveLow
   fifthSize = TT.natValI @FifthSize
   octaveSize = TT.natValI @OctaveSize
 
@@ -404,8 +403,8 @@ pitchesTokens ps = qBoundedList (mkToken <$> ps)
    where
     f = T.asTensor' (fifths p - fifthLow) $ T.withDType T.Int64 $ opts @dev
     o = T.asTensor' (octaves p - octaveLow) $ T.withDType T.Int64 $ opts @dev
-  fifthLow = fromIntegral $ intVal' @FifthLow proxy#
-  octaveLow = fromIntegral $ intVal' @OctaveLow proxy#
+  fifthLow = intValI @FifthLow
+  octaveLow = intValI @OctaveLow
   fifthSize = TT.natValI @FifthSize
   octaveSize = TT.natValI @OctaveSize
 
@@ -521,8 +520,8 @@ edgesTokens es = qBoundedList (mkToken <$> es)
     o1 = toIndex $ octaves p1 - octaveLow
     f2 = toIndex $ fifths p2 - fifthLow
     o2 = toIndex $ octaves p2 - octaveLow
-  fifthLow = fromIntegral $ intVal' @FifthLow proxy#
-  octaveLow = fromIntegral $ intVal' @OctaveLow proxy#
+  fifthLow = intValI @FifthLow
+  octaveLow = intValI @OctaveLow
   fifthSize = TT.natValI @FifthSize
   octaveSize = TT.natValI @OctaveSize
 

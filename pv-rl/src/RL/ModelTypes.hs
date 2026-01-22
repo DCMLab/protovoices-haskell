@@ -19,7 +19,7 @@ import Control.DeepSeq
 import Data.Kind (Type)
 import Data.List.NonEmpty qualified as NE
 import Data.Proxy (Proxy (Proxy))
-import Data.TypeNums (Nat, TInt (..), type (*), type (+))
+import Data.TypeNums (KnownInt, Nat, TInt (..), intVal, type (*), type (+))
 import GHC.Generics (Generic)
 import NoThunks.Class (NoThunks (..), OnlyCheckWhnf (..), allNoThunks)
 import Torch qualified as T
@@ -113,6 +113,9 @@ type EmbShape = EmbSize ': PShape
 
 type ESize = PSize + PSize
 type EShape' = '[FakeSize, ESize]
+
+intValI :: forall n. (KnownInt n) => Int
+intValI = fromInteger $ intVal @n Proxy
 
 -- Specific Module Specs
 -- ---------------------
