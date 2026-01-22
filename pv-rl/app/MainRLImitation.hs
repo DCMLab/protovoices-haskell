@@ -2,4 +2,4 @@ module Main where
 
 import RL.Imitate
 
-main = writeRandomChord
+main = writeRandomChords 10 4

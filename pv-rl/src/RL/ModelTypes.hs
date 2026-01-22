@@ -68,7 +68,7 @@ toOpts = T.toDevice device . T.toType qDType
  where
   device = TT.deviceVal @dev
 
-toQTensor' :: forall dev. (TT.KnownDevice dev) => QType -> T.Tensor
+toQTensor' :: forall dev a. (TT.KnownDevice dev, T.TensorLike a) => a -> T.Tensor
 toQTensor' a = T.asTensor' a $ opts @dev
 
 toQTensor :: forall dev. (TT.KnownDevice dev) => QType -> QTensor dev '[]

@@ -235,7 +235,7 @@ data DoubleOrnament
     RightRepeatOfLeft
   | -- | a note inserted at the top of the piece (between ⋊ and ⋉)
     RootNote
-  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, NFData)
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, NFData, Hashable)
 
 -- | Types of passing notes (two parents).
 data PassingOrnament
@@ -245,7 +245,7 @@ data PassingOrnament
     PassingLeft
   | -- | a step from the right parent
     PassingRight
-  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, NFData)
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, NFData, Hashable)
 
 {- | Types of single-sided ornaments left of the parent (@child-parent@)
 
@@ -258,7 +258,7 @@ data LeftOrnament
     LeftNeighbor
   | -- | an incomplete left repetition
     LeftRepeat
-  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, NFData)
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, NFData, Hashable)
 
 {- | Types of single-sided ornaments right of the parent (@parent--child@).
 
@@ -271,7 +271,7 @@ data RightOrnament
     RightNeighbor
   | -- | an incomplete right repetition
     RightRepeat
-  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, NFData)
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, NFData, Hashable)
 
 -- | Returns 'True' if the child repeats the left parent
 isRepetitionOnLeft :: DoubleOrnament -> Bool

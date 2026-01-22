@@ -24,6 +24,7 @@ module Common
   , pathArounds
   , pathBetweens
   , pathTake
+  , pathAppend
 
     -- * StartStop #startstop#
 
@@ -174,6 +175,12 @@ import Text.ParserCombinators.ReadP qualified as ReadP
 -- Path: sequences of alternating objects
 -- ======================================
 
+-- TODO: this should be refactored to two separate types
+-- to make handling of prefixes easier (e.g. in GreedyParser):
+-- data Path a b = ConsA a (PathBetween a b)
+-- data PathBetween a b = ConsB b (Path a b) | PathEnd
+-- example = ConsA 1 $ ConsB "a" $ ConsA 2 $ PathEnd
+
 {- | A Path is a datastructure that represents a sequence of alternating objects,
  /arounds/ and /betweens/,
  starting and ending with the same type.
@@ -256,6 +263,11 @@ pathTake n f finalb path = reverse $ go [] n path
   go acc 0 _ = acc
   go acc _n (PathEnd a) = (a, finalb) : acc
   go acc n (Path a b rst) = go ((a, f b) : acc) (n - 1) rst
+
+-- | Concatenates two paths, inserting another /between/.
+pathAppend :: Path a b -> b -> Path a b -> Path a b
+pathAppend (PathEnd a) fill path2 = Path a fill path2
+pathAppend (Path a b rest) fill path2 = Path a b $ pathAppend rest fill path2
 
 -- StartStop
 -- =========
