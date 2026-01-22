@@ -881,16 +881,21 @@ observeOctaveShift name interval = do
 -- observeConst name MagicalOctaves () $ n + 4
 -- DT.traceM $ "octave shift (obs) " <> show (octave @SInterval ^* n)
 
-sampleNeighbor :: (_) => Bool -> SPitch -> m SPitch
-sampleNeighbor stepUp ref = do
-  chromatic <- sampleValue "nbChromatic" Bernoulli $ pInner . pNBChromatic
+sampleNeighbor :: (_) => Bool -> Bool -> SPitch -> m SPitch
+sampleNeighbor stepUp allowChromatic ref = do
+  chromatic <-
+    if allowChromatic
+      then sampleValue "nbChromatic" Bernoulli $ pInner . pNBChromatic
+      else pure False
   os <- sampleOctaveShift "nbOctShift"
-  alt <- sampleValue "nbAlt" Geometric0 $ pInner . pNBAlt
-  let altInterval = emb (alt *^ chromaticSemitone @SIC)
   if chromatic
     then do
+      alt <- sampleValue "nbAltChromatic" Geometric1 $ pInner . pNBAlt
+      let altInterval = emb (alt *^ chromaticSemitone @SIC)
       pure $ ref +^ os +^ if stepUp then altInterval else down altInterval
     else do
+      alt <- sampleValue "nbAlt" Geometric0 $ pInner . pNBAlt
+      let altInterval = emb (alt *^ chromaticSemitone @SIC)
       altUp <- sampleConst "nbAltUp" Bernoulli 0.5
       let step =
             if altUp == stepUp
@@ -898,16 +903,17 @@ sampleNeighbor stepUp ref = do
               else minor second ^-^ altInterval
       pure $ ref +^ os +^ if stepUp then step else down step
 
-observeNeighbor :: Bool -> SPitch -> SPitch -> PVObs ()
-observeNeighbor goesUp ref nb = do
+observeNeighbor :: Bool -> Bool -> SPitch -> SPitch -> PVObs ()
+observeNeighbor goesUp observeChromatic ref nb = do
   let interval = ic $ ref `pto` nb
       isChromatic = diasteps interval == 0
-  observeValue "nbChromatic" Bernoulli (pInner . pNBChromatic) isChromatic
+  when observeChromatic $
+    observeValue "nbChromatic" Bernoulli (pInner . pNBChromatic) isChromatic
   observeOctaveShift "nbOctShift" (ref `pto` nb)
   if isChromatic
     then do
       let alt = abs (alteration interval)
-      observeValue "nbAlt" Geometric0 (pInner . pNBAlt) alt
+      observeValue "nbAltChromatic" Geometric1 (pInner . pNBAlt) alt
     else do
       let alt = alteration (iabs interval)
           altUp = (alt >= 0) == goesUp
@@ -920,78 +926,88 @@ observeNeighbor goesUp ref nb = do
 
 sampleDoubleChild :: (_) => i -> Note SPitch -> Note SPitch -> m (Note SPitch, DoubleOrnament)
 sampleDoubleChild i (Note pl il) (Note pr ir)
-  | degree pl == degree pr = do
+  | pc pl == pc pr = do
       rep <-
         sampleValue "repeatOverNeighbor" Bernoulli $ pInner . pRepeatOverNeighbor
       if rep
         then do
           os <- sampleOctaveShift "doubleChildOctave"
           cid <- sampleConst "doubleChildId" MagicalID ()
-          pure (Note (pl +^ os) cid, FullRepeat)
+          pure (Note (pr +^ os) cid, FullRepeat)
         else do
           stepUp <- sampleConst "stepUp" Bernoulli 0.5
-          nb <- sampleNeighbor stepUp pl
+          nb <- sampleNeighbor stepUp True pr
           cid <- sampleConst "doubleChildId" MagicalID ()
           pure (Note nb cid, FullNeighbor)
-  | otherwise = do
-      repeatLeft <-
-        sampleValue "repeatLeftOverRight" Bernoulli $
-          pInner
-            . pRepeatLeftOverRight
-      repeatAlter <- sampleValue "repeatAlter" Bernoulli $ pInner . pRepeatAlter
-      alt <-
-        if repeatAlter
-          then do
-            alterUp <-
-              sampleValue "repeatAlterUp" Bernoulli $ pInner . pRepeatAlterUp
-            semis <-
-              sampleValue "repeatAlterSemis" Geometric1 $ pInner . pRepeatAlterSemis
-            pure $ (if alterUp then id else down) $ chromaticSemitone ^* semis
-          else pure unison
-      os <- sampleOctaveShift "doubleChildOctave"
-      cid <- sampleConst "doubleChildId" MagicalID ()
-      if repeatLeft
-        then pure (Note (pl +^ os +^ alt) cid, RightRepeatOfLeft)
-        else pure (Note (pr +^ os +^ alt) cid, LeftRepeatOfRight)
+  | degree pl == degree pr = do
+      rep <-
+        sampleValue "repeatOverNeighbor" Bernoulli $ pInner . pRepeatOverNeighbor
+      if rep
+        then sampleOneSidedRepeat
+        else do
+          stepUp <- sampleConst "stepUp" Bernoulli 0.5
+          nb <- sampleNeighbor stepUp False pr
+          cid <- sampleConst "doubleChildId" MagicalID ()
+          pure (Note nb cid, FullNeighbor)
+  | otherwise = sampleOneSidedRepeat
+ where
+  sampleOneSidedRepeat = do
+    repeatLeft <- sampleValue "repeatLeftOverRight" Bernoulli $ pInner . pRepeatLeftOverRight
+    repeatAlter <- sampleValue "repeatAlter" Bernoulli $ pInner . pRepeatAlter
+    alt <-
+      if repeatAlter
+        then do
+          alterUp <-
+            sampleValue "repeatAlterUp" Bernoulli $ pInner . pRepeatAlterUp
+          semis <-
+            sampleValue "repeatAlterSemis" Geometric1 $ pInner . pRepeatAlterSemis
+          pure $ (if alterUp then id else down) $ chromaticSemitone ^* semis
+        else pure unison
+    os <- sampleOctaveShift "doubleChildOctave"
+    cid <- sampleConst "doubleChildId" MagicalID ()
+    if repeatLeft
+      then pure (Note (pl +^ os +^ alt) cid, RightRepeatOfLeft)
+      else pure (Note (pr +^ os +^ alt) cid, LeftRepeatOfRight)
 
 observeDoubleChild :: Note SPitch -> Note SPitch -> Note SPitch -> PVObs ()
 observeDoubleChild (Note pl _) (Note pr _) (Note child cid)
-  | degree pl == degree pr = do
-      let isRep = pc child == pc pl
-      observeValue
-        "repeatOverNeighbor"
-        Bernoulli
-        (pInner . pRepeatOverNeighbor)
-        isRep
+  | pc pl == pc pr = do
+      let isRep = pc child == pc pr
+      observeValue "repeatOverNeighbor" Bernoulli (pInner . pRepeatOverNeighbor) isRep
       if isRep
         then do
-          observeOctaveShift "doubleChildOctave" (pl `pto` child)
+          observeOctaveShift "doubleChildOctave" (pr `pto` child)
           observeConst "doubleChildId" MagicalID () cid
         else do
-          let dir = direction (pc pl `pto` pc child)
+          let dir = direction (pc pr `pto` pc child)
           let goesUp = dir == GT
           observeConst "stepUp" Bernoulli 0.5 goesUp
-          observeNeighbor goesUp pl child
+          observeNeighbor goesUp True pr child
           observeConst "doubleChildId" MagicalID () cid
-  | otherwise = do
-      let repeatLeft = degree pl == degree child
-          ref = if repeatLeft then pl else pr
-          alt = alteration child - alteration ref
-      observeValue
-        "repeatLeftOverRight"
-        Bernoulli
-        (pInner . pRepeatLeftOverRight)
-        repeatLeft
-      observeValue "repeatAlter" Bernoulli (pInner . pRepeatAlter) (alt /= 0)
-      when (alt /= 0) $ do
-        observeValue "repeatAlterUp" Bernoulli (pInner . pRepeatAlterUp) (alt > 0)
-        observeValue
-          "repeatAlterSemis"
-          Geometric1
-          (pInner . pRepeatAlterSemis)
-          (abs alt)
-      observeOctaveShift "doubleChildOctave" $ ref `pto` child
-      observeConst "doubleChildId" MagicalID () cid
+  | degree pl == degree pr = do
+      let isRep = (pc child == pc pl) || (pc child == pc pr)
+      observeValue "repeatOverNeighbor" Bernoulli (pInner . pRepeatOverNeighbor) isRep
+      if isRep
+        then observeOneSidedRepeat
+        else do
+          let dir = direction (pc pr `pto` pc child)
+          let goesUp = dir == GT
+          observeConst "stepUp" Bernoulli 0.5 goesUp
+          observeNeighbor goesUp False pr child
+          observeConst "doubleChildId" MagicalID () cid
+  | otherwise = observeOneSidedRepeat
+ where
+  observeOneSidedRepeat = do
+    let repeatLeft = degree pl == degree child
+        ref = if repeatLeft then pl else pr
+        alt = alteration child - alteration ref
+    observeValue "repeatLeftOverRight" Bernoulli (pInner . pRepeatLeftOverRight) repeatLeft
+    observeValue "repeatAlter" Bernoulli (pInner . pRepeatAlter) (alt /= 0)
+    when (alt /= 0) $ do
+      observeValue "repeatAlterUp" Bernoulli (pInner . pRepeatAlterUp) (alt > 0)
+      observeValue "repeatAlterSemis" Geometric1 (pInner . pRepeatAlterSemis) (abs alt)
+    observeOctaveShift "doubleChildOctave" $ ref `pto` child
+    observeConst "doubleChildId" MagicalID () cid
 
 sampleT :: (_) => Edge SPitch -> m (Edge SPitch, [(Note SPitch, DoubleOrnament)])
 sampleT (l, r) = do
@@ -1056,12 +1072,12 @@ observeChromPassing pl pr child = do
 
 sampleMidPassing :: (_) => SPitch -> SPitch -> m (SPitch, PassingOrnament)
 sampleMidPassing pl pr = do
-  child <- sampleNeighbor (direction (pc pl `pto` pc pr) == GT) pl
+  child <- sampleNeighbor (direction (pc pl `pto` pc pr) == GT) True pl
   pure (child, PassingMid)
 
 observeMidPassing :: SPitch -> SPitch -> SPitch -> PVObs ()
 observeMidPassing pl pr =
-  observeNeighbor (direction (pc pl `pto` pc pr) == GT) pl
+  observeNeighbor (direction (pc pl `pto` pc pr) == GT) True pl
 
 sampleNonMidPassing :: (_) => SPitch -> SPitch -> m (SPitch, PassingOrnament)
 sampleNonMidPassing pl pr = do
@@ -1073,10 +1089,10 @@ sampleNonMidPassing pl pr = do
   -- let dirUp = direction (pc pl `pto` pc pr) == GT
   if left
     then do
-      child <- sampleNeighbor dirUp pl
+      child <- sampleNeighbor dirUp True pl
       pure (child, PassingLeft)
     else do
-      child <- sampleNeighbor (not dirUp) pr
+      child <- sampleNeighbor (not dirUp) True pr
       pure (child, PassingRight)
 
 observeNonMidPassing :: SPitch -> SPitch -> SPitch -> PassingOrnament -> PVObs ()
@@ -1089,8 +1105,8 @@ observeNonMidPassing pl pr child orn = do
   observeValue "passLeftOverRight" Bernoulli (pInner . pPassLeftOverRight) left
   observeValue "passUp" Bernoulli (pInner . pPassUp) dirUp
   if left
-    then observeNeighbor dirUp pl child
-    else observeNeighbor (not dirUp) pr child
+    then observeNeighbor dirUp True pl child
+    else observeNeighbor (not dirUp) True pr child
 
 sampleNT
   :: (_) => (InnerEdge SPitch, Int) -> m (InnerEdge SPitch, [(Note SPitch, PassingOrnament)])
@@ -1146,9 +1162,7 @@ sampleSingleOrn forceOne parent@(Note ppitch pid) oRepeat oNeighbor pElaborate =
       else sampleValue "elaborateSingle" Geometric0 $ pInner . pElaborate
   children <- permutationPlate n $ \i -> do
     rep <-
-      sampleValue "repeatOverNeighborSingle" Bernoulli $
-        pInner
-          . pRepeatOverNeighbor
+      sampleValue "repeatOverNeighborSingle" Bernoulli $ pInner . pRepeatOverNeighbor
     if rep
       then do
         os <- sampleOctaveShift "singleChildOctave"
@@ -1156,7 +1170,7 @@ sampleSingleOrn forceOne parent@(Note ppitch pid) oRepeat oNeighbor pElaborate =
         pure (Note (ppitch +^ os) cid, oRepeat)
       else do
         stepUp <- sampleConst "singleUp" Bernoulli 0.5
-        child <- sampleNeighbor stepUp ppitch
+        child <- sampleNeighbor stepUp True ppitch
         cid <- sampleConst "singleChildId" MagicalID ()
         pure (Note child cid, oNeighbor)
   pure (parent, children)
@@ -1187,7 +1201,7 @@ observeSingleOrn table forceOne parent@(Note ppitch _) pElaborate = do
         let dir = direction (pc ppitch `pto` pc child)
             up = dir == GT
         observeConst "singleUp" Bernoulli 0.5 up
-        observeNeighbor up ppitch child
+        observeNeighbor up True ppitch child
         observeConst "singleChildId" MagicalID () cid
   pure (parent, children)
 
