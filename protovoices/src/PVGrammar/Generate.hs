@@ -51,6 +51,8 @@ module PVGrammar.Generate
   , applyFreeze
   , applySpread
   , freezable
+  , hasLeftPassingEdge
+  , hasRightPassingEdge
 
     -- * Utility Functions
   , debugPVAnalysis
@@ -411,6 +413,12 @@ applyFreeze (FreezeOp _ties) e@(Edges ts nts)
   | otherwise = Right e
  where
   isRep (a, b) = fmap (MC.pitch . notePitch) a == fmap (MC.pitch . notePitch) b
+
+hasLeftPassingEdge :: (Eq n) => Edges n -> Note n -> Bool
+hasLeftPassingEdge (Edges _ passing) note = any ((== note) . snd) $ MS.toList passing
+
+hasRightPassingEdge :: (Eq n) => Note n -> Edges n -> Bool
+hasRightPassingEdge note (Edges _ passing) = any ((== note) . fst) $ MS.toList passing
 
 -- | Tries to apply a spread operation to the parent transitions and slice.
 applySpread

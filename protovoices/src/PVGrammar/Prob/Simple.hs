@@ -58,11 +58,46 @@ module PVGrammar.Prob.Simple
     -- or as 'Probs PVParams' to represent actual probabilites.
     -- Each record field corresponds to one parameter
     -- that influences a specific type of decision in the generation process.
+
+    -- ** Combined Parameters
     PVParams (..)
-  , PVParamsOuter (..)
-  , PVParamsInner (..)
+  , pOuter
+  , pInner
   , savePVHyper
   , loadPVHyper
+
+    -- ** Outer Parameters
+  , PVParamsOuter (..)
+  , pSingleFreeze
+  , pDoubleLeft
+  , pDoubleLeftFreeze
+  , pDoubleRightSplit
+
+    -- ** Inner Parameters
+  , PVParamsInner (..)
+  , pElaborateRegular
+  , pElaborateL
+  , pElaborateR
+  , pRootFifths
+  , pKeepL
+  , pKeepR
+  , pRepeatOverNeighbor
+  , pNBChromatic
+  , pNBAlt
+  , pRepeatLeftOverRight
+  , pRepeatAlter
+  , pRepeatAlterUp
+  , pRepeatAlterSemis
+  , pConnect
+  , pConnectChromaticLeftOverRight
+  , pPassUp
+  , pPassLeftOverRight
+  , pNewPassingLeft
+  , pNewPassingRight
+  , pNewPassingMid
+  , pNoteSpreadLeft
+  , pNoteSpreadRight
+  , pSpreadRepetitionEdge
 
     -- * Likelihood Model
 
@@ -125,6 +160,8 @@ import PVGrammar.Generate
   ( applySplit
   , applySpread
   , freezable
+  , hasLeftPassingEdge
+  , hasRightPassingEdge
   )
 
 import Control.Monad
@@ -141,6 +178,7 @@ import Control.Monad.Trans.State
   ( StateT
   , execStateT
   )
+import Data.Aeson (FromJSON, ToJSON, eitherDecodeFileStrict, encodeFile)
 import Data.Bifunctor qualified as Bi
 import Data.Foldable (forM_)
 import Data.HashMap.Strict qualified as HM
@@ -157,10 +195,6 @@ import Data.Maybe
 import Debug.Trace qualified as DT
 import GHC.Generics (Generic)
 import Inference.Conjugate
-
--- import qualified Inference.Conjugate           as IC
-
-import Data.Aeson (FromJSON, ToJSON, eitherDecodeFileStrict, encodeFile)
 import Internal.MultiSet qualified as MS
 import Lens.Micro.TH (makeLenses)
 import Musicology.Pitch as MP hiding
@@ -190,10 +224,10 @@ deriving newtype instance FromJSON (HyperRep (Dirichlet 3))
 
 -- | Parameters for decisions about outer operations (split, spread, freeze).
 data PVParamsOuter f = PVParamsOuter
-  { _pSingleFreeze :: f Beta
-  , _pDoubleLeft :: f Beta
-  , _pDoubleLeftFreeze :: f Beta
-  , _pDoubleRightSplit :: f Beta
+  { _pSingleFreeze :: !(f Beta)
+  , _pDoubleLeft :: !(f Beta)
+  , _pDoubleLeftFreeze :: !(f Beta)
+  , _pDoubleRightSplit :: !(f Beta)
   }
   deriving (Generic)
 
@@ -208,30 +242,34 @@ deriving instance (FromJSON (f Beta)) => FromJSON (PVParamsOuter f)
 -}
 data PVParamsInner f = PVParamsInner
   -- split
-  { _pElaborateRegular :: f Beta
-  , _pElaborateL :: f Beta
-  , _pElaborateR :: f Beta
-  , _pRootFifths :: f Beta
-  , _pKeepL :: f Beta
-  , _pKeepR :: f Beta
-  , _pRepeatOverNeighbor :: f Beta
-  , _pNBChromatic :: f Beta
-  , _pNBAlt :: f Beta
-  , _pRepeatLeftOverRight :: f Beta
-  , _pRepeatAlter :: f Beta
-  , _pRepeatAlterUp :: f Beta
-  , _pRepeatAlterSemis :: f Beta
-  , _pConnect :: f Beta
-  , _pConnectChromaticLeftOverRight :: f Beta
-  , _pPassUp :: f Beta
-  , _pPassLeftOverRight :: f Beta
-  , _pNewPassingLeft :: f Beta
-  , _pNewPassingRight :: f Beta
+  { _pElaborateRegular :: !(f Beta)
+  , _pElaborateL :: !(f Beta)
+  , _pElaborateR :: !(f Beta)
+  , _pRootFifths :: !(f Beta)
+  , _pKeepL :: !(f Beta)
+  , _pKeepR :: !(f Beta)
+  , _pRepeatOverNeighbor :: !(f Beta)
+  , _pNBChromatic :: !(f Beta)
+  , _pNBAlt :: !(f Beta)
+  , _pRepeatLeftOverRight :: !(f Beta)
+  , _pRepeatAlter :: !(f Beta)
+  , _pRepeatAlterUp :: !(f Beta)
+  , _pRepeatAlterSemis :: !(f Beta)
+  , _pConnect :: !(f Beta)
+  , _pConnectChromaticLeftOverRight :: !(f Beta)
+  , _pPassUp :: !(f Beta)
+  , _pPassLeftOverRight :: !(f Beta)
+  , _pNewPassingLeft :: !(f Beta)
+  , _pNewPassingRight :: !(f Beta)
   , -- spread
-    _pNewPassingMid :: f Beta
-  , _pNoteSpreadDirection :: f (Dirichlet 3)
-  , _pNotesOnOtherSide :: f Beta -- TODO: remove this, not needed anymore
-  , _pSpreadRepetitionEdge :: f Beta
+    _pNewPassingMid :: !(f Beta)
+  , _pNoteSpreadLeft :: !(f Beta)
+  , _pNoteSpreadRight :: !(f Beta)
+  , _pSpreadRepetitionEdge :: !(f Beta)
+  , -- common
+    _pShiftOctave :: !(f Beta)
+  , _pShiftOctaveUp :: !(f Beta)
+  , _pShiftOctaveN :: !(f Beta)
   }
   deriving (Generic)
 
@@ -257,8 +295,8 @@ deriving instance
 
 -- | The combined parameters for inner and outer operations.
 data PVParams f = PVParams
-  { _pOuter :: PVParamsOuter f
-  , _pInner :: PVParamsInner f
+  { _pOuter :: !(PVParamsOuter f)
+  , _pInner :: !(PVParamsInner f)
   }
   deriving (Generic)
 
@@ -317,7 +355,7 @@ instance Distribution MagicalID where
   type Support MagicalID = String
   distSample _ _ = do
     i <- uniform @_ @Int
-    pure $ "id" <> show i
+    pure $ "id" <> show (abs i)
   distLogP _ _ _ = 0
 
 {- | A helper function that tests whether 'observeDerivation''
@@ -523,28 +561,24 @@ sampleDoubleStep parents@(sliceL, transL, sliceM, transR, sliceR) afterRightSpli
       shouldSplitRight <-
         sampleValue "shouldSplitRight" Bernoulli $ pOuter . pDoubleRightSplit
       if shouldSplitRight
-        then LMDoubleSplitRight <$> sampleSplit (Inner sliceM, transR, sliceR)
-        else LMDoubleSpread <$> sampleSpread parents
+        then goSplitRight
+        else goSpread
     else do
-      continueLeft <-
-        sampleValue "continueLeft" Bernoulli $ pOuter . pDoubleLeft
+      continueLeft <- sampleValue "continueLeft" Bernoulli $ pOuter . pDoubleLeft
       if continueLeft
         then
           if freezable transL
             then do
               shouldFreeze <-
-                sampleValue "shouldFreeze (double)" Bernoulli $
-                  pOuter
-                    . pDoubleLeftFreeze
-              if shouldFreeze
-                then
-                  LMDoubleFreezeLeft
-                    <$> sampleFreeze (sliceL, transL, Inner sliceM)
-                else
-                  LMDoubleSplitLeft
-                    <$> sampleSplit (sliceL, transL, Inner sliceM)
-            else LMDoubleSplitLeft <$> sampleSplit (sliceL, transL, Inner sliceM)
+                sampleValue "shouldFreeze (double)" Bernoulli $ pOuter . pDoubleLeftFreeze
+              if shouldFreeze then goFreezeLeft else goSplitLeft
+            else goSplitLeft
         else sampleDoubleStep parents True
+ where
+  goFreezeLeft = LMDoubleFreezeLeft <$> sampleFreeze (sliceL, transL, Inner sliceM)
+  goSplitLeft = LMDoubleSplitLeft <$> sampleSplit (sliceL, transL, Inner sliceM)
+  goSplitRight = LMDoubleSplitRight <$> sampleSplit (Inner sliceM, transR, sliceR)
+  goSpread = LMDoubleSpread <$> sampleSpread parents
 
 observeDoubleStep
   :: ContextDouble SPitch
@@ -555,38 +589,22 @@ observeDoubleStep parents@(sliceL, transL, sliceM, transR, sliceR) afterRightSpl
   case doubleOp of
     LMDoubleFreezeLeft f -> do
       observeValue "continueLeft" Bernoulli (pOuter . pDoubleLeft) True
-      observeValue
-        "shouldFreeze (double)"
-        Bernoulli
-        (pOuter . pDoubleLeftFreeze)
-        True
+      observeValue "shouldFreeze (double)" Bernoulli (pOuter . pDoubleLeftFreeze) True
       observeFreeze (sliceL, transL, Inner sliceM) f
     LMDoubleSplitLeft s -> do
       observeValue "continueLeft" Bernoulli (pOuter . pDoubleLeft) True
       when (freezable transL) $
-        observeValue
-          "shouldFreeze (double)"
-          Bernoulli
-          (pOuter . pDoubleLeftFreeze)
-          False
+        observeValue "shouldFreeze (double)" Bernoulli (pOuter . pDoubleLeftFreeze) False
       observeSplit (sliceL, transL, Inner sliceM) s
     LMDoubleSplitRight s -> do
       unless afterRightSplit $
         observeValue "continueLeft" Bernoulli (pOuter . pDoubleLeft) False
-      observeValue
-        "shouldSplitRight"
-        Bernoulli
-        (pOuter . pDoubleRightSplit)
-        True
+      observeValue "shouldSplitRight" Bernoulli (pOuter . pDoubleRightSplit) True
       observeSplit (Inner sliceM, transR, sliceR) s
     LMDoubleSpread h -> do
       unless afterRightSplit $
         observeValue "continueLeft" Bernoulli (pOuter . pDoubleLeft) False
-      observeValue
-        "shouldSplitRight"
-        Bernoulli
-        (pOuter . pDoubleRightSplit)
-        False
+      observeValue "shouldSplitRight" Bernoulli (pOuter . pDoubleRightSplit) False
       observeSpread parents h
 
 sampleFreeze :: (RandomInterpreter m PVParams) => ContextSingle SPitch -> m (Freeze SPitch)
@@ -678,15 +696,25 @@ sampleSplit (sliceL, edges@(Edges ts nts), sliceR) = do
   -- ornament left notes
   childrenL <- case getInner sliceL of
     Nothing -> pure []
-    Just (Notes notes) -> mapM sampleL $ L.sort $ S.toList notes
+    Just (Notes notes) ->
+      -- ensure that at least one note is generated
+      if null ts && MS.null nts && (getInner sliceR == Nothing)
+        then ensureOne sampleL notes
+        else mapM (sampleL False) $ L.sort $ S.toList notes
   -- DT.traceM $ "childrenL (smp): " <> show childrenL
   -- ornament right notes
   childrenR <- case getInner sliceR of
     Nothing -> pure []
-    Just (Notes notes) -> mapM sampleR $ L.sort $ S.toList notes
+    Just (Notes notes) ->
+      -- ensure that at least one note is generated
+      if null ts && MS.null nts && null (concatMap (fmap fst . snd) childrenL)
+        then ensureOne sampleR notes
+        else mapM (sampleR False) $ L.sort $ S.toList notes
   -- DT.traceM $ "childrenR (smp): " <> show childrenR
   -- introduce new passing edges left and right
   let notes = collectNotes childrenT childrenNT childrenL childrenR
+  when (null notes) $
+    DT.traceM "generated slice with no notes!"
   passLeft <- case getInner sliceL of
     Nothing -> pure MS.empty
     Just (Notes notesl) ->
@@ -714,6 +742,21 @@ sampleSplit (sliceL, edges@(Edges ts nts), sliceR) = do
           }
   -- DT.traceM $ "Performing split (smp): " <> show splitOp
   pure splitOp
+ where
+  ensureOne
+    :: (Ord parent)
+    => (Bool -> parent -> m (parent, [child]))
+    -> S.HashSet parent
+    -> m [(parent, [child])]
+  ensureOne sampleFun notes = case L.sort $ S.toList notes of
+    [] ->
+      error $ "Can't properly split transition: nothing to elaborate. This can't happen.\nleft parent: " <> show sliceL <> "\ntransition: " <> show edges <> "\nright parent: " <> show sliceR
+    (n : ns) -> do
+      children <- mapM (sampleFun False) ns
+      -- if no children were generated, force the last one
+      let forceLast = null $ concatMap snd children
+      lastChildren <- sampleFun forceLast n
+      pure $ lastChildren : children
 
 observeSplit :: ContextSingle SPitch -> Split SPitch -> PVObs ()
 observeSplit (sliceL, _edges@(Edges ts nts), sliceR) _splitOp@(SplitOp splitTs splitNTs fromLeft fromRight keepLeft keepRight passLeft passRight) =
@@ -728,13 +771,18 @@ observeSplit (sliceL, _edges@(Edges ts nts), sliceR) _splitOp@(SplitOp splitTs s
     -- observe ornaments of left notes
     childrenL <- case getInner sliceL of
       Nothing -> pure []
-      Just (Notes notes) -> mapM (observeL fromLeft) $ L.sort $ S.toList notes
+      Just (Notes notes) ->
+        if null ts && MS.null nts && (getInner sliceR == Nothing)
+          then ensureOne (observeL fromLeft) notes
+          else mapM (observeL fromLeft False) $ L.sort $ S.toList notes
     -- DT.traceM $ "childrenL (obs): " <> show childrenL
     -- observe ornaments of right notes
     childrenR <- case getInner sliceR of
       Nothing -> pure []
       Just (Notes notes) ->
-        mapM (observeR fromRight) $ L.sort $ S.toList notes
+        if null ts && MS.null nts && null (concatMap (fmap fst . snd) childrenL)
+          then ensureOne (observeR fromRight) notes
+          else mapM (observeR fromRight False) $ L.sort $ S.toList notes
     -- DT.traceM $ "childrenR (obs): " <> show childrenR
     -- observe new passing edges
     let notes = collectNotes childrenT childrenNT childrenL childrenR
@@ -759,6 +807,14 @@ observeSplit (sliceL, _edges@(Edges ts nts), sliceR) _splitOp@(SplitOp splitTs s
           collectElabos childrenT childrenNT childrenL childrenR
     observeKeepEdges pKeepL leftEdges keepLeft
     observeKeepEdges pKeepR rightEdges keepRight
+ where
+  ensureOne observeFun notes = case L.sort $ S.toList notes of
+    [] -> lift $ Left "Invalid split: nothing is elaborated."
+    (n : ns) -> do
+      children <- mapM (observeFun False) ns
+      let forceLast = null $ concatMap snd children
+      childrenLast <- observeFun forceLast n
+      pure $ childrenLast : children
 
 sampleRootNote :: (_) => Int -> m (Note SPitch)
 sampleRootNote i = do
@@ -784,16 +840,42 @@ observeRootNote (Note child _) = do
 
 sampleOctaveShift :: (_) => String -> m SInterval
 sampleOctaveShift name = do
-  n <- sampleConst name MagicalOctaves ()
-  let os = octave ^* (n - 4)
+  shift <- sampleValue name Bernoulli $ pInner . pShiftOctave
+  n <-
+    if shift
+      then do
+        octs <- sampleValue (name <> "N") Geometric1 $ pInner . pShiftOctaveN
+        up <- sampleValue (name <> "Up") Bernoulli $ pInner . pShiftOctaveUp
+        pure $ if up then octs else negate octs
+      else pure 0
+  let os = octave ^* n
   -- DT.traceM $ "octave shift (smp) " <> show os
   pure os
 
 observeOctaveShift :: (_) => String -> SInterval -> PVObs ()
 observeOctaveShift name interval = do
-  let n = octaves (interval ^+^ major second)
-  observeConst name MagicalOctaves () $ n + 4
+  -- if interval is not an octave, it is a second off (nb)
+  -- and must be corrected up or down
+  let corrected =
+        if diasteps (ic interval) == 0
+          then interval
+          else
+            if (direction $ ic interval) == GT
+              -- too high: go step down
+              then interval ^-^ major second
+              -- too low: go step up
+              else interval ^+^ major second
+      n = octaves corrected
+  -- DT.traceShowM interval
+  -- DT.traceShowM corrected
+  if n == 0
+    then observeValue name Bernoulli (pInner . pShiftOctave) False
+    else do
+      observeValue name Bernoulli (pInner . pShiftOctave) True
+      observeValue (name <> "N") Geometric1 (pInner . pShiftOctaveN) (abs n)
+      observeValue (name <> "Up") Bernoulli (pInner . pShiftOctaveUp) (n > 0)
 
+-- observeConst name MagicalOctaves () $ n + 4
 -- DT.traceM $ "octave shift (obs) " <> show (octave @SInterval ^* n)
 
 sampleNeighbor :: (_) => Bool -> SPitch -> m SPitch
@@ -1048,13 +1130,17 @@ observeNT splitNTs ((nl@(Note pl _), nr@(Note pr _)), _n) = do
 
 sampleSingleOrn
   :: (_)
-  => Note SPitch
+  => Bool
+  -> Note SPitch
   -> o
   -> o
   -> Accessor PVParamsInner Beta
   -> m (Note SPitch, [(Note SPitch, o)])
-sampleSingleOrn parent@(Note ppitch pid) oRepeat oNeighbor pElaborate = do
-  n <- sampleValue "elaborateSingle" Geometric0 $ pInner . pElaborate
+sampleSingleOrn forceOne parent@(Note ppitch pid) oRepeat oNeighbor pElaborate = do
+  n <-
+    if forceOne
+      then sampleValue "elaborateSingleForced" Geometric1 $ pInner . pElaborate
+      else sampleValue "elaborateSingle" Geometric0 $ pInner . pElaborate
   children <- permutationPlate n $ \i -> do
     rep <-
       sampleValue "repeatOverNeighborSingle" Bernoulli $
@@ -1074,16 +1160,15 @@ sampleSingleOrn parent@(Note ppitch pid) oRepeat oNeighbor pElaborate = do
 
 observeSingleOrn
   :: M.Map (Note SPitch) [(Note SPitch, o)]
+  -> Bool
   -> Note SPitch
   -> Accessor PVParamsInner Beta
   -> PVObs (Note SPitch, [(Note SPitch, o)])
-observeSingleOrn table parent@(Note ppitch _) pElaborate = do
+observeSingleOrn table forceOne parent@(Note ppitch _) pElaborate = do
   let children = fromMaybe [] $ M.lookup parent table
-  observeValue
-    "elaborateSingle"
-    Geometric0
-    (pInner . pElaborate)
-    (length children)
+  if forceOne
+    then observeValue "elaborateSingleForced" Geometric1 (pInner . pElaborate) (length children)
+    else observeValue "elaborateSingle" Geometric0 (pInner . pElaborate) (length children)
   forM_ children $ \(Note child cid, _) -> do
     let rep = pc child == pc ppitch
     observeValue
@@ -1103,23 +1188,25 @@ observeSingleOrn table parent@(Note ppitch _) pElaborate = do
         observeConst "singleChildId" MagicalID () cid
   pure (parent, children)
 
-sampleL :: (_) => Note SPitch -> m (Note SPitch, [(Note SPitch, RightOrnament)])
-sampleL parent = sampleSingleOrn parent RightRepeat RightNeighbor pElaborateL
+sampleL :: (_) => Bool -> Note SPitch -> m (Note SPitch, [(Note SPitch, RightOrnament)])
+sampleL forceOne parent = sampleSingleOrn forceOne parent RightRepeat RightNeighbor pElaborateL
 
 observeL
   :: M.Map (Note SPitch) [(Note SPitch, RightOrnament)]
+  -> Bool
   -> Note SPitch
   -> PVObs (Note SPitch, [(Note SPitch, RightOrnament)])
-observeL ls parent = observeSingleOrn ls parent pElaborateL
+observeL ls forceOne parent = observeSingleOrn ls forceOne parent pElaborateL
 
-sampleR :: (_) => Note SPitch -> m (Note SPitch, [(Note SPitch, LeftOrnament)])
-sampleR parent = sampleSingleOrn parent LeftRepeat LeftNeighbor pElaborateR
+sampleR :: (_) => Bool -> Note SPitch -> m (Note SPitch, [(Note SPitch, LeftOrnament)])
+sampleR forceOne parent = sampleSingleOrn forceOne parent LeftRepeat LeftNeighbor pElaborateR
 
 observeR
   :: M.Map (Note SPitch) [(Note SPitch, LeftOrnament)]
+  -> Bool
   -> Note SPitch
   -> PVObs (Note SPitch, [(Note SPitch, LeftOrnament)])
-observeR rs parent = observeSingleOrn rs parent pElaborateR
+observeR rs forceOne parent = observeSingleOrn rs forceOne parent pElaborateR
 
 sampleKeepEdges
   :: (_) => Accessor PVParamsInner Beta -> S.HashSet e -> m (S.HashSet e)
@@ -1146,12 +1233,16 @@ observeKeepEdges pKeep candidates kept =
     observeValue "keep" Bernoulli (pInner . pKeep) (S.member edge kept)
 
 sampleSpread :: (_) => ContextDouble SPitch -> m (Spread SPitch)
-sampleSpread (_sliceL, _transL, Notes sliceM, _transR, _sliceR) = do
-  -- distribute notes
-  let notes = L.sort $ S.toList sliceM
-  dists <- mapM distNote notes
+sampleSpread (_sliceL, transL, Notes sliceM, transR, _sliceR) = do
+  -- distribute notes. make sure that both child slices contain notes
+  let notes@(note1 : notesOther) = L.sort $ S.toList sliceM
+  distsOther <- mapM (distNote False False) notesOther
+  let forceLeft = null $ mapMaybe leftSpreadChild distsOther
+      forceRight = null $ mapMaybe rightSpreadChild distsOther
+  dist1 <- distNote forceLeft forceRight note1
   -- DT.traceM $ "dists (sm):" <> show dists
-  let notesLeft = mapMaybe leftSpreadChild dists
+  let dists = dist1 : distsOther
+      notesLeft = mapMaybe leftSpreadChild dists
       notesRight = mapMaybe rightSpreadChild dists
   -- generate repetition edges
   repeats <- sequence $ do
@@ -1177,37 +1268,32 @@ sampleSpread (_sliceL, _transL, Notes sliceM, _transR, _sliceR) = do
   leftifyID (Note p i) = Note p (i <> "l")
   rightifyID (Note p i) = Note p (i <> "r")
   -- distribute a note to the two child slices
-  distNote note = do
-    dir <-
-      sampleValue "noteSpreadDirection" (Categorical @3) $
-        pInner
-          . pNoteSpreadDirection
-    pure $ case dir of
-      0 -> SpreadBothChildren (leftifyID note) (rightifyID note)
-      1 -> SpreadLeftChild $ leftifyID note
-      2 -> SpreadRightChild $ rightifyID note
-
--- 0 -> pure ToBoth
--- 1 -> do
---   nother <-
---     sampleValue "notesOnOtherSide" (Binomial $ n - 1) $
---       pInner
---         . pNotesOnOtherSide
---   pure $ ToLeft $ n - nother
--- _ -> do
---   nother <-
---     sampleValue "notesOnOtherSide" (Binomial $ n - 1) $
---       pInner
---         . pNotesOnOtherSide
---   pure $ ToRight $ n - nother
--- pure ((note, n), to)
+  distNote forceLeft forceRight note = do
+    putLeft <-
+      if forceLeft || hasLeftPassingEdge transL note
+        then pure True
+        else sampleValue "noteSpreadLeft" Bernoulli $ pInner . pNoteSpreadLeft
+    putRight <-
+      if forceRight || not putLeft || hasRightPassingEdge note transR
+        then pure True
+        else sampleValue "noteSpreadRight" Bernoulli $ pInner . pNoteSpreadRight
+    case (putLeft, putRight) of
+      (True, True) -> pure $ SpreadBothChildren (leftifyID note) (rightifyID note)
+      (True, False) -> pure $ SpreadLeftChild $ leftifyID note
+      (False, True) -> pure $ SpreadRightChild $ rightifyID note
+      (False, False) -> error "Note not spread to either side. This can't happen."
 
 observeSpread :: ContextDouble SPitch -> Spread SPitch -> PVObs ()
-observeSpread (_sliceL, _transL, Notes sliceM, _transR, _sliceR) (SpreadOp obsDists (Edges repEdges passEdges)) =
+observeSpread (_sliceL, transL, Notes sliceM, transR, _sliceR) (SpreadOp obsDists (Edges repEdges passEdges)) =
   do
     -- observe note distribution
-    dists <- mapM (observeNoteDist obsDists) $ L.sort $ S.toList sliceM
-    let notesLeft = mapMaybe leftSpreadChild dists
+    let notes@(note1 : notesOther) = L.sort $ S.toList sliceM
+    distsOther <- mapM (observeNoteDist False False) notesOther
+    let forceLeft = null $ mapMaybe leftSpreadChild distsOther
+        forceRight = null $ mapMaybe rightSpreadChild distsOther
+    dist1 <- observeNoteDist forceLeft forceRight note1
+    let dists = dist1 : distsOther
+        notesLeft = mapMaybe leftSpreadChild dists
         notesRight = mapMaybe rightSpreadChild dists
     -- observe repetition edges
     sequence_ $ do
@@ -1224,29 +1310,22 @@ observeSpread (_sliceL, _transL, Notes sliceM, _transR, _sliceR) (SpreadOp obsDi
     -- observe passing edges
     observePassing notesLeft notesRight pNewPassingMid passEdges
  where
-  observeNoteDist distMap parent = case HM.lookup parent distMap of
+  observeNoteDist forceLeft forceRight parent = case HM.lookup parent obsDists of
     Nothing ->
       lift $ Left $ "Note " <> show parent <> " is not distributed."
     Just dir -> do
       case dir of
-        SpreadBothChildren _ _ ->
-          observeValue
-            "noteSpreadDirection"
-            (Categorical @3)
-            (pInner . pNoteSpreadDirection)
-            0
-        SpreadLeftChild _ ->
-          observeValue
-            "noteSpreadDirection"
-            (Categorical @3)
-            (pInner . pNoteSpreadDirection)
-            1
+        SpreadBothChildren _ _ -> do
+          unless (forceLeft || hasLeftPassingEdge transL parent) $
+            observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) True
+          unless (forceRight || hasRightPassingEdge parent transR) $
+            observeValue "noteSpreadRight" Bernoulli (pInner . pNoteSpreadRight) True
+        SpreadLeftChild _ -> do
+          unless (forceLeft || hasLeftPassingEdge transL parent) $
+            observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) True
+          observeValue "noteSpreadRight" Bernoulli (pInner . pNoteSpreadRight) False
         SpreadRightChild _ -> do
-          observeValue
-            "noteSpreadDirection"
-            (Categorical @3)
-            (pInner . pNoteSpreadDirection)
-            2
+          observeValue "noteSpreadLeft" Bernoulli (pInner . pNoteSpreadLeft) False
       pure dir
 
 samplePassing
