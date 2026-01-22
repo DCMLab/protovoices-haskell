@@ -629,10 +629,11 @@ collectElabos
      , S.HashSet (Edge SPitch)
      )
 collectElabos childrenT childrenNT childrenL childrenR =
-  let splitTs = M.fromList childrenT
-      splitNTs = M.fromList childrenNT
-      fromLeft = M.fromList childrenL
-      fromRight = M.fromList childrenR
+  let notEmpty (_, children) = not $ null children
+      splitTs = M.fromList $ filter notEmpty childrenT
+      splitNTs = M.fromList $ filter notEmpty childrenNT
+      fromLeft = M.fromList $ filter notEmpty childrenL
+      fromRight = M.fromList $ filter notEmpty childrenR
       keepLeftT =
         getEdges
           childrenT
