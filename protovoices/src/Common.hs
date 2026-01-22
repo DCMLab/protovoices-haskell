@@ -703,10 +703,10 @@ instance forall s f h tr slc. (ToJSON s, ToJSON f, ToJSON h, ToJSON tr, ToJSON s
 
 -- | Prints the steps and intermediate configurations of a derivation.
 debugAnalysis
-  :: forall tr slc s f h
-   . (Show tr, Show slc, Show s, Show h)
+  :: forall tr tr' slc s f h
+   . (Show tr, Show tr', Show slc, Show s, Show h)
   => (s -> tr -> Either String (tr, slc, tr))
-  -> (f -> tr -> Either String tr)
+  -> (f -> tr -> Either String tr')
   -> (h -> tr -> slc -> tr -> Either String (tr, slc, tr, slc, tr))
   -> Analysis s f h tr slc
   -> IO (Either String ())

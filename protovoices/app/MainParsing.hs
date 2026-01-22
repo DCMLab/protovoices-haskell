@@ -171,7 +171,7 @@ checkDeriv deriv original = do
           orig' =
             bimap
               (Notes . HS.fromList)
-              (\e -> Edges (HS.fromList e) MS.empty)
+              HS.fromList
               original
       case path' of
         Nothing -> putStrLn "failed to check result path"

@@ -79,19 +79,21 @@ type DerivTrans slc tr = (DerivSlice slc, tr, DerivSlice slc)
  Contains the graphical objects of a derivation plot
  as well as intermediate information that is used during a replay.
 -}
-data DerivationGraph slc tr = DGraph
+data DerivationGraph slc tr tr' = DGraph
   { dgNextId :: !Int
   -- ^ a counter for generating new IDs (used during replay)
   , dgSlices :: !(S.Set (DerivSlice slc))
   -- ^ the positioned slices of the derivation graph
   , dgTransitions :: !(S.Set (DerivTrans slc tr))
-  -- ^ the positioned transitionn in the derivation graph
+  -- ^ the positioned transitions in the derivation graph
+  , dgTerminals :: !(S.Set (DerivTrans slc tr'))
+  -- ^ the positioned terminal transitions in the derivation graph
   , dgHoriEdges :: !(S.Set (DerivSlice slc, DerivSlice slc))
   -- ^ the "horizontalization" edges
   -- (connecting the parent slice of a spread to its children)
   , dgOpen :: ![DerivTrans slc tr]
   -- ^ the open transitions of the current surface
-  , dgFrozen :: ![DerivTrans slc tr]
+  , dgFrozen :: ![DerivTrans slc tr']
   -- ^ the frozen transitions of the current surface in reverse order
   , dgRoot :: ![DerivTrans slc tr]
   -- ^ the root transitions
@@ -99,10 +101,10 @@ data DerivationGraph slc tr = DGraph
   deriving (Eq, Ord, Show)
 
 -- | Alias for the type of a monadic action during derivation replay.
-type DerivationOp slc tr = ST.StateT (DerivationGraph slc tr) (Either String)
+type DerivationOp slc tr tr' = ST.StateT (DerivationGraph slc tr tr') (Either String)
 
 -- | Removes and returns an open transition from the current surface.
-popOpen :: DerivationOp slc tr (DerivTrans slc tr)
+popOpen :: DerivationOp slc tr tr' (DerivTrans slc tr)
 popOpen = do
   graph <- ST.get
   case dgOpen graph of
@@ -112,7 +114,7 @@ popOpen = do
       pure t
 
 -- | Adds a list of new open transitions to the current surface and the derivation graph.
-pushOpen :: (Ord slc, Ord tr) => [DerivTrans slc tr] -> DerivationOp slc tr ()
+pushOpen :: (Ord slc, Ord tr) => [DerivTrans slc tr] -> DerivationOp slc tr tr' ()
 pushOpen newts = do
   graph <- ST.get
   let trans' = S.fromList newts <> dgTransitions graph
@@ -120,15 +122,15 @@ pushOpen newts = do
   ST.put $ graph{dgTransitions = trans', dgOpen = surf'}
 
 -- | Adds a frozen transition to the current surface and the derivation graph.
-pushClosed :: (Ord slc, Ord tr) => DerivTrans slc tr -> DerivationOp slc tr ()
+pushClosed :: (Ord slc, Ord tr') => DerivTrans slc tr' -> DerivationOp slc tr tr' ()
 pushClosed newt = do
   graph <- ST.get
-  let trans' = S.insert newt $ dgTransitions graph
+  let terminals' = S.insert newt $ dgTerminals graph
       frozen' = newt : dgFrozen graph
-  ST.put $ graph{dgTransitions = trans', dgFrozen = frozen'}
+  ST.put $ graph{dgTerminals = terminals', dgFrozen = frozen'}
 
 -- | Adds a new slice to the derivation graph.
-addSlice :: (Ord slc) => slc -> Int -> DerivationOp slc tr (DerivSlice slc)
+addSlice :: (Ord slc) => slc -> Int -> DerivationOp slc tr tr' (DerivSlice slc)
 addSlice sliceContent depth = do
   graph <- ST.get
   let i = dgNextId graph
@@ -138,7 +140,7 @@ addSlice sliceContent depth = do
   pure newSlice
 
 -- | Adds a new horizontalization edge to the derivation graph.
-addHoriEdge :: (Ord slc) => (DerivSlice slc, DerivSlice slc) -> DerivationOp slc tr ()
+addHoriEdge :: (Ord slc) => (DerivSlice slc, DerivSlice slc) -> DerivationOp slc tr tr' ()
 addHoriEdge edge = do
   graph <- ST.get
   let horis' = S.insert edge $ dgHoriEdges graph
@@ -148,12 +150,12 @@ addHoriEdge edge = do
  Contains functions for replaying derivations of a particular grammar,
  i.e. for deriving child elements from parent elements.
 -}
-data DerivationPlayer s f h slc tr = DerivationPlayer
+data DerivationPlayer s f h slc tr tr' = DerivationPlayer
   { dpTopTrans :: !tr
   -- ^ the grammars default starting transition for @⋊——⋉@
   , dpSplit :: !(s -> tr -> Either String (tr, slc, tr))
   -- ^ replay a split operation
-  , dpFreeze :: !(f -> tr -> Either String tr)
+  , dpFreeze :: !(f -> tr -> Either String tr')
   -- ^ replay a freeze operation
   , dpSpread :: !(h -> tr -> slc -> tr -> Either String (tr, slc, tr, slc, tr))
   -- ^ replay a spread operation
@@ -161,12 +163,12 @@ data DerivationPlayer s f h slc tr = DerivationPlayer
 
 -- | Replays a single derivation step and applies it to the derivation graph.
 replayDerivationStep
-  :: (Ord slc, Ord tr)
-  => DerivationPlayer s f h slc tr
+  :: (Ord slc, Ord tr, Ord tr')
+  => DerivationPlayer s f h slc tr tr'
   -- ^ the derivation player
   -> Leftmost s f h
   -- ^ the operation to be applied
-  -> DerivationOp slc tr ()
+  -> DerivationOp slc tr tr' ()
 replayDerivationStep player = applyRule
  where
   applyRule (LMSplitLeft s) = do
@@ -202,12 +204,13 @@ replayDerivationStep player = applyRule
 initialGraph
   :: (Ord slc, Ord tr)
   => Path tr slc -- DerivationPlayer s f h slc tr
-  -> DerivationGraph slc tr
+  -> DerivationGraph slc tr tr'
 initialGraph topPath =
   DGraph
     (pathLen topPath + 1)
     (S.fromList topSlices)
     (S.fromList top)
+    S.empty
     S.empty
     top
     []
@@ -223,14 +226,14 @@ initialGraph topPath =
 
 -- | Replay a derivation from @n@ top-level transitions.
 replayDerivation'
-  :: (Foldable t, Ord slc, Ord tr)
+  :: (Foldable t, Ord slc, Ord tr, Ord tr')
   => Path tr slc
   -- ^ the starting point of the derivation
-  -> DerivationPlayer s f h slc tr
+  -> DerivationPlayer s f h slc tr tr'
   -- ^ the derivation player
   -> t (Leftmost s f h)
   -- ^ the derivation
-  -> Either String (DerivationGraph slc tr)
+  -> Either String (DerivationGraph slc tr tr')
 replayDerivation' topPath player deriv =
   ST.execStateT
     (mapM_ (replayDerivationStep player) deriv)
@@ -238,12 +241,12 @@ replayDerivation' topPath player deriv =
 
 -- | Replay a derivation from @⋊——⋉@.
 replayDerivation
-  :: (Foldable t, Ord slc, Ord tr)
-  => DerivationPlayer s f h slc tr
+  :: (Foldable t, Ord slc, Ord tr, Ord tr')
+  => DerivationPlayer s f h slc tr tr'
   -- ^ the derivation player
   -> t (Leftmost s f h)
   -- ^ the derivation
-  -> Either String (DerivationGraph slc tr)
+  -> Either String (DerivationGraph slc tr tr')
 replayDerivation player = replayDerivation' topPath player
  where
   topPath = PathEnd $ dpTopTrans player
@@ -253,12 +256,12 @@ replayDerivation player = replayDerivation' topPath player
  Return an error message if not.
 -}
 replayDerivationFull
-  :: (Foldable t, Ord slc, Ord tr)
-  => DerivationPlayer s f h slc tr
+  :: (Foldable t, Ord slc, Ord tr, Ord tr')
+  => DerivationPlayer s f h slc tr tr'
   -- ^ the derivation player
   -> t (Leftmost s f h)
   -- ^ the derivation
-  -> Either String (DerivationGraph slc tr)
+  -> Either String (DerivationGraph slc tr tr')
 replayDerivationFull player deriv = do
   graph <- replayDerivation player deriv
   if L.null $ dgOpen graph
@@ -271,14 +274,14 @@ replayDerivationFull player deriv = do
  and returns every intermediate derivation graph.
 -}
 unfoldDerivation'
-  :: (Ord slc, Ord tr)
+  :: (Ord slc, Ord tr, Ord tr')
   => Path tr slc
   -- ^ the starting point of the derivation
-  -> DerivationPlayer s f h slc tr
+  -> DerivationPlayer s f h slc tr tr'
   -- ^ the derivation player
   -> [Leftmost s f h]
   -- ^ the derivation
-  -> [Either String (DerivationGraph slc tr)]
+  -> [Either String (DerivationGraph slc tr tr')]
 unfoldDerivation' topPath player = go (initialGraph topPath) []
  where
   go g acc [] = Right g : acc
@@ -291,12 +294,12 @@ unfoldDerivation' topPath player = go (initialGraph topPath) []
  and returns every intermediate derivation graph.
 -}
 unfoldDerivation
-  :: (Ord slc, Ord tr)
-  => DerivationPlayer s f h slc tr
+  :: (Ord slc, Ord tr, Ord tr')
+  => DerivationPlayer s f h slc tr tr'
   -- ^ the derivation player
   -> [Leftmost s f h]
   -- ^ the derivation
-  -> [Either String (DerivationGraph slc tr)]
+  -> [Either String (DerivationGraph slc tr tr')]
 unfoldDerivation player = unfoldDerivation' topPath player
  where
   topPath = PathEnd $ dpTopTrans player
@@ -304,7 +307,7 @@ unfoldDerivation player = unfoldDerivation' topPath player
 {- | A derivation player that uses @()@ for slice and transition contents.
  The actual derivation operations are ignored, so only the outer structure is produced.
 -}
-derivationPlayerUnit :: DerivationPlayer s f h () ()
+derivationPlayerUnit :: DerivationPlayer s f h () () ()
 derivationPlayerUnit = DerivationPlayer () usplit ufreeze uspread
  where
   usplit _ _ = Right ((), (), ())
@@ -321,7 +324,7 @@ instance Show Empty where
 {- | A derivation player that uses 'Empty' for slice and transition content.
  The actual derivation operations are ignored, so only the outer structure is produced.
 -}
-derivationPlayerEmpty :: DerivationPlayer s f h Empty Empty
+derivationPlayerEmpty :: DerivationPlayer s f h Empty Empty Empty
 derivationPlayerEmpty = DerivationPlayer Empty nsplit nfreeze nspread
  where
   nsplit _ _ = Right (Empty, Empty, Empty)
@@ -337,15 +340,18 @@ tikzDerivationGraph
   => (slc -> T.Text)
   -- ^ a function for displaying slice contents
   -> (tr -> T.Text)
-  -- ^ a function for displaying transitions contents
-  -> DerivationGraph slc tr
+  -- ^ a function for displaying transition contents
+  -> (tr' -> T.Text)
+  -- ^ a function for displaying terminal transition contents
+  -> DerivationGraph slc tr tr'
   -- ^ the derivation graph
   -> T.Text
-tikzDerivationGraph showS showT (DGraph _ slices trans horis openTrans frozenTrans _) =
+tikzDerivationGraph showS showT showTF (DGraph _ slices trans terms horis openTrans frozenTrans _) =
   T.intercalate
     "\n"
     ( (showNode <$> tikzNodes)
-        <> (showTrans <$> trans')
+        <> (showTrans <$> S.toList trans)
+        <> (showTerm <$> S.toList terms)
         <> (showHori <$> S.toList horis)
     )
  where
@@ -365,15 +371,21 @@ tikzDerivationGraph showS showT (DGraph _ slices trans horis openTrans frozenTra
       <> ") {"
       <> showSlice c
       <> "};"
-  showTrans ((nl, e, nr), frozen) =
-    "\\draw[transition,"
-      <> (if frozen then "terminal" else "non-terminal")
-      <> "] (slice"
+  showTrans (nl, e, nr) =
+    "\\draw[transition,non-terminal] (slice"
       <> showText (dslId nl)
       <> ") -- (slice"
       <> showText (dslId nr)
       <> ") node[midway,below,sloped] {"
       <> showT e
+      <> "};"
+  showTerm (nl, e, nr) =
+    "\\draw[transition,terminal] (slice"
+      <> showText (dslId nl)
+      <> ") -- (slice"
+      <> showText (dslId nr)
+      <> ") node[midway,below,sloped] {"
+      <> showTF e
       <> "};"
   showHori (p, c) =
     "\\draw[hori] (slice"
@@ -382,16 +394,16 @@ tikzDerivationGraph showS showT (DGraph _ slices trans horis openTrans frozenTra
       <> showText (dslId c)
       <> ");"
   -- helpers
-  leftNode (n, _, _) = n
-  rightNode (_, _, n) = n
+  -- leftNode (n, _, _) = n
+  -- rightNode (_, _, n) = n
+  transNodes (l, _, r) = (l, r)
   -- computing node locations
   nodeChildren =
     M.fromListWith (++) $ bimap dslId ((: []) . dslId) <$> S.toList horis
-  surface = reverse frozenTrans <> openTrans
-  trans' = (\t -> (t, t `L.elem` frozenTrans)) <$> S.toList trans
-  surfaceNodes = case surface of
+  surfaceAllNodes = reverse (transNodes <$> frozenTrans) <> (transNodes <$> openTrans)
+  surfaceNodes = case surfaceAllNodes of
     [] -> []
-    (t0 : _) -> fmap dslId $ leftNode (t0) : fmap rightNode surface
+    (t0 : _) -> fmap dslId $ fst t0 : fmap snd surfaceAllNodes
   allNodes = dslId <$> L.sortOn dslDepth (S.toList slices)
   -- compute x locations
   xloc = foldl' findX xlocInit allNodes
@@ -443,7 +455,10 @@ tikzStandalone varwidth content =
 
 -- | Write a single derivation graph to a @tex@ file.
 writeGraph
-  :: (Show slc, Eq slc, Eq tr, Show tr) => FilePath -> DerivationGraph slc tr -> IO ()
+  :: (Show slc, Eq slc, Eq tr, Show tr, Show tr')
+  => FilePath
+  -> DerivationGraph slc tr tr'
+  -> IO ()
 writeGraph fn g =
   T.writeFile fn $
     tikzStandalone False $
@@ -451,29 +466,36 @@ writeGraph fn g =
         tikzDerivationGraph
           showTexT
           showTexT
+          showTexT
           g
 
 -- | Write a single derivation graph to a @tex@ file and compile the file using @pdflatex@.
 viewGraph
-  :: (Eq slc, Eq tr, Show slc, Show tr) => FilePath -> DerivationGraph slc tr -> IO ()
+  :: (Eq slc, Eq tr, Show slc, Show tr, Show tr')
+  => FilePath
+  -> DerivationGraph slc tr tr'
+  -> IO ()
 viewGraph fn g = do
   writeGraph fn g
   callCommand $ "pdflatex -output-directory=\"" <> FP.takeDirectory fn <> "\" " <> fn
 
 -- | Write a several derivation graphs to a @tex@ file.
 writeGraphs
-  :: (Show tr, Show slc, Eq slc, Eq tr) => FilePath -> [DerivationGraph slc tr] -> IO ()
+  :: (Show tr, Show tr', Show slc, Eq slc, Eq tr)
+  => FilePath
+  -> [DerivationGraph slc tr tr']
+  -> IO ()
 writeGraphs fn gs =
   T.writeFile fn $
     tikzStandalone True $
       T.intercalate "\n\n" $
         tikzPic
-          . tikzDerivationGraph showTexT showTexT
+          . tikzDerivationGraph showTexT showTexT showTexT
           <$> gs
 
 -- | Write a several derivation graphs to a @tex@ file and compile the file using @pdflatex@.
 viewGraphs
-  :: (Show tr, Show slc, Eq slc, Eq tr) => FilePath -> [DerivationGraph slc tr] -> IO ()
+  :: (Show tr, Show tr', Show slc, Eq slc, Eq tr) => FilePath -> [DerivationGraph slc tr tr'] -> IO ()
 viewGraphs fn gs = do
   writeGraphs fn gs
   callCommand $ "pdflatex -output-directory=\"" <> FP.takeDirectory fn <> "\" " <> fn

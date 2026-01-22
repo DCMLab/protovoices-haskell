@@ -49,7 +49,7 @@ plotSteps fn deriv = do
 
 putGraph n deriv = case replayDerivation' n derivationPlayerEmpty deriv of
   (Left error) -> putStrLn error
-  (Right g) -> T.putStrLn $ tikzPic $ tikzDerivationGraph showTexT showTexT g
+  (Right g) -> T.putStrLn $ tikzPic $ tikzDerivationGraph showTexT showTexT showTexT g
 
 plotDeriv fn deriv = do
   case replayDerivation derivationPlayerPV deriv of
