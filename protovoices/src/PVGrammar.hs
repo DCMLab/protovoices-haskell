@@ -335,14 +335,14 @@ instance (Notation n) => Show (Split n) where
       <> ", pr:"
       <> showOps passRs
    where
-    showOps ops = "{" <> L.intercalate "," ops <> "}"
+    showOps ops = "{ " <> L.intercalate "," ops <> " }"
     showEdge (n1, n2) = show n1 <> "-" <> show n2
     showChild (p, o) = show p <> ":" <> show o
-    showChildren cs = "[" <> L.intercalate "," (showChild <$> cs) <> "]"
+    showChildren cs = "[" <> L.intercalate ", " (showChild <$> cs) <> "]"
 
-    showSplit (e, cs) = showEdge e <> "=>" <> showChildren cs
-    showL (p, lchilds) = show p <> "=>" <> showChildren lchilds
-    showR (p, rchilds) = showChildren rchilds <> "<=" <> show p
+    showSplit (e, cs) = showEdge e <> " => " <> showChildren cs
+    showL (p, lchilds) = show p <> " => " <> showChildren lchilds
+    showR (p, rchilds) = showChildren rchilds <> " <= " <> show p
 
     opReg = showSplit <$> M.toList reg
     opPass = showSplit <$> M.toList pass

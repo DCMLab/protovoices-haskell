@@ -115,7 +115,10 @@ module PVGrammar.Prob.Simple
   , observeDerivation'
 
     -- * Utilities
-  , roundtrip
+  , roundtripDebug
+  , roundtripDebugFile
+  , roundtripTest
+  , roundtripTestFile
   , trainSinglePiece
 
     -- * Likelihood model for parsing
@@ -145,7 +148,8 @@ module PVGrammar.Prob.Simple
 
 import Common
   ( Analysis
-      ( anaDerivation
+      ( Analysis
+      , anaDerivation
       , anaTop
       )
   , Leftmost (..)
@@ -199,7 +203,7 @@ import GHC.Generics (Generic)
 import Inference.Conjugate
 import Internal.MultiSet qualified as MS
 import Lens.Micro.TH (makeLenses)
-import Musicology.Pitch as MP hiding
+import Musicology.Pitch hiding
   ( a
   , b
   , c
@@ -208,6 +212,7 @@ import Musicology.Pitch as MP hiding
   , f
   , g
   )
+import Musicology.Pitch qualified as MP
 import System.Random.MWC.Probability (categorical, createSystemRandom, uniform)
 
 -- orphan instances
@@ -349,33 +354,51 @@ instance Distribution MagicalOctaves where
   distSample _ _ = (`subtract` 2) <$> categorical [0.1, 0.2, 0.4, 0.2, 0.1]
   distLogP _ _ _ = 0
 
-data MagicalID = MagicalID
+data MagicalID = MagicalID String
   deriving (Eq, Ord, Show)
 
 instance Distribution MagicalID where
   type Params MagicalID = ()
   type Support MagicalID = String
-  distSample _ _ = do
+  distSample (MagicalID pfx) _ = do
     i <- uniform @_ @Int
-    pure $ "id" <> show (mod i 1000)
+    pure $ pfx <> show (mod i 1000)
   distLogP _ _ _ = 0
 
 {- | A helper function that tests whether 'observeDerivation''
  followed by 'sampleDerivation'' restores the original derivation.
  Useful for testing the compatibility of the two functions.
 -}
-roundtrip :: FilePath -> IO (Either String ()) -- [PVLeftmost SPitch])
-roundtrip fn = do
+roundtripDebug :: PVAnalysis SPitch -> IO (Either String ()) -- [PVLeftmost SPitch])
+roundtripDebug (Analysis deriv top) = do
+  let traceE = observeDerivation deriv top
+  case traceE of
+    Left err -> error err
+    Right trace -> do
+      -- print trace
+      pure $ const () <$> traceTrace trace (sampleDerivation top)
+
+roundtripDebugFile :: FilePath -> IO (Either String ()) -- [PVLeftmost SPitch])
+roundtripDebugFile fn = do
   anaE <- loadAnalysis fn
   case anaE of
     Left err -> error err
-    Right ana -> do
-      let traceE = observeDerivation' $ anaDerivation ana
-      case traceE of
-        Left err -> error err
-        Right trace -> do
-          print trace
-          pure $ const () <$> traceTrace trace sampleDerivation'
+    Right ana -> roundtripDebug ana
+
+roundtripTest (Analysis deriv top) = do
+  -- Either
+  let probs = expectedProbs @PVParams $ uniformPrior @PVParams
+  trace <- observeDerivation deriv top
+  case evalTraceLogP probs trace (sampleDerivation top) of
+    Just (res, _) -> res
+    Nothing -> Left "invalid trace"
+
+roundtripTestFile fn = do
+  anaE <- loadAnalysis fn
+  pure $
+    const () <$> do
+      ana <- anaE
+      roundtripTest ana
 
 {- | Helper function: Load a single derivation
  and infer the corresponding posterior for a uniform prior.
@@ -762,7 +785,7 @@ sampleSplit (sliceL, edges@(Edges ts nts), sliceR) = do
       pure $ lastChildren : children
 
 observeSplit :: ContextSingle SPitch -> Split SPitch -> PVObs ()
-observeSplit (sliceL, _edges@(Edges ts nts), sliceR) _splitOp@(SplitOp splitTs splitNTs fromLeft fromRight keepLeft keepRight passLeft passRight) =
+observeSplit (sliceL, _edges@(Edges ts nts), sliceR) splitOp@(SplitOp splitTs splitNTs fromLeft fromRight keepLeft keepRight passLeft passRight) =
   do
     -- DT.traceM $ "\nPerforming split (obs): " <> show splitOp
     -- observe ornaments of regular edges
@@ -827,13 +850,15 @@ sampleRootNote i = do
   let fs = if fifthsSign then fifthsN else negate (fifthsN + 1)
       p = (emb <$> spc fs) +^ (octave ^* (os + 4))
   -- DT.traceM $ "root note (sample): " <> show p
-  pure $ Note p ("root" <> show i)
+  rid <- sampleConst "rootID" (MagicalID "root") ()
+  pure $ Note p rid
 
 observeRootNote :: (Note SPitch) -> PVObs ()
-observeRootNote (Note child _) = do
+observeRootNote (Note child rid) = do
   observeConst "rootFifthsSign" Bernoulli 0.5 fifthsSign
   observeValue "rootFifthsN" Geometric0 (pInner . pRootFifths) fifthsN
   observeConst "rootOctave" MagicalOctaves () (octaves child - 4)
+  observeConst "rootID" (MagicalID "root") () rid
  where
   -- DT.traceM $ "root note (obs): " <> show child
 
@@ -883,6 +908,7 @@ observeOctaveShift name interval = do
 
 sampleNeighbor :: (_) => Bool -> Bool -> SPitch -> m SPitch
 sampleNeighbor stepUp allowChromatic ref = do
+  -- DT.traceM $ "sampleNeighbor: " <> show ref <> " " <> show stepUp <> " " <> show allowChromatic
   chromatic <-
     if allowChromatic
       then sampleValue "nbChromatic" Bernoulli $ pInner . pNBChromatic
@@ -898,19 +924,20 @@ sampleNeighbor stepUp allowChromatic ref = do
       let altInterval = emb (alt *^ chromaticSemitone @SIC)
       altUp <- sampleConst "nbAltUp" Bernoulli 0.5
       let step =
-            if altUp == stepUp
+            if altUp == stepUp -- augment or diminish?
               then major second ^+^ altInterval
               else minor second ^-^ altInterval
       pure $ ref +^ os +^ if stepUp then step else down step
 
 observeNeighbor :: Bool -> Bool -> SPitch -> SPitch -> PVObs ()
 observeNeighbor goesUp observeChromatic ref nb = do
+  -- DT.traceM $ "observeNeighbor: " <> show ref <> " " <> show goesUp <> " " <> show observeChromatic
   let interval = ic $ ref `pto` nb
       isChromatic = diasteps interval == 0
   when observeChromatic $
     observeValue "nbChromatic" Bernoulli (pInner . pNBChromatic) isChromatic
   observeOctaveShift "nbOctShift" (ref `pto` nb)
-  if isChromatic
+  if isChromatic && observeChromatic -- temporary
     then do
       let alt = abs (alteration interval)
       observeValue "nbAltChromatic" Geometric1 (pInner . pNBAlt) alt
@@ -932,31 +959,35 @@ sampleDoubleChild i (Note pl il) (Note pr ir)
       if rep
         then do
           os <- sampleOctaveShift "doubleChildOctave"
-          cid <- sampleConst "doubleChildId" MagicalID ()
+          cid <- sampleConst "doubleChildId" (MagicalID "id") ()
           pure (Note (pr +^ os) cid, FullRepeat)
         else do
           stepUp <- sampleConst "stepUp" Bernoulli 0.5
           nb <- sampleNeighbor stepUp True pr
-          cid <- sampleConst "doubleChildId" MagicalID ()
+          cid <- sampleConst "doubleChildId" (MagicalID "id") ()
           pure (Note nb cid, FullNeighbor)
   | degree pl == degree pr = do
       rep <-
         sampleValue "repeatOverNeighbor" Bernoulli $ pInner . pRepeatOverNeighbor
       if rep
-        then sampleOneSidedRepeat
+        then sampleOneSidedRepeat True
         else do
           stepUp <- sampleConst "stepUp" Bernoulli 0.5
           nb <- sampleNeighbor stepUp False pr
-          cid <- sampleConst "doubleChildId" MagicalID ()
+          cid <- sampleConst "doubleChildId" (MagicalID "id") ()
           pure (Note nb cid, FullNeighbor)
-  | otherwise = sampleOneSidedRepeat
+  | otherwise = sampleOneSidedRepeat False
  where
-  sampleOneSidedRepeat = do
-    repeatLeft <- sampleValue "repeatLeftOverRight" Bernoulli $ pInner . pRepeatLeftOverRight
+  sampleOneSidedRepeat isChromatic = do
+    repeatLeft <-
+      if isChromatic -- chromatic parent interval: ref is always right parent
+        then pure False
+        else sampleValue "repeatLeftOverRight" Bernoulli $ pInner . pRepeatLeftOverRight
     repeatAlter <- sampleValue "repeatAlter" Bernoulli $ pInner . pRepeatAlter
     alt <-
       if repeatAlter
         then do
+          -- let alterUp = repeatLeft == (direction (pc pl `pto` pc pr) == LT)
           alterUp <-
             sampleValue "repeatAlterUp" Bernoulli $ pInner . pRepeatAlterUp
           semis <-
@@ -964,7 +995,7 @@ sampleDoubleChild i (Note pl il) (Note pr ir)
           pure $ (if alterUp then id else down) $ chromaticSemitone ^* semis
         else pure unison
     os <- sampleOctaveShift "doubleChildOctave"
-    cid <- sampleConst "doubleChildId" MagicalID ()
+    cid <- sampleConst "doubleChildId" (MagicalID "id") ()
     if repeatLeft
       then pure (Note (pl +^ os +^ alt) cid, RightRepeatOfLeft)
       else pure (Note (pr +^ os +^ alt) cid, LeftRepeatOfRight)
@@ -977,37 +1008,45 @@ observeDoubleChild (Note pl _) (Note pr _) (Note child cid)
       if isRep
         then do
           observeOctaveShift "doubleChildOctave" (pr `pto` child)
-          observeConst "doubleChildId" MagicalID () cid
+          observeConst "doubleChildId" (MagicalID "id") () cid
         else do
           let dir = direction (pc pr `pto` pc child)
           let goesUp = dir == GT
           observeConst "stepUp" Bernoulli 0.5 goesUp
           observeNeighbor goesUp True pr child
-          observeConst "doubleChildId" MagicalID () cid
+          observeConst "doubleChildId" (MagicalID "id") () cid
   | degree pl == degree pr = do
-      let isRep = (pc child == pc pl) || (pc child == pc pr)
+      let isRep = (degree child == degree pl) || (degree child == degree pr)
       observeValue "repeatOverNeighbor" Bernoulli (pInner . pRepeatOverNeighbor) isRep
       if isRep
-        then observeOneSidedRepeat
+        then observeOneSidedRepeat True
         else do
           let dir = direction (pc pr `pto` pc child)
           let goesUp = dir == GT
           observeConst "stepUp" Bernoulli 0.5 goesUp
           observeNeighbor goesUp False pr child
-          observeConst "doubleChildId" MagicalID () cid
-  | otherwise = observeOneSidedRepeat
+          observeConst "doubleChildId" (MagicalID "id") () cid
+  | otherwise = observeOneSidedRepeat False
  where
-  observeOneSidedRepeat = do
-    let repeatLeft = degree pl == degree child
+  observeOneSidedRepeat isChromatic = do
+    let repeatLeft =
+          -- left is ref if:
+          -- same scale degree as left
+          (degree pl == degree child)
+            -- not same PC as right
+            && (pc child /= pc pr)
+            -- parent interval not chromatic (then it's always ref is always right)
+            && not isChromatic
         ref = if repeatLeft then pl else pr
         alt = alteration child - alteration ref
-    observeValue "repeatLeftOverRight" Bernoulli (pInner . pRepeatLeftOverRight) repeatLeft
+    unless isChromatic $
+      observeValue "repeatLeftOverRight" Bernoulli (pInner . pRepeatLeftOverRight) repeatLeft
     observeValue "repeatAlter" Bernoulli (pInner . pRepeatAlter) (alt /= 0)
     when (alt /= 0) $ do
       observeValue "repeatAlterUp" Bernoulli (pInner . pRepeatAlterUp) (alt > 0)
       observeValue "repeatAlterSemis" Geometric1 (pInner . pRepeatAlterSemis) (abs alt)
     observeOctaveShift "doubleChildOctave" $ ref `pto` child
-    observeConst "doubleChildId" MagicalID () cid
+    observeConst "doubleChildId" (MagicalID "id") () cid
 
 sampleT :: (_) => Edge SPitch -> m (Edge SPitch, [(Note SPitch, DoubleOrnament)])
 sampleT (l, r) = do
@@ -1085,8 +1124,9 @@ sampleNonMidPassing pl pr = do
     sampleValue "passLeftOverRight" Bernoulli $ pInner . pPassLeftOverRight
   -- TODO: sampling like this overgenerates, since it allows passing motions to change direction
   -- the direction of a passing edge should be tracked explicitly!
-  dirUp <- sampleValue "passUp" Bernoulli $ pInner . pPassUp
-  -- let dirUp = direction (pc pl `pto` pc pr) == GT
+  -- dirUp <- sampleValue "passUp" Bernoulli $ pInner . pPassUp
+  -- temporary solution: take shortest pitch-class direction (this is also done by the parser
+  let dirUp = direction (pc pl `pto` pc pr) == GT
   if left
     then do
       child <- sampleNeighbor dirUp True pl
@@ -1103,7 +1143,7 @@ observeNonMidPassing pl pr child orn = do
           then direction (pc pl `pto` pc child) == GT
           else direction (pc pr `pto` pc child) == LT
   observeValue "passLeftOverRight" Bernoulli (pInner . pPassLeftOverRight) left
-  observeValue "passUp" Bernoulli (pInner . pPassUp) dirUp
+  -- observeValue "passUp" Bernoulli (pInner . pPassUp) dirUp
   if left
     then observeNeighbor dirUp True pl child
     else observeNeighbor (not dirUp) True pr child
@@ -1121,7 +1161,7 @@ sampleNT ((nl@(Note pl il), nr@(Note pr ir)), n) = do
         connect <- sampleValue "passingConnect" Bernoulli $ pInner . pConnect
         if connect then sampleMidPassing pl pr else sampleNonMidPassing pl pr
       _ -> sampleNonMidPassing pl pr
-    cid <- sampleConst "passingChildId" MagicalID ()
+    cid <- sampleConst "passingChildId" (MagicalID "id") ()
     pure (Note child $ cid, orn)
   pure ((nl, nr), children)
 
@@ -1130,7 +1170,7 @@ observeNT
   => M.Map (InnerEdge SPitch) [(Note SPitch, PassingOrnament)]
   -> (InnerEdge SPitch, Int)
   -> PVObs (InnerEdge SPitch, [(Note SPitch, PassingOrnament)])
-observeNT splitNTs ((nl@(Note pl _), nr@(Note pr _)), _n) = do
+observeNT splitNTs ((nl@(Note pl _), nr@(Note pr _)), n) = do
   -- DT.traceM $ "Elaborating edge (obs): " <> show ((pl, pr), n)
   let children = fromMaybe [] $ M.lookup (nl, nr) splitNTs
   forM_ children $ \(Note child cid, orn) -> do
@@ -1144,7 +1184,7 @@ observeNT splitNTs ((nl@(Note pl _), nr@(Note pr _)), _n) = do
           observeValue "passingConnect" Bernoulli (pInner . pConnect) False
           observeNonMidPassing pl pr child orn
       _ -> observeNonMidPassing pl pr child orn
-    observeConst "passingChildId" MagicalID () cid
+    observeConst "passingChildId" (MagicalID "id") () cid
   pure ((nl, nr), children)
 
 sampleSingleOrn
@@ -1166,12 +1206,12 @@ sampleSingleOrn forceOne parent@(Note ppitch pid) oRepeat oNeighbor pElaborate =
     if rep
       then do
         os <- sampleOctaveShift "singleChildOctave"
-        cid <- sampleConst "singleChildId" MagicalID ()
+        cid <- sampleConst "singleChildId" (MagicalID "id") ()
         pure (Note (ppitch +^ os) cid, oRepeat)
       else do
         stepUp <- sampleConst "singleUp" Bernoulli 0.5
         child <- sampleNeighbor stepUp True ppitch
-        cid <- sampleConst "singleChildId" MagicalID ()
+        cid <- sampleConst "singleChildId" (MagicalID "id") ()
         pure (Note child cid, oNeighbor)
   pure (parent, children)
 
@@ -1196,13 +1236,13 @@ observeSingleOrn table forceOne parent@(Note ppitch _) pElaborate = do
     if rep
       then do
         observeOctaveShift "singleChildOctave" (ppitch `pto` child)
-        observeConst "singleChildId" MagicalID () cid
+        observeConst "singleChildId" (MagicalID "id") () cid
       else do
         let dir = direction (pc ppitch `pto` pc child)
             up = dir == GT
         observeConst "singleUp" Bernoulli 0.5 up
         observeNeighbor up True ppitch child
-        observeConst "singleChildId" MagicalID () cid
+        observeConst "singleChildId" (MagicalID "id") () cid
   pure (parent, children)
 
 sampleL :: (_) => Bool -> Note SPitch -> m (Note SPitch, [(Note SPitch, RightOrnament)])
@@ -1359,34 +1399,33 @@ sampleSpread (_sliceL, transL, Notes sliceM, transR, _sliceR) = do
       (False, False) -> error "Note not spread to either side. This can't happen."
 
 observeSpread :: ContextDouble SPitch -> Spread SPitch -> PVObs ()
-observeSpread (_sliceL, transL, Notes sliceM, transR, _sliceR) (SpreadOp obsDists (Edges repEdges passEdges)) =
-  do
-    -- 1. Observe note distribution. See Note [Constraints on spreads]
-    let notes@(note1 : notesOther) = L.sort $ S.toList sliceM
-    dists <- flip ST.evalStateT HM.empty $ do
-      distsOther <- mapM (observeNoteDist False False) notesOther
-      let forceLeft = null $ mapMaybe leftSpreadChild distsOther
-          forceRight = null $ mapMaybe rightSpreadChild distsOther
-      dist1 <- observeNoteDist forceLeft forceRight note1
-      pure $ dist1 : distsOther
-    let notesLeft = mapMaybe leftSpreadChild dists
-        notesRight = mapMaybe rightSpreadChild dists
-    -- 2. Observe repetition edges.
-    -- 2.1. Observe repetitions edges for equal notes with the same parent
-    forM_ dists $ \case
-      SpreadBothChildren l r ->
-        observeValue "spreadRepeatEdge" Bernoulli (pInner . pSpreadRepetitionEdge) (haveRep l r)
-      _ -> pure ()
-    -- 2.2. Observe repetition edges for equivalent but non-equal notes
-    sequence_ $ do
-      -- List
-      l <- notesLeft
-      r <- notesRight
-      guard $ (pc (notePitch l) == pc (notePitch r)) && (notePitch l /= notePitch r)
-      pure $
-        observeValue "spreadRepeatEdge" Bernoulli (pInner . pSpreadRepetitionEdge) (haveRep l r)
-    -- 3. Observe passing edges.
-    observePassing notesLeft notesRight pNewPassingMid passEdges
+observeSpread (_sliceL, transL, Notes sliceM, transR, _sliceR) (SpreadOp obsDists (Edges repEdges passEdges)) = do
+  -- 1. Observe note distribution. See Note [Constraints on spreads]
+  let notes@(note1 : notesOther) = L.sort $ S.toList sliceM
+  dists <- flip ST.evalStateT HM.empty $ do
+    distsOther <- mapM (observeNoteDist False False) notesOther
+    let forceLeft = null $ mapMaybe leftSpreadChild distsOther
+        forceRight = null $ mapMaybe rightSpreadChild distsOther
+    dist1 <- observeNoteDist forceLeft forceRight note1
+    pure $ dist1 : distsOther
+  let notesLeft = mapMaybe leftSpreadChild dists
+      notesRight = mapMaybe rightSpreadChild dists
+  -- 2. Observe repetition edges.
+  -- 2.1. Observe repetitions edges for equal notes with the same parent
+  forM_ dists $ \case
+    SpreadBothChildren l r ->
+      observeValue "spreadRepeatEdge" Bernoulli (pInner . pSpreadRepetitionEdge) (haveRep l r)
+    _ -> pure ()
+  -- 2.2. Observe repetition edges for equivalent but non-equal notes
+  sequence_ $ do
+    -- List
+    l <- notesLeft
+    r <- notesRight
+    guard $ (pc (notePitch l) == pc (notePitch r)) && (notePitch l /= notePitch r)
+    pure $
+      observeValue "spreadRepeatEdge" Bernoulli (pInner . pSpreadRepetitionEdge) (haveRep l r)
+  -- 3. Observe passing edges.
+  observePassing notesLeft notesRight pNewPassingMid passEdges
  where
   haveRep l r = S.member (Inner l, Inner r) repEdges
   observeNoteDist forceLeft forceRight parent = case HM.lookup parent obsDists of

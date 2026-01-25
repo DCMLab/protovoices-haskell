@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
@@ -8,19 +9,6 @@
 module RL.Imitate where
 
 import Common
-  ( Analysis
-      ( Analysis
-      , anaDerivation
-      , anaTop
-      )
-  , Leftmost (..)
-  , LeftmostDouble (..)
-  , LeftmostSingle (..)
-  , Path (..)
-  , StartStop (..)
-  , getInner
-  , pathAppend
-  )
 import GreedyParser (ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState (..), getActions)
 import PVGrammar
 import PVGrammar.Generate
@@ -35,16 +23,19 @@ import PVGrammar.Prob.Simple
 import RL.Encoding (QEncoding, withBatchedEncoding)
 import RL.ModelTypes
 
+import Common (Eval (evalUnsplit), SplitType (LeftOfTwo))
 import Control.Monad (forM_, replicateM, when, zipWithM)
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.Reader (MonadReader (..), ReaderT, lift, runReaderT)
 import Control.Monad.State.Strict (MonadState (get), StateT (runStateT), evalStateT, execStateT, modify)
 import Data.Aeson qualified as JSON
+import Data.Either (lefts)
 import Data.HashMap.Strict qualified as HM
 import Data.HashSet qualified as S
 import Data.List (unfoldr)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
+import Data.Maybe (catMaybes)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text.IO (putStr)
 import Data.TypeNums (KnownNat, intVal)
@@ -54,8 +45,11 @@ import Inference.Conjugate
 import Internal.MultiSet qualified as MS
 import Lens.Micro
 import Lens.Micro.Extras (view)
-import Musicology.Core qualified as MC
 import Musicology.Pitch (Interval (octave), IntervalClass (emb), SIC (SIC), SInterval (SInterval), SPitch, embed, embedP, fifth, fifth', major, minor, seventh, seventh', spc, third, third', unison, (+^), (^*))
+import Musicology.Pitch qualified as MP
+import PVGrammar (PVLeftmost)
+import PVGrammar.Parse (protoVoiceEvaluator)
+import PVGrammar.Prob.Simple (roundtripTest)
 import System.Random.MWC.Probability (Gen, Prob (sample), binomial, categorical, createSystemRandom, discrete, discreteUniform, poisson, uniform)
 import Torch qualified as T
 import Torch.Typed qualified as TT
@@ -237,6 +231,24 @@ getRandomDeriv minSteps = do
   Right hyper <- loadPVHyper "../posterior.json"
   let probs = expectedProbs @PVParams hyper
   sampleGoodChord gen 200 probs minSteps
+
+roundtripTestChords :: Int -> IO [(String, PVAnalysis SPitch)]
+roundtripTestChords n = do
+  gen <- createSystemRandom
+  Right hyper <- loadPVHyper "../posterior.json"
+  let probs = expectedProbs @PVParams hyper
+  -- \$ uniformPrior @PVParams
+  derivs <- replicateM n $ sampleGoodChord gen 200 probs 0
+  let errors = catMaybes $ fmap testDeriv derivs
+  putStrLn $ show (length errors) <> " errors"
+  zipWithM (\(_, ana) i -> JSON.encodeFile ("/tmp/rl/error" <> show i <> ".analysis.json") ana) errors [1 ..]
+  pure errors
+ where
+  testDeriv d = case roundtripTest ana of
+    Left err -> Just (err, ana)
+    Right _ -> Nothing
+   where
+    ana = Analysis d $ PathEnd topEdges
 
 -- Training on Derivations
 -- =======================
@@ -422,7 +434,8 @@ derivationToDatapoints analysis@(Analysis deriv top) = do
     -> PVState
     -> Either String (forall r. (forall n. (KnownNat n) => QEncoding dev '[n] -> r) -> r, T.Tensor)
   mkData op state = do
-    let actions = take 200 $ getActions (protoVoiceEvaluator @[] @[]) state
+    let actionsAll = getActions (protoVoiceEvaluator @[] @[]) state
+        actions = take 200 actionsAll
     case actions of
       [] -> Left "no actions available!"
       (a : as) -> do
@@ -430,6 +443,8 @@ derivationToDatapoints analysis@(Analysis deriv top) = do
             encoding = withBatchedEncoding state (a NE.:| as)
             target = fmap (eqOp op) actions
             !targetTensor = toQTensor' @dev $ target
+        when ((length actions == 200) && (length (take 201 actionsAll) > 200)) $
+          Left "too many actions (more than 200)!"
         when (not $ any id target) $ do
           DT.traceM "Couldn't match any action!\nstate:"
           DT.traceShowM state
@@ -443,8 +458,8 @@ derivationToDatapoints analysis@(Analysis deriv top) = do
           forM_ actions $ \action -> DT.traceM $ case action of
             Left (ActionSingle _ a) -> show a <> "\n"
             Right (ActionDouble _ a) -> show a <> "\n"
-
-          error "breaking"
+          DT.traceM $ show (length actions) <> " actions"
+          Left "could not match any action!"
         Right (encoding, targetTensor)
 
 testDerivToData minSteps = do
@@ -454,3 +469,57 @@ testDerivToData minSteps = do
   case derivationToDatapoints @'(TT.CPU, 0) (Analysis deriv $ PathEnd topEdges) of
     Left err -> putStrLn err
     Right dat -> mapM_ print $ snd <$> dat
+
+testDerivToDataMany minSteps n = do
+  derivs <- replicateM n $ getRandomDeriv minSteps
+  let toData deriv = derivationToDatapoints @'(TT.CPU, 0) (Analysis deriv $ PathEnd topEdges)
+      datapoints = fmap toData derivs
+      errors = lefts datapoints
+  mapM_ putStrLn errors
+  putStrLn $ show (length errors) <> "/" <> show n <> " errors."
+
+{-
+Maybe passing direction problem.
+Check sampling vs parsing.
+
+⋊
+‖ Just []
+{ F♯6, F♯6, F♯4, B4, D♯4}
+\| { B4.root289l-B4.id609, F♯6.root821l>C5.id434×1 }
+{ B4.id609, C5.id434, E♯6.id608 }
+\| { C5.id434-B4.root289r, B4.id609-B4.root289r }
+{ F♯6, B4.root289r, F♯6 }
+\| {}
+⋉
+
+actual step:
+LMDoubleSplitLeft
+  regular:{B4.root289l-B4.root289r=>[B4.id609:FullRepeat]},
+  passing:{F♯6.root821l-B4.root289r=>[C5.id434:PassingRight]},
+  ls:{},
+  rs:{[E♯6.id608:LeftNeighbor]<=F♯6.root821r},
+  kl:{B4.root289l-B4.id609},
+  kr:{C5.id434-B4.root289r, B4.id609-B4.root289r},
+  pl:{},
+  pr:{}
+
+F#6--B4 --> F#6--C5-B4
+
+-}
+
+testL :: Notes SPitch
+testL = Notes $ S.fromList ["F#6.fsL"]
+
+testTL :: Edges SPitch
+testTL = Edges S.empty (MS.fromList [("F#6.fsL", "C5.cM")])
+
+testM :: Notes SPitch
+testM = Notes $ S.fromList ["C5.cM"]
+
+testTR :: Edges SPitch
+testTR = Edges (S.fromList [(Inner "C5.cM", Inner "B4.bR")]) MS.empty
+
+testR :: Notes SPitch
+testR = Notes $ S.fromList ["B4.bR"]
+
+x = evalUnsplit (protoVoiceEvaluator @[] @[]) (Inner testL) testTL testM testTR (Inner testR) LeftOfTwo

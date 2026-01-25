@@ -117,7 +117,13 @@ partitionElaborations = foldl' select ([], [], [], [])
 -- | A constraint alias for note types.
 type IsPitch :: Type -> Constraint
 type IsPitch n =
-  (HasPitch n, Diatonic (ICOf (IntervalOf n)), Eq (ICOf (IntervalOf n)), Eq (IntervalOf n))
+  ( HasPitch n
+  , Diatonic (ICOf (IntervalOf n))
+  , Spelled (IntervalOf n)
+  , Spelled (ICOf (IntervalOf n))
+  , Eq (ICOf (IntervalOf n))
+  , Eq (IntervalOf n)
+  )
 
 -- | Checks if the middle pitch is between the left and the right pitch.
 between
@@ -153,14 +159,17 @@ findOrnament
       )
 findOrnament (Inner l) m (Inner r)
   | pl == pm && pm == pr = Just $ Reg (FullRepeat, (Inner l, Inner r))
-  | pl == pm && so = Just $ Reg (RightRepeatOfLeft, (Inner l, Inner r))
-  | pm == pr && so = Just $ Reg (LeftRepeatOfRight, (Inner l, Inner r))
-  | pl == pr && s1 = Just $ Reg (FullNeighbor, (Inner l, Inner r))
   | s1 && s2 && between pl pm pr = Just $ Pass (PassingMid, (l, r))
+  | dl == dm && so = Just $ Reg (RightRepeatOfLeft, (Inner l, Inner r))
+  | dm == dr && so = Just $ Reg (LeftRepeatOfRight, (Inner l, Inner r))
+  | pl == pr && s1 = Just $ Reg (FullNeighbor, (Inner l, Inner r))
  where
   pl = pc $ pitch $ notePitch l
   pm = pc $ pitch $ notePitch m
   pr = pc $ pitch $ notePitch r
+  dl = degree $ pitch $ notePitch l
+  dm = degree $ pitch $ notePitch m
+  dr = degree $ pitch $ notePitch r
   s1 = isStep $ pl `pto` pm
   s2 = isStep $ pm `pto` pr
   so = isStep $ pl `pto` pr
@@ -221,12 +230,14 @@ If a note is adjacent to several regular edges, it cannot be reduced by a split 
 Consequently, if both sides of the transition contain notes adjacent to several edges,
 neither can be reduced and the transition is irreducible
 -}
-edgesAreReducible :: (Hashable n) => Edges n -> Bool
-edgesAreReducible (Edges reg _pass) = isFree left || isFree right
+edgesAreReducible :: (Hashable n, Eq (ICOf (IntervalOf n)), HasPitch n) => Edges n -> Bool
+edgesAreReducible (Edges reg _pass) = isFree left || isFree right || allRep
  where
   left = fst <$> S.toList reg
   right = snd <$> S.toList reg
   isFree notes = (MS.cardinality $ MS.fromList $ mapMaybe getInner notes) < 2
+  isRepetition (p1, p2) = fmap (pc . pitch . notePitch) p1 == fmap (pc . pitch . notePitch) p2
+  allRep = all isRepetition reg
 
 -- evaluator interface
 -- ===================
