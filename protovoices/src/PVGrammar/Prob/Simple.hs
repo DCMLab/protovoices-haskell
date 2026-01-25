@@ -121,6 +121,10 @@ module PVGrammar.Prob.Simple
   , roundtripTestFile
   , trainSinglePiece
 
+    -- * Auxiliary Distributions
+  , MagicalID (..)
+  , MagicalOctaves (..)
+
     -- * Likelihood model for parsing
 
     -- | We need these specialized functions because of a dependency across steps:
