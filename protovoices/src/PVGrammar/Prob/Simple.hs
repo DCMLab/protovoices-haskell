@@ -202,6 +202,9 @@ import Data.Maybe
   , mapMaybe
   , maybeToList
   )
+import Data.Text.Lazy qualified as Txt
+import Data.Text.Lazy.Builder qualified as Txt
+import Data.Text.Lazy.Builder.Int qualified as Txt
 import Debug.Trace qualified as DT
 import GHC.Generics (Generic)
 import Inference.Conjugate
@@ -366,7 +369,7 @@ instance Distribution MagicalID where
   type Support MagicalID = String
   distSample (MagicalID pfx) _ = do
     i <- uniform @_ @Int
-    pure $ pfx <> show (mod i 1000)
+    pure $ pfx <> "#" <> Txt.unpack (Txt.toLazyText (Txt.hexadecimal (mod i 100000)))
   distLogP _ _ _ = 0
 
 {- | A helper function that tests whether 'observeDerivation''
@@ -374,8 +377,8 @@ instance Distribution MagicalID where
  Useful for testing the compatibility of the two functions.
 -}
 roundtripDebug :: PVAnalysis SPitch -> IO (Either String ()) -- [PVLeftmost SPitch])
-roundtripDebug (Analysis deriv top) = do
-  let traceE = observeDerivation deriv top
+roundtripDebug ana@(Analysis deriv top) = do
+  let traceE = observeDerivation ana
   case traceE of
     Left err -> error err
     Right trace -> do
@@ -389,10 +392,10 @@ roundtripDebugFile fn = do
     Left err -> error err
     Right ana -> roundtripDebug ana
 
-roundtripTest (Analysis deriv top) = do
+roundtripTest ana@(Analysis deriv top) = do
   -- Either
   let probs = expectedProbs @PVParams $ uniformPrior @PVParams
-  trace <- observeDerivation deriv top
+  trace <- observeDerivation ana
   case evalTraceLogP probs trace (sampleDerivation top) of
     Just (res, _) -> res
     Nothing -> Left "invalid trace"
@@ -423,7 +426,7 @@ trainSinglePiece fn = do
 {- | Example: sample a random derivation from a posterior using the expected probabilities.
 To sample the probabilities too, use 'sampleProbs' instead of 'expectedProbs'.
 -}
-sampleExample :: Hyper PVParams -> IO (Either String [PVLeftmost SPitch])
+sampleExample :: Hyper PVParams -> IO (Either String (PVAnalysis SPitch))
 sampleExample hyper = do
   let probs = expectedProbs @PVParams hyper
   gen <- createSystemRandom
@@ -433,12 +436,12 @@ sampleExample hyper = do
 -- ======================
 
 -- | A shorthand for 'sampleDerivation' starting from ⋊——⋉.
-sampleDerivation' :: (_) => m (Either String [PVLeftmost SPitch])
+sampleDerivation' :: (_) => m (Either String (PVAnalysis SPitch))
 sampleDerivation' = sampleDerivation $ PathEnd topEdges
 
 -- | A shorthand for 'observeDerivation' starting from ⋊——⋉.
 observeDerivation' :: [PVLeftmost SPitch] -> Either String (Trace PVParams)
-observeDerivation' deriv = observeDerivation deriv $ PathEnd topEdges
+observeDerivation' deriv = observeDerivation $ Analysis deriv $ PathEnd topEdges
 
 {- | A probabilistic program that samples a derivation starting from a given root path.
  Can be interpreted by the interpreter functions in "Inference.Conjugate".
@@ -447,9 +450,13 @@ sampleDerivation
   :: (_)
   => Path (Edges SPitch) (Notes SPitch)
   -- ^ root path
-  -> m (Either String [PVLeftmost SPitch])
+  -> m (Either String (PVAnalysis SPitch))
   -- ^ a probabilistic program
-sampleDerivation top = runExceptT $ go Start top False
+sampleDerivation top = do
+  derivE <- runExceptT $ go Start top False
+  pure $ case derivE of
+    Left err -> Left err
+    Right deriv -> Right $ Analysis deriv top
  where
   go sl surface ars = do
     -- DT.traceShowM (sl, surface)
@@ -495,10 +502,9 @@ sampleDerivation top = runExceptT $ go Start top False
  for inference ('getPosterior') or for showing the trace ('printTrace').
 -}
 observeDerivation
-  :: [PVLeftmost SPitch]
-  -> Path (Edges SPitch) (Notes SPitch)
+  :: PVAnalysis SPitch
   -> Either String (Trace PVParams)
-observeDerivation deriv top =
+observeDerivation (Analysis deriv top) =
   execStateT
     (go Start top False deriv)
     (Trace mempty)
@@ -974,26 +980,23 @@ sampleDoubleChild i (Note pl il) (Note pr ir)
       rep <-
         sampleValue "repeatOverNeighbor" Bernoulli $ pInner . pRepeatOverNeighbor
       if rep
-        then sampleOneSidedRepeat True
+        then sampleOneSidedRepeat
         else do
           stepUp <- sampleConst "stepUp" Bernoulli 0.5
           nb <- sampleNeighbor stepUp False pr
           cid <- sampleConst "doubleChildId" (MagicalID "id") ()
           pure (Note nb cid, FullNeighbor)
-  | otherwise = sampleOneSidedRepeat False
+  | otherwise = sampleOneSidedRepeat
  where
-  sampleOneSidedRepeat isChromatic = do
-    repeatLeft <-
-      if isChromatic -- chromatic parent interval: ref is always right parent
-        then pure False
-        else sampleValue "repeatLeftOverRight" Bernoulli $ pInner . pRepeatLeftOverRight
+  sampleOneSidedRepeat = do
+    -- sampleOneSidedRepeat must generate a pitch outside the parent interval.
+    repeatLeft <- sampleValue "repeatLeftOverRight" Bernoulli $ pInner . pRepeatLeftOverRight
     repeatAlter <- sampleValue "repeatAlter" Bernoulli $ pInner . pRepeatAlter
     alt <-
       if repeatAlter
         then do
-          -- let alterUp = repeatLeft == (direction (pc pl `pto` pc pr) == LT)
-          alterUp <-
-            sampleValue "repeatAlterUp" Bernoulli $ pInner . pRepeatAlterUp
+          let alterUp = repeatLeft == (direction (pc pl `pto` pc pr) == LT)
+          -- alterUp <- sampleValue "repeatAlterUp" Bernoulli $ pInner . pRepeatAlterUp
           semis <-
             sampleValue "repeatAlterSemis" Geometric1 $ pInner . pRepeatAlterSemis
           pure $ (if alterUp then id else down) $ chromaticSemitone ^* semis
@@ -1015,7 +1018,7 @@ observeDoubleChild (Note pl _) (Note pr _) (Note child cid)
           observeConst "doubleChildId" (MagicalID "id") () cid
         else do
           let dir = direction (pc pr `pto` pc child)
-          let goesUp = dir == GT
+              goesUp = dir == GT
           observeConst "stepUp" Bernoulli 0.5 goesUp
           observeNeighbor goesUp True pr child
           observeConst "doubleChildId" (MagicalID "id") () cid
@@ -1023,31 +1026,28 @@ observeDoubleChild (Note pl _) (Note pr _) (Note child cid)
       let isRep = (degree child == degree pl) || (degree child == degree pr)
       observeValue "repeatOverNeighbor" Bernoulli (pInner . pRepeatOverNeighbor) isRep
       if isRep
-        then observeOneSidedRepeat True
+        then observeOneSidedRepeat
         else do
           let dir = direction (pc pr `pto` pc child)
           let goesUp = dir == GT
           observeConst "stepUp" Bernoulli 0.5 goesUp
           observeNeighbor goesUp False pr child
           observeConst "doubleChildId" (MagicalID "id") () cid
-  | otherwise = observeOneSidedRepeat False
+  | otherwise = observeOneSidedRepeat
  where
-  observeOneSidedRepeat isChromatic = do
-    let repeatLeft =
-          -- left is ref if:
-          -- same scale degree as left
-          (degree pl == degree child)
-            -- not same PC as right
-            && (pc child /= pc pr)
-            -- parent interval not chromatic (then it's always ref is always right)
-            && not isChromatic
+  observeOneSidedRepeat = do
+    -- sampleOneSidedRepeat must generate a pitch outside the parent interval.
+    -- Therefore, a neighbor above is derived from the higher note
+    -- and a neighbor below is derived from the lower note.
+    let dirOuter = direction (pc pl `pto` pc pr)
+        dirInner = direction (pc pl `pto` pc child)
+        repeatLeft = dirInner /= dirOuter
         ref = if repeatLeft then pl else pr
         alt = alteration child - alteration ref
-    unless isChromatic $
-      observeValue "repeatLeftOverRight" Bernoulli (pInner . pRepeatLeftOverRight) repeatLeft
+    observeValue "repeatLeftOverRight" Bernoulli (pInner . pRepeatLeftOverRight) repeatLeft
     observeValue "repeatAlter" Bernoulli (pInner . pRepeatAlter) (alt /= 0)
     when (alt /= 0) $ do
-      observeValue "repeatAlterUp" Bernoulli (pInner . pRepeatAlterUp) (alt > 0)
+      -- observeValue "repeatAlterUp" Bernoulli (pInner . pRepeatAlterUp) (alt > 0)
       observeValue "repeatAlterSemis" Geometric1 (pInner . pRepeatAlterSemis) (abs alt)
     observeOctaveShift "doubleChildOctave" $ ref `pto` child
     observeConst "doubleChildId" (MagicalID "id") () cid
@@ -1115,12 +1115,12 @@ observeChromPassing pl pr child = do
 
 sampleMidPassing :: (_) => SPitch -> SPitch -> m (SPitch, PassingOrnament)
 sampleMidPassing pl pr = do
-  child <- sampleNeighbor (direction (pc pl `pto` pc pr) == GT) True pl
+  child <- sampleNeighbor (direction (pc pl `pto` pc pr) == GT) False pl
   pure (child, PassingMid)
 
 observeMidPassing :: SPitch -> SPitch -> SPitch -> PVObs ()
 observeMidPassing pl pr =
-  observeNeighbor (direction (pc pl `pto` pc pr) == GT) True pl
+  observeNeighbor (direction (pc pl `pto` pc pr) == GT) False pl
 
 sampleNonMidPassing :: (_) => SPitch -> SPitch -> m (SPitch, PassingOrnament)
 sampleNonMidPassing pl pr = do

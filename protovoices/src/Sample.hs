@@ -110,7 +110,7 @@ sampleSafe threshold probsA probsB (SampleSafeI a) = sample (evalStateT (runRead
 -- Sampling Derivations
 -- ====================
 
-sampleExample :: (_) => _gen -> Hyper PVParams -> m (Either String [PVLeftmost SPitch])
+sampleExample :: (_) => _gen -> Hyper PVParams -> m (Either String (PVAnalysis SPitch))
 sampleExample gen hyper = do
   let probs = expectedProbs @PVParams hyper
   sampleResult probs sampleDerivation' gen
@@ -144,13 +144,12 @@ makeStopProbs probs =
       .~ ProbsRep 1
 
 sampleUntilGood
-  :: (Foldable t)
-  => SampleSafeI IO PVParams (Either String (t a))
+  :: SampleSafeI IO PVParams (Either String (PVAnalysis n))
   -> Gen RealWorld
   -> Int
   -> PVParams ProbsRep
   -> Int
-  -> IO (t a)
+  -> IO (PVAnalysis n)
 sampleUntilGood model gen maxN probs minSteps = goodDeriv
  where
   probsStop = makeStopProbs probs
@@ -162,7 +161,7 @@ sampleUntilGood model gen maxN probs minSteps = goodDeriv
         putStrLn err
         goodDeriv
       Right deriv ->
-        if length deriv >= minSteps then pure deriv else goodDeriv
+        if length (anaDerivation deriv) >= minSteps then pure deriv else goodDeriv
 
 roundtripTestDerivs :: Int -> IO [(String, PVAnalysis SPitch)]
 roundtripTestDerivs = roundtripTestDerivs' sampleDerivation'
@@ -179,8 +178,6 @@ roundtripTestDerivs' model n = do
   zipWithM (\(_, ana) i -> JSON.encodeFile ("/tmp/rl/error" <> show i <> ".analysis.json") ana) errors [1 ..]
   pure errors
  where
-  testDeriv d = case roundtripTest ana of
+  testDeriv ana = case roundtripTest ana of
     Left err -> Just (err, ana)
     Right _ -> Nothing
-   where
-    ana = Analysis d $ PathEnd topEdges

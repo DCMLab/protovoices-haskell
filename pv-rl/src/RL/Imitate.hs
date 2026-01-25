@@ -11,6 +11,7 @@ module RL.Imitate where
 
 import Common
 import GreedyParser (ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState (..), getActions)
+import Internal.MultiSet qualified as MS
 import PVGrammar
 import PVGrammar.Generate
   ( applyFreeze
@@ -25,8 +26,11 @@ import Sample
 import RL.Encoding (QEncoding, withBatchedEncoding)
 import RL.ModelTypes
 
-import Common (Eval (evalUnsplit), SplitType (LeftOfTwo))
-import Control.Monad (forM_, replicateM, when, zipWithM)
+import Inference.Conjugate
+import Musicology.Pitch (Interval (octave), IntervalClass (emb), SIC (SIC), SInterval (SInterval), SPitch, embed, embedP, fifth, fifth', major, minor, seventh, seventh', spc, third, third', unison, (+^), (^*))
+import Musicology.Pitch qualified as MP
+
+import Control.Monad (forM, forM_, replicateM, unless, when, zipWithM, zipWithM_)
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.Reader (MonadReader (..), ReaderT, lift, runReaderT)
 import Control.Monad.State.Strict (MonadState (get), StateT (runStateT), evalStateT, execStateT, modify)
@@ -41,20 +45,17 @@ import Data.Map.Strict qualified as M
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text.IO (putStr)
+import Data.Text.Lazy qualified as Txt
 import Data.TypeNums (KnownNat, Nat, intVal)
 import Data.Typeable (Proxy (Proxy), Typeable, typeRep)
 import Data.Vector qualified as V
 import Debug.Trace qualified as DT
 import GHC.Generics
-import Inference.Conjugate
-import Internal.MultiSet qualified as MS
 import Lens.Micro
 import Lens.Micro.Extras (view)
-import Musicology.Pitch (Interval (octave), IntervalClass (emb), SIC (SIC), SInterval (SInterval), SPitch, embed, embedP, fifth, fifth', major, minor, seventh, seventh', spc, third, third', unison, (+^), (^*))
-import Musicology.Pitch qualified as MP
-import Sample (roundtripTestDerivs')
 import Statistics.Distribution qualified as Stats
 import Statistics.Distribution.Poisson qualified as Stats
+import System.ProgressBar qualified as PB
 import System.Random.MWC.Probability (Gen, Prob (sample), binomial, categorical, createSystemRandom, discrete, discreteUniform, poisson, uniform)
 import Torch qualified as T
 import Torch.Typed qualified as TT
@@ -96,6 +97,13 @@ instance (Eq a) => Distribution (Choose a) where
 -- Sampling Chords
 -- ===============
 
+chords :: [(QType, [SIC])]
+chords =
+  [ (0.5, [unison, major third', fifth'])
+  , (0.3, [unison, minor third', fifth'])
+  , (0.2, [unison, major third', fifth', minor seventh'])
+  ]
+
 sampleChordRoots :: (_) => m [Note SPitch]
 sampleChordRoots = do
   -- choose chord
@@ -118,12 +126,21 @@ sampleChordRoots = do
  where
   fifthSize = TT.natValI @FifthSize
   fifthLow = intValI @FifthLow
-  chords :: [(QType, [SIC])]
-  chords =
-    [ (0.5, [unison, major third', fifth'])
-    , (0.3, [unison, minor third', fifth'])
-    , (0.2, [unison, major third', fifth', minor seventh'])
-    ]
+
+sampleChordRoots1 :: (_) => m [Note SPitch]
+sampleChordRoots1 = do
+  chordType <- sampleConst "chordType" (Categorical @3) $ V.fromList (fst <$> chords)
+  rootFifths <- (+ fifthLow) <$> sampleConst "rootFifths" (Binomial fifthSize) 0.5
+  let root = spc rootFifths
+      ctones = snd $ chords !! chordType
+  forM ctones $ \ctone -> do
+    octs <- fmap (`subtract` 2) $ sampleConst "chordToneOct" (Categorical @5) $ V.fromList [0.1, 0.2, 0.4, 0.2, 0.1]
+    let pitch = (emb <$> (root +^ ctone)) +^ (octave ^* (octs + 4))
+    id <- sampleConst "chordRootID" (MagicalID "root") ()
+    pure $ Note pitch id
+ where
+  fifthSize = TT.natValI @FifthSize
+  fifthLow = intValI @FifthLow
 
 makeTop :: [Note SPitch] -> (Path (Edges SPitch) (Notes SPitch), PVLeftmost SPitch)
 makeTop notes = (top, LMSplitOnly op)
@@ -132,35 +149,18 @@ makeTop notes = (top, LMSplitOnly op)
   op = mempty{splitReg = M.singleton (Start, Stop) $ mkRoot <$> notes}
   mkRoot note = (note, RootNote)
 
-sampleChord :: (_) => m (Either String [PVLeftmost SPitch])
+sampleChord :: (_) => m (Either String (PVAnalysis SPitch))
 sampleChord = do
-  roots <- sampleChordRoots
+  roots <- sampleChordRoots1
   let (top, rootOp) = makeTop roots
-  deriv <- sampleDerivation top
-  pure $ fmap (rootOp :) deriv
+  derivE <- sampleDerivation top
+  pure $ do
+    -- Either
+    Analysis deriv _ <- derivE
+    Right $ Analysis (rootOp : deriv) $ PathEnd topEdges
 
-writeRandomChords n minSteps = do
-  gen <- createSystemRandom
-  Right hyper <- loadPVHyper "../posterior.json"
-  let probs = expectedProbs @PVParams hyper
-  replicateMWithI n $ \i -> do
-    deriv <- sampleUntilGood sampleChord gen 200 probs minSteps
-    print $ length deriv
-    let ana :: PVAnalysis SPitch
-        ana = Analysis deriv (PathEnd mempty)
-    JSON.encodeFile ("/tmp/rl/chord" <> show i <> ".analysis.json") ana
-
-getRandomDeriv minSteps = do
-  gen <- createSystemRandom
-  Right hyper <- loadPVHyper "../posterior.json"
-  let probs = expectedProbs @PVParams hyper
-  sampleUntilGood sampleChord gen 200 probs minSteps
-
-roundtripTestChords :: Int -> IO [(String, PVAnalysis SPitch)]
-roundtripTestChords = roundtripTestDerivs' sampleChord
-
--- Training on Derivations
--- =======================
+-- Derivations to Training Data
+-- ============================
 
 {- | auxiliary type that captures the result of applying a derivation operation
 to a parse state.
@@ -309,6 +309,10 @@ renameParentIDs (SpreadOp spreads edges) = SpreadOp spreads' edges
     SpreadBothChildren l r -> (mkParent2 l r, spread)
   spreads' = HM.fromList $ fmap rename $ HM.toList spreads
 
+type ImitationDataX dev = forall r. (forall n. (KnownNat n) => QEncoding dev '[n] -> r) -> r
+type ImitationDataY dev = T.Tensor
+type ImitationData dev = (ImitationDataX dev, ImitationDataY dev)
+
 {- | Turns a derivation into a list of labelled datapoints (x,y)
 that can be used for training.
 
@@ -321,7 +325,7 @@ derivationToDatapoints
   :: forall dev
    . (TT.KnownDevice dev)
   => PVAnalysis SPitch
-  -> Either String [(forall r. (forall n. (KnownNat n) => QEncoding dev '[n] -> r) -> r, T.Tensor)]
+  -> Either String [ImitationData dev]
 derivationToDatapoints analysis@(Analysis deriv top) = do
   states <- derivationToParseStates analysis
   zipWithM mkData deriv states
@@ -341,19 +345,22 @@ derivationToDatapoints analysis@(Analysis deriv top) = do
   mkData
     :: PVLeftmost SPitch
     -> PVState
-    -> Either String (forall r. (forall n. (KnownNat n) => QEncoding dev '[n] -> r) -> r, T.Tensor)
+    -> Either String (ImitationData dev)
   mkData op state = do
     let actionsAll = getActions (protoVoiceEvaluator @[] @[]) state
-        actions = take 200 actionsAll
+        maxActions = 1000
+        actions = take maxActions actionsAll
     case actions of
       [] -> Left "no actions available!"
       (a : as) -> do
-        let encoding :: forall r. (forall n. (KnownNat n) => QEncoding dev '[n] -> r) -> r
+        let encoding :: ImitationDataX dev
             encoding = withBatchedEncoding state (a NE.:| as)
             target = fmap (eqOp op) actions
             !targetTensor = toQTensor' @dev $ target
-        when ((length actions == 200) && (length (take 201 actionsAll) > 200)) $
-          Left "too many actions (more than 200)!"
+        when ((length actions == maxActions) && (length (take (maxActions + 1) actionsAll) > maxActions)) $ do
+          -- DT.traceM "too many actions in this state:"
+          -- DT.traceShowM state
+          Left $ "too many actions (more than " <> show maxActions <> ")!"
         when (not $ any id target) $ do
           DT.traceM "Couldn't match any action!\nstate:"
           DT.traceShowM state
@@ -371,18 +378,102 @@ derivationToDatapoints analysis@(Analysis deriv top) = do
           Left "could not match any action!"
         Right (encoding, targetTensor)
 
+-- Training on Derivations
+-- =======================
+
+sampleDerivationData
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => _model
+  -> _gen
+  -> Int
+  -> Probs PVParams
+  -> Int
+  -> IO [ImitationData dev]
+sampleDerivationData model gen maxN probs minSteps = goodData
+ where
+  goodData :: IO [ImitationData dev]
+  goodData = do
+    ana <- sampleUntilGood model gen maxN probs minSteps
+    case derivationToDatapoints @dev ana of
+      Left err -> do
+        goodData
+      Right dat -> pure dat
+
+makeChordData :: forall dev. (TT.KnownDevice dev) => Int -> IO [ImitationData dev]
+makeChordData n = do
+  gen <- createSystemRandom
+  Right hyper <- loadPVHyper "../posterior.json"
+  let probs = expectedProbs @PVParams hyper
+  putStrLn "Generating data."
+  pb <-
+    PB.newProgressBar
+      ( PB.defStyle
+          { PB.stylePrefix = (PB.elapsedTime PB.renderDuration)
+          , PB.stylePostfix = PB.exact <> " (" <> PB.percentage <> ")"
+          , PB.styleWidth = PB.ConstantWidth 80
+          }
+      )
+      10
+      (PB.Progress 0 n ())
+  let samplePiece :: IO [ImitationData dev]
+      samplePiece = do
+        d <- sampleDerivationData @dev sampleChord gen 200 probs 4
+        PB.incProgress pb 1
+        pure d
+  derivData <- replicateM n samplePiece
+  pure $ concat derivData
+
+-- Debugging
+-- =========
+
+writeRandomChords n minSteps = do
+  gen <- createSystemRandom
+  Right hyper <- loadPVHyper "../posterior.json"
+  let probs = expectedProbs @PVParams hyper
+  replicateMWithI n $ \i -> do
+    ana <- sampleUntilGood sampleChord gen 200 probs minSteps
+    print $ length $ anaDerivation ana
+    JSON.encodeFile ("/tmp/rl/chord" <> show i <> ".analysis.json") ana
+
+getRandomDeriv minSteps = do
+  gen <- createSystemRandom
+  Right hyper <- loadPVHyper "../posterior.json"
+  let probs = expectedProbs @PVParams hyper
+  sampleUntilGood sampleChord gen 200 probs minSteps
+
+roundtripTestChords :: Int -> IO [(String, PVAnalysis SPitch)]
+roundtripTestChords = roundtripTestDerivs' sampleChord
+
 testDerivToData minSteps = do
-  deriv <- getRandomDeriv minSteps
+  ana <- getRandomDeriv minSteps
   -- mapM_ print deriv
-  print $ length deriv
-  case derivationToDatapoints @'(TT.CPU, 0) (Analysis deriv $ PathEnd topEdges) of
+  print $ length $ anaDerivation ana
+  case derivationToDatapoints @'(TT.CPU, 0) ana of
     Left err -> putStrLn err
     Right dat -> mapM_ print $ snd <$> dat
 
 testDerivToDataMany minSteps n = do
-  derivs <- replicateM n $ getRandomDeriv minSteps
-  let toData deriv = derivationToDatapoints @'(TT.CPU, 0) (Analysis deriv $ PathEnd topEdges)
-      datapoints = fmap toData derivs
-      errors = lefts datapoints
-  mapM_ putStrLn errors
-  putStrLn $ show (length errors) <> "/" <> show n <> " errors."
+  anas <- replicateM n $ getRandomDeriv minSteps
+  let toData
+        :: PVAnalysis SPitch
+        -> Either (String, PVAnalysis SPitch) [ImitationData '(TT.CPU, 0)]
+      toData ana = case derivationToDatapoints @'(TT.CPU, 0) ana of
+        Left err -> Left (err, ana)
+        Right a -> Right a
+      datapoints = fmap toData anas
+      errorCases = lefts datapoints
+      doError (err, ana) i = do
+        putStrLn err
+        unless (take 3 err == "too") $
+          JSON.encodeFile ("/tmp/rl/error" <> show i <> ".analysis.json") ana
+  zipWithM_ doError errorCases [1 ..]
+  putStrLn $ show (length errorCases) <> "/" <> show n <> " errors."
+
+testDerivToDataFile fn = do
+  anaE <- loadAnalysis fn
+  case anaE of
+    Left err -> putStrLn err
+    Right ana -> case derivationToDatapoints @'(TT.CPU, 0) ana of
+      Left err -> putStrLn err
+      Right dat -> mapM_ print $ snd <$> dat

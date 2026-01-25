@@ -158,12 +158,33 @@ findOrnament
           (PassingOrnament, InnerEdge n)
       )
 findOrnament (Inner l) m (Inner r)
-  | pl == pm && pm == pr = Just $ Reg (FullRepeat, (Inner l, Inner r))
+  -- case 1: l and r have same pc: FullRepeat or FullNeighbor
+  | pl == pr = case () of
+      ()
+        | pm == pr -> Just $ Reg (FullRepeat, (Inner l, Inner r))
+        | s1 -> Just $ Reg (FullNeighbor, (Inner l, Inner r))
+        | otherwise -> Nothing
+  -- case 2: two steps in the same direction: passing
   | s1 && s2 && between pl pm pr = Just $ Pass (PassingMid, (l, r))
-  | dl == dm && so = Just $ Reg (RightRepeatOfLeft, (Inner l, Inner r))
-  | dm == dr && so = Just $ Reg (LeftRepeatOfRight, (Inner l, Inner r))
-  | pl == pr && s1 = Just $ Reg (FullNeighbor, (Inner l, Inner r))
+  -- case 3: l and r have same degree: LeftRepeatOfRight or RightRepeatOfLeft
+  | dl == dr = case () of
+      ()
+        -- dir l m == dir l r: derived from right
+        | dl == dm && direction (pl `pto` pm) == direction (pl `pto` pr) ->
+            Just $ Reg (LeftRepeatOfRight, (Inner l, Inner r))
+        -- dir l m /= dir l r: derived from left
+        | dl == dm -> Just $ Reg (RightRepeatOfLeft, (Inner l, Inner r))
+        -- m not same degree, but l->m is step: neighbor
+        | s1 -> Just $ Reg (FullNeighbor, (Inner l, Inner r))
+        | otherwise -> Nothing
+  -- case 4: outer is step but not same degree
+  | so = case () of
+      ()
+        | dl == dm -> Just $ Reg (RightRepeatOfLeft, (Inner l, Inner r))
+        | dr == dm -> Just $ Reg (LeftRepeatOfRight, (Inner l, Inner r))
+        | otherwise -> Nothing
  where
+  goesUp a b = direction (a `pto` b) == GT
   pl = pc $ pitch $ notePitch l
   pm = pc $ pitch $ notePitch m
   pr = pc $ pitch $ notePitch r

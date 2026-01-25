@@ -31,7 +31,7 @@ pvRewardSample
 pvRewardSample _ _ (Left _) (Just _) _ _ = pure 0
 pvRewardSample _ _ (Left _) Nothing _ _ = pure (-inf)
 pvRewardSample gen hyper (Right (top, deriv)) _ _ _ = do
-  let trace = observeDerivation deriv (PathEnd top)
+  let trace = observeDerivation $ Analysis deriv (PathEnd top)
   probs <- MWC.sample (sampleProbs @PVParams hyper) gen
   case trace of
     Left error -> do
@@ -50,7 +50,7 @@ pvRewardExp hyper (Right (top, deriv)) _ _ _ =
   pvRewardExp' hyper (Analysis deriv (PathEnd top))
 
 pvRewardExp' :: Hyper PVParams -> PVAnalysis SPitch -> IO QType
-pvRewardExp' hyper (Analysis deriv top) =
+pvRewardExp' hyper ana@(Analysis deriv top) =
   case trace of
     Left err -> do
       putStrLn $ "error giving reward: " <> err
@@ -65,7 +65,7 @@ pvRewardExp' hyper (Analysis deriv top) =
         Just (_, logprob) -> pure $ logprob / fromIntegral (length deriv)
  where
   probs = expectedProbs @PVParams hyper
-  trace = observeDerivation deriv top
+  trace = observeDerivation ana
 
 pvRewardActionByLen
   :: Hyper PVParams -> PVRewardFn Int
