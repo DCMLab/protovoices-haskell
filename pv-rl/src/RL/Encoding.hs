@@ -320,11 +320,14 @@ pitch2index
   :: SPitch
   -> [Int]
 pitch2index p =
-  [ clamp fifthSize (fifths p - fifthLow)
-  , clamp octaveSize (octaves p - octaveLow)
+  [ clamp fifthSize 12 (fifths p - fifthLow)
+  , clamp octaveSize 1 (octaves p - octaveLow)
   ]
  where
-  clamp m i = max 0 $ min m i
+  clamp maxVal step i
+    | i < 0 = clamp maxVal step (i + step)
+    | i >= maxVal = clamp maxVal step (i - step)
+    | otherwise = i
   fifthLow = intValI @FifthLow
   octaveLow = intValI @OctaveLow
   fifthSize = TT.natValI @FifthSize
@@ -355,9 +358,8 @@ pitchesOneHotSum
   => [SPitch]
   -> SliceEncodingDense dev '[]
 pitchesOneHotSum [] = SliceEncodingDense TT.zeros
-pitchesOneHotSum ps = SliceEncodingDense out
+pitchesOneHotSum pitches = SliceEncodingDense out
  where
-  pitches = ps
   n = length pitches
   -- maxPitches = TT.natValI @MaxPitches
   mkIndex i pitch = i : pitch2index pitch
