@@ -717,6 +717,24 @@ encodeStep state action =
     (encodePVAction action)
     (encodePVState state)
 
+encodeStepsFake
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => PVState
+  -> NonEmpty PVAction
+  -> QEncoding dev '[FakeSize]
+encodeStepsFake state (a0 :| actions) =
+  VS.withSizedList aEncs inner
+ where
+  inner :: forall n. (KnownNat n) => VS.Vector n (ActionEncoding dev '[]) -> QEncoding dev '[FakeSize]
+  inner aEncs' = QEncoding (unsafeCoerce stackedAEncs) sEnc
+   where
+    stackedAEncs :: ActionEncoding dev '[n + 1]
+    stackedAEncs = stack (VS.cons a0Enc aEncs')
+  a0Enc = encodePVAction a0
+  aEncs = encodePVAction <$> actions
+  sEnc = encodePVState state
+
 withBatchedEncoding
   :: forall dev r
    . (TT.KnownDevice dev)

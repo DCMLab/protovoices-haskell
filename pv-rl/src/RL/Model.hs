@@ -35,7 +35,7 @@ import GreedyParser (DoubleParent (DoubleParent), SingleParent (SingleParent))
 import NoThunks.Class (NoThunks (..), OnlyCheckWhnf (..), allNoThunks)
 import RL.Encoding
 import RL.ModelTypes
-import RL.TorchHelpers (withBatchDim)
+import RL.TorchHelpers (ToModelTensors, withBatchDim)
 import RL.TorchHelpers qualified as TH
 import Torch qualified as T
 import Torch.Jit qualified as TJit
@@ -520,6 +520,9 @@ data QModel dev = QModel
   }
   deriving (Show, Generic, TT.Parameterized, NoThunks, NFData)
 
+type ModelParams dev = TT.Parameters (QModel dev)
+type ModelTensors dev = ToModelTensors (ModelParams dev)
+
 instance (IsValidDevice dev) => T.Randomizable (QSpec dev) (QModel dev) where
   sample :: QSpec dev -> IO (QModel dev)
   sample QSpec = do
@@ -688,6 +691,21 @@ runBatchedPolicy
   -> QEncoding dev '[batchSize]
   -> T.Tensor
 runBatchedPolicy temp actor encoding = TT.toDynamic $ TT.softmax @0 $ TT.mulScalar (1 / temp) policy
+ where
+  policy :: QTensor dev '[batchSize, 1]
+  policy = case cmpNat (Proxy @1) (Proxy @batchSize) of
+    EQI -> forwardPolicyBatched @dev @batchSize actor encoding
+    LTI -> forwardPolicyBatched @dev @batchSize actor encoding
+    GTI -> error "batched policy: no actions"
+
+runBatchedLogPolicy
+  :: forall dev batchSize
+   . (IsValidDevice dev, KnownNat batchSize)
+  => QType
+  -> QModel dev
+  -> QEncoding dev '[batchSize]
+  -> T.Tensor
+runBatchedLogPolicy temp actor encoding = TT.toDynamic $ TT.logSoftmax @0 $ TT.mulScalar (1 / temp) policy
  where
   policy :: QTensor dev '[batchSize, 1]
   policy = case cmpNat (Proxy @1) (Proxy @batchSize) of

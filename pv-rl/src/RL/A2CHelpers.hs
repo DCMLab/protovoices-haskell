@@ -12,9 +12,6 @@ import Torch.Typed qualified as TT
 -- helpers for operating on HLists
 -- ===============================
 
-type ModelParams dev = TT.Parameters (QModel dev)
-type ModelTensors dev = ToModelTensors (ModelParams dev)
-
 newtype UpdateEligCritic = UpdateEligCritic QType
 
 instance (TT.KnownDevice dev) => TT.Apply' UpdateEligCritic (QTensor dev shape, QTensor dev shape) (QTensor dev shape) where
