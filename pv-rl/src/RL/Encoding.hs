@@ -28,7 +28,7 @@ import Data.Foldable qualified as F
 import Data.HashSet qualified as HS
 import Data.Hashable (Hashable)
 import Data.List qualified
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe (catMaybes, mapMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Type.Equality ((:~:) (..))
@@ -717,13 +717,13 @@ encodeStep state action =
     (encodePVAction action)
     (encodePVState state)
 
-encodeStepsFake
+encodeStepFake
   :: forall dev
    . (TT.KnownDevice dev)
   => PVState
-  -> NonEmpty PVAction
+  -> NE.NonEmpty PVAction
   -> QEncoding dev '[FakeSize]
-encodeStepsFake state (a0 :| actions) =
+encodeStepFake state (a0 NE.:| actions) =
   VS.withSizedList aEncs inner
  where
   inner :: forall n. (KnownNat n) => VS.Vector n (ActionEncoding dev '[]) -> QEncoding dev '[FakeSize]
@@ -739,10 +739,10 @@ withBatchedEncoding
   :: forall dev r
    . (TT.KnownDevice dev)
   => PVState
-  -> NonEmpty PVAction
+  -> NE.NonEmpty PVAction
   -> (forall n. (KnownNat n) => QEncoding dev '[n] -> r)
   -> r
-withBatchedEncoding state (a0 :| actions) f =
+withBatchedEncoding state (a0 NE.:| actions) f =
   VS.withSizedList aEncs inner
  where
   inner :: forall n. (KnownNat n) => VS.Vector n (ActionEncoding dev '[]) -> r
@@ -750,3 +750,27 @@ withBatchedEncoding state (a0 :| actions) f =
   a0Enc = encodePVAction a0
   aEncs = encodePVAction <$> actions
   sEnc = encodePVState state
+
+-- batching several steps
+-- ======================
+
+data QEncodingBatch dev = QEncodingBatch
+  { qBatchActions :: !(ActionEncoding dev '[FakeSize])
+  , qBatchStates :: ![StateEncoding dev]
+  , qBatchSizes :: ![Int]
+  }
+  deriving (Show, Generic, NFData)
+
+encodeBatch
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => [(PVState, NE.NonEmpty PVAction)]
+  -> QEncodingBatch dev
+encodeBatch steps = QEncodingBatch actionsEnc stateEncs sizes
+ where
+  states = fst <$> steps
+  actionLists = snd <$> steps
+  sizes = NE.length <$> actionLists
+  (aEnc0 : aEncs) = encodePVAction @dev <$> concatMap NE.toList actionLists -- TODO: this is potentially unsafe
+  actionsEnc = VS.withSizedList aEncs $ \aEncs' -> unsafeCoerce $ stack (VS.cons aEnc0 aEncs')
+  stateEncs = encodePVState <$> states

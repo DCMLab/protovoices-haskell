@@ -726,3 +726,45 @@ runBatchedQ actor encoding = TT.toDynamic $ policy
     EQI -> forwardPolicyBatched @dev @batchSize actor encoding
     LTI -> forwardPolicyBatched @dev @batchSize actor encoding
     GTI -> error "batched policy: no actions"
+
+forwardPolicyFullyBatched
+  :: forall dev
+   . (IsValidDevice dev)
+  => QModel dev
+  -> QEncodingBatch dev
+  -> [T.Tensor]
+forwardPolicyFullyBatched (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncodingBatch actsEnc stEncs sizes) =
+  getOuts 0 sizes
+ where
+  actEmb :: QTensor dev (FakeSize : EmbSize : PShape)
+  actEmb = T.forward act (slc, tr, actsEnc)
+  stEmbs :: [QTensor dev (EmbSize : PShape)]
+  stEmbs = fmap (\stEnc -> T.forward st (slc, tr, stEnc)) stEncs
+  stEmbs' :: [T.Tensor]
+  stEmbs' = zipWith (\emb size -> T.repeat [size, 1, 1, 1] $ TT.toDynamic emb) stEmbs sizes
+  stEmb :: QTensor dev (FakeSize : EmbSize : PShape)
+  stEmb = TT.UnsafeMkTensor (T.cat (T.Dim 0) stEmbs')
+  inputEmb :: QTensor dev (FakeSize : EmbSize : PShape)
+  inputEmb = actEmb `TT.add` stEmb
+  out1 :: QTensor dev (FakeSize : QOutHidden : PShape)
+  out1 = TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) final1 inputEmb
+  sum1 :: QTensor dev '[FakeSize, QOutHidden]
+  sum1 = TT.sumDim @2 $ TT.sumDim @2 out1
+  out1norm :: QTensor dev '[FakeSize, QOutHidden]
+  out1norm = activation $ T.forward norm1 sum1
+  out2 :: QTensor dev '[FakeSize, 1]
+  out2 = T.forward final2 out1norm
+  outAll = TT.toDynamic out2
+  getOuts :: Int -> [Int] -> [T.Tensor]
+  getOuts _ [] = []
+  getOuts start (size : sizes) = (outAll T.! (T.Slice (start, start + size))) : getOuts (start + size) sizes
+
+runFullyBatchedLogPolicy
+  :: (IsValidDevice dev)
+  => QType
+  -> QModel dev
+  -> QEncodingBatch dev
+  -> [T.Tensor]
+runFullyBatchedLogPolicy temp model batch = fmap activate $ forwardPolicyFullyBatched model batch
+ where
+  activate = T.logSoftmax (T.Dim 0) . T.mulScalar (1 / temp)

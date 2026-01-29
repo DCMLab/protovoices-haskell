@@ -307,7 +307,7 @@ renameParentIDs (SpreadOp spreads edges) = SpreadOp spreads' edges
   spreads' = HM.fromList $ fmap rename $ HM.toList spreads
 
 -- type ImitationDataX dev = forall r. (forall n. (KnownNat n) => QEncoding dev '[n] -> r) -> r
-type ImitationDataX dev = QEncoding dev '[FakeSize]
+type ImitationDataX dev = (PVState, NE.NonEmpty PVAction) -- QEncoding dev '[FakeSize]
 type ImitationDataY dev = T.Tensor
 data ImitationData dev = ImitationData
   { dataInput :: !(ImitationDataX dev)
@@ -330,8 +330,52 @@ derivationToDatapoints
   -> Either String [ImitationData dev]
 derivationToDatapoints analysis@(Analysis deriv top) = do
   states <- derivationToParseStates analysis
-  dataMaybe <- zipWithM mkData deriv states
+  dataMaybe <- zipWithM stateToDatapoint deriv states
   pure $ catMaybes dataMaybe
+
+stateToDatapoint
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => PVLeftmost SPitch
+  -> PVState
+  -> Either String (Maybe (ImitationData dev))
+stateToDatapoint op !state =
+  do
+    let actionsAll = getActions (protoVoiceEvaluator @[] @[]) state
+        maxActions = 100
+        actions = take maxActions actionsAll
+    if length actions == 1
+      then Right Nothing -- filter out
+      else
+        if (length actions == maxActions) && (length (take (maxActions + 1) actionsAll) > maxActions)
+          then do
+            -- DT.traceM "too many actions in this state:"
+            -- DT.traceShowM state
+            Left $ "too many actions (more than " <> show maxActions <> ")!"
+          else do
+            case actions of
+              [] -> Left "no actions available!"
+              (!a : as) -> do
+                let encoding :: ImitationDataX dev
+                    !encoding = (state, (a NE.:| as)) -- encodeStepFake state (a NE.:| as) -- withBatchedEncoding state (a NE.:| as)
+                target <- case L.findIndex (eqOp op) actions of
+                  Nothing -> do
+                    -- DT.traceM "Couldn't match any action!\nstate:"
+                    -- DT.traceShowM state
+                    -- DT.traceM "actual step:"
+                    -- DT.traceM $ case op of
+                    --   LMSingle op' -> show op' <> "\n"
+                    --   LMDouble op' -> case op' of
+                    --     LMDoubleSpread spread -> show (renameParentIDs spread) <> "\n"
+                    --     a -> show a <> "\n"
+                    -- DT.traceM "available actions:"
+                    -- forM_ actions $ \action -> DT.traceM $ case action of
+                    --   Left (ActionSingle _ a) -> show a <> "\n"
+                    --   Right (ActionDouble _ a) -> show a <> "\n"
+                    -- DT.traceM $ show (length actions) <> " actions"
+                    Left "could not match any action!"
+                  Just ix -> Right $ T.toDevice (TT.deviceVal @dev) $ T.asTensor [ix]
+                Right $! Just $! ImitationData encoding target
  where
   eqOp (LMSingle op) (Left (ActionSingle _ action)) = case (op, action) of
     (LMSingleFreeze fo, LMSingleFreeze fa) -> fo == fa
@@ -344,48 +388,6 @@ derivationToDatapoints analysis@(Analysis deriv top) = do
     (LMDoubleSpread ho, LMDoubleSpread ha) -> renameParentIDs ho == ha
     _ -> False
   eqOp _ _ = False
-
-  mkData
-    :: PVLeftmost SPitch
-    -> PVState
-    -> Either String (Maybe (ImitationData dev))
-  mkData op state =
-    do
-      let actionsAll = getActions (protoVoiceEvaluator @[] @[]) state
-          maxActions = 1000
-          actions = take maxActions actionsAll
-      if length actions == 1
-        then Right Nothing -- filter out
-        else
-          if (length actions == maxActions) && (length (take (maxActions + 1) actionsAll) > maxActions)
-            then do
-              -- DT.traceM "too many actions in this state:"
-              -- DT.traceShowM state
-              Left $ "too many actions (more than " <> show maxActions <> ")!"
-            else do
-              case actions of
-                [] -> Left "no actions available!"
-                (a : as) -> do
-                  let encoding :: ImitationDataX dev
-                      !encoding = encodeStepsFake state (a NE.:| as) -- withBatchedEncoding state (a NE.:| as)
-                  target <- case L.findIndex (eqOp op) actions of
-                    Nothing -> do
-                      -- DT.traceM "Couldn't match any action!\nstate:"
-                      -- DT.traceShowM state
-                      -- DT.traceM "actual step:"
-                      -- DT.traceM $ case op of
-                      --   LMSingle op' -> show op' <> "\n"
-                      --   LMDouble op' -> case op' of
-                      --     LMDoubleSpread spread -> show (renameParentIDs spread) <> "\n"
-                      --     a -> show a <> "\n"
-                      -- DT.traceM "available actions:"
-                      -- forM_ actions $ \action -> DT.traceM $ case action of
-                      --   Left (ActionSingle _ a) -> show a <> "\n"
-                      --   Right (ActionDouble _ a) -> show a <> "\n"
-                      -- DT.traceM $ show (length actions) <> " actions"
-                      Left "could not match any action!"
-                    Just ix -> Right $ T.toDevice (TT.deviceVal @dev) $ T.asTensor [ix]
-                  Right $! Just $! ImitationData encoding target
 
 -- Making Data
 -- ===========
@@ -511,10 +513,12 @@ trainEpoch i nBatches lr state batches = do
   step pb ((!model, !optim), (!losses, !accs)) batch = do
     let inputs = dataInput <$> batch
         labels = dataLabel <$> batch
-        predict :: ImitationDataX dev -> T.Tensor
-        -- predict inputF = T.transpose2D $ inputF (runBatchedLogPolicy 1 model)
-        predict input = T.transpose2D $ runBatchedLogPolicy 1 model input
-        predictions = fmap predict inputs
+        -- predict :: ImitationDataX dev -> T.Tensor
+        -- -- predict inputF = T.transpose2D $ inputF (runBatchedLogPolicy 1 model)
+        -- predict (state, actions) = T.transpose2D $ runBatchedLogPolicy 1 model $ encodeStepFake state actions
+        -- predictions = fmap predict inputs
+        batchEncoding = encodeBatch inputs
+        predictions = T.transpose2D <$> runFullyBatchedLogPolicy 1 model batchEncoding
         loss =
           T.divScalar
             (length batch)
@@ -522,10 +526,10 @@ trainEpoch i nBatches lr state batches = do
         lossTyped :: TT.Loss dev QDType
         lossTyped = TT.UnsafeMkTensor loss + fakeLoss model
         !lossScalar = T.asValue loss
-        accuracy = mean $ zipWith hit labels predictions
+        !accuracy = mean $ zipWith hit labels predictions
     !state' <- TT.runStep model optim lossTyped lr
     PB.incProgress pb 1
-    pure (state', (lossScalar : losses, accuracy : accs))
+    pure $! (state', (lossScalar : losses, accuracy : accs))
   begin = pure (state, ([], []))
   done = pure
   pbStyle =
@@ -535,23 +539,43 @@ trainEpoch i nBatches lr state batches = do
       , PB.styleWidth = PB.ConstantWidth 80
       }
 
+-- validateEpoch
+--   :: (IsValidDevice dev)
+--   => QModel dev
+--   -> P.ListT IO (ImitationData dev)
+--   -> IO (QType, QType)
+-- validateEpoch model dataset = do
+--   (losses, accs) <- P.foldM step begin done $ P.enumerate dataset
+--   pure $ (mean losses, mean accs)
+--  where
+--   begin = pure ([], [])
+--   done = pure
+--   step (!losses, !accs) datapoint = pure $! (loss : losses, acc : accs)
+--    where
+--     prediction = T.transpose2D $ runBatchedLogPolicy 1 model $ dataInput datapoint
+--     label = dataLabel datapoint
+--     !loss = T.asValue $ nll label prediction
+--     !acc = hit label prediction
+
 validateEpoch
   :: (IsValidDevice dev)
   => QModel dev
   -> P.ListT IO (ImitationData dev)
   -> IO (QType, QType)
 validateEpoch model dataset = do
-  (losses, accs) <- P.foldM step begin done $ P.enumerate dataset
+  datapoints <- P.toListM $ P.enumerate dataset
+  let batchEncoding = encodeBatch $ dataInput <$> datapoints
+      predictions = runFullyBatchedLogPolicy 1 model batchEncoding
+      results = zipWith lossAndAcc predictions datapoints
+      (losses, accs) = unzip results
   pure $ (mean losses, mean accs)
  where
-  begin = pure ([], [])
-  done = pure
-  step (losses, accs) datapoint = pure $ (loss : losses, acc : accs)
+  lossAndAcc pred datapoint = (loss, acc)
    where
-    prediction = T.transpose2D $ runBatchedLogPolicy 1 model $ dataInput datapoint
+    prediction = T.transpose2D pred
     label = dataLabel datapoint
-    loss = T.asValue $ nll label prediction
-    acc = hit label prediction
+    !loss = T.asValue $ nll label $ prediction
+    !acc = hit label prediction
 
 train
   :: (IsValidDevice dev)
@@ -610,34 +634,6 @@ trainDatastream model0 trainStream =
   train model0 () streamer
  where
   streamer () = ContT $ \k -> k (T.streamSamples trainStream (), ())
-
--- trainModel' gen model0 trainStream testData fLR epochs nBatches batchSize = do
---   ((modelTrained, _), histTrain, histTest) <-
---     T.foldLoop ((model0, optim0), [], []) epochs trainLoop
---   pure (modelTrained, (reverse histTrain, reverse histTest))
---  where
---   optim0 = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model0)
---   trainLoop (state, lossesTrain, lossesTest) epoch = do
---     -- training step
---     let lr = fLR $ fromIntegral epoch
---     ((!model', !optim'), !trainLoss) <-
---       runContT (T.streamFrom' (T.datastreamOpts) trainStream [gen]) $
---         \dataset -> do
---           let batches = T.collate batchSize Just dataset
---           (!state', !loss) <- trainEpoch epoch nBatches lr state batches
---           pure $! (state', loss)
---     saveModel "rl/actor-imit.pt" model'
---     -- test metrics
---     testLoss <-
---       runContT (T.streamFromMap (T.datasetOpts 1) testData) $
---         testEpoch model' . fst
---     -- return
---     putStrLn $ "trainLoss: " <> show trainLoss
---     putStrLn $ "testLoss:  " <> show testLoss
---     let lossesTrain' = trainLoss : lossesTrain
---         lossesTest' = testLoss : lossesTest
---     plotHistories "losses-imitation" [reverse lossesTrain', reverse lossesTest']
---     pure ((model', optim'), lossesTrain', lossesTest')
 
 type TestDevice = '(TT.CPU, 0)
 
