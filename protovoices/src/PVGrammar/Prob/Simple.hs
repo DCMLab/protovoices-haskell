@@ -111,6 +111,7 @@ module PVGrammar.Prob.Simple
     -- 'observeDerivation' takes and existing derivation and returns the corresponding trace.
   , sampleDerivation
   , sampleDerivation'
+  , produceDerivation
   , observeDerivation
   , observeDerivation'
 
@@ -181,7 +182,8 @@ import Control.Monad
 import Control.Monad.State qualified as ST
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except
-  ( except
+  ( ExceptT
+  , except
   , runExceptT
   )
 import Control.Monad.Trans.State
@@ -220,6 +222,8 @@ import Musicology.Pitch hiding
   , g
   )
 import Musicology.Pitch qualified as MP
+import Pipes qualified as P
+import Pipes.Lift qualified as P
 import System.Random.MWC.Probability (categorical, createSystemRandom, uniform)
 
 -- orphan instances
@@ -495,6 +499,60 @@ sampleDerivation top = do
         (ctl, csl, ctm, csr, ctr) <- except $ applySpread spreadOp tl sm tr
         nextSteps <- go sl (Path ctl csl (Path ctm csr (mkrest ctr))) False
         pure $ LMSpread spreadOp : nextSteps
+
+{- | Creates a 'Pipes.Producer' for derivation steps.
+Streams derivation steps until an error or the end of the program are reached.
+This lets you inspect a partial derivation until the point where it failed
+or sample the derivation step by step and stopping at any point (e.g. using 'Pipes.take').
+-}
+produceDerivation
+  :: (_)
+  => Path (Edges SPitch) (Notes SPitch)
+  -- ^ root path
+  -> P.Producer (PVLeftmost SPitch) m (Either String ())
+  -- ^ a probabilistic program
+produceDerivation top = P.runExceptP $ go Start top False
+ where
+  go sl surface ars = do
+    -- DT.traceShowM (sl, surface)
+    case surface of
+      -- 1 trans left:
+      PathEnd t -> do
+        step <- lift $ lift $ sampleSingleStep (sl, t, Stop)
+        case step of
+          LMSingleSplit splitOp -> do
+            (ctl, cs, ctr) <- lift $ except $ applySplit splitOp t
+            P.yield $ LMSplitOnly splitOp
+            go sl (Path ctl cs (PathEnd ctr)) False
+          LMSingleFreeze freezeOp -> do
+            P.yield $ LMFreezeOnly freezeOp
+            pure ()
+      -- 2 trans left
+      Path tl sm (PathEnd tr) ->
+        goDouble sl tl sm tr Stop ars PathEnd
+      -- 3 or more trans left
+      Path tl sm (Path tr sr rest) ->
+        goDouble sl tl sm tr (Inner sr) ars (\tr' -> Path tr' sr rest)
+
+  -- helper for the two cases of 2+ edges (2 and 3+):
+  goDouble sl tl sm tr sr ars mkrest = do
+    step <- lift $ lift $ sampleDoubleStep (sl, tl, sm, tr, sr) ars
+    case step of
+      LMDoubleSplitLeft splitOp -> do
+        (ctl, cs, ctr) <- lift $ except $ applySplit splitOp tl
+        P.yield $ LMSplitLeft splitOp
+        go sl (Path ctl cs (Path ctr sm (mkrest tr))) False
+      LMDoubleFreezeLeft freezeOp -> do
+        P.yield $ LMFreezeLeft freezeOp
+        go (Inner sm) (mkrest tr) False
+      LMDoubleSplitRight splitOp -> do
+        (ctl, cs, ctr) <- lift $ except $ applySplit splitOp tr
+        P.yield $ LMSplitRight splitOp
+        go sl (Path tl sm (Path ctl cs (mkrest ctr))) True
+      LMDoubleSpread spreadOp -> do
+        (ctl, csl, ctm, csr, ctr) <- lift $ except $ applySpread spreadOp tl sm tr
+        P.yield $ LMSpread spreadOp
+        go sl (Path ctl csl (Path ctm csr (mkrest ctr))) False
 
 {- | Walk through a derivation (starting at a given root path)
  and return the corresponding 'Trace' (if possible).

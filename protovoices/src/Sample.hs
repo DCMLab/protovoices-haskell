@@ -23,6 +23,8 @@ import Data.Typeable (Proxy (..), Typeable, typeRep)
 import Debug.Trace qualified as DT
 import Lens.Micro
 import Lens.Micro.Extras (view)
+import Pipes qualified as P
+import Pipes.Prelude qualified as P
 import System.Random.MWC.Probability (Gen, Prob (..), createSystemRandom)
 
 -- Debugging
@@ -162,6 +164,20 @@ sampleUntilGood model gen maxN probs minSteps = goodDeriv
         goodDeriv
       Right deriv ->
         if length (anaDerivation deriv) >= minSteps then pure deriv else goodDeriv
+
+sampleNSteps
+  :: (Monad m)
+  => P.Producer a (SampleI m p) r
+  -> Gen (PrimState m)
+  -> Int
+  -> p ProbsRep
+  -> Int
+  -> m [a]
+sampleNSteps producer gen n probs minSteps = sampleResult probs goodDeriv gen
+ where
+  goodDeriv = do
+    (deriv, _) <- P.toListM' $ (producer >> pure ()) P.>-> P.take n
+    if length deriv >= minSteps then pure deriv else goodDeriv
 
 roundtripTestDerivs :: Int -> IO [(String, PVAnalysis SPitch)]
 roundtripTestDerivs = roundtripTestDerivs' sampleDerivation'

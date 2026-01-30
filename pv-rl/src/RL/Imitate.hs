@@ -39,7 +39,7 @@ import Control.Monad.Reader (MonadReader (..), ReaderT, lift, runReaderT)
 import Control.Monad.State.Strict (MonadState (get), StateT (runStateT), evalStateT, execStateT, modify)
 import Data.Aeson qualified as JSON
 import Data.Bifunctor (Bifunctor (bimap))
-import Data.Either (lefts)
+import Data.Either (lefts, rights)
 import Data.HashMap.Strict qualified as HM
 import Data.HashSet qualified as HS
 import Data.Kind
@@ -58,9 +58,12 @@ import Debug.Trace qualified as DT
 import GHC.Generics
 import Lens.Micro
 import Lens.Micro.Extras (view)
+import PVGrammar (topEdges)
+import PVGrammar.Prob.Simple (produceDerivation)
 import Pipes qualified as P
 import Pipes.Prelude qualified as P
 import RL.ModelTypes (IsValidDevice)
+import Sample (sampleNSteps)
 import Statistics.Distribution qualified as Stats
 import Statistics.Distribution.Poisson qualified as Stats
 import System.ProgressBar qualified as PB
@@ -148,13 +151,20 @@ makeTop notes = (top, LMSplitOnly op)
 
 sampleChord :: (_) => m (Either String (PVAnalysis SPitch))
 sampleChord = do
-  roots <- sampleChordRoots1
+  roots <- sampleChordRoots
   let (top, rootOp) = makeTop roots
   derivE <- sampleDerivation top
   pure $ do
     -- Either
     Analysis deriv _ <- derivE
     Right $ Analysis (rootOp : deriv) $ PathEnd topEdges
+
+produceChord :: (_) => P.Producer (PVLeftmost SPitch) m (Either String ())
+produceChord = do
+  roots <- lift $ sampleChordRoots
+  let (top, rootOp) = makeTop roots
+  P.yield rootOp
+  produceDerivation top
 
 -- Derivations to Training Data
 -- ============================
@@ -333,6 +343,16 @@ derivationToDatapoints analysis@(Analysis deriv top) = do
   dataMaybe <- zipWithM stateToDatapoint deriv states
   pure $ catMaybes dataMaybe
 
+derivationToDatapointsLenient
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => PVAnalysis SPitch
+  -> Either String [ImitationData dev]
+derivationToDatapointsLenient analysis@(Analysis deriv top) = do
+  states <- derivationToParseStates analysis
+  let dataMaybe = rights $ zipWith stateToDatapoint deriv states
+  pure $ catMaybes dataMaybe
+
 stateToDatapoint
   :: forall dev
    . (TT.KnownDevice dev)
@@ -392,21 +412,40 @@ stateToDatapoint op !state =
 -- Making Data
 -- ===========
 
-sampleDerivationData
-  :: forall dev
+-- sampleDerivationData
+--   :: forall dev
+--    . (TT.KnownDevice dev)
+--   => _model
+--   -> _gen
+--   -> Int
+--   -> Probs PVParams
+--   -> Int
+--   -> IO [ImitationData dev]
+-- sampleDerivationData model gen maxN probs minSteps = goodData
+--  where
+--   goodData :: IO [ImitationData dev]
+--   goodData = do
+--     ana <- sampleUntilGood model gen maxN probs minSteps
+--     case derivationToDatapoints @dev ana of
+--       Left err -> do
+--         goodData
+--       Right dat -> pure dat
+
+sampleDerivationData'
+  :: forall dev r
    . (TT.KnownDevice dev)
-  => _model
+  => P.Producer (PVLeftmost SPitch) _m r
   -> _gen
   -> Int
   -> Probs PVParams
   -> Int
   -> IO [ImitationData dev]
-sampleDerivationData model gen maxN probs minSteps = goodData
+sampleDerivationData' producer gen maxN probs minSteps = goodData
  where
   goodData :: IO [ImitationData dev]
   goodData = do
-    ana <- sampleUntilGood model gen maxN probs minSteps
-    case derivationToDatapoints @dev ana of
+    deriv <- sampleNSteps producer gen maxN probs minSteps
+    case derivationToDatapoints @dev (Analysis deriv $ PathEnd topEdges) of
       Left err -> do
         goodData
       Right dat -> pure dat
@@ -429,7 +468,7 @@ makeChordData n = do
       (PB.Progress 0 n ())
   let samplePiece :: IO [ImitationData dev]
       samplePiece = do
-        d <- sampleDerivationData @dev sampleChord gen 20 probs 4
+        d <- sampleDerivationData' @dev produceChord gen 20 probs 4
         PB.incProgress pb 1
         pure d
   derivData <- replicateM n samplePiece
@@ -461,7 +500,7 @@ data ImitationStream dev = ImitationStream
 
 instance (TT.KnownDevice dev) => T.Datastream IO () (ImitationStream dev) (ImitationData dev) where
   streamSamples (ImitationStream probs minLen maxSteps gen) () = do
-    samples <- P.Select $ P.repeatM $ sampleDerivationData @dev sampleChord gen maxSteps probs minLen
+    samples <- P.Select $ P.repeatM $ sampleDerivationData' @dev produceChord gen maxSteps probs minLen
     P.Select $ P.each samples
 
 -- Training
