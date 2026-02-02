@@ -210,3 +210,7 @@ conv2dForwardRelaxed TT.Conv2d{..} input =
     (TT.toDependent weight)
     (TT.toDependent bias)
     input
+
+flattenAll :: TT.Tensor dev dtype shape -> TT.Tensor dev dtype '[TT.Product shape]
+flattenAll input =
+  unsafePerformIO $ ATen.cast3 ATen.Managed.flatten_tll input (0 :: Int) (-1 :: Int)

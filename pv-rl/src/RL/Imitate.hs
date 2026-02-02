@@ -552,11 +552,12 @@ trainEpoch i nBatches lr state batches = do
   step pb ((!model, !optim), (!losses, !accs)) batch = do
     let inputs = dataInput <$> batch
         labels = dataLabel <$> batch
-        -- predict :: ImitationDataX dev -> T.Tensor
-        -- -- predict inputF = T.transpose2D $ inputF (runBatchedLogPolicy 1 model)
-        -- predict (state, actions) = T.transpose2D $ runBatchedLogPolicy 1 model $ encodeStepFake state actions
-        -- predictions = fmap predict inputs
-        batchEncoding = encodeBatch inputs
+    putStrLn $ "\nactions: " <> (show $ sum $ NE.length . snd <$> inputs)
+    -- predict :: ImitationDataX dev -> T.Tensor
+    -- -- predict inputF = T.transpose2D $ inputF (runBatchedLogPolicy 1 model)
+    -- predict (state, actions) = T.transpose2D $ runBatchedLogPolicy 1 model $ encodeStepFake state actions
+    -- predictions = fmap predict inputs
+    let batchEncoding = encodeBatch inputs
         predictions = T.transpose2D <$> runFullyBatchedLogPolicy 1 model batchEncoding
         loss =
           T.divScalar

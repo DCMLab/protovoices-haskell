@@ -78,6 +78,7 @@ type FakeSize = 1337 :: Nat
 
 type MaxPitches = 8 :: Nat
 type MaxEdges = 8 :: Nat
+type MaxSegments = 8 :: Nat
 
 -- States and Actions
 -- ------------------

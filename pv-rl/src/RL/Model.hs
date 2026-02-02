@@ -14,6 +14,8 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wredundant-constraints #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 
 -- {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 -- {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
@@ -60,9 +62,6 @@ expandAs t1 t2 = unsafePerformIO $ cast2 ATen.tensor_expand_as_t t1 t2
 
 traceDyn :: TT.Tensor a b c -> TT.Tensor a b c
 traceDyn t = DT.traceShow (T.shape $ TT.toDynamic t) t
-
-unsafeReshape :: [Int] -> TT.Tensor dev dtype shape -> TT.Tensor dev dtype shape'
-unsafeReshape shape t = TT.UnsafeMkTensor $ T.reshape shape $ TT.toDynamic t
 
 -- Q net
 -- =====
@@ -243,9 +242,9 @@ instance
     runConv
       :: (KnownNat nin)
       => TT.Conv2d nin QTransHidden FifthSize OctaveSize QDType dev
-      -> QBoundedList dev QDType MaxEdges '[] (nin : PShape)
+      -> QBoundedList dev MaxEdges '[] (BatchedTensor dev QDType '[] (MaxEdges : nin : PShape))
       -> QTensor dev (QTransHidden : PShape)
-    runConv conv (QBoundedList mask edges) = TT.sumDim @0 $ TT.mul mask' out
+    runConv conv (QBoundedList mask (MkBatchedTensor edges)) = TT.sumDim @0 $ TT.mul mask' out
      where
       out :: QTensor dev (MaxEdges : QTransHidden : PShape)
       out = activation $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) conv edges
@@ -255,7 +254,7 @@ instance
      where
       input = TT.unsqueeze @0 $ TT.unsqueeze @0 slice
     pass :: QTensor dev (QTransHidden : PShape)
-    pass = runConv trL1Passing trencPassing
+    pass = runConv trL1Passing $ trencPassing
     inner :: QTensor dev (QTransHidden : PShape)
     inner = runConv trL1Inner trencInner
     left :: QTensor dev (QTransHidden : PShape)
@@ -284,14 +283,14 @@ instance
       :: forall nin
        . (KnownNat nin)
       => TT.Conv2d nin QTransHidden FifthSize OctaveSize QDType dev
-      -> QBoundedList dev QDType MaxEdges '[batchSize] (nin : PShape)
+      -> QBoundedList dev MaxEdges '[batchSize] (BatchedTensor dev QDType '[batchSize] (MaxEdges : nin : PShape))
       -> QTensor dev (batchSize : QTransHidden : PShape)
     runConv conv (QBoundedList mask edges) = TT.sumDim @1 $ TT.mul mask' outReshaped
      where
       shape = TT.shapeVal @(nin : PShape)
       shape' = TT.shapeVal @(MaxEdges : QTransHidden : PShape)
       inputShaped :: QTensor dev (batchSize * MaxEdges : nin : PShape)
-      inputShaped = unsafeReshape (-1 : shape) edges
+      inputShaped = unsafeReshape (-1 : shape) $ getUnbatched edges
       out :: QTensor dev (batchSize * MaxEdges : QTransHidden : PShape)
       out = activation $ TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) conv inputShaped
       outReshaped :: QTensor dev (batchSize : MaxEdges : QTransHidden : PShape)
@@ -441,7 +440,7 @@ instance (IsValidDevice dev) => T.Randomizable (StateSpec dev) (StateEncoder dev
     stL3 <- TT.sample TT.Conv2dSpec
     pure StateEncoder{..}
 
--- | HasForward for the parsing state (doesn't need batching)
+-- | HasForward for the parsing state (unbatched)
 instance
   forall dev outShape
    . ( IsValidDevice dev
@@ -449,7 +448,7 @@ instance
      )
   => T.HasForward
       (StateEncoder dev)
-      (SliceEncoder dev, TransitionEncoder dev, StateEncoding dev)
+      (SliceEncoder dev, TransitionEncoder dev, StateEncoding dev '[])
       (QTensor dev outShape)
   where
   forward StateEncoder{..} (slc, tr, StateEncoding mid frozen open) = out3
@@ -472,22 +471,23 @@ instance
     embedSegments
       :: TT.Conv2d EmbSize QStateHidden FifthSize OctaveSize QDType dev
       -> TT.Conv2d EmbSize QStateHidden FifthSize OctaveSize QDType dev
-      -> QMaybe dev '[] (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize]))
-      -> QTensor dev (FakeSize : EmbSize : PShape)
-    embedSegments trEnc slcEnc (QMaybe mask (ft, fs)) =
-      TT.mul (TT.reshape @[1, 1, 1, 1] mask) $ ftEmb + fsEmb
+      -> QBoundedList dev MaxSegments '[] (TransitionEncoding dev '[MaxSegments], QStartStop dev '[MaxSegments] (SliceEncoding dev '[MaxSegments]))
+      -> QTensor dev (EmbSize : PShape)
+    embedSegments trEnc slcEnc (QBoundedList mask (ft, fs)) =
+      TT.sumDim @0 segEmb `TT.div` (TT.clampMin (1 :: QType) $ TT.sumDim @0 mask)
      where
-      ftEmb :: QTensor dev (FakeSize : EmbSize : PShape)
+      ftEmb :: QTensor dev (MaxSegments : EmbSize : PShape)
       ftEmb = activation $ runConv' trEnc $ T.forward tr ft
-      fsEmb :: QTensor dev (FakeSize : EmbSize : PShape)
+      fsEmb :: QTensor dev (MaxSegments : EmbSize : PShape)
       fsEmb = activation $ runConv' slcEnc $ T.forward slc fs
+      segEmb = TT.mul (TT.reshape @[MaxSegments, 1, 1, 1] mask) $ ftEmb + fsEmb
 
     -- embed frozen segments
     frozenEmb :: QTensor dev (EmbSize : PShape)
-    frozenEmb = TT.meanDim @0 $ embedSegments stL1frozenTr stL1frozenSlc frozen
+    frozenEmb = embedSegments stL1frozenTr stL1frozenSlc frozen
     -- embed open segments
     openEmb :: QTensor dev (EmbSize : PShape)
-    openEmb = TT.meanDim @0 $ embedSegments stL1openTr stL1openSlc open
+    openEmb = embedSegments stL1openTr stL1openSlc open
     -- embed the mid slice
     midEmb :: QTensor dev (QStateHidden : PShape)
     midEmb = activation $ runConv stL1mid $ T.forward slc mid
@@ -498,6 +498,86 @@ instance
     out2 :: QTensor dev (QStateHidden : PShape)
     out2 = activation $ runConv stL2 fullEmb
     out3 :: QTensor dev (EmbSize : PShape)
+    out3 = activation $ runConv stL3 out2
+  forwardStoch a i = pure $ T.forward a i
+
+-- | HasForward for the parsing state (batched)
+instance
+  forall dev outShape batchSize
+   . ( IsValidDevice dev
+     , outShape ~ (batchSize : EmbSize : PShape)
+     )
+  => T.HasForward
+      (StateEncoder dev)
+      (SliceEncoder dev, TransitionEncoder dev, StateEncoding dev '[batchSize])
+      (QTensor dev outShape)
+  where
+  forward StateEncoder{..} (slc, tr, StateEncoding mid frozen open) = out3
+   where
+    -- -- helpers: running convolutions (batched and unbatched)
+    -- runConv'
+    --   :: forall nin nout batch
+    --    . (KnownNat nin, KnownNat nout)
+    --   => TT.Conv2d nin nout FifthSize OctaveSize QDType dev
+    --   -> QTensor dev (batch : MaxSegments : nin : PShape)
+    --   -> QTensor dev (batch : MaxSegments : nout : PShape)
+    -- runConv' conv input = outShaped
+    --  where
+    --   shapeIn = TT.shapeVal @(nin : PShape)
+    --   shapeOut = TT.shapeVal @(MaxEdges : nout : PShape)
+    --   inputShaped :: QTensor dev (batch * MaxSegments : nin : PShape)
+    --   inputShaped = unsafeReshape (-1 : shapeIn) input
+    --   out :: QTensor dev (batch * MaxSegments : nout : PShape)
+    --   out = runConv conv inputShaped
+    --   outShaped :: QTensor dev (batch : MaxSegments : nout : PShape)
+    --   outShaped = unsafeReshape (-1 : shapeOut) out
+    runConv
+      :: forall batch nin nout
+       . TT.Conv2d nin nout FifthSize OctaveSize QDType dev
+      -> QTensor dev (batch : nin : PShape)
+      -> QTensor dev (batch : nout : PShape)
+    runConv = TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding)
+
+    -- embedding segments (open and frozen)
+    embedSegments
+      :: TT.Conv2d EmbSize QStateHidden FifthSize OctaveSize QDType dev
+      -> TT.Conv2d EmbSize QStateHidden FifthSize OctaveSize QDType dev
+      -> QBoundedList dev MaxSegments '[batchSize] (TransitionEncoding dev '[batchSize, MaxSegments], QStartStop dev '[batchSize, MaxSegments] (SliceEncoding dev '[batchSize, MaxSegments]))
+      -> QTensor dev (batchSize : EmbSize : PShape)
+    embedSegments trEnc slcEnc (QBoundedList mask (ft, fs)) =
+      sumSegs `TT.div` (TT.unsqueeze @1 $ TT.unsqueeze @1 $ TT.unsqueeze @1 totalSegs)
+     where
+      rebatch :: QTensor dev (batchSize * MaxSegments : EmbSize : PShape) -> QTensor dev (batchSize : MaxSegments : EmbSize : PShape)
+      rebatch t = unsafeReshape (-1 : TT.shapeVal @(MaxSegments : EmbSize : PShape)) t
+      ftEmb :: QTensor dev (batchSize : MaxSegments : EmbSize : PShape)
+      ftEmb = rebatch $ activation $ runConv trEnc $ T.forward tr $ flattenBatch ft
+      fsEmb :: QTensor dev (batchSize : MaxSegments : EmbSize : PShape)
+      fsEmb = rebatch $ activation $ runConv slcEnc $ T.forward slc $ flattenBatch fs
+      maskBc :: QTensor dev '[batchSize, MaxSegments, 1, 1, 1]
+      maskBc = unsafeReshape [-1, TT.natValI @MaxSegments, 1, 1, 1] mask
+      segEmb :: QTensor dev (batchSize : MaxSegments : EmbSize : PShape)
+      segEmb = TT.mul maskBc $ ftEmb + fsEmb
+      sumSegs :: QTensor dev (batchSize : EmbSize : PShape)
+      sumSegs = TT.sumDim @1 segEmb
+      totalSegs :: QTensor dev '[batchSize]
+      totalSegs = TT.clampMin (1 :: QType) $ TT.sumDim @1 mask
+
+    -- embed frozen segments
+    frozenEmb :: QTensor dev (batchSize : EmbSize : PShape)
+    frozenEmb = embedSegments stL1frozenTr stL1frozenSlc frozen
+    -- embed open segments
+    openEmb :: QTensor dev (batchSize : EmbSize : PShape)
+    openEmb = embedSegments stL1openTr stL1openSlc open
+    -- embed the mid slice
+    midEmb :: QTensor dev (batchSize : QStateHidden : PShape)
+    midEmb = activation $ runConv stL1mid $ T.forward slc mid
+
+    -- combined embeddings and compute output
+    fullEmb :: QTensor dev (batchSize : EmbSize : PShape)
+    fullEmb = midEmb + frozenEmb + openEmb
+    out2 :: QTensor dev (batchSize : QStateHidden : PShape)
+    out2 = activation $ runConv stL2 fullEmb
+    out3 :: QTensor dev (batchSize : EmbSize : PShape)
     out3 = activation $ runConv stL3 out2
   forwardStoch a i = pure $ T.forward a i
 
@@ -613,7 +693,7 @@ forwardPolicyBatched = forwardQModelBatched
 forwardValue
   :: (IsValidDevice dev)
   => QModel dev
-  -> StateEncoding dev
+  -> StateEncoding dev '[]
   -> QTensor dev '[1]
 forwardValue (QModel slc tr _ st _ _ _ value1 norm value2) stateEncoding = out2
  where
@@ -738,12 +818,14 @@ forwardPolicyFullyBatched (QModel slc tr act st final1 norm1 final2 _ _ _) (QEnc
  where
   actEmb :: QTensor dev (FakeSize : EmbSize : PShape)
   actEmb = T.forward act (slc, tr, actsEnc)
-  stEmbs :: [QTensor dev (EmbSize : PShape)]
-  stEmbs = fmap (\stEnc -> T.forward st (slc, tr, stEnc)) stEncs
-  stEmbs' :: [T.Tensor]
-  stEmbs' = zipWith (\emb size -> T.repeat [size, 1, 1, 1] $ TT.toDynamic emb) stEmbs sizes
+  stsEmb :: QTensor dev (FakeSize : EmbSize : PShape)
+  stsEmb = T.forward st (slc, tr, stEncs)
+  tSizes = T.asTensor' sizes (T.withDevice (TT.deviceVal @dev) $ T.withDType T.Int64 T.defaultOpts)
+  -- stEmbs' :: [T.Tensor]
+  -- stEmbs' = zipWith (\emb size -> T.repeat [size, 1, 1, 1] $ TT.toDynamic emb) stEmbs sizes
   stEmb :: QTensor dev (FakeSize : EmbSize : PShape)
-  stEmb = TT.UnsafeMkTensor (T.cat (T.Dim 0) stEmbs')
+  stEmb = TT.UnsafeMkTensor $ T.repeatInterleave (TT.toDynamic stsEmb) tSizes 0
+  -- stEmb = TT.UnsafeMkTensor (T.cat (T.Dim 0) stEmbs')
   inputEmb :: QTensor dev (FakeSize : EmbSize : PShape)
   inputEmb = actEmb `TT.add` stEmb
   out1 :: QTensor dev (FakeSize : QOutHidden : PShape)
