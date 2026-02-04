@@ -39,9 +39,10 @@ trainImitation epochs = do
   gen <- createSystemRandom
   Right hyper <- loadPVHyper "posterior.json"
   let probs = expectedProbs @PVParams hyper
-      trainData = ImitationStream @Device probs 4 20 gen
+  -- trainData = ImitationStream @Device probs 4 20 gen
+  trainData <- makeChordDataset @Device 128
+  putStrLn $ "train: " <> show (S.size $ TT.keys trainData)
   -- testData <- makeChordDataset @Device 100
-  -- putStrLn $ "train: " <> show (S.size $ TT.keys trainData)
   examples <- loadDir (dataDir </> "theory-article") []
   let getData (name, ana, _, _) = case derivationToDatapointsLenient ana of
         Left err -> Nothing
@@ -52,7 +53,8 @@ trainImitation epochs = do
   let testData = mkImitationDataset testData'
   putStrLn $ "test:  " <> show (S.size $ TT.keys @IO testData)
   (modelTrained, (hTrain, hTest)) <-
-    trainDatastream model0 trainData testData fLR epochs 32 32
+    -- trainDatastream model0 trainData testData fLR epochs 32 32
+    trainDataset model0 trainData testData fLR epochs 32
   -- plotHistories "losses-imitation" [hTrain, hTest]
   pure ()
 

@@ -468,7 +468,7 @@ makeChordData n = do
       (PB.Progress 0 n ())
   let samplePiece :: IO [ImitationData dev]
       samplePiece = do
-        d <- sampleDerivationData' @dev produceChord gen 20 probs 4
+        d <- sampleDerivationData' @dev produceChord gen 32 probs 4
         PB.incProgress pb 1
         pure d
   derivData <- replicateM n samplePiece
@@ -568,6 +568,7 @@ trainEpoch i nBatches lr state batches = do
         !accuracy = mean $ zipWith hit labels predictions
     !state' <- TT.runStep model optim lossTyped lr
     PB.incProgress pb 1
+    putStrLn $ "\nActions: " <> show (sum $ NE.length . snd <$> inputs)
     pure $! (state', (lossScalar : losses, accuracy : accs))
   begin = pure (state, ([], []))
   done = pure
