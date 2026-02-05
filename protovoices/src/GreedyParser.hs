@@ -487,12 +487,12 @@ getActions eval state =
           unsplits = collectUnsplitSingle eval (Inner mid) t1 s1 t2 Stop
           thaws = collectAllThawLeft eval frozen mid t1 (Inner s1)
          in
-          (Left <$> unsplits) <> (Right <$> thaws)
+          (Right <$> thaws) <> (Left <$> unsplits)
       -- more than two open transitions: thaw or any double operation
       Path t1 s1 (Path t2 s2 rstOpen) -> do
         let doubles = collectDoubles eval (Inner mid) t1 s1 t2 s2 rstOpen (lastWasLeft ops)
             thaws = collectAllThawLeft eval frozen mid t1 (Inner s1)
-        Right <$> (doubles <> thaws)
+        Right <$> (thaws <> doubles)
 
 -- helper functions for getActions and parseStep
 -- ---------------------------------------------
@@ -643,7 +643,7 @@ collectDoubles
   -> Path tr slc
   -> Bool
   -> [ActionDouble slc tr s f h]
-collectDoubles eval sstart tl sl tm sr rst afterLeft = leftUnsplits <> rightUnsplits <> unspreads
+collectDoubles eval sstart tl sl tm sr rst afterLeft = unspreads <> leftUnsplits <> rightUnsplits
  where
   (tr, send) = case rst of
     PathEnd t -> (t, Stop)

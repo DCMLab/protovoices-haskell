@@ -49,7 +49,6 @@ import Data.Map.Strict qualified as M
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Proxy (Proxy (Proxy))
 import Data.Set qualified as S
-import Data.Text.IO (putStr)
 import Data.Text.Lazy qualified as Txt
 import Data.TypeNums (KnownNat, Nat, intVal)
 import Data.Typeable (Proxy (Proxy), Typeable, typeRep)
@@ -359,43 +358,43 @@ stateToDatapoint
   => PVLeftmost SPitch
   -> PVState
   -> Either String (Maybe (ImitationData dev))
-stateToDatapoint op !state =
-  do
-    let actionsAll = getActions (protoVoiceEvaluator @[] @[]) state
-        maxActions = 100
-        actions = take maxActions actionsAll
-    if length actions == 1
-      then Right Nothing -- filter out
-      else
-        if (length actions == maxActions) && (length (take (maxActions + 1) actionsAll) > maxActions)
-          then do
-            -- DT.traceM "too many actions in this state:"
-            -- DT.traceShowM state
-            Left $ "too many actions (more than " <> show maxActions <> ")!"
-          else do
-            case actions of
-              [] -> Left "no actions available!"
-              (!a : as) -> do
-                let encoding :: ImitationDataX dev
-                    !encoding = (state, (a NE.:| as)) -- encodeStepFake state (a NE.:| as) -- withBatchedEncoding state (a NE.:| as)
-                target <- case L.findIndex (eqOp op) actions of
-                  Nothing -> do
-                    -- DT.traceM "Couldn't match any action!\nstate:"
-                    -- DT.traceShowM state
-                    -- DT.traceM "actual step:"
-                    -- DT.traceM $ case op of
-                    --   LMSingle op' -> show op' <> "\n"
-                    --   LMDouble op' -> case op' of
-                    --     LMDoubleSpread spread -> show (renameParentIDs spread) <> "\n"
-                    --     a -> show a <> "\n"
-                    -- DT.traceM "available actions:"
-                    -- forM_ actions $ \action -> DT.traceM $ case action of
-                    --   Left (ActionSingle _ a) -> show a <> "\n"
-                    --   Right (ActionDouble _ a) -> show a <> "\n"
-                    -- DT.traceM $ show (length actions) <> " actions"
-                    Left "could not match any action!"
-                  Just ix -> Right $ T.toDevice (TT.deviceVal @dev) $ T.asTensor [ix]
-                Right $! Just $! ImitationData encoding target
+stateToDatapoint op !state = do
+  let actionsAll = getActions (protoVoiceEvaluator @[] @[]) state
+      maxActions = 100
+      actions = take maxActions actionsAll
+      !lenA = length actions
+  if lenA == 1
+    then Right Nothing -- filter out
+    else
+      if (lenA == maxActions) && (length (take (maxActions + 1) actionsAll) > maxActions)
+        then do
+          -- DT.traceM "too many actions in this state:"
+          -- DT.traceShowM state
+          Left $ "too many actions (more than " <> show maxActions <> ")!"
+        else do
+          case actions of
+            [] -> Left "no actions available!"
+            (!a : as) -> do
+              let encoding :: ImitationDataX dev
+                  !encoding = (state, (a NE.:| as)) -- encodeStepFake state (a NE.:| as) -- withBatchedEncoding state (a NE.:| as)
+              !target <- case L.findIndex (eqOp op) actions of
+                Nothing -> do
+                  -- DT.traceM "Couldn't match any action!\nstate:"
+                  -- DT.traceShowM state
+                  -- DT.traceM "actual step:"
+                  -- DT.traceM $ case op of
+                  --   LMSingle op' -> show op' <> "\n"
+                  --   LMDouble op' -> case op' of
+                  --     LMDoubleSpread spread -> show (renameParentIDs spread) <> "\n"
+                  --     a -> show a <> "\n"
+                  -- DT.traceM "available actions:"
+                  -- forM_ actions $ \action -> DT.traceM $ case action of
+                  --   Left (ActionSingle _ a) -> show a <> "\n"
+                  --   Right (ActionDouble _ a) -> show a <> "\n"
+                  -- DT.traceM $ show (length actions) <> " actions"
+                  Left "could not match any action!"
+                Just ix -> Right $ T.toDevice (TT.deviceVal @dev) $ T.asTensor [ix]
+              Right $! Just $! ImitationData encoding target
  where
   eqOp (LMSingle op) (Left (ActionSingle _ action)) = case (op, action) of
     (LMSingleFreeze fo, LMSingleFreeze fa) -> fo == fa
@@ -446,8 +445,7 @@ sampleDerivationData' producer gen maxN probs minSteps = goodData
   goodData = do
     deriv <- sampleNSteps producer gen maxN probs minSteps
     case derivationToDatapoints @dev (Analysis deriv $ PathEnd topEdges) of
-      Left err -> do
-        goodData
+      Left err -> goodData
       Right dat -> pure dat
 
 makeChordData :: forall dev. (TT.KnownDevice dev) => Int -> IO [ImitationData dev]
@@ -568,7 +566,7 @@ trainEpoch i nBatches lr state batches = do
         !accuracy = mean $ zipWith hit labels predictions
     !state' <- TT.runStep model optim lossTyped lr
     PB.incProgress pb 1
-    putStrLn $ "\nActions: " <> show (sum $ NE.length . snd <$> inputs)
+    -- putStrLn $ "\nActions: " <> show (sum $ NE.length . snd <$> inputs)
     pure $! (state', (lossScalar : losses, accuracy : accs))
   begin = pure (state, ([], []))
   done = pure

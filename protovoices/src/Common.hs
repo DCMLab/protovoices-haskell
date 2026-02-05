@@ -116,6 +116,7 @@ module Common
 
     -- * Utilities #utils#
   , cartProd
+  , cartProdWhere
   , traverseSet
   , variantDefaults
   , firstToLower
@@ -126,7 +127,7 @@ module Common
   ) where
 
 import Control.DeepSeq (NFData)
-import Control.Monad (when)
+import Control.Monad (guard, when)
 import Control.Monad.Except
   ( ExceptT
   , runExceptT
@@ -1056,6 +1057,27 @@ cartProd (g : gs) = do
   matching <- g
   rest <- cartProd gs
   pure $ matching : rest
+
+cartProdWhere :: ([a] -> Bool) -> [[a]] -> [[a]]
+cartProdWhere pred inputs = go [] inputs
+ where
+  go acc [] = pure acc
+  go acc (a : as) = do
+    a' <- a
+    let acc' = a' : acc
+    guard $ pred acc'
+    go acc' as
+
+-- -- | Compute the cartesian product for a list of lists
+-- cartProd :: [[a]] -> [[a]]
+-- cartProd inputs = foldr (:) [] $ cartProd' inputs
+
+-- cartProd' :: [[a]] -> P.ListT Identity [a]
+-- cartProd' [] = pure []
+-- cartProd' (g : gs) = do
+--   matching <- P.Select $ P.each g
+--   rest <- cartProd' gs
+--   pure $ matching : rest
 
 -- | 'traverse' on a 'HashSet'
 traverseSet

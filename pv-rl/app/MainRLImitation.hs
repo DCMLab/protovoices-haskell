@@ -14,12 +14,16 @@ import RL.Plotting
 -- import H.Prelude qualified as H
 -- import Language.R.QQ
 
-import Control.Monad.Cont (ContT (runContT))
+import Control.Monad (replicateM_)
+import Control.Monad.Cont (ContT (ContT, runContT))
 import Data.Either (rights)
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe (catMaybes)
 import Data.Set qualified as S
 import Graphics.Matplotlib qualified as Plt
 import Inference.Conjugate
+import Pipes qualified as P
+import Pipes.Prelude qualified as P
 import RL.Encoding (ActionEncoding (actionEncodingOp), QEncoding (qActionEncoding))
 import RL.Imitate (derivationToDatapointsLenient)
 import System.FilePath ((</>))
@@ -29,7 +33,13 @@ import System.Random.Shuffle (shuffle')
 import Torch qualified as T
 import Torch.Typed qualified as TT
 
+-- Training
+-- ========
+
 type Device = '(TT.CPU, 0)
+
+main :: IO ()
+main = trainImitation 500
 
 trainImitation :: Int -> IO ()
 trainImitation epochs = do
@@ -39,9 +49,9 @@ trainImitation epochs = do
   gen <- createSystemRandom
   Right hyper <- loadPVHyper "posterior.json"
   let probs = expectedProbs @PVParams hyper
-  -- trainData = ImitationStream @Device probs 4 20 gen
-  trainData <- makeChordDataset @Device 128
-  putStrLn $ "train: " <> show (S.size $ TT.keys trainData)
+      trainData = ImitationStream @Device probs 4 20 gen
+  -- trainData <- makeChordDataset @Device 128
+  -- putStrLn $ "train: " <> show (S.size $ TT.keys trainData)
   -- testData <- makeChordDataset @Device 100
   examples <- loadDir (dataDir </> "theory-article") []
   let getData (name, ana, _, _) = case derivationToDatapointsLenient ana of
@@ -53,10 +63,13 @@ trainImitation epochs = do
   let testData = mkImitationDataset testData'
   putStrLn $ "test:  " <> show (S.size $ TT.keys @IO testData)
   (modelTrained, (hTrain, hTest)) <-
-    -- trainDatastream model0 trainData testData fLR epochs 32 32
-    trainDataset model0 trainData testData fLR epochs 32
+    trainDatastream model0 trainData testData fLR epochs 32 32
+  -- trainDataset model0 trainData testData fLR epochs 32
   -- plotHistories "losses-imitation" [hTrain, hTest]
   pure ()
+
+-- Debugging and Testing
+-- =====================
 
 testRun = do
   model <- mkQModel @Device
@@ -137,5 +150,20 @@ summarizeAnnotations = do
     putStrLn $ "std size: " <> show stdSize
     pure sizes
 
-main :: IO ()
-main = trainImitation 500
+testDataStream :: Int -> IO ()
+testDataStream n = do
+  gen <- createSystemRandom
+  Right hyper <- loadPVHyper "posterior.json"
+  let probs = expectedProbs @PVParams hyper
+      stream = ImitationStream @Device probs 4 20 gen
+      streamer () = ContT $ \k -> k (T.streamSamples stream (), ())
+  replicateM_ n $ do
+    putStrLn $ "Epoch"
+    runContT (streamer ()) $
+      \(dataset, ()) -> do
+        let batches = T.collate 128 Just dataset
+        P.foldM step (pure ()) pure $ P.enumerate batches P.>-> P.take 128
+ where
+  step () datapoints = do
+    let inputs = dataInput <$> datapoints
+    putStrLn $ show (sum $ NE.length . snd <$> inputs)

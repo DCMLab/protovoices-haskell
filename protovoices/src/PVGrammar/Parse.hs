@@ -378,7 +378,7 @@ pvUnspreadMiddle (Notes notesl, edges@(Edges regular passing), Notes notesr)
       pure $ (a, b) : rest
 
   -- A list of possible matchings of unpaired notes.
-  -- Takes all combintations of matchings per pitch group
+  -- Takes all combinations of matchings per pitch group
   -- and then concatenates the groups within each combination.
   unpairedMatchings :: [[(Note n, Note n)]]
   unpairedMatchings = fmap concat $ cartProd pairingGroups
@@ -409,7 +409,7 @@ Unspread performs the following steps
       non-deterministically choosing a partner note from the other side,
       and removing that note from the pool.
       For each group, this results in a list of possiblem matchings.
-   3. Find all combintations of group-level matchings across groups,
+   3. Find all combinations of group-level matchings across groups,
       i.e. the cartesian product of the matching lists for all groups.
       For each combination, combine the group-level matchings to one complete matching.
 4. For each matching found in step 3 (together with the edge-paired notes),
@@ -477,13 +477,16 @@ pvUnsplit
 pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs rightPass) notesr = do
   -- List
   -- pick one combination
-  reduction <- cartProd reductions
+  reduction <- cartProdWhere testTop reductions
   -- construct split from reduction
   mkTop $ partitionElaborations reduction
  where
   !innerL = innerNotes notesl
   !innerR = innerNotes notesr
 
+  -- important: sort note reductions by number of options (asc)
+  -- so that incompatibilities are caught early on
+  -- when computing the cartesian product
   reductions
     :: [ [ Elaboration
             (Edge n, (Note n, DoubleOrnament))
@@ -492,7 +495,7 @@ pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs right
             (Note n, (Note n, LeftOrnament))
          ]
        ]
-  reductions = findReductions <$> S.toList notesm
+  reductions = L.sortOn length $ findReductions <$> S.toList notesm
 
   -- finds all possible reductions for a single middle note
   findReductions
@@ -619,6 +622,12 @@ pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs right
     passL = foldr MS.delete leftPass $ mapMaybe leftPassingChild pass
     passR = foldr MS.delete rightPass $ mapMaybe rightPassingChild pass
     top = Edges (S.fromList (fst <$> regs)) (MS.fromList (fst <$> pass))
+
+  testTop reductions = edgesAreReducible $ Edges (S.fromList regs) MS.empty
+   where
+    getReg (EReg reg) = Just $ fst reg
+    getReg _ = Nothing
+    regs = mapMaybe getReg reductions
 
 -- old pvUnsplit (no IDs, multisets)
 -- pvUnsplit notesl (Edges leftRegs leftPass) (Notes notesm) (Edges rightRegs rightPass) notesr =
