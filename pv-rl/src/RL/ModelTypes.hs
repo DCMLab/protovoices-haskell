@@ -19,7 +19,8 @@ import Control.DeepSeq
 import Data.Kind (Type)
 import Data.List.NonEmpty qualified as NE
 import Data.Proxy (Proxy (Proxy))
-import Data.TypeNums (KnownInt, Nat, TInt (..), intVal, type (*), type (+))
+import Data.Type.Equality (type (==))
+import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), intVal, type (*), type (+), type (-), type (<=))
 import GHC.Generics (Generic)
 import NoThunks.Class (NoThunks (..), OnlyCheckWhnf (..), allNoThunks)
 import Torch qualified as T
@@ -47,6 +48,17 @@ type IsValidDevice dev =
   , TT.StandardFloatingPointDTypeValidation dev QDType
   , TT.KnownDevice dev
   )
+
+type IsValidHidden (hidden :: Nat) =
+  ( KnownNat hidden
+  , KnownNat (hidden - 3)
+  , 3 <= hidden
+  , 1 <= hidden
+  , TT.CheckIsSuffixOf '[hidden] [1, hidden] (hidden == hidden)
+  , TT.CheckIsSuffixOf '[hidden] '[hidden] (hidden == hidden)
+  )
+
+type ValidParams dev hidden = (IsValidDevice dev, IsValidHidden hidden)
 
 type QType = Double
 
@@ -95,36 +107,22 @@ type PVEval p = Eval (Edges p) [Edge p] (Notes p) [Note p] (Spread p) (PVLeftmos
 -- General Spec
 -- ------------
 
--- starts to get more efficient on GPU from ~64 on
-type CommonHiddenSize = 8
-
 type FifthLow = Neg 3
 type FifthPadding = 6
 type OctaveLow = (Pos 2)
 type OctavePadding = 2
-type EmbSize = CommonHiddenSize
 
 type FifthSize = (2 * FifthPadding) + 1
 type OctaveSize = (2 * OctavePadding) + 1
 
 type PShape = '[FifthSize, OctaveSize]
-type PSize = FifthSize + OctaveSize -- or maybe *Padding?
-type EmbShape = EmbSize ': PShape
+type PSize = FifthSize + OctaveSize
 
 type ESize = PSize + PSize
 type EShape' = '[FakeSize, ESize]
 
 intValI :: forall n. (KnownInt n) => Int
 intValI = fromInteger $ intVal @n Proxy
-
--- Specific Module Specs
--- ---------------------
-
-type QOutHidden = CommonHiddenSize -- output module hidden size
-type QSliceHidden = CommonHiddenSize -- slice encoder hidden size
-type QTransHidden = CommonHiddenSize -- transition encoder hidden size
-type QActionHidden = CommonHiddenSize -- action encoder hidden size
-type QStateHidden = CommonHiddenSize -- state encoder hidden size
 
 -- orphan instances
 -- ================

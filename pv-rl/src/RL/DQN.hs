@@ -109,9 +109,9 @@ eps i n = expSchedule epsStart epsEnd (fromIntegral n) (fromIntegral i)
 -- Deep Q-Learning
 -- ---------------
 
-data DQNState dev opt = DQNState
-  { pnet :: !(QModel dev)
-  , tnet :: !(QModel dev)
+data DQNState dev hidden opt = DQNState
+  { pnet :: !(QModel dev hidden)
+  , tnet :: !(QModel dev hidden)
   , opt :: !opt
   , buffer :: !(ReplayBuffer dev)
   }
@@ -147,15 +147,15 @@ softmaxPolicy gen temp values = do
   categorical (V.fromList $ T.asValue $ T.toDType T.Double probs) gen
 
 runEpisode
-  :: forall dev gen slc' label
-   . (IsValidDevice dev)
+  :: forall dev hidden gen slc' label
+   . (ValidParams dev hidden)
   => PVEval SPitch
   -> gen
   -> (T.Tensor -> IO Int)
   -> PVRewardFn label
   -> Path [Note SPitch] [Edge SPitch]
   -> label
-  -> QModel dev
+  -> QModel dev hidden
   -> IO
       ( Either
           String
@@ -202,7 +202,7 @@ runEpisode !eval !gen !fPolicy !fReward !input !label pnet =
         pure (ReplayStep state action Nothing reward : steps, Just $ Analysis deriv $ PathEnd top)
 
 trainLoop
-  :: forall dev tr tr' slc slc' s f h label gen opt -- params (grads :: [Type])
+  :: forall dev hidden tr tr' slc slc' s f h label gen opt -- params (grads :: [Type])
    . (_)
   => PVEval SPitch
   -> gen
@@ -212,10 +212,10 @@ trainLoop
   -> (QType -> QType)
   -- ^ temperature schedule
   -> (Path [Note SPitch] [Edge SPitch], label)
-  -> DQNState dev opt
+  -> DQNState dev hidden opt
   -> Int
   -> Int
-  -> IO (DQNState dev opt, QType, QType)
+  -> IO (DQNState dev hidden opt, QType, QType)
 trainLoop !eval !gen fReward fLr fTemp (!piece, !label) oldstate@(DQNState !pnet !tnet !opt !buffer) i n = do
   -- 1. run episode, collect results
   -- let policy = epsilonic gen (eps i n) greedyPolicy
@@ -286,8 +286,8 @@ trainLoop !eval !gen fReward fLr fTemp (!piece, !label) oldstate@(DQNState !pnet
     qexpected = TT.addScalar r (TT.mulScalar gamma qnext)
 
 trainDQN
-  :: forall dev gen label
-   . ( IsValidDevice dev
+  :: forall dev hidden gen label
+   . ( ValidParams dev hidden
      , TT.KnownDevice dev
      , StatefulGen gen IO
      )
@@ -298,10 +298,10 @@ trainDQN
   -- ^ learning rate schedule
   -> (QType -> QType)
   -- ^ temperature schedule
-  -> QModel dev
+  -> QModel dev hidden
   -> [(Path [Note SPitch] [Edge SPitch], label)]
   -> Int
-  -> IO ([QType], [QType], QModel dev)
+  -> IO ([QType], [QType], QModel dev hidden)
 trainDQN eval gen fReward fRl fTemp model0 pieces n = do
   -- model0 <- mkQModel
   let opt = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model0) -- T.GD

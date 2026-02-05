@@ -210,3 +210,44 @@ conv2dForwardRelaxed TT.Conv2d{..} input =
     (TT.toDependent weight)
     (TT.toDependent bias)
     input
+
+layerNormForwardRelaxed
+  :: forall normalizedShape shape dtype device
+   . ( TT.KnownShape normalizedShape
+     )
+  => TT.LayerNorm normalizedShape dtype device
+  -> TT.Tensor device dtype shape
+  -> TT.Tensor device dtype shape
+layerNormForwardRelaxed TT.LayerNorm{..} =
+  layerNormRelaxed @normalizedShape
+    (TT.toDependent layerNormWeight)
+    (TT.toDependent layerNormBias)
+    layerNormEps
+
+layerNormRelaxed
+  :: forall normalizedShape shape dtype device
+   . ( TT.KnownShape normalizedShape
+     )
+  => TT.Tensor device dtype normalizedShape
+  -- ^ weight
+  -> TT.Tensor device dtype normalizedShape
+  -- ^ bias
+  -> Double
+  -- ^ eps
+  -> TT.Tensor device dtype shape
+  -- ^ input tensor
+  -> TT.Tensor device dtype shape
+  -- ^ output tensor
+layerNormRelaxed weight bias eps input =
+  unsafePerformIO $
+    ATen.cast6
+      ATen.Managed.layer_norm_tlttdb
+      input
+      (TT.shapeVal @normalizedShape)
+      weight
+      bias
+      eps
+      ( TT.cudnnIsAcceptable weight
+          && TT.cudnnIsAcceptable bias
+          && TT.cudnnIsAcceptable input
+      )

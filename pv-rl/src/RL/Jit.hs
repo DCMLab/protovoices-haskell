@@ -7,14 +7,24 @@ import RL.Model
 import RL.ModelTypes
 
 import Data.TypeNums (KnownNat)
-import RL.ModelTypes (IsValidDevice)
 import Torch qualified as T
 import Torch.Jit qualified as TJit
 import Torch.Lens qualified as TL
 
-compileBatchedPolicy :: forall dev bs. (IsValidDevice dev, KnownNat bs) => TJit.ScriptCache -> QType -> QModel dev -> QEncoding dev '[bs] -> T.Tensor
+compileBatchedPolicy
+  :: forall dev hidden bs
+   . ( ValidParams dev hidden
+     , KnownNat bs
+     )
+  => TJit.ScriptCache
+  -> QType
+  -> QModel dev hidden
+  -> QEncoding dev '[bs]
+  -> T.Tensor
 compileBatchedPolicy scriptCache temp model encoding =
-  head $ TJit.jit scriptCache policy $ TL.flattenValues TL.types (model, encoding)
+  case TJit.jit scriptCache policy $ TL.flattenValues TL.types (model, encoding) of
+    [] -> error "Jit model didn't return any tensors"
+    (res : _) -> res
  where
   policy :: [T.Tensor] -> [T.Tensor]
   policy tensors = [runBatchedPolicy temp model' encoding']

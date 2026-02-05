@@ -37,6 +37,7 @@ import Torch.Typed qualified as TT
 -- ========
 
 type Device = '(TT.CPU, 0)
+type Hidden = 8
 
 main :: IO ()
 main = trainImitation 500
@@ -45,7 +46,7 @@ trainImitation :: Int -> IO ()
 trainImitation epochs = do
   let fLR = const 0.01 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
   -- !model0 <- loadModel "rl/actor-imit.ht"
-  !model0 <- mkQModel @Device
+  !model0 <- mkQModel @Device @Hidden
   gen <- createSystemRandom
   Right hyper <- loadPVHyper "posterior.json"
   let probs = expectedProbs @PVParams hyper
@@ -72,7 +73,7 @@ trainImitation epochs = do
 -- =====================
 
 testRun = do
-  model <- mkQModel @Device
+  model <- mkQModel @Device @Hidden
   dataRandom <- makeChordDataset @Device 100
   (loss, acc) <-
     runContT (T.streamFromMap (T.datasetOpts 1) dataRandom) $
@@ -81,8 +82,8 @@ testRun = do
   putStrLn $ "test accuracy: " <> show acc
 
 testModel fn = do
-  model <- loadModel @Device fn
-  baseline <- mkQModel @Device
+  model <- loadModel @Device @Hidden fn
+  baseline <- mkQModel @Device @Hidden
   examples <- loadArticleExamples
   let getData (name, ana, _, _) = case derivationToDatapointsLenient ana of
         Left err -> do

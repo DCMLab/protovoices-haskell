@@ -525,14 +525,14 @@ collate n as = case take n as of
   batch -> batch : collate n (drop n as)
 
 trainEpoch
-  :: forall dev o
-   . (IsValidDevice dev, TT.Optimizer o (ModelTensors dev) (ModelTensors dev) QDType dev)
+  :: forall dev hidden o
+   . (ValidParams dev hidden, TT.Optimizer o (ModelTensors dev hidden) (ModelTensors dev hidden) QDType dev)
   => Int
   -> Int
   -> TT.LearningRate dev QDType
-  -> (QModel dev, o)
+  -> (QModel dev hidden, o)
   -> P.ListT IO [ImitationData dev]
-  -> IO ((QModel dev, o), (QType, QType))
+  -> IO ((QModel dev hidden, o), (QType, QType))
 trainEpoch i nBatches lr state batches = do
   pb <- PB.newProgressBar pbStyle 10 (PB.Progress 0 nBatches ())
   (!state', (losses, accs)) <- P.foldM (step pb) begin done $ P.enumerate batches P.>-> P.take nBatches
@@ -544,9 +544,9 @@ trainEpoch i nBatches lr state batches = do
  where
   step
     :: _pb
-    -> ((QModel dev, o), ([QType], [QType]))
+    -> ((QModel dev hidden, o), ([QType], [QType]))
     -> [ImitationData dev]
-    -> IO ((QModel dev, o), ([QType], [QType]))
+    -> IO ((QModel dev hidden, o), ([QType], [QType]))
   step pb ((!model, !optim), (!losses, !accs)) batch = do
     let inputs = dataInput <$> batch
         labels = dataLabel <$> batch
@@ -578,8 +578,8 @@ trainEpoch i nBatches lr state batches = do
       }
 
 -- validateEpoch
---   :: (IsValidDevice dev)
---   => QModel dev
+--   :: (ValidParams dev hidden)
+--   => QModel dev hidden
 --   -> P.ListT IO (ImitationData dev)
 --   -> IO (QType, QType)
 -- validateEpoch model dataset = do
@@ -596,8 +596,8 @@ trainEpoch i nBatches lr state batches = do
 --     !acc = hit label prediction
 
 validateEpoch
-  :: (IsValidDevice dev)
-  => QModel dev
+  :: (ValidParams dev hidden)
+  => QModel dev hidden
   -> P.ListT IO (ImitationData dev)
   -> IO (QType, QType)
 validateEpoch model dataset = do
@@ -616,16 +616,16 @@ validateEpoch model dataset = do
     !acc = hit label prediction
 
 train
-  :: (IsValidDevice dev)
-  => QModel dev
+  :: (ValidParams dev hidden)
+  => QModel dev hidden
   -> shuf
-  -> (shuf -> ContT ((QModel dev, _o), shuf, (QType, QType)) IO (P.ListT IO (ImitationData dev), shuf))
+  -> (shuf -> ContT ((QModel dev hidden, _o), shuf, (QType, QType)) IO (P.ListT IO (ImitationData dev), shuf))
   -> ImitationDataset IO dev
   -> (Int -> TT.LearningRate dev QDType)
   -> Int
   -> Int
   -> Int
-  -> IO (QModel dev, (([QType], [QType]), ([QType], [QType])))
+  -> IO (QModel dev hidden, (([QType], [QType]), ([QType], [QType])))
 train model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize = do
   ((modelTrained, _), _, histTrain, histTest) <-
     T.foldLoop ((model0, optim0), shuffler0, ([], []), ([], [])) epochs trainLoop
@@ -678,7 +678,7 @@ type TestDevice = '(TT.CPU, 0)
 testTrain :: Int -> IO ()
 testTrain epochs = do
   let fLR = const 0.1 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
-  !model0 <- mkQModel @TestDevice
+  !model0 <- mkQModel @TestDevice @8
   trainData <- makeChordDataset @TestDevice 1
   testData <- makeChordDataset @TestDevice 1
   (_, ((lTrain, aTrain), (lVal, aVal))) <-
@@ -688,7 +688,7 @@ testTrain epochs = do
 testTrainStream :: Int -> IO ()
 testTrainStream epochs = do
   let fLR = const 0.1 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
-  !model0 <- mkQModel @TestDevice
+  !model0 <- mkQModel @TestDevice @8
   gen <- createSystemRandom
   Right hyper <- loadPVHyper "posterior.json"
   let probs = expectedProbs @PVParams hyper
