@@ -65,6 +65,7 @@ import RL.ModelTypes (IsValidDevice)
 import Sample (sampleNSteps)
 import Statistics.Distribution qualified as Stats
 import Statistics.Distribution.Poisson qualified as Stats
+import System.IO (hFlush, stdout)
 import System.ProgressBar qualified as PB
 import System.Random qualified as Rand
 import System.Random.MWC.Probability (Gen, Prob (sample), binomial, categorical, createSystemRandom, discrete, discreteUniform, poisson, uniform)
@@ -653,6 +654,7 @@ train name model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize
     putStrLn $ "valLoss:   " <> show valLoss
     putStrLn $ "trainAcc: " <> show trainAcc
     putStrLn $ "valAcc:   " <> show valAcc
+    hFlush stdout
     let lossesTrain' = trainLoss : lossesTrain
         lossesTest' = valLoss : lossesVal
         accsTrain' = trainAcc : accsTrain
