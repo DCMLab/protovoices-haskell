@@ -617,7 +617,8 @@ validateEpoch model dataset = do
 
 train
   :: (ValidParams dev hidden)
-  => QModel dev hidden
+  => String
+  -> QModel dev hidden
   -> shuf
   -> (shuf -> ContT ((QModel dev hidden, _o), shuf, (QType, QType)) IO (P.ListT IO (ImitationData dev), shuf))
   -> ImitationDataset IO dev
@@ -626,7 +627,7 @@ train
   -> Int
   -> Int
   -> IO (QModel dev hidden, (([QType], [QType]), ([QType], [QType])))
-train model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize = do
+train name model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize = do
   ((modelTrained, _), _, histTrain, histTest) <-
     T.foldLoop ((model0, optim0), shuffler0, ([], []), ([], [])) epochs trainLoop
   pure (modelTrained, (histTrain & both %~ reverse, histTest & both %~ reverse))
@@ -642,7 +643,7 @@ train model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize = do
           (!state', !loss) <- trainEpoch epoch nBatches lr state batches
           pure $! (state', shuf', loss)
       pure res
-    saveModel "rl/actor-imit.ht" model'
+    saveModel ("rl/actor-imit-" <> name <> ".ht") model'
     -- test metrics
     (valLoss, valAcc) <-
       runContT (T.streamFromMap (T.datasetOpts 1) testData) $
@@ -657,19 +658,19 @@ train model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize = do
         accsTrain' = trainAcc : accsTrain
         accsTest' = valAcc : accsVal
     plotHistories
-      "losses-imitation"
+      ("losses-imitation-" <> name)
       [reverse lossesTrain', reverse lossesTest', reverse accsTrain', reverse accsTest']
     pure ((model', optim'), shuffler', (lossesTrain', accsTrain'), (lossesTest', accsTest'))
 
-trainDataset model0 trainData testData fLr epochs batchSize = do
+trainDataset name model0 trainData testData fLr epochs batchSize = do
   shuffler0 <- pure T.Sequential --  T.Shuffle <$> Rand.initStdGen
   let nTrain = S.size $ T.keys trainData
       nBatches = negate (negate nTrain `div` batchSize)
       streamer shuffler = T.streamFromMap ((T.datasetOpts 1){T.shuffle = shuffler}) trainData
-  train model0 shuffler0 streamer testData fLr epochs nBatches batchSize
+  train name model0 shuffler0 streamer testData fLr epochs nBatches batchSize
 
-trainDatastream model0 trainStream =
-  train model0 () streamer
+trainDatastream name model0 trainStream =
+  train name model0 () streamer
  where
   streamer () = ContT $ \k -> k (T.streamSamples trainStream (), ())
 
@@ -682,8 +683,10 @@ testTrain epochs = do
   trainData <- makeChordDataset @TestDevice 1
   testData <- makeChordDataset @TestDevice 1
   (_, ((lTrain, aTrain), (lVal, aVal))) <-
-    trainDataset model0 trainData testData fLR epochs 1
-  plotHistories "losses-imitation" [lTrain, lVal, aTrain, aVal]
+    trainDataset "test" model0 trainData testData fLR epochs 1
+  pure ()
+
+-- plotHistories "losses-imitation" [lTrain, lVal, aTrain, aVal]
 
 testTrainStream :: Int -> IO ()
 testTrainStream epochs = do
@@ -695,8 +698,10 @@ testTrainStream epochs = do
       trainData = ImitationStream @TestDevice probs 4 20 gen
   testData <- makeChordDataset @TestDevice 1
   (_, ((lTrain, aTrain), (lVal, aVal))) <-
-    trainDatastream model0 trainData testData fLR epochs 3 5
-  plotHistories "losses-imitation" [lTrain, lVal, aTrain, aVal]
+    trainDatastream "test" model0 trainData testData fLR epochs 3 5
+  pure ()
+
+-- plotHistories "losses-imitation" [lTrain, lVal, aTrain, aVal]
 
 -- Debugging
 -- =========

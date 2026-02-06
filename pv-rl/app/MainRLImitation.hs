@@ -40,10 +40,10 @@ type Device = '(TT.CPU, 0)
 type Hidden = 8
 
 main :: IO ()
-main = trainImitation 500
+main = trainImitation 500 "test"
 
-trainImitation :: Int -> IO ()
-trainImitation epochs = do
+trainImitation :: Int -> String -> IO ()
+trainImitation epochs name = do
   let fLR = const 0.01 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
   -- !model0 <- loadModel "rl/actor-imit.ht"
   !model0 <- mkQModel @Device @Hidden
@@ -64,8 +64,8 @@ trainImitation epochs = do
   let testData = mkImitationDataset testData'
   putStrLn $ "test:  " <> show (S.size $ TT.keys @IO testData)
   (modelTrained, (hTrain, hTest)) <-
-    trainDatastream model0 trainData testData fLR epochs 32 32
-  -- trainDataset model0 trainData testData fLR epochs 32
+    trainDatastream name model0 trainData testData fLR epochs 32 32
+  -- trainDataset name model0 trainData testData fLR epochs 32
   -- plotHistories "losses-imitation" [hTrain, hTest]
   pure ()
 
