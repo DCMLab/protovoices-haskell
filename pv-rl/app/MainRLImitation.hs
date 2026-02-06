@@ -7,6 +7,7 @@ module Main where
 import CommonMain
 
 import PVGrammar.Prob.Simple
+import RL
 import RL.Imitate
 import RL.Model
 import RL.Plotting
@@ -17,6 +18,7 @@ import RL.Plotting
 import Control.Monad (replicateM_)
 import Control.Monad.Cont (ContT (ContT, runContT))
 import Data.Either (rights)
+import Data.Fixed (mod')
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe (catMaybes)
 import Data.Set qualified as S
@@ -25,7 +27,6 @@ import Inference.Conjugate
 import Pipes qualified as P
 import Pipes.Prelude qualified as P
 import RL.Encoding (ActionEncoding (actionEncodingOp), QEncoding (qActionEncoding))
-import RL.Imitate (derivationToDatapointsLenient)
 import System.FilePath ((</>))
 import System.Random (newStdGen)
 import System.Random.MWC (createSystemRandom)
@@ -44,8 +45,9 @@ main = trainImitation 500 "test"
 
 trainImitation :: Int -> String -> IO ()
 trainImitation epochs name = do
-  let fLR = const 0.01 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
-  -- !model0 <- loadModel "rl/actor-imit.ht"
+  let fLR :: QType -> QType
+      fLR = (* 0.01) <$> (RL.cosSchedule 100 . (`mod'` 100)) -- const 0.01
+      -- !model0 <- loadModel "rl/actor-imit.ht"
   !model0 <- mkQModel @Device @Hidden
   gen <- createSystemRandom
   Right hyper <- loadPVHyper "posterior.json"

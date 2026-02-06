@@ -529,7 +529,7 @@ trainEpoch
    . (ValidParams dev hidden, TT.Optimizer o (ModelTensors dev hidden) (ModelTensors dev hidden) QDType dev)
   => Int
   -> Int
-  -> TT.LearningRate dev QDType
+  -> QType
   -> (QModel dev hidden, o)
   -> P.ListT IO [ImitationData dev]
   -> IO ((QModel dev hidden, o), (QType, QType))
@@ -564,7 +564,7 @@ trainEpoch i nBatches lr state batches = do
         lossTyped = TT.UnsafeMkTensor loss + fakeLoss model
         !lossScalar = T.asValue loss
         !accuracy = mean $ zipWith hit labels predictions
-    !state' <- TT.runStep model optim lossTyped lr
+    !state' <- TT.runStep model optim lossTyped (toQTensor lr)
     PB.incProgress pb 1
     -- putStrLn $ "\nActions: " <> show (sum $ NE.length . snd <$> inputs)
     pure $! (state', (lossScalar : losses, accuracy : accs))
@@ -622,7 +622,7 @@ train
   -> shuf
   -> (shuf -> ContT ((QModel dev hidden, _o), shuf, (QType, QType)) IO (P.ListT IO (ImitationData dev), shuf))
   -> ImitationDataset IO dev
-  -> (Int -> TT.LearningRate dev QDType)
+  -> (QType -> QType)
   -> Int
   -> Int
   -> Int
@@ -662,12 +662,12 @@ train name model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize
       [reverse lossesTrain', reverse lossesTest', reverse accsTrain', reverse accsTest']
     pure ((model', optim'), shuffler', (lossesTrain', accsTrain'), (lossesTest', accsTest'))
 
-trainDataset name model0 trainData testData fLr epochs batchSize = do
+trainDataset name model0 trainData testData fLR epochs batchSize = do
   shuffler0 <- pure T.Sequential --  T.Shuffle <$> Rand.initStdGen
   let nTrain = S.size $ T.keys trainData
       nBatches = negate (negate nTrain `div` batchSize)
       streamer shuffler = T.streamFromMap ((T.datasetOpts 1){T.shuffle = shuffler}) trainData
-  train name model0 shuffler0 streamer testData fLr epochs nBatches batchSize
+  train name model0 shuffler0 streamer testData fLR epochs nBatches batchSize
 
 trainDatastream name model0 trainStream =
   train name model0 () streamer
