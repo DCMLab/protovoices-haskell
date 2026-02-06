@@ -48,11 +48,15 @@ trainImitation epochs name = do
   let fLR :: QType -> QType
       fLR = (* 0.01) <$> (RL.cosSchedule 100 . (`mod'` 100)) -- const 0.01
       -- !model0 <- loadModel "rl/actor-imit.ht"
+      hidden = TT.natValI @Hidden
+      nBatches = 32
+      batchSize = 32
+      fullname = "e" <> show epochs <> "-nb" <> show nBatches <> "-bs" <> show batchSize <> "-h" <> show hidden <> "-" <> name
   !model0 <- mkQModel @Device @Hidden
   gen <- createSystemRandom
   Right hyper <- loadPVHyper "posterior.json"
   let probs = expectedProbs @PVParams hyper
-      trainData = ImitationStream @Device probs 4 20 gen
+      trainData = ImitationStream @Device probs 4 32 gen
   -- trainData <- makeChordDataset @Device 128
   -- putStrLn $ "train: " <> show (S.size $ TT.keys trainData)
   -- testData <- makeChordDataset @Device 100
@@ -66,7 +70,7 @@ trainImitation epochs name = do
   let testData = mkImitationDataset testData'
   putStrLn $ "test:  " <> show (S.size $ TT.keys @IO testData)
   (modelTrained, (hTrain, hTest)) <-
-    trainDatastream name model0 trainData testData fLR epochs 32 32
+    trainDatastream fullname model0 trainData testData fLR epochs nBatches batchSize
   -- trainDataset name model0 trainData testData fLR epochs 32
   -- plotHistories "losses-imitation" [hTrain, hTest]
   pure ()
