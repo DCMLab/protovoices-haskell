@@ -32,7 +32,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.Maybe (catMaybes, mapMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Type.Equality ((:~:) (..))
-import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), type (*), type (+), type (-), type (>=))
+import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), type (*), type (+), type (-), type (<=), type (>=))
 import Data.Vector qualified as V
 import Data.Vector.Generic.Sized.Internal qualified as VSU
 import Data.Vector.Sized qualified as VS
@@ -751,26 +751,35 @@ withBatchedEncoding state (a0 NE.:| actions) f =
   aEncs = encodePVAction <$> actions
   sEnc = encodePVState state
 
+data SomeStep dev = forall n. (KnownNat n) => SomeStep (QEncoding dev '[n])
+
+encodeStepBatched :: (TT.KnownDevice dev) => PVState -> NE.NonEmpty PVAction -> SomeStep dev
+encodeStepBatched state actions = withBatchedEncoding state actions SomeStep
+
 -- batching several steps
 -- ======================
 
-data QEncodingBatch dev = QEncodingBatch
-  { qBatchActions :: !(ActionEncoding dev '[FakeSize])
+data QEncodingBatch dev = forall n. (KnownNat n, 1 <= n) => QEncodingBatch
+  { qBatchActions :: ActionEncoding dev '[n]
   , qBatchStates :: ![StateEncoding dev]
   , qBatchSizes :: ![Int]
   }
-  deriving (Show, Generic, NFData)
+
+-- deriving (Show, Generic, NFData)
 
 encodeBatch
   :: forall dev
    . (TT.KnownDevice dev)
   => [(PVState, NE.NonEmpty PVAction)]
   -> QEncodingBatch dev
-encodeBatch steps = QEncodingBatch actionsEnc stateEncs sizes
+encodeBatch steps = VS.withSizedList aEncs mkBatch
  where
   states = fst <$> steps
   actionLists = snd <$> steps
   sizes = NE.length <$> actionLists
   (aEnc0 : aEncs) = encodePVAction @dev <$> concatMap NE.toList actionLists -- TODO: this is potentially unsafe
-  actionsEnc = VS.withSizedList aEncs $ \aEncs' -> unsafeCoerce $ stack (VS.cons aEnc0 aEncs')
   stateEncs = encodePVState <$> states
+  mkBatch :: (KnownNat m) => VS.Vector m (ActionEncoding dev '[]) -> QEncodingBatch dev
+  mkBatch aEncs' = QEncodingBatch actionsEnc stateEncs sizes
+   where
+    actionsEnc = stack (VS.cons aEnc0 aEncs')

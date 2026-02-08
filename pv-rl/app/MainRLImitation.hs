@@ -37,7 +37,7 @@ import Torch.Typed qualified as TT
 -- Training
 -- ========
 
-type Device = '(TT.CPU, 0)
+type Device = '(TT.CUDA, 0)
 type Hidden = 8
 
 main :: IO ()
@@ -47,12 +47,17 @@ trainImitation :: Int -> String -> IO ()
 trainImitation epochs name = do
   let fLR :: QType -> QType
       fLR = (* 0.01) <$> (RL.cosSchedule 100 . (`mod'` 100)) -- const 0.01
-      -- !model0 <- loadModel "rl/actor-imit.ht"
       hidden = TT.natValI @Hidden
-      nBatches = 32
+      nBatches = 16
       batchSize = 32
-      fullname = "e" <> show epochs <> "-nb" <> show nBatches <> "-bs" <> show batchSize <> "-h" <> show hidden <> "-" <> name
+      paramname = "e" <> show epochs <> "-nb" <> show nBatches <> "-bs" <> show batchSize <> "-h" <> show hidden
+      fullname = paramname <> "-" <> name
+  putStrLn $ "model name: " <> fullname
+  -- !model0 <- loadModel @Device @Hidden "rl/actor-imit.ht"
   !model0 <- mkQModel @Device @Hidden
+  -- check hidden size
+  let TT.Linear w _b = qModelFinal2 model0
+  putStrLn $ "hidden size (actual): " <> (show $ T.shape $ TT.toDynamic $ TT.toDependent w)
   gen <- createSystemRandom
   Right hyper <- loadPVHyper "posterior.json"
   let probs = expectedProbs @PVParams hyper

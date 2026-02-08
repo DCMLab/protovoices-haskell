@@ -552,8 +552,8 @@ trainEpoch i nBatches lr state batches = do
     let inputs = dataInput <$> batch
         labels = dataLabel <$> batch
         -- predict :: ImitationDataX dev -> T.Tensor
-        -- -- predict inputF = T.transpose2D $ inputF (runBatchedLogPolicy 1 model)
-        -- predict (state, actions) = T.transpose2D $ runBatchedLogPolicy 1 model $ encodeStepFake state actions
+        -- predict (state, actions) = case encodeStepBatched state actions of
+        --   SomeStep enc -> T.transpose2D $ runBatchedLogPolicy 1 model enc
         -- predictions = fmap predict inputs
         batchEncoding = encodeBatch inputs
         predictions = T.transpose2D <$> runFullyBatchedLogPolicy 1 model batchEncoding
@@ -578,24 +578,6 @@ trainEpoch i nBatches lr state batches = do
       , PB.styleWidth = PB.ConstantWidth 80
       }
 
--- validateEpoch
---   :: (ValidParams dev hidden)
---   => QModel dev hidden
---   -> P.ListT IO (ImitationData dev)
---   -> IO (QType, QType)
--- validateEpoch model dataset = do
---   (losses, accs) <- P.foldM step begin done $ P.enumerate dataset
---   pure $ (mean losses, mean accs)
---  where
---   begin = pure ([], [])
---   done = pure
---   step (!losses, !accs) datapoint = pure $! (loss : losses, acc : accs)
---    where
---     prediction = T.transpose2D $ runBatchedLogPolicy 1 model $ dataInput datapoint
---     label = dataLabel datapoint
---     !loss = T.asValue $ nll label prediction
---     !acc = hit label prediction
-
 validateEpoch
   :: (ValidParams dev hidden)
   => QModel dev hidden
@@ -603,15 +585,18 @@ validateEpoch
   -> IO (QType, QType)
 validateEpoch model dataset = do
   datapoints <- P.toListM $ P.enumerate dataset
+  -- let predict :: ImitationDataX dev -> T.Tensor
+  --     predict (state, actions) = case encodeStepBatched state actions of
+  --       SomeStep enc -> T.transpose2D $ runBatchedLogPolicy 1 model enc
+  --     predictions = fmap (predict . dataInput) datapoints
   let batchEncoding = encodeBatch $ dataInput <$> datapoints
-      predictions = runFullyBatchedLogPolicy 1 model batchEncoding
+      predictions = T.transpose2D <$> runFullyBatchedLogPolicy 1 model batchEncoding
       results = zipWith lossAndAcc predictions datapoints
       (losses, accs) = unzip results
   pure $ (mean losses, mean accs)
  where
-  lossAndAcc pred datapoint = (loss, acc)
+  lossAndAcc prediction datapoint = (loss, acc)
    where
-    prediction = T.transpose2D pred
     label = dataLabel datapoint
     !loss = T.asValue $ nll label $ prediction
     !acc = hit label prediction

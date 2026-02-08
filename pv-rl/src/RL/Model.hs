@@ -39,12 +39,15 @@ import GHC.Generics (Generic)
 import GHC.TypeLits (OrderingI (..), cmpNat, sameNat)
 import NoThunks.Class (NoThunks (..), OnlyCheckWhnf (..), allNoThunks)
 import System.IO.Unsafe
+import Torch (batchNormForwardIO)
 import Torch qualified as T
+import Torch.Functional.Internal qualified as TI
 import Torch.Internal.Cast (cast2)
 import Torch.Internal.Managed.Type.Tensor qualified as ATen
 import Torch.Jit qualified as TJit
 import Torch.Lens qualified as TL
 import Torch.Typed qualified as TT
+import Unsafe.Coerce (unsafeCoerce)
 
 -- Global Settings
 -- ===============
@@ -513,6 +516,7 @@ data QModel dev hidden = QModel
   , qModelAct :: !(ActionEncoder dev hidden)
   , qModelSt :: !(StateEncoder dev hidden)
   , qModelFinal1 :: !(TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev) -- !(TT.Linear (EmbSize (QSpecGeneral DefaultQSpec)) QOutHidden QDType dev)
+  , qModelAtt1 :: !(TT.MultiheadAttention hidden hidden hidden 1 QDType dev)
   , qModelNorm1 :: !(TT.LayerNorm '[hidden] QDType dev)
   , qModelFinal2 :: !(TT.Linear hidden 1 QDType dev)
   , qModelValue1 :: !(TT.Linear hidden hidden QDType dev)
@@ -532,6 +536,7 @@ instance (ValidParams dev hidden) => T.Randomizable (QSpec dev hidden) (QModel d
     qModelAct <- T.sample $ ActionSpec @dev @hidden
     qModelSt <- T.sample $ StateSpec @dev @hidden
     qModelFinal1 <- T.sample TT.Conv2dSpec
+    qModelAtt1 <- T.sample $ TT.MultiheadAttentionSpec $ TT.DropoutSpec 0
     qModelNorm1 <- T.sample $ TT.LayerNormSpec 1e-05
     qModelFinal2 <- T.sample TT.LinearSpec
     qModelValue1 <- T.sample TT.LinearSpec
@@ -576,11 +581,12 @@ forwardQModelBatched
   :: forall dev hidden batchSize
    . ( ValidParams dev hidden
      , 1 <= batchSize
+     , KnownNat batchSize
      )
   => QModel dev hidden
   -> QEncoding dev '[batchSize]
   -> QTensor dev '[batchSize, 1]
-forwardQModelBatched (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncoding actEncs stEnc) = out2
+forwardQModelBatched (QModel slc tr act st final1 att1 norm1 final2 _ _ _) (QEncoding actEncs stEnc) = out2
  where
   actEmb :: QTensor dev (batchSize : hidden : PShape)
   actEmb = T.forward act (slc, tr, actEncs)
@@ -591,8 +597,14 @@ forwardQModelBatched (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncoding
   out1 = TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) final1 inputEmb
   sum1 :: QTensor dev '[batchSize, hidden]
   sum1 = TT.sumDim @2 $ TT.sumDim @2 out1
+  attIn :: QTensor dev '[1, batchSize, hidden]
+  attIn = TT.unsqueeze @0 sum1
+  attOut :: QTensor dev '[1, batchSize, hidden]
+  (attOut, _) = unsafePerformIO $ TT.multiheadAttention att1 False Nothing Nothing Nothing Nothing attIn attIn attIn
   out1norm :: QTensor dev '[batchSize, hidden]
-  out1norm = activation $ TH.layerNormForwardRelaxed norm1 sum1
+  out1norm = activation $ TH.layerNormForwardRelaxed norm1 (TT.squeezeDim @0 attOut)
+  -- out1norm :: QTensor dev '[batchSize, hidden]
+  -- out1norm = activation $ TH.layerNormForwardRelaxed norm1 sum1
   out2 :: QTensor dev '[batchSize, 1]
   out2 = T.forward final2 out1norm
 
@@ -616,7 +628,7 @@ forwardValue
   => QModel dev hidden
   -> StateEncoding dev
   -> QTensor dev '[1]
-forwardValue (QModel slc tr _ st _ _ _ value1 norm value2) stateEncoding = out2
+forwardValue (QModel slc tr _ st _ _ _ _ value1 norm value2) stateEncoding = out2
  where
   outSlc = TT.sumDim @1 $ TT.sumDim @1 $ T.forward st (slc, tr, stateEncoding)
   out1 = activation $ T.forward norm $ T.forward value1 outSlc
@@ -741,26 +753,35 @@ forwardPolicyFullyBatched
   => QModel dev hidden
   -> QEncodingBatch dev
   -> [T.Tensor]
-forwardPolicyFullyBatched (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncodingBatch actsEnc stEncs sizes) =
+forwardPolicyFullyBatched (QModel slc tr act st final1 att1 norm1 final2 _ _ _) (QEncodingBatch @dev @batchSize actsEnc stEncs sizes) =
   getOuts 0 sizes
  where
-  actEmb :: QTensor dev (FakeSize : hidden : PShape)
+  actEmb :: QTensor dev (batchSize : hidden : PShape)
   actEmb = T.forward act (slc, tr, actsEnc)
   stEmbs :: [QTensor dev (hidden : PShape)]
   stEmbs = fmap (\stEnc -> T.forward st (slc, tr, stEnc)) stEncs
   stEmbs' :: [T.Tensor]
   stEmbs' = zipWith (\emb size -> T.repeat [size, 1, 1, 1] $ TT.toDynamic emb) stEmbs sizes
-  stEmb :: QTensor dev (FakeSize : hidden : PShape)
+  stEmb :: QTensor dev (batchSize : hidden : PShape)
   stEmb = TT.UnsafeMkTensor (T.cat (T.Dim 0) stEmbs')
-  inputEmb :: QTensor dev (FakeSize : hidden : PShape)
+  inputEmb :: QTensor dev (batchSize : hidden : PShape)
   inputEmb = actEmb `TT.add` stEmb
-  out1 :: QTensor dev (FakeSize : hidden : PShape)
+  out1 :: QTensor dev (batchSize : hidden : PShape)
   out1 = TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) final1 inputEmb
-  sum1 :: QTensor dev '[FakeSize, hidden]
+  sum1 :: QTensor dev '[batchSize, hidden]
   sum1 = TT.sumDim @2 $ TT.sumDim @2 out1
-  out1norm :: QTensor dev '[FakeSize, hidden]
-  out1norm = activation $ TH.layerNormForwardRelaxed norm1 sum1
-  out2 :: QTensor dev '[FakeSize, 1]
+  attIn :: QTensor dev '[1, batchSize, hidden]
+  attIn = TT.unsqueeze @0 sum1
+  mkAttMask size = T.full [size, size] (-1 / 0 :: Double) (opts @dev)
+  attMask :: QTensor dev [1, batchSize, batchSize]
+  attMask = TT.unsqueeze @0 $ TT.UnsafeMkTensor $ TI.block_diag $ fmap mkAttMask sizes
+  attOut :: QTensor dev '[1, batchSize, hidden]
+  (attOut, _) = unsafePerformIO $ TT.multiheadAttention att1 False (Just attMask) Nothing Nothing Nothing attIn attIn attIn
+  out1norm :: QTensor dev '[batchSize, hidden]
+  out1norm = activation $ TH.layerNormForwardRelaxed norm1 (TT.squeezeDim @0 attOut)
+  -- out1norm :: QTensor dev '[batchSize, hidden]
+  -- out1norm = activation $ TH.layerNormForwardRelaxed norm1 sum1
+  out2 :: QTensor dev '[batchSize, 1]
   out2 = T.forward final2 out1norm
   outAll = TT.toDynamic out2
   getOuts :: Int -> [Int] -> [T.Tensor]

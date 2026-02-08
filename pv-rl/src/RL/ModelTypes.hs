@@ -42,6 +42,7 @@ type QDType = TT.Double
 type IsValidDevice dev =
   ( TT.GeluDTypeIsValid dev QDType
   , TT.RandDTypeIsValid dev QDType
+  , TT.MatMulDTypeIsValid dev QDType
   , TT.BasicArithmeticDTypeIsValid dev QDType
   , TT.SumDTypeIsValid dev QDType
   , TT.MeanDTypeValidation dev QDType
@@ -158,6 +159,12 @@ deriving instance NFData (TT.Linear nin nout dtype dev)
 
 deriving instance NoThunks (TT.Conv2d cin cout k0 k1 dtype dev)
 deriving instance NFData (TT.Conv2d cin cout k0 k1 dtype dev)
+
+deriving instance NoThunks TT.Dropout
+deriving instance NFData TT.Dropout
+
+deriving instance NoThunks (TT.MultiheadAttention emd kemb vemb heads dtype dev)
+deriving instance NFData (TT.MultiheadAttention emd kemb vemb heads dtype dev)
 
 deriving instance NoThunks (TT.LayerNorm shape dtype dev)
 deriving instance NFData (TT.LayerNorm shape dtype dev)
