@@ -456,7 +456,7 @@ instance
       (SliceEncoder dev hidden, TransitionEncoder dev hidden, StateEncoding dev)
       (QTensor dev outShape)
   where
-  forward StateEncoder{..} (slc, tr, StateEncoding mid frozen open) = out3
+  forward StateEncoder{..} (slc, tr, StateEncoding @nfrozen @nopen mid frozen open) = out3
    where
     -- helpers: running convolutions (batched and unbatched)
     runConv'
@@ -474,16 +474,18 @@ instance
 
     -- embedding segments (open and frozen)
     embedSegments
-      :: TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
+      :: forall nsegs
+       . (KnownNat nsegs)
+      => TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
       -> TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
-      -> QMaybe dev '[] (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize]))
-      -> QTensor dev (FakeSize : hidden : PShape)
+      -> QMaybe dev '[] (TransitionEncoding dev '[nsegs], QStartStop dev '[nsegs] (SliceEncoding dev '[nsegs]))
+      -> QTensor dev (nsegs : hidden : PShape)
     embedSegments trEnc slcEnc (QMaybe mask (ft, fs)) =
       TT.mul (TT.reshape @[1, 1, 1, 1] mask) $ ftEmb + fsEmb
      where
-      ftEmb :: QTensor dev (FakeSize : hidden : PShape)
+      ftEmb :: QTensor dev (nsegs : hidden : PShape)
       ftEmb = activation $ runConv' trEnc $ T.forward tr ft
-      fsEmb :: QTensor dev (FakeSize : hidden : PShape)
+      fsEmb :: QTensor dev (nsegs : hidden : PShape)
       fsEmb = activation $ runConv' slcEnc $ T.forward slc fs
 
     -- embed frozen segments

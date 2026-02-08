@@ -87,8 +87,6 @@ toQTensor' a = T.asTensor' a $ opts @dev
 toQTensor :: forall dev. (TT.KnownDevice dev) => QType -> QTensor dev '[]
 toQTensor = TT.UnsafeMkTensor . toQTensor' @dev
 
-type FakeSize = 1337 :: Nat
-
 type MaxPitches = 8 :: Nat
 type MaxEdges = 8 :: Nat
 
@@ -120,7 +118,7 @@ type PShape = '[FifthSize, OctaveSize]
 type PSize = FifthSize + OctaveSize
 
 type ESize = PSize + PSize
-type EShape' = '[FakeSize, ESize]
+type EShape' batchSize = '[batchSize, ESize]
 
 intValI :: forall n. (KnownInt n) => Int
 intValI = fromInteger $ intVal @n Proxy

@@ -100,10 +100,7 @@ import Unsafe.Coerce (unsafeCoerce)
 
 class Stackable a where
   type Stacked a (n :: Nat)
-  stack :: (KnownNat n, KnownNat (1 + n)) => VS.Vector (1 + n) a -> Stacked a (1 + n)
-
-stackUnsafe :: (Stackable a) => [a] -> Stacked a FakeSize
-stackUnsafe things = stack $ VSU.Vector $ V.fromList things
+  stack :: (KnownNat n) => VS.Vector n a -> Stacked a n
 
 class Batchable a where
   type Batched a
@@ -465,28 +462,28 @@ instance Batchable (TransitionEncoding dev shape) where
       (addBatchDim r)
       (TT.unsqueeze @0 rt)
 
-edgesMultiHot
-  :: forall dev
-   . (TT.KnownDevice dev)
-  => HS.HashSet (InnerEdge SPitch)
-  -> QTensor dev EShape'
-edgesMultiHot es = TT.UnsafeMkTensor out
- where
-  out =
-    T.toDevice (TT.deviceVal @dev) $
-      if HS.null es
-        then zeros
-        else T.indexPut True indexTensors values zeros
-  edge2index (Note p1 _, Note p2 _) =
-    pitch2index p1
-      ++ pitch2index p2
-  indices = edge2index <$> F.toList es
-  ~indexTensors = T.asTensor <$> Data.List.transpose indices
-  values = T.ones [F.length es] $ opts @'(TT.CPU, 0)
-  zeros = T.zeros dims $ opts @'(TT.CPU, 0)
-  fifthSize = TT.natValI @FifthSize
-  octaveSize = TT.natValI @OctaveSize
-  dims = [fifthSize, octaveSize, fifthSize, octaveSize]
+-- edgesMultiHot
+--   :: forall dev
+--    . (TT.KnownDevice dev)
+--   => HS.HashSet (InnerEdge SPitch)
+--   -> QTensor dev EShape'
+-- edgesMultiHot es = TT.UnsafeMkTensor out
+--  where
+--   out =
+--     T.toDevice (TT.deviceVal @dev) $
+--       if HS.null es
+--         then zeros
+--         else T.indexPut True indexTensors values zeros
+--   edge2index (Note p1 _, Note p2 _) =
+--     pitch2index p1
+--       ++ pitch2index p2
+--   indices = edge2index <$> F.toList es
+--   ~indexTensors = T.asTensor <$> Data.List.transpose indices
+--   values = T.ones [F.length es] $ opts @'(TT.CPU, 0)
+--   zeros = T.zeros dims $ opts @'(TT.CPU, 0)
+--   fifthSize = TT.natValI @FifthSize
+--   octaveSize = TT.natValI @OctaveSize
+--   dims = [fifthSize, octaveSize, fifthSize, octaveSize]
 
 edgesOneHots
   :: forall dev
@@ -646,53 +643,70 @@ encodePVAction (Right (ActionDouble top action)) = ActionEncoding encTop encActi
 -- State Encoding
 -- --------------
 
-data StateEncoding dev = StateEncoding
+data StateEncoding dev
+  = forall frozen open.
+  (KnownNat frozen, KnownNat open, 1 <= frozen, 1 <= open) =>
+  StateEncoding
   { stateEncodingMid :: !(QStartStop dev '[] (SliceEncoding dev '[]))
-  , stateEncodingFrozen :: !(QMaybe dev '[] (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize])))
-  , stateEncodingOpen :: !(QMaybe dev '[] (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize])))
+  , stateEncodingFrozen :: !(QMaybe dev '[] (TransitionEncoding dev '[frozen], QStartStop dev '[frozen] (SliceEncoding dev '[frozen])))
+  , stateEncodingOpen :: !(QMaybe dev '[] (TransitionEncoding dev '[open], QStartStop dev '[open] (SliceEncoding dev '[open])))
   }
-  deriving (Show, Generic, NFData)
 
-getFrozen
-  :: forall dev t
-   . (Foldable t, TT.KnownDevice dev)
-  => Path (Maybe (t (Edge SPitch))) (Notes SPitch)
-  -> (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize]))
-getFrozen frozen = (stackUnsafe trEncs, stackUnsafe slcEncs)
- where
-  (trs, slcs) = unzip $ pathTake 8 Inner Start frozen
-  trEncs = encodeTransition . pvThaw <$> trs
-  slcEncs = qStartStop encodeSlice emptySlice <$> slcs
+-- deriving (Show, Generic, NFData)
 
-getOpen
-  :: (TT.KnownDevice dev)
-  => Path (Edges SPitch) (Notes SPitch)
-  -> (TransitionEncoding dev '[FakeSize], QStartStop dev '[FakeSize] (SliceEncoding dev '[FakeSize]))
-getOpen open = (stackUnsafe trEncs, stackUnsafe slcEncs)
+data Segments dev = forall n. (KnownNat n, 1 <= n) => Segments (TransitionEncoding dev '[n], QStartStop dev '[n] (SliceEncoding dev '[n]))
+
+getSegments
+  :: forall dev
+   . (TT.KnownDevice dev)
+  => StartStop (Notes SPitch)
+  -> Path (Edges SPitch) (Notes SPitch)
+  -> Segments dev
+getSegments def segs = VS.withSizedList lsegs mkSegments
  where
-  (trs, slcs) = unzip $ pathTake 8 Inner Stop open
-  trEncs = encodeTransition <$> trs
-  slcEncs = qStartStop encodeSlice emptySlice <$> slcs
+  (seg0 : lsegs) = pathTake 8 Inner def segs
+  mkSegments
+    :: (KnownNat m)
+    => VS.Vector m (Edges SPitch, StartStop (Notes SPitch))
+    -> Segments dev
+  mkSegments vsegs = Segments (stack trEncs, stack slcEncs)
+   where
+    (trs, slcs) = VS.unzip (VS.cons seg0 vsegs)
+    trEncs = encodeTransition @dev <$> trs
+    slcEncs = qStartStop encodeSlice emptySlice <$> slcs
 
 encodePVState
-  :: (TT.KnownDevice dev)
+  :: forall dev
+   . (TT.KnownDevice dev)
   => PVState
   -> StateEncoding dev
 encodePVState (GSFrozen frozen) =
-  StateEncoding
-    (qStop emptySlice)
-    (qJust $ getFrozen frozen)
-    (qNothing (stackUnsafe [emptyTransition], stackUnsafe [qStop emptySlice]))
+  case getSegments Start (mapArounds pvThaw frozen) of
+    Segments frozenSegs ->
+      case getSegments Stop (PathEnd mempty) of
+        Segments openSegs ->
+          StateEncoding
+            (qStop emptySlice)
+            (qJust frozenSegs)
+            (qNothing openSegs)
 encodePVState (GSOpen open _) =
-  StateEncoding
-    (qStart emptySlice)
-    (qNothing (stackUnsafe [emptyTransition], stackUnsafe [qStart emptySlice]))
-    (qJust $ getOpen open)
+  case getSegments Start (PathEnd mempty) of
+    Segments frozenSegs ->
+      case getSegments Stop open of
+        Segments openSegs ->
+          StateEncoding
+            (qStart emptySlice)
+            (qNothing frozenSegs)
+            (qJust openSegs)
 encodePVState (GSSemiOpen frozen mid open _) =
-  StateEncoding
-    (qInner $ encodeSlice mid)
-    (qJust $ getFrozen frozen)
-    (qJust $ getOpen open)
+  case getSegments Start (mapArounds pvThaw frozen) of
+    Segments frozenSegs ->
+      case getSegments Stop open of
+        Segments openSegs ->
+          StateEncoding
+            (qInner $ encodeSlice mid)
+            (qJust frozenSegs)
+            (qJust openSegs)
 
 -- Step Encoding
 -- -------------
@@ -701,7 +715,8 @@ data QEncoding dev batchShape = QEncoding
   { qActionEncoding :: !(ActionEncoding dev batchShape)
   , qStateEncoding :: !(StateEncoding dev)
   }
-  deriving (Show, Generic, NFData)
+
+-- deriving (Show, Generic, NFData)
 
 instance Batchable (QEncoding dev shape) where
   type Batched (QEncoding dev shape) = QEncoding dev (1 : shape)
@@ -716,24 +731,6 @@ encodeStep state action =
   QEncoding
     (encodePVAction action)
     (encodePVState state)
-
-encodeStepFake
-  :: forall dev
-   . (TT.KnownDevice dev)
-  => PVState
-  -> NE.NonEmpty PVAction
-  -> QEncoding dev '[FakeSize]
-encodeStepFake state (a0 NE.:| actions) =
-  VS.withSizedList aEncs inner
- where
-  inner :: forall n. (KnownNat n) => VS.Vector n (ActionEncoding dev '[]) -> QEncoding dev '[FakeSize]
-  inner aEncs' = QEncoding (unsafeCoerce stackedAEncs) sEnc
-   where
-    stackedAEncs :: ActionEncoding dev '[n + 1]
-    stackedAEncs = stack (VS.cons a0Enc aEncs')
-  a0Enc = encodePVAction a0
-  aEncs = encodePVAction <$> actions
-  sEnc = encodePVState state
 
 withBatchedEncoding
   :: forall dev r

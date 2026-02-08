@@ -278,7 +278,8 @@ trainLoop !eval !gen fReward fLr fTemp (!piece, !label) oldstate@(DQNState !pnet
       Nothing -> TT.zeros
       Just (state', actions') ->
         let
-          nextQs :: QTensor dev '[FakeSize, 1]
+          -- TODO: could make this impredicative instead of using a fake size
+          nextQs :: QTensor dev '[1337, 1]
           nextQs = TT.UnsafeMkTensor $ withBatchedEncoding state' actions' $ runBatchedQ tnet
          in
           TT.maxValues @0 @TT.DropDim nextQs
