@@ -553,14 +553,11 @@ trainEpoch i nBatches lr state batches = do
         labels = dataLabel <$> batch
         -- predict :: ImitationDataX dev -> T.Tensor
         -- predict (state, actions) = case encodeStepBatched state actions of
-        --   SomeStep enc -> T.transpose2D $ runBatchedLogPolicy 1 model enc
+        --   SomeStep enc -> T.transpose2D $ dynPolicy $ runBatchedLogPolicy 1 model enc
         -- predictions = fmap predict inputs
         batchEncoding = encodeBatch inputs
         predictions = T.transpose2D <$> runFullyBatchedLogPolicy 1 model batchEncoding
-        loss =
-          T.divScalar
-            (length batch)
-            (sum (zipWith nll labels predictions))
+        loss = T.divScalar (length batch) (sum (zipWith nll labels predictions))
         lossTyped :: TT.Loss dev QDType
         lossTyped = TT.UnsafeMkTensor loss + fakeLoss model
         !lossScalar = T.asValue loss
@@ -587,7 +584,7 @@ validateEpoch model dataset = do
   datapoints <- P.toListM $ P.enumerate dataset
   -- let predict :: ImitationDataX dev -> T.Tensor
   --     predict (state, actions) = case encodeStepBatched state actions of
-  --       SomeStep enc -> T.transpose2D $ runBatchedLogPolicy 1 model enc
+  --       SomeStep enc -> T.transpose2D $ dynPolicy $ runBatchedLogPolicy 1 model enc
   --     predictions = fmap (predict . dataInput) datapoints
   let batchEncoding = encodeBatch $ dataInput <$> datapoints
       predictions = T.transpose2D <$> runFullyBatchedLogPolicy 1 model batchEncoding

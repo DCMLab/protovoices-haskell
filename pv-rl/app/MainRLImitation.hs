@@ -46,7 +46,7 @@ main = trainImitation 500 "test"
 trainImitation :: Int -> String -> IO ()
 trainImitation epochs name = do
   let fLR :: QType -> QType
-      fLR = (* 0.01) <$> (RL.cosSchedule 100 . (`mod'` 100)) -- const 0.01
+      fLR = const 0.01 -- (* 0.01) <$> (RL.cosSchedule 100 . (`mod'` 100)) -- const 0.01
       hidden = TT.natValI @Hidden
       nBatches = 16
       batchSize = 32
@@ -85,7 +85,7 @@ trainImitation epochs name = do
 
 testRun = do
   model <- mkQModel @Device @Hidden
-  dataRandom <- makeChordDataset @Device 100
+  dataRandom <- makeChordDataset @Device 1
   (loss, acc) <-
     runContT (T.streamFromMap (T.datasetOpts 1) dataRandom) $
       validateEpoch model . fst

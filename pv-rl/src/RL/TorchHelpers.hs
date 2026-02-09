@@ -251,3 +251,65 @@ layerNormRelaxed weight bias eps input =
           && TT.cudnnIsAcceptable bias
           && TT.cudnnIsAcceptable input
       )
+
+normalizeBatch
+  :: forall device dtype batchSize inner
+   . (_)
+  => TT.Tensor device dtype [batchSize, inner]
+  -> TT.Tensor device dtype [batchSize, inner]
+normalizeBatch input = shifted `TT.div` s
+ where
+  mn :: TT.Tensor device dtype '[inner]
+  mn = TT.mean @0 @TT.DropDim input
+  shifted = input `TT.sub` mn
+  s :: TT.Tensor device dtype '[inner]
+  s = TT.sqrt $ TT.sumDim @0 $ TT.powScalar (2 :: Double) shifted
+
+-- sIs0 :: TT.Tensor device TT.Bool '[inner]
+-- sIs0 = s TT.==. (TT.zeros :: TT.Tensor device dtype '[])
+-- s' :: TT.Tensor device dtype '[inner]
+-- s' = TT.maskedFill sIs0 (1 :: Double) s
+
+-- normalizeBatch input = normalizeBatchGrouped input TT.ones
+
+normalizeBatchGrouped
+  :: forall device dtype batchSize inner
+   . ( KnownNat batchSize
+     , TT.KnownDevice device
+     , TT.SumDTypeIsValid device dtype
+     , TT.SumDType dtype ~ dtype
+     , TT.StandardFloatingPointDTypeValidation device dtype
+     , TT.KnownDType dtype
+     , TT.ComparisonDTypeIsValid device dtype
+     , TT.BasicArithmeticDTypeIsValid device dtype
+     )
+  => TT.Tensor device dtype [batchSize, inner]
+  -> TT.Tensor device dtype [batchSize, batchSize]
+  -> TT.Tensor device dtype [batchSize, inner]
+normalizeBatchGrouped input mask = shifted `TT.div` std'
+ where
+  mask' :: TT.Tensor device dtype '[batchSize, batchSize, 1]
+  mask' = TT.reshape mask
+  maskedInput :: TT.Tensor device dtype '[batchSize, batchSize, inner]
+  maskedInput = TT.mul mask' input
+  sum :: TT.Tensor device dtype '[batchSize, inner]
+  sum = TT.sumDim @1 maskedInput
+  n :: TT.Tensor device dtype '[batchSize, 1]
+  n = TT.sumDim @0 mask'
+  mean :: TT.Tensor device dtype '[batchSize, inner]
+  mean = TT.div sum n
+  shifted :: TT.Tensor device dtype '[batchSize, inner]
+  shifted = input `TT.sub` mean
+  maskedShifted :: TT.Tensor device dtype '[batchSize, batchSize, inner]
+  maskedShifted = TT.mul mask' shifted
+  std :: TT.Tensor device dtype '[batchSize, inner]
+  std = TT.sqrt $ TT.sumDim @1 $ TT.powScalar (2 :: Double) maskedShifted
+  stdIs0 :: TT.Tensor device 'TT.Bool '[batchSize, inner]
+  stdIs0 = std TT.==. (TT.zeros :: TT.Tensor device dtype '[])
+  std' :: TT.Tensor device dtype '[batchSize, inner]
+  std' = TT.maskedFill stdIs0 (1 :: Double) std
+
+checkNaN ctx t =
+  if TT.toInt (TT.any $ TT.isNaN t) == 1
+    then error $ "nan values in " <> show t <> "\ncontext:" <> show ctx
+    else t
