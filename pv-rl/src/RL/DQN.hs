@@ -117,41 +117,42 @@ data DQNState dev hidden opt = DQNState
   }
 
 greedyPolicy
-  :: (Applicative m)
-  => T.Tensor
+  :: (Applicative m, IsValidDevice dev)
+  => SomePolicy dev
   -> m Int
-greedyPolicy values = do
-  pure $ T.asValue $ T.argmax (T.Dim 0) T.RemoveDim $ values
+greedyPolicy (SomePolicy values) = do
+  let choice = TT.argmax @0 @TT.DropDim $ values
+  pure $ T.asValue $ TT.toDynamic choice
 
 epsilonic
-  :: (StatefulGen gen m)
+  :: (StatefulGen gen m, TT.KnownDevice dev)
   => gen
   -> QType
-  -> (T.Tensor -> m Int)
-  -> T.Tensor
+  -> (SomePolicy dev -> m Int)
+  -> SomePolicy dev
   -> m Int
-epsilonic gen epsilon policy values = do
+epsilonic gen epsilon policy values@(SomePolicy pol) = do
   coin <- uniformRM (0, 1) gen
   if coin >= epsilon
     then policy values
-    else uniformRM (0, T.size 0 values - 1) gen
+    else uniformRM (0, (TT.shape pol !! 0) - 1) gen
 
 softmaxPolicy
-  :: (StatefulGen gen m)
+  :: (StatefulGen gen m, IsValidDevice dev)
   => gen
   -> QType
-  -> T.Tensor
+  -> SomePolicy dev
   -> m Int
-softmaxPolicy gen temp values = do
-  let probs = T.softmax (T.Dim 0) $ (T.mulScalar (1 / temp) values)
-  categorical (V.fromList $ T.asValue $ T.toDType T.Double probs) gen
+softmaxPolicy gen temp (SomePolicy values) = do
+  let probs = TT.softmax @0 $ (TT.mulScalar (1 / temp) values)
+  categorical (V.fromList $ T.asValue $ T.toDType T.Double $ TT.toDynamic $ probs) gen
 
 runEpisode
   :: forall dev hidden gen slc' label
    . (ValidParams dev hidden)
   => PVEval SPitch
   -> gen
-  -> (T.Tensor -> IO Int)
+  -> (SomePolicy dev -> IO Int)
   -> PVRewardFn label
   -> Path [Note SPitch] [Edge SPitch]
   -> label
@@ -277,12 +278,13 @@ trainLoop !eval !gen fReward fLr fTemp (!piece, !label) oldstate@(DQNState !pnet
     qnext = case next of
       Nothing -> TT.zeros
       Just (state', actions') ->
-        let
-          -- TODO: could make this impredicative instead of using a fake size
-          nextQs :: QTensor dev '[1337, 1]
-          nextQs = TT.UnsafeMkTensor $ withBatchedEncoding state' actions' $ runBatchedQ tnet
-         in
-          TT.maxValues @0 @TT.DropDim nextQs
+        -- let
+        --   -- TODO: could make this impredicative instead of using a fake size
+        --   nextQs :: QTensor dev '[1337, 1]
+        --   nextQs = TT.UnsafeMkTensor $ withBatchedEncoding state' actions' $ runBatchedQ tnet
+        --  in
+        case withBatchedEncoding state' actions' $ runBatchedQ tnet of
+          SomePolicy nextQs -> TT.maxValues @0 @TT.DropDim nextQs
     qnow = runQ' encodeStep pnet state action
     qexpected = TT.addScalar r (TT.mulScalar gamma qnext)
 

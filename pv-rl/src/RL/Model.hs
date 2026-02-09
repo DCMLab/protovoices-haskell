@@ -546,6 +546,50 @@ instance (ValidParams dev hidden) => T.Randomizable (QSpec dev hidden) (QModel d
     qModelValue2 <- T.sample TT.LinearSpec
     pure QModel{..}
 
+{- | A loss for any model with 0 gradients everywhere.
+Can be used to ensure that all parameters have a gradient,
+if not all parameters are used in the real loss.
+-}
+fakeLoss
+  :: forall dev hidden ps
+   . (IsValidDevice dev, ps ~ TT.Parameters (QModel dev hidden))
+  => QModel dev hidden
+  -> QTensor dev '[]
+fakeLoss model = tzero * total
+ where
+  tzero :: QTensor dev '[]
+  tzero = TT.zeros
+  params = TT.flattenParameters model
+  deps :: (TT.HMap' TT.ToDependent ps ys) => TT.HList ys
+  deps = TT.hmap' TT.ToDependent params
+  sums = TT.hmap' TH.SumAll deps
+  -- total
+  total = TT.hfoldr TH.Add tzero sums
+
+mkQModel :: forall dev hidden. (ValidParams dev hidden) => IO (QModel dev hidden)
+mkQModel = T.sample $ QSpec @dev @hidden
+
+loadModel :: forall dev hidden. (ValidParams dev hidden) => FilePath -> IO (QModel dev hidden)
+loadModel path = do
+  modelPlaceholder <- mkQModel @dev
+  tensors
+    :: (TT.HMap' TT.ToDependent (TT.Parameters (QModel dev hidden)) ts)
+    => TT.HList ts <-
+    TT.load path
+  -- TT.load doesn't move the parameters to the correct device, so we move them manually
+  let tensorsCPU = TT.toDevice @'(TT.CPU, 0) @dev tensors
+  let tensorsDevice = TT.toDevice @dev @'(TT.CPU, 0) tensorsCPU
+  params <- TT.hmapM' TT.MakeIndependent tensorsDevice
+  pure $ TT.replaceParameters modelPlaceholder params
+
+saveModel :: FilePath -> QModel dev hidden -> IO ()
+saveModel path model = TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) path
+
+modelSize :: (IsValidHidden hidden) => QModel dev hidden -> Int
+modelSize model = sum $ product <$> sizes
+ where
+  sizes = TT.hfoldr TH.ToList ([] :: [[Int]]) $ TT.hmap' TH.ShapeVal $ TT.flattenParameters model
+
 -- | HasForward for model (unbatched)
 instance
   ( ValidParams dev hidden
@@ -636,50 +680,6 @@ forwardValue (QModel slc tr _ st _ _ _ _ value1 norm value2) stateEncoding = out
   out1 = activation $ T.forward norm $ T.forward value1 outSlc
   out2 = TT.log $ TT.sigmoid $ T.forward value2 out1
 
-{- | A loss for any model with 0 gradients everywhere.
-Can be used to ensure that all parameters have a gradient,
-if not all parameters are used in the real loss.
--}
-fakeLoss
-  :: forall dev hidden ps
-   . (IsValidDevice dev, ps ~ TT.Parameters (QModel dev hidden))
-  => QModel dev hidden
-  -> QTensor dev '[]
-fakeLoss model = tzero * total
- where
-  tzero :: QTensor dev '[]
-  tzero = TT.zeros
-  params = TT.flattenParameters model
-  deps :: (TT.HMap' TT.ToDependent ps ys) => TT.HList ys
-  deps = TT.hmap' TT.ToDependent params
-  sums = TT.hmap' TH.SumAll deps
-  -- total
-  total = TT.hfoldr TH.Add tzero sums
-
-mkQModel :: forall dev hidden. (ValidParams dev hidden) => IO (QModel dev hidden)
-mkQModel = T.sample $ QSpec @dev @hidden
-
-loadModel :: forall dev hidden. (ValidParams dev hidden) => FilePath -> IO (QModel dev hidden)
-loadModel path = do
-  modelPlaceholder <- mkQModel @dev
-  tensors
-    :: (TT.HMap' TT.ToDependent (TT.Parameters (QModel dev hidden)) ts)
-    => TT.HList ts <-
-    TT.load path
-  -- TT.load doesn't move the parameters to the correct device, so we move them manually
-  let tensorsCPU = TT.toDevice @'(TT.CPU, 0) @dev tensors
-  let tensorsDevice = TT.toDevice @dev @'(TT.CPU, 0) tensorsCPU
-  params <- TT.hmapM' TT.MakeIndependent tensorsDevice
-  pure $ TT.replaceParameters modelPlaceholder params
-
-saveModel :: FilePath -> QModel dev hidden -> IO ()
-saveModel path model = TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) path
-
-modelSize :: (IsValidHidden hidden) => QModel dev hidden -> Int
-modelSize model = sum $ product <$> sizes
- where
-  sizes = TT.hfoldr TH.ToList ([] :: [[Int]]) $ TT.hmap' TH.ShapeVal $ TT.flattenParameters model
-
 runQ
   :: (ValidParams dev hidden)
   => (s -> a -> QEncoding dev '[])
@@ -698,6 +698,11 @@ runQ'
   -> QTensor dev '[1]
 runQ' !encode !model s a = T.forward model $ encode s a
 
+data SomePolicy dev = forall batchSize. (KnownNat batchSize) => SomePolicy (QTensor dev '[batchSize, 1])
+
+dynPolicy :: SomePolicy dev -> T.Tensor
+dynPolicy (SomePolicy p) = TT.toDynamic p
+
 runBatchedPolicy
   :: forall dev hidden batchSize
    . ( ValidParams dev hidden
@@ -706,8 +711,8 @@ runBatchedPolicy
   => QType
   -> QModel dev hidden
   -> QEncoding dev '[batchSize]
-  -> T.Tensor
-runBatchedPolicy temp actor encoding = TT.toDynamic $ TT.softmax @0 $ TT.mulScalar (1 / temp) policy
+  -> SomePolicy dev
+runBatchedPolicy temp actor encoding = SomePolicy $ TT.softmax @0 $ TT.mulScalar (1 / temp) policy
  where
   policy :: QTensor dev '[batchSize, 1]
   policy = case cmpNat (Proxy @1) (Proxy @batchSize) of
@@ -723,8 +728,8 @@ runBatchedLogPolicy
   => QType
   -> QModel dev hidden
   -> QEncoding dev '[batchSize]
-  -> T.Tensor
-runBatchedLogPolicy temp actor encoding = TT.toDynamic $ TT.logSoftmax @0 $ TT.mulScalar (1 / temp) policy
+  -> SomePolicy dev
+runBatchedLogPolicy temp actor encoding = SomePolicy $ TT.logSoftmax @0 $ TT.mulScalar (1 / temp) policy
  where
   policy :: QTensor dev '[batchSize, 1]
   policy = case cmpNat (Proxy @1) (Proxy @batchSize) of
@@ -739,8 +744,8 @@ runBatchedQ
      )
   => QModel dev hidden
   -> QEncoding dev '[batchSize]
-  -> T.Tensor
-runBatchedQ actor encoding = TT.toDynamic $ policy
+  -> SomePolicy dev
+runBatchedQ actor encoding = SomePolicy policy
  where
   policy :: QTensor dev '[batchSize, 1]
   policy = case cmpNat (Proxy @1) (Proxy @batchSize) of
@@ -754,7 +759,7 @@ forwardPolicyFullyBatched
      )
   => QModel dev hidden
   -> QEncodingBatch dev
-  -> [T.Tensor]
+  -> [T.Tensor] -- TODO: could be changed to SomePolicy?
 forwardPolicyFullyBatched (QModel slc tr act st final1 att1 norm1 final2 _ _ _) (QEncodingBatch @dev @batchSize actsEnc stEncs sizes) =
   getOuts 0 sizes
  where

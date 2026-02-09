@@ -137,17 +137,14 @@ pieceStep
 pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward state actions) = do
   -- EitherT String IO
   -- preparation: list actions, compute policy
-  -- TODO: smarter cap than taking 200 actions
-  let
-    -- encodings = encodeStep state <$> actions
-    -- policy = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-    policy = withBatchedEncoding state actions (runBatchedPolicy temp actor)
+  let policy = dynPolicy $ withBatchedEncoding state actions (runBatchedPolicy temp actor)
   -- choose action according to policy
   actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
   let action = actions NE.!! actionIndex
   -- apply action
   state' <- ET.except $ applyAction state action
   let actions' = case state' of
+        -- TODO: smarter cap than taking 200 actions
         Left newState -> NE.nonEmpty $ take 200 $ getActions eval newState
         Right _ -> Nothing
   -- compute A2C update
@@ -225,7 +222,7 @@ runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions 
     let
       -- encodings = encodeStep state <$> actions
       -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-      probs = withBatchedEncoding state actions (runBatchedPolicy 1 actor)
+      probs = dynPolicy $ withBatchedEncoding state actions (runBatchedPolicy 1 actor)
       best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
       action = actions NE.!! best
       bestprob = probs T.! best

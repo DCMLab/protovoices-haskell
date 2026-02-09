@@ -47,6 +47,7 @@ type IsValidDevice dev =
   , TT.SumDTypeIsValid dev QDType
   , TT.MeanDTypeValidation dev QDType
   , TT.StandardFloatingPointDTypeValidation dev QDType
+  , TT.StandardDTypeValidation dev QDType
   , TT.KnownDevice dev
   )
 
