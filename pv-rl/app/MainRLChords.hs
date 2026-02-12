@@ -3,44 +3,39 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -O0 #-}
 
 module Main where
 
 import Common
-import Control.Concurrent.STM.TVar (readTVarIO)
-import Control.DeepSeq qualified as DS
+import GreedyParser (applyAction, getActions, initParseState)
+import PVGrammar
+import PVGrammar.Parse (protoVoiceEvaluator)
+import PVGrammar.Prob.Simple (loadPVHyper)
+import RL qualified
+import RL.A2C qualified as RL
+
+-- import RL.Jit qualified as RL
+
+import Torch qualified as T
+import Torch.Internal.Unmanaged.Type.Context (hasCUDA)
+import Torch.Typed qualified as TT
+
+import Musicology.Core (SInterval, SPitch, spelledp)
+import Musicology.Core qualified as Music
+import Musicology.Core.Slicing qualified as Music
+
 import Control.Monad (forM_)
 import Control.Monad.Except qualified as ET
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict, withObject, (.:))
-import Data.Aeson qualified as JSON
-import Data.Fixed (mod')
 import Data.List (zipWith5)
 import Data.List.NonEmpty qualified as NE
-import Data.Ratio (Ratio (..), denominator, numerator, (%))
-import Data.TypeLits (KnownNat)
-import Debug.Trace qualified as DT
+import Data.Ratio (Ratio, denominator, numerator, (%))
 import GHC.Generics (Generic)
-import GreedyParser (applyAction, getActions, initParseState, parseGreedy)
-import GreedyParser qualified as Greedy
-import Musicology.Core (SInterval, SPitch, spelledp)
-import Musicology.Core qualified as Music
-import Musicology.Core.Slicing qualified as Music
-import PVGrammar
-import PVGrammar.Parse (protoVoiceEvaluator)
-import PVGrammar.Prob.Simple (loadPVHyper)
-import RL (plotDeriv)
-import RL qualified as RL
-import RL.Jit qualified as RL
 import System.ProgressBar qualified as PB
-import System.Random.MWC qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
-import Torch qualified as T
-import Torch.Internal.Unmanaged.Type.Context (hasCUDA)
-import Torch.Jit qualified as Jit
-import Torch.Lens qualified as TL
-import Torch.Typed qualified as TT
 
 -- loading training data
 -- ---------------------
@@ -110,7 +105,7 @@ dataToSlices dataNotes =
 parseA2C
   :: forall dev hidden
    . (RL.ValidParams dev hidden)
-  => RL.QModel dev hidden
+  => RL.QModel hidden dev
   -> Path [Note SPitch] [Edge SPitch]
   -> IO (Either String (PVAnalysis SPitch))
 parseA2C !actor !input = case take 200 $ getActions eval s0 of
@@ -125,7 +120,7 @@ parseA2C !actor !input = case take 200 $ getActions eval s0 of
       -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . RL.forwardPolicy actor <$> encodings
       -- showTensor t = "- " <> show (T.device $ DS.force t) <> "\n"
       -- checkEncoding enc = DT.trace (concatMap showTensor $ RL.flattenTensors enc) 0
-      !probs = RL.dynPolicy $ RL.withBatchedEncoding state actions (RL.runBatchedPolicy 1 actor)
+      !probs = RL.dynPolicy $ RL.withBatchedEncoding @dev state actions (RL.runBatchedPolicy 1 actor)
       !best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
       -- !dummy = RL.withBatchedEncoding state actions DS.rnf
       -- best = 0
@@ -135,7 +130,7 @@ parseA2C !actor !input = case take 200 $ getActions eval s0 of
           Left nextState -> NE.nonEmpty $ take 200 $ getActions eval nextState
           Right _ -> Nothing
     case (state', actions') of
-      (Left s, Nothing) -> do
+      (Left _s, Nothing) -> do
         lift $ appendFile "incomplete.log" $ show state
         lift $ putStr "!"
         ET.throwE "cannot parse: no possible actions in non-terminal state:"
@@ -147,7 +142,7 @@ parseA2C !actor !input = case take 200 $ getActions eval s0 of
 benchA2C
   :: forall dev hidden
    . (RL.ValidParams dev hidden)
-  => RL.QModel dev hidden
+  => RL.QModel hidden dev
   -> Path [Note SPitch] [Edge SPitch]
   -> IO (Either String (PVAnalysis SPitch))
 benchA2C !actor !input = case take 200 $ getActions eval s0 of
@@ -158,8 +153,8 @@ benchA2C !actor !input = case take 200 $ getActions eval s0 of
   eval = protoVoiceEvaluator
   go !state !actions = do
     let
-      !probs = RL.dynPolicy $ RL.withBatchedEncoding state actions (RL.runBatchedPolicy 1 actor)
-      !best' = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
+      !probs = RL.dynPolicy $ RL.withBatchedEncoding @dev state actions (RL.runBatchedPolicy 1 actor)
+      !_best' = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs :: Int
       best = 0
       action = actions NE.!! best
     state' <- ET.except $ applyAction state action
@@ -196,19 +191,18 @@ mainRL n = do
   -- pieces = (\piece -> (piece, pathLen piece)) <$> inputs
   gen <- initStdGen
   mgen <- newIOGenM gen
-  genMWC <- MWC.create -- uses a fixed seed
   (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
   let fReward = RL.pvRewardChordAndActionByLen 10 posterior
       fRl = (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
       fTemp = const 1 -- \t -> (RL.cosSchedule 10 (mod' t 10)) * 10 + 1
       -- actor0 <- RL.mkQModel @dev hidden
       -- critic0 <- RL.mkQModel @dev hidden
-  actor0 <- RL.loadModel @dev @hidden "actor_10p_nodeadend.ht" -- "actor_checkpoint.ht"
-  critic0 <- RL.loadModel @dev @hidden "critic_10p_nodeadend.ht"
-  (rewards, losses, actor, critic) <-
+  actor0 <- RL.loadQModel @dev @hidden "actor_10p_nodeadend.ht" -- "actor_checkpoint.ht"
+  critic0 <- RL.loadQModel @dev @hidden "critic_10p_nodeadend.ht"
+  (_rewards, _losses, _actor, _critic) <-
     RL.trainA2C protoVoiceEvaluator mgen fReward fRl fTemp Nothing actor0 critic0 pieces n
-  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters actor) "actor.ht"
-  -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters critic) "critic.ht"
+  -- saveModel "actor.ht" actor
+  -- saveModel "critic.ht" critic
   pure ()
 
 mainPlot :: forall dev hidden. (RL.ValidParams dev hidden) => IO ()
@@ -217,7 +211,7 @@ mainPlot = do
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
       !pieces = dataToSlices . notes <$> chords
-  !actor <- RL.loadModel @dev @hidden "actor_checkpoint.ht"
+  !actor <- RL.loadQModel @dev @hidden "actor_checkpoint.ht"
   putStrLn "Model loaded"
   pb <-
     PB.newProgressBar
@@ -229,25 +223,20 @@ mainPlot = do
       )
       10
       (PB.Progress 0 (length pieces) ())
-  scriptCache <- Jit.newScriptCache
   forM_ (zip pieces [1 :: Int ..]) $ \(piece, i) -> do
     result <- parseA2C actor piece
     case result of
       Left err -> putStrLn $ "chord " <> show i <> ": " <> err
-      Right ana@(Analysis deriv top) -> do
-        let fn = "/tmp/rl/deriv" <> show i
+      Right (Analysis _deriv _top) -> do
+        let _fn = "/tmp/rl/deriv" <> show i
         pure ()
     -- JSON.encodeFile (fn <> ".analysis.json") ana
     -- RL.plotDeriv (fn <> ".tex") deriv
     PB.incProgress pb 1
-  cache <- readTVarIO $ Jit.unScriptCache scriptCache
-  case cache of
-    Just _ -> putStrLn "cache full"
-    Nothing -> putStrLn "cache empty"
 
 mainBenchInference :: forall dev hidden. (RL.ValidParams dev hidden) => Maybe Int -> IO ()
 mainBenchInference nPieces = do
-  hascuda <- hasCUDA
+  _hascuda <- hasCUDA
   Right allChords <- eitherDecodeFileStrict @[DataChord] "testdata/dcml/chords_small.json"
   let !chords = filter (\c -> pathLen (dataToSlices $ notes c) > 1) allChords
       !pieces =
@@ -270,7 +259,7 @@ mainBenchInference nPieces = do
     result <- parseA2C actor piece
     case result of
       Left err -> putStrLn $ "chord " <> show i <> ": " <> err
-      Right ana@(Analysis deriv top) -> pure ()
+      Right _ana -> pure ()
     PB.incProgress pb 1
 
 -- type QDevice = '(TT.CUDA, 0)

@@ -11,11 +11,9 @@ module RL.TorchHelpers where
 import Data.Kind (Type)
 import GHC.TypeLits
 import System.IO.Unsafe (unsafePerformIO)
-import Torch qualified as T
 import Torch qualified as TD
 import Torch.Internal.Cast qualified as ATen
 import Torch.Internal.Managed.Native qualified as ATen.Managed
-import Torch.Internal.Type qualified as ATen
 import Torch.Typed qualified as TT
 import Torch.Typed.Auxiliary qualified
 
@@ -99,10 +97,10 @@ instance
 data ShapeVal = ShapeVal
 
 instance (TT.KnownShape shape) => TT.Apply' ShapeVal (TT.Tensor dev dtype shape) [Int] where
-  apply' _ t = TT.shapeVal @shape
+  apply' _ _t = TT.shapeVal @shape
 
 instance (TT.KnownShape shape) => TT.Apply' ShapeVal (TT.Parameter dev dtype shape) [Int] where
-  apply' _ t = TT.shapeVal @shape
+  apply' _ _t = TT.shapeVal @shape
 
 -- | Helper Type for getting a list out of a HList
 data ToList = ToList

@@ -11,34 +11,29 @@ module RL.Imitate where
 
 import Common
 import GreedyParser (ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState (..), getActions)
-import Internal.MultiSet qualified as MS
 import PVGrammar
 import PVGrammar.Generate
   ( applyFreeze
   , applySplit
   , applySpread
-  , freezable
   )
 import PVGrammar.Parse
 import PVGrammar.Prob.Simple
 import Sample
 
 import RL.Encoding
-import RL.Model
+import RL.Model.Interface
 import RL.ModelTypes
 import RL.Plotting
 
 import Inference.Conjugate
-import Musicology.Pitch (Interval (octave), IntervalClass (emb), SIC (SIC), SInterval (SInterval), SPitch, embed, embedP, fifth, fifth', major, minor, seventh, seventh', spc, third, third', unison, (+^), (^*))
-import Musicology.Pitch qualified as MP
+import Musicology.Pitch (Interval (octave), IntervalClass (emb), SIC, SPitch, fifth', major, minor, seventh', spc, third', unison, (+^), (^*))
 
-import Control.Monad (foldM, forM, forM_, replicateM, unless, when, zipWithM, zipWithM_)
+import Control.Monad (forM, replicateM, unless, zipWithM, zipWithM_)
 import Control.Monad.Cont (ContT (ContT, runContT))
-import Control.Monad.Primitive (PrimMonad, PrimState, RealWorld)
-import Control.Monad.Reader (MonadReader (..), ReaderT, lift, runReaderT)
-import Control.Monad.State.Strict (MonadState (get), StateT (runStateT), evalStateT, execStateT, modify)
+import Control.Monad.Primitive (RealWorld)
+import Control.Monad.Reader (lift)
 import Data.Aeson qualified as JSON
-import Data.Bifunctor (Bifunctor (bimap))
 import Data.Either (lefts, rights)
 import Data.HashMap.Strict qualified as HM
 import Data.HashSet qualified as HS
@@ -46,30 +41,19 @@ import Data.Kind
 import Data.List qualified as L
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
-import Data.Maybe (catMaybes, fromMaybe)
-import Data.Proxy (Proxy (Proxy))
+import Data.Maybe (catMaybes)
 import Data.Set qualified as S
 import Data.Text.Lazy qualified as Txt
-import Data.TypeNums (KnownNat, Nat, intVal)
-import Data.Typeable (Proxy (Proxy), Typeable, typeRep)
 import Data.Vector qualified as V
-import Debug.Trace qualified as DT
 import GHC.Generics
 import Lens.Micro
-import Lens.Micro.Extras (view)
-import PVGrammar (topEdges)
-import PVGrammar.Prob.Simple (produceDerivation)
 import Pipes qualified as P
 import Pipes.Prelude qualified as P
-import RL.ModelTypes (IsValidDevice)
-import Sample (sampleNSteps)
 import Statistics.Distribution qualified as Stats
 import Statistics.Distribution.Poisson qualified as Stats
 import System.IO (hFlush, stdout)
 import System.ProgressBar qualified as PB
-import System.Random qualified as Rand
-import System.Random.MWC.Probability (Gen, Prob (sample), binomial, categorical, createSystemRandom, discrete, discreteUniform, poisson, uniform)
-import Torch (nllLoss')
+import System.Random.MWC.Probability (Gen, createSystemRandom, discreteUniform, poisson)
 import Torch qualified as T
 import Torch.Typed qualified as TT
 
@@ -235,10 +219,10 @@ derivationToParseStates (Analysis deriv top) = unfoldrM nextState state0
     -- a single transition
     PathEnd trans -> case op of
       LMDouble _ -> Left "Cannot apply a double operation to a single transition."
-      LMFreezeOnly freezeOp -> do
+      LMSingle (LMSingleFreeze freezeOp) -> do
         trFrozen <- applyFreeze freezeOp trans
         Right $ ORFrozen (HS.toList trFrozen)
-      LMSplitOnly splitOp -> do
+      LMSingle (LMSingleSplit splitOp) -> do
         (trL, slc, trR) <- applySplit splitOp trans
         Right $ OROpen $ Path trL slc $ PathEnd trR
 
@@ -266,16 +250,16 @@ derivationToParseStates (Analysis deriv top) = unfoldrM nextState state0
     -> Either String (Maybe ([Edge SPitch], Notes SPitch), Path (Edges SPitch) (Notes SPitch))
   applyDouble op transL slc transR = case op of
     LMSingle _ -> Left "Cannot apply a single operation to two or more transitions."
-    LMFreezeLeft freezeOp -> do
+    LMDouble (LMDoubleFreezeLeft freezeOp) -> do
       trFrozen <- applyFreeze freezeOp transL
       Right (Just (HS.toList trFrozen, slc), PathEnd transR)
-    LMSplitLeft splitOp -> do
+    LMDouble (LMDoubleSplitLeft splitOp) -> do
       (trL', slc', trR') <- applySplit splitOp transL
       Right (Nothing, Path trL' slc' $ Path trR' slc $ PathEnd transR)
-    LMSplitRight splitOp -> do
+    LMDouble (LMDoubleSplitRight splitOp) -> do
       (trL', slc', trR') <- applySplit splitOp transR
       Right (Nothing, Path transL slc $ Path trL' slc' $ PathEnd trR')
-    LMSpread spreadOp -> do
+    LMDouble (LMDoubleSpread spreadOp) -> do
       (trL', slcL', trMid', slcR', trR') <- applySpread spreadOp transL slc transR
       Right (Nothing, Path trL' slcL' $ Path trMid' slcR' $ PathEnd trR')
 
@@ -308,7 +292,7 @@ so that they correspond to the IDs generated in a parse.
 renameParentIDs :: Spread SPitch -> Spread SPitch
 renameParentIDs (SpreadOp spreads edges) = SpreadOp spreads' edges
  where
-  mkParent2 (Note p1 i1) (Note p2 i2) = Note p1 (i1 <> "+" <> i2)
+  mkParent2 (Note p1 i1) (Note _p2 i2) = Note p1 (i1 <> "+" <> i2)
   mkParent1 (Note p i) = Note p (i <> "'")
   rename (_, spread) = case spread of
     SpreadLeftChild l -> (mkParent1 l, spread)
@@ -338,7 +322,7 @@ derivationToDatapoints
    . (TT.KnownDevice dev)
   => PVAnalysis SPitch
   -> Either String [ImitationData dev]
-derivationToDatapoints analysis@(Analysis deriv top) = do
+derivationToDatapoints analysis@(Analysis deriv _top) = do
   states <- derivationToParseStates analysis
   dataMaybe <- zipWithM stateToDatapoint deriv states
   pure $ catMaybes dataMaybe
@@ -348,7 +332,7 @@ derivationToDatapointsLenient
    . (TT.KnownDevice dev)
   => PVAnalysis SPitch
   -> Either String [ImitationData dev]
-derivationToDatapointsLenient analysis@(Analysis deriv top) = do
+derivationToDatapointsLenient analysis@(Analysis deriv _top) = do
   states <- derivationToParseStates analysis
   let dataMaybe = rights $ zipWith stateToDatapoint deriv states
   pure $ catMaybes dataMaybe
@@ -446,7 +430,7 @@ sampleDerivationData' producer gen maxN probs minSteps = goodData
   goodData = do
     deriv <- sampleNSteps producer gen maxN probs minSteps
     case derivationToDatapoints @dev (Analysis deriv $ PathEnd topEdges) of
-      Left err -> goodData
+      Left _err -> goodData
       Right dat -> pure dat
 
 makeChordData :: forall dev. (TT.KnownDevice dev) => Int -> IO [ImitationData dev]
@@ -510,7 +494,7 @@ nll label pred =
   -- DT.trace info $
   T.nllLoss' label pred
  where
-  info = "label: " <> show label <> "\npred: " <> show pred
+  _info = "label: " <> show label <> "\npred: " <> show pred
 
 hit :: T.Tensor -> T.Tensor -> Double
 hit label pred =
@@ -518,7 +502,7 @@ hit label pred =
   if predIx == label then 1 else 0
  where
   predIx = T.argmax (T.Dim 1) T.RemoveDim pred
-  info = "label: " <> show label <> "\npred: " <> show pred
+  _info = "label: " <> show label <> "\npred: " <> show pred
 
 collate :: Int -> [a] -> [[a]]
 collate n as = case take n as of
@@ -526,14 +510,18 @@ collate n as = case take n as of
   batch -> batch : collate n (drop n as)
 
 trainEpoch
-  :: forall dev hidden o
-   . (ValidParams dev hidden, TT.Optimizer o (ModelTensors dev hidden) (ModelTensors dev hidden) QDType dev)
+  :: forall dev model o
+   . ( TT.Optimizer o (ModelTensors model dev) (ModelTensors model dev) QDType dev
+     , IsValidDevice dev
+     , TT.HasForward (model dev) (QEncodingBatch dev) [T.Tensor]
+     , _
+     )
   => Int
   -> Int
   -> QType
-  -> (QModel dev hidden, o)
+  -> (model dev, o)
   -> P.ListT IO [ImitationData dev]
-  -> IO ((QModel dev hidden, o), (QType, QType))
+  -> IO ((model dev, o), (QType, QType))
 trainEpoch i nBatches lr state batches = do
   pb <- PB.newProgressBar pbStyle 10 (PB.Progress 0 nBatches ())
   (!state', (losses, accs)) <- P.foldM (step pb) begin done $ P.enumerate batches P.>-> P.take nBatches
@@ -545,9 +533,9 @@ trainEpoch i nBatches lr state batches = do
  where
   step
     :: _pb
-    -> ((QModel dev hidden, o), ([QType], [QType]))
+    -> ((model dev, o), ([QType], [QType]))
     -> [ImitationData dev]
-    -> IO ((QModel dev hidden, o), ([QType], [QType]))
+    -> IO ((model dev, o), ([QType], [QType]))
   step pb ((!model, !optim), (!losses, !accs)) batch = do
     let inputs = dataInput <$> batch
         labels = dataLabel <$> batch
@@ -555,7 +543,7 @@ trainEpoch i nBatches lr state batches = do
         -- predict (state, actions) = case encodeStepBatched state actions of
         --   SomeStep enc -> T.transpose2D $ dynPolicy $ runBatchedLogPolicy 1 model enc
         -- predictions = fmap predict inputs
-        batchEncoding = encodeBatch inputs
+        batchEncoding = encodeBatch @dev inputs
         predictions = T.transpose2D <$> runFullyBatchedLogPolicy 1 model batchEncoding
         loss = T.divScalar (length batch) (sum (zipWith nll labels predictions))
         lossTyped :: TT.Loss dev QDType
@@ -576,8 +564,9 @@ trainEpoch i nBatches lr state batches = do
       }
 
 validateEpoch
-  :: (ValidParams dev hidden)
-  => QModel dev hidden
+  :: forall dev model
+   . (TT.KnownDevice dev, TT.HasForward (model dev) (QEncodingBatch dev) [T.Tensor])
+  => model dev
   -> P.ListT IO (ImitationData dev)
   -> IO (QType, QType)
 validateEpoch model dataset = do
@@ -586,7 +575,7 @@ validateEpoch model dataset = do
   --     predict (state, actions) = case encodeStepBatched state actions of
   --       SomeStep enc -> T.transpose2D $ dynPolicy $ runBatchedLogPolicy 1 model enc
   --     predictions = fmap (predict . dataInput) datapoints
-  let batchEncoding = encodeBatch $ dataInput <$> datapoints
+  let batchEncoding = encodeBatch @dev $ dataInput <$> datapoints
       predictions = T.transpose2D <$> runFullyBatchedLogPolicy 1 model batchEncoding
       results = zipWith lossAndAcc predictions datapoints
       (losses, accs) = unzip results
@@ -598,18 +587,20 @@ validateEpoch model dataset = do
     !loss = T.asValue $ nll label $ prediction
     !acc = hit label prediction
 
+{-# NOINLINE train #-}
 train
-  :: (ValidParams dev hidden)
+  :: forall dev model shuf
+   . (_)
   => String
-  -> QModel dev hidden
+  -> model dev
   -> shuf
-  -> (shuf -> ContT ((QModel dev hidden, _o), shuf, (QType, QType)) IO (P.ListT IO (ImitationData dev), shuf))
+  -> (shuf -> ContT ((model dev, _o), shuf, (QType, QType)) IO (P.ListT IO (ImitationData dev), shuf))
   -> ImitationDataset IO dev
   -> (QType -> QType)
   -> Int
   -> Int
   -> Int
-  -> IO (QModel dev hidden, (([QType], [QType]), ([QType], [QType])))
+  -> IO (model dev, (([QType], [QType]), ([QType], [QType])))
 train name model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize = do
   ((modelTrained, _), _, histTrain, histTest) <-
     T.foldLoop ((model0, optim0), shuffler0, ([], []), ([], [])) epochs trainLoop
@@ -653,6 +644,7 @@ trainDataset name model0 trainData testData fLR epochs batchSize = do
       streamer shuffler = T.streamFromMap ((T.datasetOpts 1){T.shuffle = shuffler}) trainData
   train name model0 shuffler0 streamer testData fLR epochs nBatches batchSize
 
+{-# NOINLINE trainDatastream #-}
 trainDatastream name model0 trainStream =
   train name model0 () streamer
  where
@@ -660,32 +652,32 @@ trainDatastream name model0 trainStream =
 
 type TestDevice = '(TT.CPU, 0)
 
-testTrain :: Int -> IO ()
-testTrain epochs = do
-  let fLR = const 0.1 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
-  !model0 <- mkQModel @TestDevice @8
-  trainData <- makeChordDataset @TestDevice 1
-  testData <- makeChordDataset @TestDevice 1
-  (_, ((lTrain, aTrain), (lVal, aVal))) <-
-    trainDataset "test" model0 trainData testData fLR epochs 1
-  pure ()
+-- testTrain :: Int -> IO ()
+-- testTrain epochs = do
+--   let fLR = const 0.1 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
+--   !model0 <- mkQModel @TestDevice @8
+--   trainData <- makeChordDataset @TestDevice 1
+--   testData <- makeChordDataset @TestDevice 1
+--   (_, ((lTrain, aTrain), (lVal, aVal))) <-
+--     trainDataset "test" model0 trainData testData fLR epochs 1
+--   pure ()
 
--- plotHistories "losses-imitation" [lTrain, lVal, aTrain, aVal]
+-- -- plotHistories "losses-imitation" [lTrain, lVal, aTrain, aVal]
 
-testTrainStream :: Int -> IO ()
-testTrainStream epochs = do
-  let fLR = const 0.1 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
-  !model0 <- mkQModel @TestDevice @8
-  gen <- createSystemRandom
-  Right hyper <- loadPVHyper "posterior.json"
-  let probs = expectedProbs @PVParams hyper
-      trainData = ImitationStream @TestDevice probs 4 20 gen
-  testData <- makeChordDataset @TestDevice 1
-  (_, ((lTrain, aTrain), (lVal, aVal))) <-
-    trainDatastream "test" model0 trainData testData fLR epochs 3 5
-  pure ()
+-- testTrainStream :: Int -> IO ()
+-- testTrainStream epochs = do
+--   let fLR = const 0.1 -- (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
+--   !model0 <- mkQModel @TestDevice @8
+--   gen <- createSystemRandom
+--   Right hyper <- loadPVHyper "posterior.json"
+--   let probs = expectedProbs @PVParams hyper
+--       trainData = ImitationStream @TestDevice probs 4 20 gen
+--   testData <- makeChordDataset @TestDevice 1
+--   (_, ((lTrain, aTrain), (lVal, aVal))) <-
+--     trainDatastream "test" model0 trainData testData fLR epochs 3 5
+--   pure ()
 
--- plotHistories "losses-imitation" [lTrain, lVal, aTrain, aVal]
+-- -- plotHistories "losses-imitation" [lTrain, lVal, aTrain, aVal]
 
 -- Debugging
 -- =========

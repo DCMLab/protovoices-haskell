@@ -2,14 +2,12 @@
 
 module RL.ReplayBuffer where
 
-import Common
 import Data.List.NonEmpty qualified as NE
 import GreedyParser
-import RL.Encoding
 import RL.ModelTypes
-import System.Random (RandomGen, getStdRandom)
+import System.Random (getStdRandom)
 import System.Random.Shuffle (shuffle')
-import System.Random.Stateful as Rand (StatefulGen, UniformRange (uniformRM), split)
+import System.Random.Stateful as Rand (split)
 
 -- Replay Buffer
 -- -------------

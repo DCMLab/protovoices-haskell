@@ -1,96 +1,28 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE QualifiedDo #-}
+-- {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-all #-}
+{-# OPTIONS_GHC -O0 #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Main where
 
-import ChartParser
 import Common
 import CommonMain
-import Display
 import GreedyParser qualified as Greedy
 import PVGrammar
-import PVGrammar.Generate
 import PVGrammar.Parse
-import PVGrammar.Prob.Simple
-  ( PVParams (PVParams)
-  , loadPVHyper
-  , observeDerivation
-  , observeDerivation'
-  , sampleDerivation
-  , sampleDerivation'
-  , savePVHyper
-  )
+import PVGrammar.Prob.Simple (loadPVHyper, savePVHyper)
 import RL qualified
+import RL.A2C qualified
+import RL.DQN qualified
 
-import Musicology.Core hiding (Note (..), (<.>))
-import Musicology.Core.Slicing
-
--- import Musicology.Internal.Helpers
-import Musicology.MusicXML
-import Musicology.Pitch.Spelled as MT
-
-import Data.Either (partitionEithers)
-import Data.Maybe (catMaybes, listToMaybe, mapMaybe)
-import Data.Ratio (Ratio (..))
-import Lens.Micro (over)
-
-import Control.Monad
-  ( foldM
-  , forM
-  , forM_
-  , replicateM
-  , zipWithM_
-  )
-import Control.Monad.Except (runExceptT)
-import Data.HashSet qualified as HS
-import Data.List qualified as L
-import Data.Semiring qualified as R
-import Data.Sequence qualified as Seq
-import Data.Set qualified as S
-import Data.Text qualified as T
-import Data.Text.IO qualified as T
-import Data.Text.Lazy qualified as TL
-import Data.Text.Lazy.IO qualified as TL
-import Internal.MultiSet qualified as MS
-
-import Control.DeepSeq
-  ( deepseq
-  , force
-  )
 import Control.Exception (SomeException, catch)
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
-import Data.Bifunctor (Bifunctor (bimap))
-import Data.String (fromString)
+import Control.Monad (forM, zipWithM_)
+import Data.Maybe (catMaybes)
 import GHC.Stack (currentCallStack)
-import Inference.Conjugate
-  ( Hyper
-  , Trace
-  , Uniform (uniformPrior)
-  , getPosterior
-  , runTrace
-  , showTrace
-  , traceTrace
-  )
-import System.FilePath
-  ( (<.>)
-  , (</>)
-  )
-import System.FilePattern qualified as FP
-import System.FilePattern.Directory qualified as FP
-
--- better do syntax
-
-import Data.Foldable qualified as F
-import GreedyParser qualified as RL
-import Language.Haskell.DoNotation qualified as Do
-import RL.A2C (runAccuracy)
-import System.Random.MWC.Probability qualified as MWC
 import System.Random.Stateful (initStdGen, newIOGenM)
-import Torch qualified as T
 import Torch.Typed qualified as TT
 import Torch.Typed.Tensor ()
 
@@ -108,33 +40,33 @@ startParsing file = do
   surface <- loadSurface file
   pure $ Greedy.initParseState protoVoiceEvaluator surface
 
-rateState :: RL.QModel Device Hidden -> RL.PVState -> RL.QTensor Device '[1]
+rateState :: RL.QModel Hidden Device -> RL.PVState -> RL.QTensor Device '[1]
 rateState model state = RL.forwardValue model $ RL.encodePVState state
 
-listActions :: RL.QModel Device Hidden -> RL.PVState -> IO ()
+listActions :: RL.QModel Hidden Device -> RL.PVState -> IO ()
 listActions model state = do
   putStrLn $ "state value: " <> show (rateState model state)
   zipWithM_ showAction (getActions state) [1 ..]
  where
   showAction action i = putStrLn $ show i <> ". " <> act <> "\n => " <> state' <> "\n q = " <> show q
    where
-    state' = case RL.applyAction state action of
+    state' = case Greedy.applyAction state action of
       Left error -> error
       Right state' -> show state'
-    q = RL.runQ RL.encodeStep model state action
+    q = RL.runQ model $ RL.encodeStep @Device state action
     act = case action of
-      Left (RL.ActionSingle _ singleAct) -> show singleAct
-      Right (RL.ActionDouble _ doubleAct) -> show doubleAct
+      Left (Greedy.ActionSingle _ singleAct) -> show singleAct
+      Right (Greedy.ActionDouble _ doubleAct) -> show doubleAct
 
 getActions :: RL.PVState -> [RL.PVAction]
 getActions = Greedy.getActions (protoVoiceEvaluator @[] @[])
 
 rateActions
-  :: RL.QModel Device Hidden
+  :: RL.QModel Hidden Device
   -> RL.PVState
   -> [RL.PVAction]
   -> [RL.QType]
-rateActions model state actions = RL.runQ RL.encodeStep model state <$> actions
+rateActions model state actions = RL.runQ model . RL.encodeStep @Device state <$> actions
 
 pickAction :: RL.PVState -> Int -> RL.PVState
 pickAction state i = applyAction state $ getActions state !! (i - 1)
@@ -145,7 +77,7 @@ pickAction' state i = applyAction' state $ getActions state !! (i - 1)
 applyAction :: RL.PVState -> RL.PVAction -> RL.PVState
 applyAction state action = state'
  where
-  (Right (Left state')) = RL.applyAction state action
+  (Right (Left state')) = Greedy.applyAction state action
 
 applyAction' :: RL.PVState -> RL.PVAction -> Either String (Either RL.PVState _)
 applyAction' = Greedy.applyAction
@@ -179,15 +111,15 @@ mainQ n = do
   gen <- initStdGen
   mgen <- newIOGenM gen
   (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
-  bestRewards <- forM items $ \(_, ana, _, _) -> RL.pvRewardExp' posterior ana
+  -- bestRewards <- forM items $ \(_, ana, _, _) -> RL.pvRewardExp' posterior ana
   let pieces = (\(_, _, _, piece) -> (piece, pathLen piece)) <$> items
   let fReward = RL.pvRewardActionByLen posterior
       fRl = (* 0.1) <$> (RL.cosSchedule $ fromIntegral n)
       fTemp = const 1
-  model0 <- RL.mkQModel :: IO (RL.QModel dev hidden)
-  -- model0 <- RL.loadModel "qmodel.ht"
-  (rewards, losses, model) <-
-    RL.trainDQN protoVoiceEvaluator mgen fReward fRl fTemp model0 pieces n
+  model0 <- RL.mkQModel :: IO (RL.QModel hidden dev)
+  -- model0 <- RL.loadQModel "qmodel.ht"
+  (_rewards, _losses, model) <-
+    RL.DQN.trainDQN protoVoiceEvaluator mgen fReward fRl fTemp model0 pieces n
   TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "qmodel.ht"
   pure ()
 
@@ -199,7 +131,6 @@ mainRL n = do
   -- Just (_, testAna, _, test) <- loadItem "data/theory-article" "20a_sus"
   gen <- initStdGen
   mgen <- newIOGenM gen
-  genMWC <- MWC.create -- uses a fixed seed
   (Right posterior) <- loadPVHyper "posterior.json" -- learnParams
   -- bestReward <- RL.pvRewardExp posterior pieceAna
   -- bestReward2 <- RL.pvRewardExp posterior pieceAna2
@@ -211,14 +142,14 @@ mainRL n = do
       fRl = (* 0.01) <$> (RL.cosSchedule $ fromIntegral n)
       fTemp = const 1
   -- TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters model) "model.ht"
-  actor0 <- RL.mkQModel :: IO (RL.QModel dev hidden)
-  critic0 <- RL.mkQModel :: IO (RL.QModel dev hidden)
+  actor0 <- RL.mkQModel :: IO (RL.QModel hidden dev)
+  critic0 <- RL.mkQModel :: IO (RL.QModel hidden dev)
   -- actor0 <- RL.loadModel "actor.ht"
   -- critic0 <- RL.loadModel "critic.ht"
-  (rewards, losses, actor, critic) <-
-    RL.trainA2C protoVoiceEvaluator mgen fReward fRl fTemp (Just bestRewards) actor0 critic0 pieces n
+  (_rewards, _losses, actor, critic) <-
+    RL.A2C.trainA2C protoVoiceEvaluator mgen fReward fRl fTemp (Just bestRewards) actor0 critic0 pieces n
   -- testBestReward <- RL.pvRewardExp posterior testAna
-  -- testAcc <- runAccuracy protoVoiceEvaluator posterior actor test
+  -- testAcc <- RL.A2C.runAccuracy protoVoiceEvaluator posterior actor test
   -- case testAcc of
   --   Left error -> putStrLn $ "Error: " <> error
   --   Right (testReward, testDeriv) -> do

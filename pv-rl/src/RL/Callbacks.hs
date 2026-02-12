@@ -4,7 +4,7 @@
 module RL.Callbacks where
 
 import Common
-import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), DoubleParent (DoubleParent), GreedyState, SingleParent (SingleParent), gsOps, opGoesLeft)
+import GreedyParser (ActionDouble (ActionDouble), ActionSingle (ActionSingle), DoubleParent (DoubleParent), SingleParent (SingleParent), gsOps, opGoesLeft)
 import PVGrammar
 import PVGrammar.Prob.Simple
 
@@ -14,7 +14,6 @@ import Inference.Conjugate (Hyper, Prior (expectedProbs), evalTraceLogP, sampleP
 import Musicology.Pitch (SPitch, fifths)
 
 import Control.Monad.Primitive (RealWorld)
-import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
 import Data.Maybe (listToMaybe)
 import System.Random.MWC.Probability qualified as MWC
@@ -50,7 +49,7 @@ pvRewardExp hyper (Right (top, deriv)) _ _ _ =
   pvRewardExp' hyper (Analysis deriv (PathEnd top))
 
 pvRewardExp' :: Hyper PVParams -> PVAnalysis SPitch -> IO QType
-pvRewardExp' hyper ana@(Analysis deriv top) =
+pvRewardExp' hyper ana@(Analysis deriv _top) =
   case trace of
     Left err -> do
       putStrLn $ "error giving reward: " <> err

@@ -1,8 +1,10 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE Strict #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
@@ -11,43 +13,30 @@ module RL.A2C where
 import Common
 import GreedyParser
 import PVGrammar
-import PVGrammar.Prob.Simple (PVParams)
 import RL.A2CHelpers
 import RL.Encoding
-import RL.Model
+import RL.Model.Interface
 import RL.ModelTypes
 import RL.Plotting
-import RL.TorchHelpers
 
-import Control.DeepSeq (NFData, force)
-import Control.Foldl qualified as Foldl
-import Control.Monad (foldM, forM, forM_, when)
+import Control.Monad (foldM, forM, when)
 import Control.Monad.Except qualified as ET
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
-import Data.Either (partitionEithers)
-import Data.Foldable qualified as F
 import Data.List qualified as L
 import Data.List.NonEmpty qualified as NE
-import Data.Maybe (mapMaybe)
 import Data.Text.Lazy qualified as Txt
+import Data.TypeNums (KnownNat, type (<=))
 import Data.Vector qualified as V
-import Debug.Trace qualified as DT
 import GHC.Generics
-import Inference.Conjugate (Hyper)
 import Musicology.Pitch (SPitch)
-import NoThunks.Class (NoThunks (noThunks), ThunkInfo (thunkContext))
+import NoThunks.Class (NoThunks)
 import StrictList qualified as SL
-import System.IO (hFlush, stdout)
-import System.Mem (performGC)
 import System.ProgressBar qualified as PB
 import System.Random.MWC.Distributions (categorical)
-import System.Random.Stateful (StatefulGen)
 import System.Random.Stateful qualified as Rand
 import Torch qualified as T
 import Torch.Typed qualified as TT
-import Torch.Typed.Optim.CppOptim qualified as TT
-import Torch.Typed.Optim.CppOptim qualified as TTC
 
 -- global settings
 -- ===============
@@ -74,23 +63,23 @@ nWorkers = 2
 -- A2C
 -- ===
 
-printTensors :: TT.HList (ModelTensors dev hidden) -> IO ()
-printTensors (_ TT.:. t TT.:. _) = print t
+-- printTensors :: TT.HList (ModelTensors (QModel hidden) dev) -> IO ()
+-- printTensors (_ TT.:. t TT.:. _) = print t
 
-printParams :: TT.HList (ModelParams dev hidden) -> IO ()
-printParams (_ TT.:. t TT.:. _) = print t
+-- printParams :: TT.HList (ModelParams (QModel hidden) dev) -> IO ()
+-- printParams (_ TT.:. t TT.:. _) = print t
 
-data A2CState dev hidden = A2CState
-  { a2cActor :: !(QModel dev hidden)
-  , a2cCritic :: !(QModel dev hidden)
+data A2CState model dev = A2CState
+  { a2cActor :: !(model dev)
+  , a2cCritic :: !(model dev)
   , a2cOptActor :: !TT.GD -- !(TT.CppOptimizerState TT.AdamOptions ModelParams) -- !(TT.Adam ModelTensors) --
   , a2cOptCritic :: !TT.GD -- !(TT.Adam ModelTensors)
   }
   deriving (Generic)
 
-data A2CStepState dev hidden = A2CStepState
-  { a2cStepZV :: !(TT.HList (ModelTensors dev hidden))
-  , a2cStepZP :: !(TT.HList (ModelTensors dev hidden))
+data A2CStepState model dev = A2CStepState
+  { a2cStepZV :: !(TT.HList (ModelTensors model dev))
+  , a2cStepZP :: !(TT.HList (ModelTensors model dev))
   , a2cStepIntensity :: !QType
   , a2cStepReward :: !QType
   , a2cStepState
@@ -104,11 +93,12 @@ data A2CStepState dev hidden = A2CStepState
   }
 
 initPieceState
-  :: (TT.KnownDevice dev)
+  :: forall dev model
+   . (TT.KnownDevice dev)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Path [Note SPitch] [Edge SPitch]
-  -> TT.HList (ModelTensors dev hidden)
-  -> Either (A2CStepState dev hidden) QType
+  -> TT.HList (ModelTensors model dev)
+  -> Either (A2CStepState model dev) QType
 initPieceState eval input z0 =
   let
     state = initParseState eval input
@@ -119,8 +109,8 @@ initPieceState eval input z0 =
       (a : as) -> Left $ A2CStepState z0 z0 1 0 state (a NE.:| as)
 
 pieceStep
-  :: forall dev hidden label
-   . (ValidParams dev hidden)
+  :: forall dev model label
+   . (forall n. (1 <= n, KnownNat n) => TT.HasForward (model dev) (QEncoding dev '[n]) (QTensor dev '[n, 1]), _)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
@@ -131,13 +121,13 @@ pieceStep
   -- ^ temperature
   -> Int
   -- ^ iteration
-  -> A2CState dev hidden
-  -> A2CStepState dev hidden
-  -> ET.ExceptT String IO (A2CState dev hidden, Either (A2CStepState dev hidden) QType, QType)
-pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward state actions) = do
+  -> A2CState model dev
+  -> A2CStepState model dev
+  -> ET.ExceptT String IO (A2CState model dev, Either (A2CStepState model dev) QType, QType)
+pieceStep eval gen fReward len lr temp _i (A2CState actor critic opta optc) (A2CStepState zV zP intensity reward state actions) = do
   -- EitherT String IO
   -- preparation: list actions, compute policy
-  let policy = dynPolicy $ withBatchedEncoding state actions (runBatchedPolicy temp actor)
+  let policy = dynPolicy $ withBatchedEncoding @dev state actions (runBatchedPolicy temp actor)
   -- choose action according to policy
   actionIndex <- lift $ categorical (V.fromList $ T.asValue $ T.toDType T.Double policy) gen
   let action = actions NE.!! actionIndex
@@ -155,21 +145,21 @@ pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CS
         Right _ -> 0
       delta = TT.addScalar r $ TT.squeezeAll $ TT.mulScalar gamma vS' - vS
       gradV = TT.grad (TT.squeezeAll vS + fakeLoss critic) (TT.flattenParameters critic)
-      zV' = updateEligCritic gamma lambdaV zV gradV
+      zV' = updateEligCritic @dev @model gamma lambdaV zV gradV
       actionLogProb :: QTensor dev '[]
       actionLogProb = TT.log $ TT.UnsafeMkTensor (T.squeezeAll (policy T.! actionIndex))
       gradP = TT.grad (actionLogProb + fakeLoss actor) (TT.flattenParameters actor)
-      zP' = updateEligActor gamma lambdaP intensity zP gradP
+      zP' = updateEligActor @dev @model gamma lambdaP intensity zP gradP
       intensity' = gamma * intensity
       learningRate = toQTensor (negate lr)
-  (!actor', !opta') <- lift $ TT.runStep' actor opta learningRate $ mulModelTensors delta zP'
-  (!critic', !optc') <- lift $ TT.runStep' critic optc learningRate $ mulModelTensors delta zV'
+  (!actor', !opta') <- lift $ TT.runStep' actor opta learningRate $ mulModelTensors @dev @model delta zP'
+  (!critic', !optc') <- lift $ TT.runStep' critic optc learningRate $ mulModelTensors @dev @model delta zV'
   let loss' = T.asValue $ TT.toDynamic delta
       reward' = reward + r
   -- compute next state
   let pieceState' = case (state', actions') of
         (Left s', Just a') -> Left $ A2CStepState zV' zP' intensity' reward' s' a'
-        (Left s', Nothing) ->
+        (Left _s', Nothing) ->
           -- DT.trace ("incomplete parse:\n" <> show s') $
           Right reward'
         (Right _, _) -> Right reward' -- TT.toDouble (TT.squeezeAll vS) - r
@@ -177,8 +167,8 @@ pieceStep eval gen fReward len lr temp i (A2CState actor critic opta optc) (A2CS
 
 -- | Run an episode
 runEpisode
-  :: forall dev hidden label
-   . (_)
+  :: forall dev model label
+   . (forall n. (1 <= n, KnownNat n) => TT.HasForward (model dev) (QEncoding dev '[n]) (QTensor dev '[n, 1]), _)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
@@ -186,31 +176,32 @@ runEpisode
   -> (QType -> QType)
   -> Path [Note SPitch] [Edge SPitch]
   -> label
-  -> A2CState dev hidden
+  -> A2CState model dev
   -> Int
-  -> IO (Either String (A2CState dev hidden, QType, QType))
+  -> IO (Either String (A2CState model dev, QType, QType))
 runEpisode !eval !gen !fReward !fLr !fTemp !input !label !modelState !i =
   case initPieceState eval input z0 of
     Left s0 -> ET.runExceptT $ go modelState s0 SL.Nil
     Right reward -> pure $ pure (modelState, reward, 0)
  where
-  z0 :: TT.HList (ModelTensors dev hidden)
+  z0 :: TT.HList (ModelTensors model dev)
   z0 = modelZeros $ a2cActor modelState
   lr = fLr $ fromIntegral i
   temp = fTemp $ fromIntegral i
   -- len = pathLen input
   go modelState pieceState losses = do
-    (modelState', pieceState', loss) <- pieceStep eval gen fReward label lr temp i modelState pieceState
+    (modelState', pieceState', loss) <- pieceStep @dev @model eval gen fReward label lr temp i modelState pieceState
     let losses' = loss `SL.Cons` losses
     case pieceState' of
       Left ps' -> go modelState' ps' losses'
       Right reward -> pure (modelState', reward, mean losses')
 
 runAccuracy
-  :: (ValidParams dev hidden)
+  :: forall dev model label slc'
+   . (forall n. (1 <= n, KnownNat n) => TT.HasForward (model dev) (QEncoding dev '[n]) (QTensor dev '[n, 1]), _)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) slc' (Spread SPitch) (PVLeftmost SPitch)
   -> PVRewardFn label
-  -> QModel dev hidden
+  -> model dev
   -> (Path slc' [Edge SPitch], label)
   -> IO (Either String (QType, PVAnalysis SPitch))
 runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions eval s0 of
@@ -222,7 +213,7 @@ runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions 
     let
       -- encodings = encodeStep state <$> actions
       -- probs = T.softmax (T.Dim 0) $ T.cat (T.Dim 0) $ TT.toDynamic . forwardPolicy actor <$> encodings
-      probs = dynPolicy $ withBatchedEncoding state actions (runBatchedPolicy 1 actor)
+      probs = dynPolicy $ withBatchedEncoding @dev state actions (runBatchedPolicy 1 actor)
       best = T.asValue $ T.argmax (T.Dim 0) T.KeepDim probs
       action = actions NE.!! best
       bestprob = probs T.! best
@@ -247,8 +238,8 @@ runAccuracy !eval !fReward !actor (!input, !label) = case take 200 $ getActions 
 
 deriving instance (NoThunks a) => NoThunks (SL.List a)
 
-data A2CLoopState dev hidden = A2CLoopState
-  { a2clState :: A2CState dev hidden
+data A2CLoopState dev model = A2CLoopState
+  { a2clState :: A2CState dev model
   , a2clRewards :: SL.List (SL.List QType)
   , a2clLosses :: SL.List (SL.List QType)
   , a2clAccs :: SL.List (SL.List QType)
@@ -256,8 +247,8 @@ data A2CLoopState dev hidden = A2CLoopState
   deriving (Generic)
 
 trainA2C
-  :: forall dev hidden label
-   . (ValidParams dev hidden)
+  :: forall dev model label
+   . (forall n. (1 <= n, KnownNat n) => TT.HasForward (model dev) (QEncoding dev '[n]) (QTensor dev '[n, 1]), _)
   => Eval (Edges SPitch) [Edge SPitch] (Notes SPitch) [Note SPitch] (Spread SPitch) (PVLeftmost SPitch)
   -> Rand.IOGenM Rand.StdGen
   -> PVRewardFn label
@@ -266,11 +257,11 @@ trainA2C
   -> (QType -> QType)
   -- ^ temperature schedule
   -> Maybe [QType]
-  -> QModel dev hidden
-  -> QModel dev hidden
+  -> model dev
+  -> model dev
   -> [(Path [Note SPitch] [Edge SPitch], label)]
   -> Int
-  -> IO ([[QType]], [QType], QModel dev hidden, QModel dev hidden)
+  -> IO ([[QType]], [QType], model dev, model dev)
 trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
   -- print $ qModelFinal2 model0
   -- opta <- TT.initOptimizer (TT.AdamOptions 0.0001 (0.9, 0.999) 1e-8 0 False) actor0
@@ -279,7 +270,7 @@ trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
     optc = TT.GD -- TT.mkAdam 0 0.9 0.99 (TT.flattenParameters critic0)
     emptyStat = SL.fromListReversed (replicate (length pieces) SL.Nil)
     state0 = A2CState actor0 critic0 opta optc
-  (A2CLoopState (A2CState actorTrained criticTrained _ _) rewards losses accs) <- T.foldLoop (A2CLoopState state0 emptyStat emptyStat emptyStat) n trainEpoch
+  (A2CLoopState (A2CState actorTrained criticTrained _ _) rewards losses _accs) <- T.foldLoop (A2CLoopState state0 emptyStat emptyStat emptyStat) n trainEpoch
   pure
     ( SL.toListReversed $ SL.toListReversed <$> rewards
     , SL.toListReversed $ mean <$> losses
@@ -288,8 +279,8 @@ trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
     )
  where
   -- \| train a single episode on a single piece
-  trainPiece pb i (!state, !rewards, !losses) ((!piece, label), !j) = do
-    !result <- runEpisode eval gen fReward fLr fTemp piece label state i
+  trainPiece pb i (!state, !rewards, !losses) ((!piece, label), !_j) = do
+    !result <- runEpisode @dev @model eval gen fReward fLr fTemp piece label state i
     PB.incProgress pb 1
     case result of
       Left error -> do
@@ -299,7 +290,7 @@ trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
         -- putStrLn $ "loss " <> show j <> ": " <> show loss
         pure (state', r `SL.Cons` rewards, loss `SL.Cons` losses)
   -- \| train one episode on each piece
-  trainEpoch fullstate@(A2CLoopState !state !rewardsHist !lossHist !accuracies) !i = do
+  trainEpoch (A2CLoopState !state !rewardsHist !lossHist !accuracies) !i = do
     -- putStrLn $ "\nepoch " <> show i
     pb <-
       PB.newProgressBar
@@ -311,11 +302,6 @@ trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
         )
         10
         (PB.Progress 0 (length pieces) ())
-    -- performGC
-    -- thunkCheck <- noThunks ["trainA2C", "trainEpoch"] fullstate
-    -- case thunkCheck of
-    --   Nothing -> pure ()
-    --   Just thunkInfo -> error $ "Unexpected thunk at " <> show (thunkContext thunkInfo)
     -- run epoch
     (!state', !rewards, !losses) <-
       foldM (trainPiece pb i) (state, SL.Nil, SL.Nil) (zip pieces [1 ..])
@@ -331,7 +317,7 @@ trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
               Left error -> do
                 putStrLn error
                 pure (-inf)
-              Right (acc, Analysis deriv top) -> do
+              Right (acc, Analysis deriv _top) -> do
                 when ((i `mod` 100) == 0) $ do
                   putStrLn $ "current best analysis (piece " <> show j <> "):"
                   mapM_ print deriv
@@ -359,6 +345,6 @@ trainA2C eval gen fReward fLr fTemp targets actor0 critic0 pieces n = do
       plotHistory "mean_reward" avgReward
       plotHistory "mean_loss" avgAbsLoss
       -- print $ qModelFinal2 (a2cModel state)
-      TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters $ a2cActor state) "actor_checkpoint.ht"
-      TT.save (TT.hmap' TT.ToDependent $ TT.flattenParameters $ a2cCritic state) "critic_checkpoint.ht"
+      saveModel "actor_checkpoint.ht" $ a2cActor state
+      saveModel "critic_checkpoint.ht" $ a2cCritic state
     pure $ A2CLoopState state' rewardsHist' lossHist' accuracies'

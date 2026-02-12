@@ -18,9 +18,8 @@ module RL.Encoding where
 import Common
 import GreedyParser
 import Internal.MultiSet qualified as MS
-import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), InnerEdge, Note (..), Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
-import PVGrammar.Generate (derivationPlayerPV)
-import PVGrammar.Parse (protoVoiceEvaluator, pvThaw)
+import PVGrammar (Edge, Edges (Edges), InnerEdge, Note (..), Notes (Notes))
+import PVGrammar.Parse (pvThaw)
 import RL.ModelTypes
 
 import Control.DeepSeq
@@ -29,20 +28,13 @@ import Data.HashSet qualified as HS
 import Data.Hashable (Hashable)
 import Data.List qualified
 import Data.List.NonEmpty qualified as NE
-import Data.Maybe (catMaybes, mapMaybe)
-import Data.Proxy (Proxy (..))
-import Data.Type.Equality ((:~:) (..))
-import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), type (*), type (+), type (-), type (<=), type (>=))
-import Data.Vector qualified as V
-import Data.Vector.Generic.Sized.Internal qualified as VSU
+import Data.Maybe (mapMaybe)
+import Data.TypeNums (KnownNat, Nat, type (<=))
 import Data.Vector.Sized qualified as VS
-import Debug.Trace qualified as DT
 import GHC.Generics
 import Musicology.Pitch
 import Torch qualified as T
-import Torch.Lens qualified as T
 import Torch.Typed qualified as TT
-import Unsafe.Coerce (unsafeCoerce)
 
 -- Utilities
 -- =========
@@ -396,7 +388,6 @@ pitchesTokens
 pitchesTokens ps = qBoundedList (mkToken <$> ps)
  where
   -- todo: batch oneHot
-  opts' = T.withDType
   mkToken p =
     TT.UnsafeMkTensor $ T.toDType qDType $ T.cat (T.Dim 0) [T.oneHot fifthSize f, T.oneHot octaveSize o]
    where
@@ -737,7 +728,7 @@ withBatchedEncoding
    . (TT.KnownDevice dev)
   => PVState
   -> NE.NonEmpty PVAction
-  -> (forall n. (KnownNat n) => QEncoding dev '[n] -> r)
+  -> (forall n. (KnownNat n, 1 <= n) => QEncoding dev '[n] -> r)
   -> r
 withBatchedEncoding state (a0 NE.:| actions) f =
   VS.withSizedList aEncs inner

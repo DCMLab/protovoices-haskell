@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -O0 #-}
 
 -- {-# LANGUAGE QuasiQuotes #-}
 
@@ -7,9 +8,9 @@ module Main where
 import CommonMain
 
 import PVGrammar.Prob.Simple
-import RL
 import RL.Imitate
 import RL.Model
+import RL.ModelTypes
 import RL.Plotting
 
 -- import H.Prelude qualified as H
@@ -17,8 +18,6 @@ import RL.Plotting
 
 import Control.Monad (replicateM_)
 import Control.Monad.Cont (ContT (ContT, runContT))
-import Data.Either (rights)
-import Data.Fixed (mod')
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe (catMaybes)
 import Data.Set qualified as S
@@ -26,7 +25,6 @@ import Graphics.Matplotlib qualified as Plt
 import Inference.Conjugate
 import Pipes qualified as P
 import Pipes.Prelude qualified as P
-import RL.Encoding (ActionEncoding (actionEncodingOp), QEncoding (qActionEncoding))
 import System.FilePath ((</>))
 import System.Random (newStdGen)
 import System.Random.MWC (createSystemRandom)
@@ -41,7 +39,7 @@ type Device = '(TT.CUDA, 0)
 type Hidden = 8
 
 main :: IO ()
-main = trainImitation 500 "test"
+main = trainImitation 1 "test"
 
 trainImitation :: Int -> String -> IO ()
 trainImitation epochs name = do
@@ -53,11 +51,9 @@ trainImitation epochs name = do
       paramname = "e" <> show epochs <> "-nb" <> show nBatches <> "-bs" <> show batchSize <> "-h" <> show hidden
       fullname = paramname <> "-" <> name
   putStrLn $ "model name: " <> fullname
-  -- !model0 <- loadModel @Device @Hidden "rl/actor-imit.ht"
-  !model0 <- mkQModel @Device @Hidden
+  -- !model0 <- loadQModel @Device @Hidden "rl/actor-imit.ht"
+  !model0 <- mkQAttModel @Device @Hidden
   -- check hidden size
-  let TT.Linear w _b = qModelFinal2 model0
-  putStrLn $ "hidden size (actual): " <> (show $ T.shape $ TT.toDynamic $ TT.toDependent w)
   gen <- createSystemRandom
   Right hyper <- loadPVHyper "posterior.json"
   let probs = expectedProbs @PVParams hyper
@@ -66,18 +62,16 @@ trainImitation epochs name = do
   -- putStrLn $ "train: " <> show (S.size $ TT.keys trainData)
   -- testData <- makeChordDataset @Device 100
   examples <- loadDir (dataDir </> "theory-article") []
-  let getData (name, ana, _, _) = case derivationToDatapointsLenient ana of
-        Left err -> Nothing
+  let getData (_, ana, _, _) = case derivationToDatapointsLenient ana of
+        Left _err -> Nothing
         Right ds -> Just $ ds
   genStd <- newStdGen
   let testData = concat $ catMaybes $ fmap getData examples
       testData' = take 50 $ shuffle' testData (length testData) genStd
   let testData = mkImitationDataset testData'
   putStrLn $ "test:  " <> show (S.size $ TT.keys @IO testData)
-  (modelTrained, (hTrain, hTest)) <-
-    trainDatastream fullname model0 trainData testData fLR epochs nBatches batchSize
+  trainDatastream fullname model0 trainData testData fLR epochs nBatches batchSize
   -- trainDataset name model0 trainData testData fLR epochs 32
-  -- plotHistories "losses-imitation" [hTrain, hTest]
   pure ()
 
 -- Debugging and Testing
@@ -93,7 +87,7 @@ testRun = do
   putStrLn $ "test accuracy: " <> show acc
 
 testModel fn = do
-  model <- loadModel @Device @Hidden fn
+  model <- loadQModel @Device @Hidden fn
   baseline <- mkQModel @Device @Hidden
   examples <- loadArticleExamples
   let getData (name, ana, _, _) = case derivationToDatapointsLenient ana of

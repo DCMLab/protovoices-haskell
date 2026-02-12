@@ -1,10 +1,12 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# HLINT ignore "Use <$>" #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
@@ -12,15 +14,11 @@
 module RL.DQN where
 
 import Common
-import Display (replayDerivation, viewGraph)
-import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), GreedyState, applyAction, getActions, initParseState, parseGreedy, parseStep, pickRandom)
-import PVGrammar (Edge, Edges (Edges), Freeze (FreezeOp), Note, Notes (Notes), PVAnalysis, PVLeftmost, Split, Spread)
-import PVGrammar.Generate (derivationPlayerPV)
-import PVGrammar.Parse (protoVoiceEvaluator)
-import PVGrammar.Prob.Simple (PVParams, evalDoubleStep, evalSingleStep, observeDerivation, observeDerivation', observeDoubleStepParsing, observeSingleStepParsing, sampleDerivation', sampleDoubleStepParsing, sampleSingleStepParsing)
+import GreedyParser (GreedyState, applyAction, getActions, initParseState)
+import PVGrammar (Edge, Edges, Note, Notes, PVAnalysis, PVLeftmost)
 import RL.Callbacks
 import RL.Encoding
-import RL.Model
+import RL.Model.Interface
 import RL.ModelTypes
 import RL.Plotting
 import RL.ReplayBuffer
@@ -28,31 +26,21 @@ import RL.TorchHelpers qualified as TH
 
 -- import Control.DeepSeq (force)
 
-import Control.Exception (Exception, catch, onException)
-import Control.Monad (foldM, foldM_, forM, forM_, replicateM, when)
+import Control.Monad (foldM, forM, forM_, when)
 import Control.Monad.Except qualified as ET
-import Control.Monad.Primitive (RealWorld)
-import Control.Monad.State qualified as ST
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except qualified as ET
-import Data.Either.Combinators (leftToMaybe)
 import Data.Foldable qualified as F
-import Data.List.Extra qualified as E
 import Data.List.NonEmpty qualified as NE
 import Data.Text.Lazy qualified as Txt
+import Data.TypeNums (KnownNat, type (<=))
 import Data.Vector qualified as V
-import Debug.Trace qualified as DT
-import GHC.Float (double2Float)
-import Inference.Conjugate (Hyper, HyperRep, Prior (expectedProbs), evalTraceLogP, printTrace, sampleProbs)
 import Musicology.Pitch
-import RL.ModelTypes (toQTensor)
 import System.ProgressBar qualified as PB
 import System.Random.MWC.Distributions (categorical)
-import System.Random.MWC.Probability qualified as MWC
-import System.Random.Stateful as Rand (StatefulGen, UniformRange (uniformRM), split)
+import System.Random.Stateful as Rand (StatefulGen, UniformRange (uniformRM))
 import Torch qualified as T
 import Torch.HList qualified as TT
-import Torch.Lens qualified
 import Torch.Typed qualified as TT
 
 -- Notes
@@ -109,9 +97,9 @@ eps i n = expSchedule epsStart epsEnd (fromIntegral n) (fromIntegral i)
 -- Deep Q-Learning
 -- ---------------
 
-data DQNState dev hidden opt = DQNState
-  { pnet :: !(QModel dev hidden)
-  , tnet :: !(QModel dev hidden)
+data DQNState dev model opt = DQNState
+  { pnet :: !(model dev)
+  , tnet :: !(model dev)
   , opt :: !opt
   , buffer :: !(ReplayBuffer dev)
   }
@@ -148,21 +136,23 @@ softmaxPolicy gen temp (SomePolicy values) = do
   categorical (V.fromList $ T.asValue $ T.toDType T.Double $ TT.toDynamic $ probs) gen
 
 runEpisode
-  :: forall dev hidden gen slc' label
-   . (ValidParams dev hidden)
+  :: forall dev model gen label
+   . ( TT.KnownDevice dev
+     , forall n. (1 <= n, KnownNat n) => TT.HasForward (model dev) (QEncoding dev '[n]) (QTensor dev [n, 1])
+     )
   => PVEval SPitch
   -> gen
   -> (SomePolicy dev -> IO Int)
   -> PVRewardFn label
   -> Path [Note SPitch] [Edge SPitch]
   -> label
-  -> QModel dev hidden
+  -> model dev
   -> IO
       ( Either
           String
           ([ReplayStep dev], Maybe (PVAnalysis SPitch))
       )
-runEpisode !eval !gen !fPolicy !fReward !input !label pnet =
+runEpisode !eval !_gen !fPolicy !fReward !input !label pnet =
   let
     state0 = initParseState eval input
    in
@@ -181,7 +171,7 @@ runEpisode !eval !gen !fPolicy !fReward !input !label pnet =
     -> [ReplayStep dev]
     -> ET.ExceptT String IO ([ReplayStep dev], Maybe (PVAnalysis SPitch))
   go state actions steps = do
-    let qvalues = withBatchedEncoding state actions $ runBatchedQ pnet
+    let qvalues = withBatchedEncoding @dev state actions $ runBatchedQ pnet
     actionIndex <- lift $ fPolicy qvalues
     let action = actions NE.!! actionIndex
     state' <- ET.except $ applyAction state action
@@ -196,15 +186,15 @@ runEpisode !eval !gen !fPolicy !fReward !input !label pnet =
             newStep = ReplayStep state action next reward
         go s' a' (newStep : steps)
       -- new state but no actions: stop
-      (Left s', Nothing) ->
+      (Left _s', Nothing) ->
         pure (ReplayStep state action Nothing reward : steps, Nothing)
       -- terminal state: stop
       (Right (top, deriv), _) ->
         pure (ReplayStep state action Nothing reward : steps, Just $ Analysis deriv $ PathEnd top)
 
 trainLoop
-  :: forall dev hidden tr tr' slc slc' s f h label gen opt -- params (grads :: [Type])
-   . (_)
+  :: forall dev model label gen opt
+   . (forall n. (1 <= n, KnownNat n) => TT.HasForward (model dev) (QEncoding dev '[n]) (QTensor dev [n, 1]), _)
   => PVEval SPitch
   -> gen
   -> PVRewardFn label
@@ -213,10 +203,10 @@ trainLoop
   -> (QType -> QType)
   -- ^ temperature schedule
   -> (Path [Note SPitch] [Edge SPitch], label)
-  -> DQNState dev hidden opt
+  -> DQNState dev model opt
   -> Int
   -> Int
-  -> IO (DQNState dev hidden opt, QType, QType)
+  -> IO (DQNState dev model opt, QType, QType)
 trainLoop !eval !gen fReward fLr fTemp (!piece, !label) oldstate@(DQNState !pnet !tnet !opt !buffer) i n = do
   -- 1. run episode, collect results
   -- let policy = epsilonic gen (eps i n) greedyPolicy
@@ -229,7 +219,7 @@ trainLoop !eval !gen fReward fLr fTemp (!piece, !label) oldstate@(DQNState !pnet
     Left error -> do
       print error
       pure (oldstate, 0, 0)
-    Right (steps, analysis) -> do
+    Right (steps, _analysis) -> do
       -- 2. compute reward and add steps to replay buffer
       let r = sum $ replayReward <$> steps
       -- rall <- reward analysis
@@ -285,14 +275,15 @@ trainLoop !eval !gen fReward fLr fTemp (!piece, !label) oldstate@(DQNState !pnet
         --  in
         case withBatchedEncoding state' actions' $ runBatchedQ tnet of
           SomePolicy nextQs -> TT.maxValues @0 @TT.DropDim nextQs
-    qnow = runQ' encodeStep pnet state action
+    qnow = runQ' pnet $ encodeStep @dev state action
     qexpected = TT.addScalar r (TT.mulScalar gamma qnext)
 
 trainDQN
-  :: forall dev hidden gen label
-   . ( ValidParams dev hidden
-     , TT.KnownDevice dev
+  :: forall dev model gen label
+   . ( TT.KnownDevice dev
      , StatefulGen gen IO
+     , forall n. (1 <= n, KnownNat n) => TT.HasForward (model dev) (QEncoding dev '[n]) (QTensor dev [n, 1])
+     , _
      )
   => PVEval SPitch
   -> gen
@@ -301,16 +292,16 @@ trainDQN
   -- ^ learning rate schedule
   -> (QType -> QType)
   -- ^ temperature schedule
-  -> QModel dev hidden
+  -> model dev
   -> [(Path [Note SPitch] [Edge SPitch], label)]
   -> Int
-  -> IO ([QType], [QType], QModel dev hidden)
+  -> IO ([QType], [QType], model dev)
 trainDQN eval gen fReward fRl fTemp model0 pieces n = do
   -- model0 <- mkQModel
   let opt = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model0) -- T.GD
       buffer = mkReplayBuffer bufferSize
       state0 = DQNState model0 model0 opt buffer
-  (DQNState modelTrained _ _ _, rewards, losses, accs) <- T.foldLoop (state0, [], [], []) n trainEpoch
+  (DQNState modelTrained _ _ _, rewards, losses, _accs) <- T.foldLoop (state0, [], [], []) n trainEpoch
   pure (reverse rewards, reverse losses, modelTrained) -- (modelTrained, rewards)
  where
   trainPiece pb i (state, rewards, losses) !piece = do

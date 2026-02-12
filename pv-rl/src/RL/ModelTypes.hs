@@ -10,7 +10,7 @@
 
 module RL.ModelTypes where
 
-import GreedyParser (Action, ActionDouble (ActionDouble), ActionSingle (ActionSingle), DoubleParent (DoubleParent), GreedyState, SingleParent (SingleParent), gsOps, opGoesLeft)
+import GreedyParser (Action, GreedyState)
 import Musicology.Pitch (SPitch)
 import PVGrammar
 
@@ -171,17 +171,17 @@ deriving instance NFData (TT.LayerNorm shape dtype dev)
 
 instance NoThunks (TT.HList '[]) where
   showTypeOf _ = "HNil"
-  wNoThunks ctxt TT.HNil = pure Nothing
+  wNoThunks _ctxt TT.HNil = pure Nothing
 
 instance (NoThunks x, NoThunks (TT.HList xs)) => NoThunks (TT.HList (x : (xs :: [Type]))) where
   showTypeOf _ = "HCons " <> showTypeOf (Proxy @x)
-  wNoThunks ctxt (x TT.:. xs) = allNoThunks [noThunks ctxt x, noThunks ctxt xs]
+  wNoThunks ctxt (TT.HCons (x, xs)) = allNoThunks [noThunks ctxt x, noThunks ctxt xs]
 
 instance NFData (TT.HList '[]) where
   rnf TT.HNil = ()
 
 instance (NFData x, NFData (TT.HList xs)) => NFData (TT.HList (x : xs :: [Type])) where
-  rnf (x TT.:. xs) = deepseq x $ rnf xs
+  rnf (TT.HCons (x, xs)) = deepseq x $ rnf xs
 
 deriving instance Generic (TT.Adam momenta)
 deriving instance (NoThunks (TT.HList momenta)) => NoThunks (TT.Adam momenta)
