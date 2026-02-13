@@ -15,7 +15,6 @@ import RL.Model.State
 import RL.Model.Transition
 import RL.ModelTypes
 
-import RL.TorchHelpers qualified as TH
 import Torch qualified as T
 import Torch.Typed qualified as TT
 
@@ -89,6 +88,7 @@ forwardQModelBatched
   :: forall dev hidden batchSize
    . ( ValidParams dev hidden
      , 1 <= batchSize
+     , KnownNat batchSize
      )
   => QModel hidden dev
   -> QEncoding dev '[batchSize]
@@ -101,11 +101,11 @@ forwardQModelBatched (QModel slc tr act st final1 norm1 final2 _ _ _) (QEncoding
   stEmb = T.forward st (slc, tr, stEnc)
   inputEmb = actEmb `TT.add` stEmb
   out1 :: QTensor dev (batchSize : hidden : PShape)
-  out1 = TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) final1 inputEmb
+  out1 = TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) final1 inputEmb
   sum1 :: QTensor dev '[batchSize, hidden]
   sum1 = TT.sumDim @2 $ TT.sumDim @2 out1
   out1norm :: QTensor dev '[batchSize, hidden]
-  out1norm = activation $ TH.layerNormForwardRelaxed norm1 sum1
+  out1norm = activation $ TT.layerNormForward norm1 sum1
   out2 :: QTensor dev '[batchSize, 1]
   out2 = T.forward final2 out1norm
 
@@ -130,11 +130,11 @@ forwardQModelFullyBatched (QModel slc tr act st final1 norm1 final2 _ _ _) (QEnc
   inputEmb :: QTensor dev (batchSize : hidden : PShape)
   inputEmb = actEmb `TT.add` stEmb
   out1 :: QTensor dev (batchSize : hidden : PShape)
-  out1 = TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) final1 inputEmb
+  out1 = TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) final1 inputEmb
   sum1 :: QTensor dev '[batchSize, hidden]
   sum1 = TT.sumDim @2 $ TT.sumDim @2 out1
   out1norm :: QTensor dev '[batchSize, hidden]
-  out1norm = activation $ TH.layerNormForwardRelaxed norm1 sum1
+  out1norm = activation $ TT.layerNormForward norm1 sum1
   out2 :: QTensor dev '[batchSize, 1]
   out2 = T.forward final2 out1norm
   outAll = TT.toDynamic out2

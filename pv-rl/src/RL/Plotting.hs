@@ -23,8 +23,8 @@ mean :: (Foldable t) => t QType -> QType
 mean = Foldl.fold Foldl.mean
 
 zipWithStrict :: (a -> b -> c) -> SL.List a -> SL.List b -> SL.List c
-zipWithStrict f SL.Nil _ = SL.Nil
-zipWithStrict f _ SL.Nil = SL.Nil
+zipWithStrict _f SL.Nil _ = SL.Nil
+zipWithStrict _f _ SL.Nil = SL.Nil
 zipWithStrict f (SL.Cons x xs) (SL.Cons y ys) = SL.Cons (f x y) $ zipWithStrict f xs ys
 
 -- plotting
@@ -56,7 +56,7 @@ mkHistoriesPlot title series = do
     Plt.opaque <$> (d3Colors2 Dark <$> [0 .. 9]) ++ (d3Colors2 Light <$> [0 .. 9])
   Plt.layout_title .= title
   Plt.layout_legend .= Nothing
-  forM_ (zip series [1 ..]) $ \(values, i) -> do
+  forM_ (zip series [1 ..]) $ \(values, _i) -> do
     let points = zip [1 :: Int ..] values
     Plt.plot $ Plt.line "" [points]
 

@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module RL.Model.Transition where
 
@@ -11,7 +12,6 @@ import RL.Encoding
 import RL.Model.Common
 import RL.ModelTypes
 
-import RL.TorchHelpers qualified as TH
 import Torch qualified as T
 import Torch.Typed qualified as TT
 
@@ -53,15 +53,14 @@ instance (IsValidDevice dev, KnownNat hidden) => T.Randomizable (TransitionSpec 
 -- | HasForward for transitions (unbatched)
 instance
   forall dev hidden embshape
-   . ( IsValidDevice dev
-     , KnownNat hidden
+   . ( ValidParams dev hidden
      , embshape ~ (hidden : PShape)
      )
   => T.HasForward (TransitionEncoder dev hidden) (TransitionEncoding dev '[]) (QTensor dev embshape)
   where
   forward TransitionEncoder{..} TransitionEncoding{..} =
     activation $
-      TH.layerNormForwardRelaxed trNorm2 $
+      TT.layerNormForward trNorm2 $
         TT.squeezeDim @0 $
           TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) trL2 $
             TT.unsqueeze @0 all
@@ -91,7 +90,7 @@ instance
     root :: QTensor dev '[hidden, 1, 1]
     root = TT.reshape $ TT.mul trencRoot (activation (T.forward trL1Root ()))
     all :: QTensor dev (hidden : PShape)
-    all = activation $ TH.layerNormForwardRelaxed trNorm1 (pass + inner + left + right) `TT.add` root
+    all = activation $ TT.layerNormForward trNorm1 $ (pass + inner + left + right) `TT.add` root
 
   forwardStoch tr input = pure $ T.forward tr input
 
@@ -100,11 +99,12 @@ instance
   forall dev hidden batchSize embshape
    . ( ValidParams dev hidden
      , embshape ~ (batchSize : hidden : PShape)
+     , KnownNat batchSize
      )
   => T.HasForward (TransitionEncoder dev hidden) (TransitionEncoding dev '[batchSize]) (QTensor dev embshape)
   where
   forward TransitionEncoder{..} TransitionEncoding{..} =
-    activation $ TH.layerNormForwardRelaxed trNorm2 $ TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) trL2 all
+    activation $ TT.layerNormForward trNorm2 $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) trL2 all
    where
     runConv
       :: forall nin
@@ -119,12 +119,12 @@ instance
       inputShaped :: QTensor dev (batchSize * MaxEdges : nin : PShape)
       inputShaped = unsafeReshape (-1 : shape) edges
       out :: QTensor dev (batchSize * MaxEdges : hidden : PShape)
-      out = TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) conv inputShaped
+      out = TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) conv inputShaped
       outReshaped :: QTensor dev (batchSize : MaxEdges : hidden : PShape)
       outReshaped = unsafeReshape (-1 : shape') out
       mask' :: QTensor dev '[batchSize, MaxEdges, 1, 1, 1]
       mask' = unsafeReshape [-1, TT.natValI @MaxEdges, 1, 1, 1] mask
-    runSlice conv slice = TH.conv2dForwardRelaxed @'(1, 1) @'(0, 0) conv input
+    runSlice conv slice = TT.conv2dForward @'(1, 1) @'(0, 0) conv input
      where
       input = TT.unsqueeze @1 slice
     pass :: QTensor dev (batchSize : hidden : PShape)
@@ -138,6 +138,6 @@ instance
     root :: QTensor dev '[batchSize, hidden, 1, 1]
     root = unsafeReshape [-1, TT.natValI @hidden, 1, 1] $ TT.mul (TT.unsqueeze @1 trencRoot) $ activation $ T.forward trL1Root ()
     all :: QTensor dev (batchSize : hidden : PShape)
-    all = activation $ TH.layerNormForwardRelaxed trNorm1 $ (pass + inner + left + right) `TT.add` root
+    all = activation $ TT.layerNormForward trNorm1 $ (pass + inner + left + right) `TT.add` root
 
   forwardStoch tr input = pure $ T.forward tr input

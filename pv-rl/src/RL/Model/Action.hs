@@ -14,7 +14,6 @@ import RL.Model.Slice
 import RL.Model.Transition
 import RL.ModelTypes
 
-import RL.TorchHelpers qualified as TH
 import Torch qualified as T
 import Torch.Typed qualified as TT
 
@@ -78,6 +77,7 @@ instance
    . ( ValidParams dev hidden
      , outShape ~ (batchSize : hidden : PShape)
      , 1 <= batchSize
+     , KnownNat batchSize
      )
   => T.HasForward
       (ActionEncoder dev hidden)
@@ -85,18 +85,19 @@ instance
       (QTensor dev outShape)
   where
   forward ActionEncoder{..} (slc, tr, ActionEncoding (ActionTop sl t1 (QMaybe smMask sm) (QMaybe t2Mask t2) sr) opIndex) =
-    activation $
-      TH.layerNormForwardRelaxed actNorm2 $
-        topEmb `TT.add` opEmbReshaped
+    activation $ TT.layerNormForward actNorm2 $ topEmb `TT.add` opEmbReshaped
    where
     runConv
-      :: TT.Conv2d nin nout FifthSize OctaveSize QDType dev
+      :: forall nin nout
+       . (KnownNat nin, KnownNat nout)
+      => TT.Conv2d nin nout FifthSize OctaveSize QDType dev
       -> QTensor dev (batchSize : nin : PShape)
       -> QTensor dev (batchSize : nout : PShape)
     runConv conv input =
-      TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) conv input
+      TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) conv input
     runConvMasked
-      :: QTensor dev '[batchSize]
+      :: (KnownNat nin, KnownNat nout)
+      => QTensor dev '[batchSize]
       -> TT.Conv2d nin nout FifthSize OctaveSize QDType dev
       -> QTensor dev (batchSize : nin : PShape)
       -> QTensor dev (batchSize : nout : PShape)
@@ -111,9 +112,7 @@ instance
     embt2 = runConvMasked t2Mask actTop1t2 $ T.forward tr t2
     topCombined :: QTensor dev (batchSize : hidden : PShape)
     topCombined =
-      activation $
-        TH.layerNormForwardRelaxed actNorm1 $
-          embl + embm + embr + embt1 + embt2
+      activation $ TT.layerNormForward actNorm1 $ embl + embm + embr + embt1 + embt2
     topEmb :: QTensor dev (batchSize : hidden : PShape)
     topEmb = runConv actTop2 topCombined
     -- operation embedding

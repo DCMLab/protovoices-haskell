@@ -57,8 +57,9 @@ type IsValidHidden (hidden :: Nat) =
   , KnownNat (hidden - 3)
   , 3 <= hidden
   , 1 <= hidden
-  , TT.CheckIsSuffixOf '[hidden] [1, hidden] (hidden == hidden)
-  , TT.CheckIsSuffixOf '[hidden] '[hidden] (hidden == hidden)
+  , -- , TT.CheckIsSuffixOf '[hidden] [1, hidden] (hidden == hidden)
+    -- , TT.CheckIsSuffixOf '[hidden] '[hidden] (hidden == hidden)
+    (hidden == hidden) ~ 'True
   )
 
 type ValidParams dev hidden = (IsValidDevice dev, IsValidHidden hidden)
@@ -165,6 +166,12 @@ deriving instance NFData TT.Dropout
 
 deriving instance NoThunks (TT.MultiheadAttention emd kemb vemb heads dtype dev)
 deriving instance NFData (TT.MultiheadAttention emd kemb vemb heads dtype dev)
+
+deriving instance NoThunks (TT.TransformerMLP emd ffndim dtype dev)
+deriving instance NFData (TT.TransformerMLP emd ffndim dtype dev)
+
+deriving instance NoThunks (TT.TransformerLayer emd kemb vemb heads ffndim dtype dev)
+deriving instance NFData (TT.TransformerLayer emd kemb vemb heads ffndim dtype dev)
 
 deriving instance NoThunks (TT.LayerNorm shape dtype dev)
 deriving instance NFData (TT.LayerNorm shape dtype dev)

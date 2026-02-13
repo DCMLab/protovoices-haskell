@@ -14,7 +14,6 @@ import RL.Model.Slice
 import RL.Model.Transition
 import RL.ModelTypes
 
-import RL.TorchHelpers qualified as TH
 import Torch qualified as T
 import Torch.Typed qualified as TT
 
@@ -111,9 +110,9 @@ instance
 
     -- combined embeddings and compute output
     fullEmb :: QTensor dev (hidden : PShape)
-    fullEmb = activation $ TH.layerNormForwardRelaxed stNorm1 $ midEmb + frozenEmb + openEmb
+    fullEmb = activation $ TT.layerNormForward stNorm1 $ midEmb + frozenEmb + openEmb
     out2 :: QTensor dev (hidden : PShape)
-    out2 = activation $ TH.layerNormForwardRelaxed stNorm2 $ runConv stL2 fullEmb
+    out2 = activation $ TT.layerNormForward stNorm2 $ runConv stL2 fullEmb
     out3 :: QTensor dev (hidden : PShape)
-    out3 = activation $ TH.layerNormForwardRelaxed stNorm3 $ runConv stL3 out2
+    out3 = activation $ TT.layerNormForward stNorm3 $ runConv stL3 out2
   forwardStoch a i = pure $ T.forward a i

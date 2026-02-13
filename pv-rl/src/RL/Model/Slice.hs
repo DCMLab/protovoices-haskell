@@ -8,7 +8,6 @@ import RL.Encoding
 import RL.Model.Common
 import RL.ModelTypes
 
-import RL.TorchHelpers qualified as TH
 import Torch qualified as T
 import Torch.Typed qualified as TT
 
@@ -46,22 +45,23 @@ instance (IsValidDevice dev, KnownNat hidden) => T.Randomizable (SliceSpec dev h
 
 -- | HasFoward for slice (unbatched)
 instance
-  (embshape ~ hidden : PShape, IsValidDevice dev, KnownNat hidden)
+  (embshape ~ hidden : PShape, IsValidDevice dev, IsValidHidden hidden)
   => T.HasForward (SliceEncoder dev hidden) (SliceEncoding dev '[]) (QTensor dev embshape)
   where
   forward (SliceEncoder l1 l2 _ _ n1 n2) slice = TT.squeezeDim @0 out2
    where
     input = TT.unsqueeze @0 $ TT.unsqueeze @0 $ getSlice slice
     out1 :: QTensor dev (1 : hidden : PShape)
-    out1 = activation $ TH.layerNormForwardRelaxed n1 $ TT.conv2dForward @'(1, 1) @'(0, 0) l1 input
+    out1 = activation $ TT.layerNormForward n1 $ TT.conv2dForward @'(1, 1) @'(0, 0) l1 input
     out2 :: QTensor dev (1 : hidden : PShape)
-    out2 = activation $ TH.layerNormForwardRelaxed n2 $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) l2 out1
+    out2 = activation $ TT.layerNormForward n2 $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) l2 out1
   forwardStoch model = pure . T.forward model
 
 -- | HasFoward for slice (batched)
 instance
   ( ValidParams dev hidden
   , embshape ~ '[batchSize, hidden, FifthSize, OctaveSize]
+  , KnownNat batchSize
   )
   => T.HasForward (SliceEncoder dev hidden) (SliceEncoding dev '[batchSize]) (QTensor dev embshape)
   where
@@ -69,14 +69,14 @@ instance
    where
     input = TT.unsqueeze @1 $ getSlice slice
     out1 :: QTensor dev '[batchSize, hidden, FifthSize, OctaveSize]
-    out1 = activation $ TH.layerNormForwardRelaxed n1 $ TH.conv2dForwardRelaxed @'(1, 1) @'(0, 0) l1 input
+    out1 = activation $ TT.layerNormForward n1 $ TT.conv2dForward @'(1, 1) @'(0, 0) l1 input
     out2 :: QTensor dev '[batchSize, hidden, FifthSize, OctaveSize]
-    out2 = activation $ TH.layerNormForwardRelaxed n2 $ TH.conv2dForwardRelaxed @'(1, 1) @'(FifthPadding, OctavePadding) l2 out1
+    out2 = activation $ TT.layerNormForward n2 $ TT.conv2dForward @'(1, 1) @'(FifthPadding, OctavePadding) l2 out1
   forwardStoch model = pure . T.forward model
 
 -- | HasForward for slice wrappend in QStartStop (unbatched).
 instance
-  (embshape ~ hidden : PShape, IsValidDevice dev, KnownNat hidden)
+  (embshape ~ hidden : PShape, ValidParams dev hidden)
   => TT.HasForward (SliceEncoder dev hidden) (QStartStop dev '[] (SliceEncoding dev '[])) (QTensor dev embshape)
   where
   forward model@(SliceEncoder _ _ start stop _ _) (QStartStop tag input) = TT.squeezeDim @0 out
@@ -104,6 +104,7 @@ instance
 instance
   ( ValidParams dev hidden
   , embshape ~ (batchSize : hidden : PShape)
+  , KnownNat batchSize
   )
   => TT.HasForward (SliceEncoder dev hidden) (QStartStop dev '[batchSize] (SliceEncoding dev '[batchSize])) (QTensor dev embshape)
   where
