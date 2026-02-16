@@ -6,6 +6,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
 
+-- {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+
 module RL.Model.State where
 
 import RL.Encoding
@@ -18,7 +20,7 @@ import Torch qualified as T
 import Torch.Typed qualified as TT
 
 import Control.DeepSeq (NFData)
-import Data.TypeNums (KnownNat, type (<=))
+import Data.TypeNums (KnownNat, type (*), type (+), type (<=))
 import GHC.Generics (Generic)
 import NoThunks.Class (NoThunks)
 
@@ -33,6 +35,7 @@ data StateEncoder dev hidden = StateEncoder
   , stL1frozenTr :: TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
   , stL1openSlc :: TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
   , stL1openTr :: TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
+  , stPosEmbedding :: TT.Embedding 'Nothing ((MaxSegments * 2) + 1) hidden 'TT.Constant QDType dev
   , stL2 :: TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
   , stL3 :: TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
   , stNorm1 :: TT.LayerNorm (hidden : PShape) QDType dev
@@ -41,19 +44,23 @@ data StateEncoder dev hidden = StateEncoder
   }
   deriving (Show, Generic, TT.Parameterized, NoThunks, NFData)
 
-instance (IsValidDevice dev, KnownNat hidden) => T.Randomizable (StateSpec dev hidden) (StateEncoder dev hidden) where
+instance (ValidParams dev hidden) => T.Randomizable (StateSpec dev hidden) (StateEncoder dev hidden) where
   sample _ = do
     stL1mid <- TT.sample TT.Conv2dSpec
     stL1frozenSlc <- TT.sample TT.Conv2dSpec
     stL1frozenTr <- TT.sample TT.Conv2dSpec
     stL1openSlc <- TT.sample TT.Conv2dSpec
     stL1openTr <- TT.sample TT.Conv2dSpec
+    stPosEmbedding <- TT.sample $ TT.ConstEmbeddingSpec @'Nothing (TT.toDType @QDType @TT.Float $ embs)
     stL2 <- TT.sample TT.Conv2dSpec
     stL3 <- TT.sample TT.Conv2dSpec
     stNorm1 <- T.sample $ TT.LayerNormSpec 1e-05
     stNorm2 <- T.sample $ TT.LayerNormSpec 1e-05
     stNorm3 <- T.sample $ TT.LayerNormSpec 1e-05
     pure StateEncoder{..}
+   where
+    embs :: TT.Tensor dev 'TT.Float '[(MaxSegments * 2) + 1, hidden]
+    embs = TT.sinusoidal @((MaxSegments * 2) + 1) @hidden @dev
 
 -- | HasForward for the parsing state (doesn't need batching)
 instance
@@ -66,7 +73,7 @@ instance
       (SliceEncoder dev hidden, TransitionEncoder dev hidden, StateEncoding dev)
       (QTensor dev outShape)
   where
-  forward StateEncoder{..} (slc, tr, StateEncoding mid frozen open) = out3
+  forward StateEncoder{..} (slc, tr, StateEncoding @_ @frozen @open mid frozen open) = out3
    where
     -- helpers: running convolutions (batched and unbatched)
     runConv'
@@ -89,24 +96,41 @@ instance
       => TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
       -> TT.Conv2d hidden hidden FifthSize OctaveSize QDType dev
       -> QMaybe dev '[] (TransitionEncoding dev '[nsegs], QStartStop dev '[nsegs] (SliceEncoding dev '[nsegs]))
+      -> QTensor dev [nsegs, hidden]
       -> QTensor dev (nsegs : hidden : PShape)
-    embedSegments trEnc slcEnc (QMaybe mask (ft, fs)) =
+    embedSegments trEnc slcEnc (QMaybe mask (ft, fs)) pos =
       TT.mul (TT.reshape @[1, 1, 1, 1] mask) $ ftEmb + fsEmb
      where
+      pos' :: QTensor dev [nsegs, hidden, 1, 1]
+      pos' = TT.reshape pos
       ftEmb :: QTensor dev (nsegs : hidden : PShape)
-      ftEmb = runConv' trEnc $ T.forward tr ft
+      ftEmb = runConv' trEnc $ T.forward tr ft `TT.add` pos'
       fsEmb :: QTensor dev (nsegs : hidden : PShape)
-      fsEmb = runConv' slcEnc $ T.forward slc fs
+      fsEmb = runConv' slcEnc $ T.forward slc fs `TT.add` pos'
+
+    maxseg = TT.natValI @MaxSegments
+    arange :: forall n. (KnownNat n) => TT.Tensor dev TT.Int64 '[n]
+    arange = TT.UnsafeMkTensor $ T.arange 0 (TT.natValI @n) 1 (T.withDType T.Int64 (opts @dev))
 
     -- embed frozen segments
+    frozenPos :: QTensor dev [frozen, hidden]
+    frozenPos = TT.embed stPosEmbedding $ TT.addScalar maxseg $ negate $ arange @frozen
+    frozenEmbs :: QTensor dev (frozen : hidden : PShape)
+    frozenEmbs = embedSegments stL1frozenTr stL1frozenSlc frozen frozenPos
     frozenEmb :: QTensor dev (hidden : PShape)
-    frozenEmb = TT.meanDim @0 $ embedSegments stL1frozenTr stL1frozenSlc frozen
+    frozenEmb = TT.sumDim @0 frozenEmbs
     -- embed open segments
+    openPos :: QTensor dev [open, hidden]
+    openPos = TT.embed stPosEmbedding $ TT.addScalar (maxseg + 1) $ arange @open
+    openEmbs :: QTensor dev (open : hidden : PShape)
+    openEmbs = embedSegments stL1openTr stL1openSlc open openPos
     openEmb :: QTensor dev (hidden : PShape)
-    openEmb = TT.meanDim @0 $ embedSegments stL1openTr stL1openSlc open
+    openEmb = TT.sumDim @0 $ openEmbs
     -- embed the mid slice
+    midPos :: QTensor dev '[hidden, 1, 1]
+    midPos = TT.reshape $ TT.embed stPosEmbedding $ TT.addScalar maxseg $ arange @1
     midEmb :: QTensor dev (hidden : PShape)
-    midEmb = activation $ runConv stL1mid $ T.forward slc mid
+    midEmb = runConv stL1mid $ T.forward slc mid `TT.add` midPos
 
     -- combined embeddings and compute output
     fullEmb :: QTensor dev (hidden : PShape)

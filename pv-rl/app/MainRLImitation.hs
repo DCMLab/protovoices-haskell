@@ -35,11 +35,11 @@ import Torch.Typed qualified as TT
 -- Training
 -- ========
 
-type Device = '(TT.CUDA, 0)
+type Device = '(TT.CPU, 0)
 type Hidden = 8
 
 main :: IO ()
-main = trainImitation 1 "test"
+main = trainImitation 5 "test"
 
 trainImitation :: Int -> String -> IO ()
 trainImitation epochs name = do

@@ -22,6 +22,7 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Type.Equality (type (==))
 import Data.TypeNums (KnownInt, KnownNat, Nat, TInt (..), intVal, type (*), type (+), type (-), type (<=))
 import GHC.Generics (Generic)
+import GHC.TypeLits (Div)
 import NoThunks.Class (NoThunks (..), OnlyCheckWhnf (..), allNoThunks)
 import Torch qualified as T
 import Torch.Lens qualified
@@ -49,6 +50,8 @@ type IsValidDevice dev =
   , TT.StandardFloatingPointDTypeValidation dev QDType
   , TT.StandardDTypeValidation dev QDType
   , TT.ComparisonDTypeIsValid dev QDType
+  , TT.StandardFloatingPointDTypeValidation dev TT.Float
+  , TT.BasicArithmeticDTypeIsValid dev TT.Float
   , TT.KnownDevice dev
   )
 
@@ -57,6 +60,8 @@ type IsValidHidden (hidden :: Nat) =
   , KnownNat (hidden - 3)
   , 3 <= hidden
   , 1 <= hidden
+  , 1 <= (Div hidden 2)
+  , (Div hidden 2 * 2) ~ hidden
   , -- , TT.CheckIsSuffixOf '[hidden] [1, hidden] (hidden == hidden)
     -- , TT.CheckIsSuffixOf '[hidden] '[hidden] (hidden == hidden)
     (hidden == hidden) ~ 'True
@@ -92,6 +97,7 @@ toQTensor = TT.UnsafeMkTensor . toQTensor' @dev
 
 type MaxPitches = 8 :: Nat
 type MaxEdges = 8 :: Nat
+type MaxSegments = 8 :: Nat
 
 -- States and Actions
 -- ------------------
@@ -145,36 +151,40 @@ deriving via
 -- instance NFData T.Tensor where
 --   rnf tensor = ()
 
-deriving instance NoThunks (TT.Tensor dev dtype shape)
-deriving instance NFData (TT.Tensor dev dtype shape)
+instance NoThunks (TT.Tensor dev dtype shape)
+instance NFData (TT.Tensor dev dtype shape)
 
-deriving newtype instance NoThunks T.IndependentTensor
-deriving newtype instance NFData T.IndependentTensor
+instance NoThunks T.IndependentTensor
+instance NFData T.IndependentTensor
 
 deriving instance Generic (TT.Parameter dev dtype shape)
-deriving newtype instance NoThunks (TT.Parameter dev dtype shape)
-deriving newtype instance NFData (TT.Parameter dev dtype shape)
+instance NoThunks (TT.Parameter dev dtype shape)
+instance NFData (TT.Parameter dev dtype shape)
 
-deriving instance NoThunks (TT.Linear nin nout dtype dev)
-deriving instance NFData (TT.Linear nin nout dtype dev)
+instance NoThunks (TT.Linear nin nout dtype dev)
+instance NFData (TT.Linear nin nout dtype dev)
 
-deriving instance NoThunks (TT.Conv2d cin cout k0 k1 dtype dev)
-deriving instance NFData (TT.Conv2d cin cout k0 k1 dtype dev)
+instance NoThunks (TT.Embedding pad nemb embsize 'TT.Constant dtype dev) where
+  showTypeOf _ = "Embedding"
+instance NFData (TT.Embedding pad nemb embsize 'TT.Constant dtype dev)
 
-deriving instance NoThunks TT.Dropout
-deriving instance NFData TT.Dropout
+instance NoThunks (TT.Conv2d cin cout k0 k1 dtype dev)
+instance NFData (TT.Conv2d cin cout k0 k1 dtype dev)
 
-deriving instance NoThunks (TT.MultiheadAttention emd kemb vemb heads dtype dev)
-deriving instance NFData (TT.MultiheadAttention emd kemb vemb heads dtype dev)
+instance NoThunks TT.Dropout
+instance NFData TT.Dropout
 
-deriving instance NoThunks (TT.TransformerMLP emd ffndim dtype dev)
-deriving instance NFData (TT.TransformerMLP emd ffndim dtype dev)
+instance NoThunks (TT.MultiheadAttention emd kemb vemb heads dtype dev)
+instance NFData (TT.MultiheadAttention emd kemb vemb heads dtype dev)
 
-deriving instance NoThunks (TT.TransformerLayer emd kemb vemb heads ffndim dtype dev)
-deriving instance NFData (TT.TransformerLayer emd kemb vemb heads ffndim dtype dev)
+instance NoThunks (TT.TransformerMLP emd ffndim dtype dev)
+instance NFData (TT.TransformerMLP emd ffndim dtype dev)
 
-deriving instance NoThunks (TT.LayerNorm shape dtype dev)
-deriving instance NFData (TT.LayerNorm shape dtype dev)
+instance NoThunks (TT.TransformerLayer emd kemb vemb heads ffndim dtype dev)
+instance NFData (TT.TransformerLayer emd kemb vemb heads ffndim dtype dev)
+
+instance NoThunks (TT.LayerNorm shape dtype dev)
+instance NFData (TT.LayerNorm shape dtype dev)
 
 instance NoThunks (TT.HList '[]) where
   showTypeOf _ = "HNil"
@@ -191,9 +201,9 @@ instance (NFData x, NFData (TT.HList xs)) => NFData (TT.HList (x : xs :: [Type])
   rnf (TT.HCons (x, xs)) = deepseq x $ rnf xs
 
 deriving instance Generic (TT.Adam momenta)
-deriving instance (NoThunks (TT.HList momenta)) => NoThunks (TT.Adam momenta)
-deriving instance (NFData (TT.HList momenta)) => NFData (TT.Adam momenta)
+instance (NoThunks (TT.HList momenta)) => NoThunks (TT.Adam momenta)
+instance (NFData (TT.HList momenta)) => NFData (TT.Adam momenta)
 
 deriving instance Generic TT.GD
-deriving instance NoThunks TT.GD
-deriving instance NFData TT.GD
+instance NoThunks TT.GD
+instance NFData TT.GD

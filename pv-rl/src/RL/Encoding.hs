@@ -655,7 +655,7 @@ getSegments
   -> Segments dev
 getSegments def segs = VS.withSizedList lsegs mkSegments
  where
-  (seg0 : lsegs) = pathTake 8 Inner def segs
+  (seg0 : lsegs) = pathTake (TT.natValI @MaxSegments) Inner def segs
   mkSegments
     :: (KnownNat m)
     => VS.Vector m (Edges SPitch, StartStop (Notes SPitch))
