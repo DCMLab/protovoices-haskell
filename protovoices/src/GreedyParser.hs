@@ -222,7 +222,7 @@ parseGreedy
    . (Monad m, MonadIO m, Show tr', Show slc, Show tr, Show s, Show f, Show h)
   => Eval tr tr' slc slc' h (Leftmost s f h)
   -- ^ the evaluator of the grammar to be used
-  -> ([Action slc tr s f h] -> ExceptT String m (Action slc tr s f h))
+  -> (GreedyState tr tr' slc (Leftmost s f h) -> [Action slc tr s f h] -> ExceptT String m (Action slc tr s f h))
   -- ^ the policy: picks a parsing action from a list of options
   -- (determines the 'Monad' @m@, e.g., for randomness).
   -> Path slc' tr'
@@ -269,7 +269,7 @@ parseStep
    . (Monad m)
   => Eval tr tr' slc slc' h (Leftmost s f h)
   -- ^ the evaluator of the grammar to be used
-  -> ([Action slc tr s f h] -> ExceptT String m (Action slc tr s f h))
+  -> (GreedyState tr tr' slc (Leftmost s f h) -> [Action slc tr s f h] -> ExceptT String m (Action slc tr s f h))
   -- ^ the policy: picks a parsing action from a list of options
   -- (determines the 'Monad' @m@, e.g., for randomness).
   -> GreedyState tr tr' slc (Leftmost s f h)
@@ -341,7 +341,7 @@ parseStep eval pick state = do
               thaws =
                 Right
                   <$> collectThawLeft eval Start tfrozen mid topenl (Inner sopen)
-            action <- pick $ thaws <> unsplits
+            action <- pick state $ thaws <> unsplits
             case action of
               -- picked unsplit
               Left (ActionSingle (SingleParent _ parent _) op) ->
@@ -364,7 +364,7 @@ parseStep eval pick state = do
                       mid
                       topenl
                       (Inner sopen)
-            action <- pick $ thaws <> unsplits
+            action <- pick state $ thaws <> unsplits
             case action of
               -- picked unsplit
               Left (ActionSingle (SingleParent _ parent _) op) ->
@@ -439,7 +439,7 @@ parseStep eval pick state = do
     :: [ActionSingle slc tr s f] -> ExceptT String m (tr, LeftmostSingle s f)
   pickSingle actions = do
     -- liftIO $ putStrLn $ "pickSingle " <> show actions
-    action <- pick $ Left <$> actions
+    action <- pick state $ Left <$> actions
     case action of
       Left (ActionSingle (SingleParent _ top _) op) -> pure (top, op)
       Right _ -> throwError "pickSingle returned a double action"
@@ -449,7 +449,7 @@ parseStep eval pick state = do
     -> ExceptT String m ((tr, slc, tr), LeftmostDouble s f h)
   pickDouble actions = do
     -- liftIO $ putStrLn $ "pickDouble " <> show actions
-    action <- pick $ Right <$> actions
+    action <- pick state $ Right <$> actions
     case action of
       Left _ -> throwError "pickDouble returned a single action"
       Right (ActionDouble (DoubleParent _ topl tops topr _) op) ->
@@ -655,9 +655,9 @@ collectDoubles eval sstart tl sl tm sr rst afterLeft = unspreads <> leftUnsplits
 {- | A policy that picks the next action at random.
  Must be partially applied with a random generator before passing to 'parseGreedy'.
 -}
-pickRandom :: (StatefulGen g m) => g -> [slc] -> ExceptT String m slc
-pickRandom _ [] = throwError "No candidates for pickRandom!"
-pickRandom gen xs = do
+pickRandom :: (StatefulGen g m) => g -> s -> [a] -> ExceptT String m a
+pickRandom _ _ [] = throwError "No candidates for pickRandom!"
+pickRandom gen _state xs = do
   i <- lift $ uniformRM (0, length xs - 1) gen
   pure $ xs !! i
 
