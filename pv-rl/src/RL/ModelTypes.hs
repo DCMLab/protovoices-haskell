@@ -1,6 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeData #-}
@@ -57,6 +56,7 @@ type IsValidDevice dev =
 
 type IsValidHidden (hidden :: Nat) =
   ( KnownNat hidden
+  , KnownNat (hidden * hidden)
   , KnownNat (hidden - 3)
   , 3 <= hidden
   , 1 <= hidden
@@ -65,6 +65,7 @@ type IsValidHidden (hidden :: Nat) =
   , -- , TT.CheckIsSuffixOf '[hidden] [1, hidden] (hidden == hidden)
     -- , TT.CheckIsSuffixOf '[hidden] '[hidden] (hidden == hidden)
     (hidden == hidden) ~ 'True
+  , (hidden * hidden == hidden * hidden) ~ 'True
   )
 
 type ValidParams dev hidden = (IsValidDevice dev, IsValidHidden hidden)
