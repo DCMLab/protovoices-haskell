@@ -11,7 +11,7 @@ import RL.Encoding
 import RL.Model.Action
 import RL.Model.Common
 import RL.Model.Slice
-import RL.Model.StateTransformer
+import RL.Model.State
 import RL.Model.Transition
 import RL.ModelTypes
 

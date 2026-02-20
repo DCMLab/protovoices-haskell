@@ -34,6 +34,7 @@ import Control.Monad.Cont (ContT (ContT, runContT))
 import Control.Monad.Primitive (RealWorld)
 import Control.Monad.Reader (lift)
 import Data.Aeson qualified as JSON
+import Data.Default (def)
 import Data.Either (lefts, rights)
 import Data.HashMap.Strict qualified as HM
 import Data.HashSet qualified as HS
@@ -56,6 +57,7 @@ import System.ProgressBar qualified as PB
 import System.Random.MWC.Probability (Gen, createSystemRandom, discreteUniform, poisson)
 import Torch qualified as T
 import Torch.Typed qualified as TT
+import Torch.Typed.Optim.CppOptim qualified as CppOptim
 
 -- Helpers
 -- =======
@@ -510,10 +512,12 @@ collate n as = case take n as of
   batch -> batch : collate n (drop n as)
 
 trainEpoch
-  :: forall dev model o
-   . ( TT.Optimizer o (ModelTensors model dev) (ModelTensors model dev) QDType dev
-     , IsValidDevice dev
+  :: forall dev model o option
+   . ( -- TT.Optimizer o (ModelTensors model dev) (ModelTensors model dev) QDType dev
+       -- ,
+       IsValidDevice dev
      , TT.HasForward (model dev) (QEncodingBatch dev) [T.Tensor]
+     , o ~ CppOptim.CppOptimizerState option (TT.Parameters (model dev))
      , _
      )
   => Int
@@ -550,7 +554,8 @@ trainEpoch i nBatches lr state batches = do
         lossTyped = TT.UnsafeMkTensor loss + fakeLoss model
         !lossScalar = T.asValue loss
         !accuracy = mean $ zipWith hit labels predictions
-    !state' <- TT.runStep model optim lossTyped (toQTensor lr)
+    -- !state' <- TT.runStep model optim lossTyped (toQTensor lr)
+    !state' <- CppOptim.runStep model optim lossTyped -- (toQTensor lr)
     PB.incProgress pb 1
     -- putStrLn $ "\nActions: " <> show (sum $ NE.length . snd <$> inputs)
     pure $! (state', (lossScalar : losses, accuracy : accs))
@@ -602,11 +607,12 @@ train
   -> Int
   -> IO (model dev, (([QType], [QType]), ([QType], [QType])))
 train name model0 shuffler0 trainStreamer testData fLR epochs nBatches batchSize = do
+  optim0 <- CppOptim.initOptimizer (def{CppOptim.adamwLr = fLR 0}) model0
   ((modelTrained, _), _, histTrain, histTest) <-
     T.foldLoop ((model0, optim0), shuffler0, ([], []), ([], [])) epochs trainLoop
   pure (modelTrained, (histTrain & both %~ reverse, histTest & both %~ reverse))
  where
-  optim0 = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model0)
+  -- optim0 = TT.mkAdam 0 0.9 0.99 (TT.flattenParameters model0)
   trainLoop (state, shuffler, (lossesTrain, accsTrain), (lossesVal, accsVal)) epoch = do
     -- training step
     let lr = fLR $ fromIntegral epoch
